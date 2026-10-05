@@ -112,7 +112,7 @@ class _TermsScreenState extends State<TermsScreen> {
                           title: const Text(
                               'Li e aceito os Termos de Uso. Declaro ter 18 '
                               'anos ou mais e que não vou manusear o celular '
-                              'enquanto dirijo ou pilotar.'),
+                              'enquanto estiver dirigindo ou pilotando.'),
                         ),
                         SizedBox(
                           width: double.infinity,

@@ -3,15 +3,20 @@
 //
 // O que faz: Antes de navegar: tempo, distância, chegada, trânsito,
 //   combustível, pedágio, áreas de risco, opções (pedágios, rodovias, risco) e
-//   os botões Simular / Iniciar.
+//   os botões Simular / Iniciar. A saída pode ser trocada ("Trocar") para
+//   planejar ou simular uma viagem que começa em outro lugar.
 // Quem usa: Home ("Para onde?").
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import '../logic/itinerary.dart';
-import '../models/trip.dart';
 import '../logic/costs.dart';
+import '../logic/itinerary.dart';
+import '../logic/radars.dart' show distanceMeters;
+import '../models/expedition.dart' show StopType;
+import '../models/trip.dart';
+import 'place_search.dart';
 import '../services/app_settings.dart';
 import '../services/profile_service.dart';
 import '../services/trip_service.dart';
@@ -47,6 +52,37 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
   bool _tolls = false;
   bool _highways = false;
 
+  /// Pontos da viagem (o 1º é a saída, que o piloto pode trocar para
+  /// planejar ou simular uma viagem que começa em outro lugar).
+  late final List<TripPoint> _points = [...widget.points];
+
+  /// A saída é a posição atual do GPS? (Senão, é um lugar escolhido.)
+  bool _fromHere = true;
+
+  /// Troca o ponto de saída (busca um lugar por nome ou volta ao GPS).
+  Future<void> _changeOrigin() async {
+    final here = widget.points.first;
+    final picked = await Navigator.of(context).push<PickedPlace>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => PlaceSearchPage(
+            near: LatLng(here.lat, here.lng), title: 'Saindo de'),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    // "Usar minha localização" devolve um lugar a poucos metros do GPS.
+    final isHere =
+        distanceMeters(picked.lat, picked.lng, here.lat, here.lng) < 100;
+    setState(() {
+      _fromHere = isHere;
+      _points[0] = isHere
+          ? here
+          : TripPoint(picked.name, picked.lat, picked.lng,
+              type: StopType.meet);
+    });
+    _calc();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -67,7 +103,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     setState(() => _loading = true);
     final t = await TripService.build(
       title: widget.title,
-      points: widget.points,
+      points: _points,
       avoidTolls: _tolls,
       avoidHighways: _highways,
     );
@@ -101,6 +137,27 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                     overflow: TextOverflow.ellipsis),
               ),
             ]),
+            // Saída: posição atual ou outro lugar (para planejar/simular).
+            Row(children: [
+              const Icon(Icons.trip_origin, color: Colors.blue, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Saindo de: ${_fromHere ? 'sua posição atual' : _points.first.name}',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              TextButton(
+                onPressed: _loading ? null : _changeOrigin,
+                child: const Text('Trocar'),
+              ),
+            ]),
+            if (!_fromHere)
+              const Text(
+                  'Saída diferente da sua posição: bom para simular. Se tocar '
+                  'em Iniciar, a navegação recalcula a partir de onde você '
+                  'estiver.',
+                  style: TextStyle(fontSize: 12)),
             const SizedBox(height: 12),
             if (_loading)
               const Padding(
@@ -204,7 +261,9 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                flex: 2,
+                // Mesma largura dos dois: "Simular" não quebra em 2 linhas
+                // com a fonte grande do celular.
+                flex: 1,
                 child: FilledButton.icon(
                   onPressed: t == null
                       ? null
