@@ -8,10 +8,17 @@ app, leia antes [ARQUITETURA.md](ARQUITETURA.md).
 ## 1. Onde está o código
 
 - **Pasta do projeto:** `E:\APP\comboio` (neste computador).
-- **Recomendado:** guardar o projeto num repositório **privado** no GitHub
-  (backup, histórico de mudanças e compilação na nuvem). Nunca envie
-  `config.env`, `config/dart_defines.json` nem `functions/.env` (já estão no
-  `.gitignore`).
+- **Histórico de versões:** o projeto usa Git (pasta `.git`). Cada backup
+  registra uma "foto" do código; dá para ver e voltar a qualquer versão.
+- **Backup no Google Drive da HelpAITech:** rode `.\scripts\backup.ps1`. Ele
+  registra as mudanças e copia para `Meu Drive\HelpAITech\Comboio\backup`:
+  `comboio-historico.bundle` (todas as versões) e um `.zip` do código atual.
+  **Restaurar:** `git clone comboio-historico.bundle comboio`.
+- As chaves (`config.env`, `config/dart_defines.json`, `functions/.env`) não
+  entram no histórico. Para guardá-las também: `.\scripts\backup.ps1 -IncluirChaves`
+  (só em pasta do Drive restrita).
+- **Chave de assinatura da Play Store** (quando for criada): guarde à parte, com
+  a senha, em local seguro. Sem ela não é possível atualizar o app na loja.
 
 ## 2. Ferramentas
 

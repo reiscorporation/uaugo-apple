@@ -61,7 +61,8 @@ New-Item -ItemType Directory -Force $Destino | Out-Null
 # Lembra a pasta para os próximos backups.
 if (Test-Path $cfg) {
   $t = Get-Content $cfg | Where-Object { $_ -notmatch '^BACKUP_DIR=' }
-  Set-Content $cfg ($t + "BACKUP_DIR=$Destino") -Encoding UTF8
+  [IO.File]::WriteAllLines($cfg, [string[]]($t + "BACKUP_DIR=$Destino"),
+    (New-Object Text.UTF8Encoding($false)))
 }
 Escrever "Destino: $Destino" Cyan
 
