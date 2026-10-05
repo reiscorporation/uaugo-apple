@@ -16,6 +16,7 @@ import '../services/poi_service.dart';
 import '../services/speed_service.dart';
 import '../services/voice_service.dart';
 import 'about_screen.dart';
+import 'terms_screen.dart';
 
 /// Escolher estados e baixar os dados para usar sem internet.
 class _OfflineScreen extends StatefulWidget {
@@ -452,6 +453,13 @@ class SettingsScreen extends StatelessWidget {
             subtitle: const Text('Desenvolvido por HelpAITech · créditos'),
             onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const AboutScreen())),
+          ),
+          ListTile(
+            leading: const Icon(Icons.gavel),
+            title: const Text('Termos de Uso'),
+            subtitle: const Text('Versão ${TermsService.version}'),
+            onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const TermsScreen())),
           ),
           const SizedBox(height: 24),
         ]),
