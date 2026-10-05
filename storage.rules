@@ -1,0 +1,20 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Dados públicos gerados pelas Cloud Functions (ex.: radares). Só leitura.
+    match /public/{path=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Fotos das motos: qualquer usuário logado vê; só o dono envia.
+    match /bikes/{uid}/{file} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

@@ -1,0 +1,3129 @@
+// ============================================================================
+// map_screen.dart — Mapa e navegação — o coração do app
+//
+// O que faz: Uma tela para 3 modos: expedição (com grupo), navegação sozinho e
+//   simulação. A cada leitura do GPS (_onPosition): limite da via,
+//   lombadas/postos/pedágios, câmera, gravação, envio ao grupo, radares e
+//   narração. Veja docs/ARQUITETURA.md, seção 4.
+// Quem usa: Home, Roteiro, Minhas viagens.
+// Onde mexer: Cada assunto tem uma seção marcada com "// ----" (radares,
+//   navegação, trânsito, histórico, lombadas/chuva, bateria).
+// ============================================================================
+
+import 'dart:async';
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../logic/geo.dart';
+import '../models/bike.dart';
+import '../models/expedition.dart';
+import '../models/hazard.dart';
+import '../services/expedition_service.dart';
+import '../services/hazard_service.dart';
+import '../services/location_service.dart';
+import '../services/notification_service.dart';
+import '../services/club_service.dart';
+import '../services/profile_service.dart';
+import '../services/user_service.dart';
+import '../widgets/club_nearby_sheet.dart';
+import '../widgets/bike_marker.dart';
+import '../widgets/emoji_marker.dart';
+import '../widgets/speedometer.dart';
+import '../logic/itinerary.dart' show formatDistance, formatTime;
+import '../logic/navigation.dart';
+import '../logic/radars.dart';
+import '../logic/pois.dart';
+import '../logic/simulation.dart';
+import '../logic/track.dart';
+import '../logic/weather.dart';
+import '../logic/map_style.dart';
+import '../services/battery_service.dart';
+import '../services/poi_service.dart';
+import '../services/weather_service.dart';
+import '../models/trip.dart';
+import '../models/trip_record.dart';
+import '../services/history_service.dart';
+import '../services/simulated_drive.dart';
+import '../services/trip_service.dart';
+import '../logic/speech.dart';
+import '../logic/speed.dart';
+import '../services/radar_service.dart';
+import '../services/speed_service.dart';
+import '../services/voice_service.dart';
+import '../services/app_settings.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+import 'plan_screen.dart';
+import 'profile_screen.dart';
+import 'settings_screen.dart';
+
+/// Tela de mapa/navegação. Três usos:
+/// - expedição em grupo: [code] preenchido;
+/// - navegação sozinho (tipo Waze): [code] nulo, com ou sem [trip];
+/// - simulação da viagem: [simulate] = true com uma [trip] (nada é enviado).
+class MapScreen extends StatefulWidget {
+  const MapScreen({
+    super.key,
+    this.code,
+    required this.uid,
+    required this.userName,
+    this.trip,
+    this.simulate = false,
+  });
+
+  final String? code;
+  final String uid;
+  final String userName;
+  final Trip? trip;
+  final bool simulate;
+
+  /// Azul da rota (o mesmo do Google Maps) e a borda escura em volta, para
+  /// destacar sobre as vias coloridas da camada de trânsito.
+  static const routeBlue = Color(0xFF1A73E8);
+  static const routeBorder = Color(0xFF0B3D91);
+
+  @override
+  State<MapScreen> createState() => _MapScreenState();
+}
+
+/// Estado da tela do mapa. Os campos e métodos estão agrupados por assunto
+/// em seções "// ----" (bateria, radares, navegação, trânsito, histórico...).
+class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
+  // ---- Bateria
+  StreamSubscription<Position>? _gpsSub;
+  bool _saving = false; // economia de bateria ligada agora
+  bool _inBackground = false; // tela apagada / app minimizado
+
+  /// (Re)inicia o GPS no modo atual (normal ou econômico).
+  void _startGps() {
+    _gpsSub?.cancel();
+    _gpsSub = LocationService.track(saving: _saving)
+        .listen(_onPosition, onError: (e) => _snack('GPS: $e'));
+  }
+
+  /// A economia de bateria ligou/desligou: refaz o GPS e o mapa.
+  void _onSavingChanged() {
+    final s = BatteryService.instance.saving.value;
+    if (s == _saving || !mounted) return;
+    setState(() => _saving = s);
+    if (_sim == null) _startGps();
+    if (s) _snack('🔋 Economia de bateria ligada');
+  }
+
+  /// Com o app minimizado ou a tela apagada, os avisos e a gravação
+  /// continuam, mas o mapa não é redesenhado (economiza bateria).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _inBackground = state != AppLifecycleState.resumed;
+    if (!_inBackground) {
+      final p = _me;
+      if (mounted) setState(() {});
+      if (p != null) _updateCamera(p, force: true);
+    }
+  }
+
+  /// Mapa escuro: pela opção ou, no automático, depois do pôr do sol.
+  bool get _darkMap {
+    final t = AppSettings.instance.mapTheme.value;
+    if (t != MapTheme.auto) return t == MapTheme.night;
+    final p = _me;
+    return p == null
+        ? DateTime.now().hour >= 18 || DateTime.now().hour < 6
+        : isNight(DateTime.now(), p.latitude, p.longitude);
+  }
+
+  // Envio da posição ao grupo: no máximo 1 vez por minuto (o GPS só avisa
+  // quando a moto anda 25 m, então parado não envia nada). Cada envio é
+  // cobrado como 1 gravação + 1 leitura por membro no Firestore.
+  static const _sendInterval = Duration(minutes: 1);
+
+  final _svc = ExpeditionService.instance;
+  final List<StreamSubscription> _subs = [];
+  GoogleMapController? _map;
+  Timer? _ticker;
+
+  Expedition? _exp;
+  List<Member> _members = [];
+  List<Stop> _stops = [];
+  List<SosAlert> _alerts = [];
+  final Set<String> _seenAlerts = {};
+  bool _alertsLoaded = false;
+
+  List<LatLng> _route = [];
+  String _routeSig = '';
+
+  Position? _me;
+  DateTime _lastSent = DateTime.fromMillisecondsSinceEpoch(0);
+
+  // ---- Alertas públicos (polícia, buraco, perigo, radar...). A distância
+  // do aviso depende do tipo (radar: 1.000 m; demais: 500 m).
+  final _hazardSvc = HazardService.instance;
+  final _voice = VoiceService.instance;
+
+  // ---- Paradas do roteiro já anunciadas por voz
+  final Set<String> _stopNearAnnounced = {};
+  final Set<String> _stopArrived = {};
+
+  // ---- Radares fixos (oficiais) e trechos de radar portátil da PRF
+  final _radarSvc = RadarService.instance;
+  String? _radarCell;
+  List<FixedRadar> _radarsAround = []; // ~33 km em volta, para os avisos
+  List<FixedRadar> _radarMarkers = []; // os mais próximos, para o mapa
+  List<PrfStretch> _stretchesAround = [];
+  final Map<int, int> _radarSpoken = {}; // radar -> avisos já falados
+  DateTime _lastRadarAlert = DateTime.fromMillisecondsSinceEpoch(0);
+  final Set<int> _stretchAnnounced = {};
+  final Map<RadarKind, BitmapDescriptor> _radarIcons = {};
+  ({String emoji, String text, bool Function(Position) passed})? _radarBanner;
+
+  // ---- Visualização do mapa
+  // Comboio: vista de cima (só a minha moto ou o grupo todo).
+  // Solo: primeira pessoa, câmera inclinada atrás da moto, girando com ela.
+  _MapView _view = _MapView.convoy;
+  bool _showAll = false; // no modo comboio: enquadrar o grupo todo
+  bool _follow = true; // a câmera acompanha (desliga ao arrastar o mapa)
+  Offset? _touchStart;
+  double _bearing = 0;
+  Position? _bearingFrom;
+  DateTime _lastFit = DateTime.fromMillisecondsSinceEpoch(0);
+
+  // ---- Velocímetro e limite da via
+  final _speedSvc = SpeedService.instance;
+  final _limitTracker = LimitTracker();
+  final _speedAlerter = SpeedAlerter();
+  RoadLimit? _roadLimit;
+  double _speedMs = 0; // velocidade usada no velocímetro e nos alertas
+  Position? _prevPos;
+  Position? _limitsCheckedAt;
+  Position? _radarMarkersAt;
+  Position? _lastSentPos;
+  List<(double, double)> _routeRecs = [];
+
+  double? _riderAlong; // quanto já percorreu da rota (m)
+  ({double along, double offset, double bearing})? _proj;
+
+  // ---- Narração do trajeto (curva a curva)
+  TurnByTurn? _nav;
+  String _navSig = '';
+  bool _navSynced = false;
+  int _offRouteCount = 0;
+  bool _offRoute = false;
+  StreamSubscription? _hazardSub;
+  String? _hazardCell;
+  List<Hazard> _hazards = [];
+  final Map<HazardType, BitmapDescriptor> _hazardIcons = {};
+  final Map<String, int> _announced = {}; // alerta -> avisos já falados
+  final Set<String> _voted = {}; // já votados por este usuário
+  Hazard? _shownHazard;
+  bool _shownManually = false;
+
+  // ---- Motoclube
+  String? _clubId;
+  NearbyMember? _passingSuggestion;
+  Position? _lastClubCheckPos;
+  final Set<String> _suggestedMembers = {};
+
+  // ---- Ícones das motos
+  BikeProfile _myBike = const BikeProfile();
+  final Map<String, BitmapDescriptor> _bikeIcons = {};
+  final Set<String> _bikePending = {};
+
+  List<Hazard> get _activeHazards =>
+      _hazards.where((h) => h.isActive).toList();
+
+  String get _code => widget.code ?? '';
+
+  /// Expedição em grupo de verdade (envia posição, SOS, membros...).
+  bool get _isExpedition => widget.code != null && !widget.simulate;
+
+  // ---- Viagem sem expedição (navegação sozinho) ou simulação
+  Trip? _trip;
+  SimulatedDrive? _sim;
+  RouteWalker? _walker;
+  bool _rerouting = false;
+  DateTime _lastReroute = DateTime.fromMillisecondsSinceEpoch(0);
+  double _zoomOffset = 0; // botões + e − (somam ao zoom de acompanhamento)
+
+  /// Navegação ativa (narração, painel de manobras, recálculo). Na
+  /// expedição começa desligada e o piloto toca em "Iniciar navegação".
+  bool _navigating = false;
+  bool _simStarted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isExpedition) {
+      _subs
+        ..add(_svc.watchExpedition(_code).listen((e) {
+          if (e != null) {
+            _hadExpedition = true;
+          } else if (_hadExpedition) {
+            _onExpeditionEnded(); // o líder encerrou para todos
+            return;
+          }
+          setState(() => _exp = e);
+          _updateRoute();
+          _maybeUpgradeRoute();
+        }))
+        ..add(_svc.members(_code).listen((m) => setState(() => _members = m)))
+        ..add(_svc.stops(_code).listen((s) {
+          _onStops(s);
+          _stopsLoaded = true;
+          _maybeUpgradeRoute();
+        }))
+        ..add(_svc.activeAlerts(_code).listen(_onAlerts));
+    } else {
+      _trip = widget.trip;
+      if (_trip != null) _onStops(_trip!.stops);
+      // Navegando sozinho, a câmera começa em primeira pessoa e a navegação
+      // já está ativa (o piloto tocou em "Iniciar" na prévia).
+      _view = _MapView.solo;
+      if (!widget.simulate) {
+        _navigating = true;
+        if (_trip != null) _voice.setNarration(true);
+      }
+    }
+    final trip = _trip;
+    if (widget.simulate && trip != null && trip.plan.polyline.isNotEmpty) {
+      final sim = SimulatedDrive(
+        RouteWalker([
+          for (final p in decodePolyline(trip.plan.polyline))
+            (p.latitude, p.longitude)
+        ]),
+        speedMs: trip.averageSpeed,
+        // Velocidade de cada trecho pelo limite da via (como um piloto real).
+        // Com a direção da moto: evita pegar o limite da via marginal.
+        targetSpeedAt: (lat, lng, bearing) {
+          final l = _speedSvc.lookup(lat, lng, bearing, 20);
+          if (l == null) return trip.averageSpeed;
+          return l.kmh / 3.6 * (l.estimated ? 0.85 : 0.95);
+        },
+      );
+      _sim = sim;
+      _subs.add(sim.positions.listen(_onPosition));
+      // Começa parada no ponto de saída: o piloto toca em "Iniciar simulação".
+      sim.paused.value = true;
+      sim.start();
+      // Voz acompanha a velocidade da simulação (fala mais rápido e não
+      // acumula frases atrasadas).
+      _voice.setFastMode(sim.multiplier.value);
+      sim.multiplier.addListener(() => _voice.setFastMode(sim.multiplier.value));
+    } else {
+      // GPS: normal ou econômico (refeito quando a economia liga/desliga).
+      _startGps();
+      BatteryService.instance.saving.addListener(_onSavingChanged);
+    }
+    BatteryService.instance.start();
+    WidgetsBinding.instance.addObserver(this);
+    // Atualiza os textos "há X min" periodicamente.
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+    _loadHazardIcons();
+    _voice.init();
+    _radarSvc.index.addListener(_onRadarIndex);
+    _radarSvc.init();
+    _speedSvc.loadSettings();
+    // "Minhas viagens": grava o caminho e as estatísticas no celular.
+    _startRecording();
+    // Chuva à frente: a cada 5 min (a 1ª em 20 s, com o GPS já estável).
+    _rainTimer = Timer.periodic(const Duration(minutes: 5), (_) => _checkRain());
+    Future.delayed(const Duration(seconds: 20), _checkRain);
+    // Tela sempre ligada no mapa (opção em Configurações → Tela).
+    _applyWakelock();
+    AppSettings.instance.keepScreenOn.addListener(_applyWakelock);
+    // Navegando sozinho: confere o trânsito a cada 5 min (a 1ª em 30 s).
+    if (!_isExpedition && !widget.simulate && _trip != null) {
+      _trafficTimer =
+          Timer.periodic(const Duration(minutes: 5), (_) => _checkTraffic());
+      Future.delayed(const Duration(seconds: 30), _checkTraffic);
+    }
+    if (_isExpedition) {
+      SharedPreferences.getInstance().then((prefs) {
+        if (prefs.getString('mapView') == _MapView.solo.name && mounted) {
+          setState(() => _view = _MapView.solo);
+        }
+      });
+    }
+    ProfileService.load().then((b) {
+      if (mounted) setState(() => _myBike = b);
+    });
+    UserService.loadClubId().then((id) {
+      if (mounted) setState(() => _clubId = id);
+    });
+  }
+
+  /// A cada ~10 km rodados, verifica se há um membro do clube por perto
+  /// (até 25 km) que aceita avisos de passagem, e sugere avisá-lo.
+  Future<void> _checkClubPassing(Position p) async {
+    if (_clubId == null || _passingSuggestion != null || _sim != null) return;
+    final last = _lastClubCheckPos;
+    if (last != null &&
+        Geolocator.distanceBetween(
+                last.latitude, last.longitude, p.latitude, p.longitude) <
+            10000) {
+      return;
+    }
+    _lastClubCheckPos = p;
+    try {
+      final list = await ClubService.instance.nearby(
+        clubId: _clubId!,
+        lat: p.latitude,
+        lng: p.longitude,
+        purpose: ClubPurpose.passing,
+      );
+      for (final m in list) {
+        if (m.distanceKm <= 25 && _suggestedMembers.add(m.uid)) {
+          if (mounted) setState(() => _passingSuggestion = m);
+          break;
+        }
+      }
+    } catch (_) {
+      // Sem sinal: tenta de novo nos próximos 10 km.
+      _lastClubCheckPos = null;
+    }
+  }
+
+  /// Ações do motoclube (pedir ajuda, avisar passagem).
+  void _showClubActions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.sos, color: Colors.red),
+            title: const Text('Pedir ajuda ao membro mais próximo'),
+            onTap: () {
+              Navigator.pop(ctx);
+              showClubNearbySheet(context,
+                  clubId: _clubId!, purpose: ClubPurpose.help, position: _me);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.waving_hand_outlined),
+            title: const Text('Avisar membros que estou passando'),
+            onTap: () {
+              Navigator.pop(ctx);
+              showClubNearbySheet(context,
+                  clubId: _clubId!,
+                  purpose: ClubPurpose.passing,
+                  position: _me);
+            },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// Gera (uma vez) e guarda o marcador com a foto/ícone da moto.
+  BitmapDescriptor? _bikeIcon(String name, BikeProfile bike,
+      {bool isMe = false}) {
+    final key = '$name|${bike.cacheKey}|$isMe';
+    final cached = _bikeIcons[key];
+    if (cached != null) return cached;
+    if (_bikePending.add(key)) {
+      bikeMarker(name: name, bike: bike, isMe: isMe).then((icon) {
+        if (mounted) setState(() => _bikeIcons[key] = icon);
+      }).catchError((_) {});
+    }
+    return null;
+  }
+
+  /// Abre "Minha moto / Meu carro" e atualiza o ícone no mapa.
+  Future<void> _editBike() async {
+    final b = await Navigator.of(context).push<BikeProfile>(
+        MaterialPageRoute(builder: (_) => const ProfileScreen()));
+    if (b == null) return;
+    setState(() => _myBike = b);
+    _svc.updateBike(_code, widget.uid, b);
+  }
+
+  /// Prepara os ícones dos alertas da comunidade (emoji em círculo colorido).
+  Future<void> _loadHazardIcons() async {
+    for (final t in HazardType.values) {
+      try {
+        _hazardIcons[t] = await emojiMarker(t.emoji, t.color);
+      } catch (_) {}
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _gpsSub?.cancel();
+    BatteryService.instance.saving.removeListener(_onSavingChanged);
+    BatteryService.instance.stop();
+    WidgetsBinding.instance.removeObserver(this);
+    _ticker?.cancel();
+    _hazardSub?.cancel();
+    _radarSvc.index.removeListener(_onRadarIndex);
+    _sim?.dispose();
+    if (_sim != null) {
+      _voice.stop();
+      _voice.setFastMode(1);
+    }
+    AppSettings.instance.keepScreenOn.removeListener(_applyWakelock);
+    WakelockPlus.disable();
+    _trafficTimer?.cancel();
+    _trafficBannerTimer?.cancel();
+    _autosave?.cancel();
+    _rainTimer?.cancel();
+    _saveRecord(); // guarda a viagem ao sair do mapa
+    super.dispose();
+  }
+
+  /// Liga/desliga a tela sempre acesa conforme a configuração.
+  void _applyWakelock() => AppSettings.instance.keepScreenOn.value
+      ? WakelockPlus.enable()
+      : WakelockPlus.disable();
+
+  // ------------------------------------------------------------ eventos
+
+  /// Nova posição do GPS (ou da simulação): tudo que depende da posição
+  /// acontece aqui, nesta ordem. Veja docs/ARQUITETURA.md, seção 4.
+  void _onPosition(Position p) {
+    // Minimizado / tela apagada: guarda a posição sem redesenhar a tela
+    // (a voz, os avisos e a gravação continuam).
+    if (_inBackground) {
+      _me = p;
+    } else {
+      setState(() => _me = p);
+    }
+    // Posição na rota: calculada uma vez por leitura e usada pela voz,
+    // radares, limite da via e avisos à frente.
+    _proj = _walker?.project(p.latitude, p.longitude,
+        around: (_proj?.offset ?? 1e9) < 200 ? _proj!.along : null);
+    _updateSpeed(p);
+    _checkPois(p);
+    _checkHalfway();
+    if (!_inBackground) _updateCamera(p);
+    // Grava o caminho (só no celular) na expedição ou navegando.
+    if (_isExpedition || _navigating) {
+      _recorder?.add(p.latitude, p.longitude, _speedMs, p.timestamp);
+    }
+    // Envio ao grupo: no máximo 1x/min, e parado só a cada 5 min.
+    final now = DateTime.now();
+    final elapsed = now.difference(_lastSent);
+    final last = _lastSentPos;
+    final moved = last == null
+        ? double.infinity
+        : distanceMeters(
+            last.latitude, last.longitude, p.latitude, p.longitude);
+    if (_isExpedition &&
+        elapsed >= _sendInterval &&
+        (moved >= 20 || elapsed >= const Duration(minutes: 5))) {
+      _lastSent = now;
+      _lastSentPos = p;
+      _svc.updateLocation(_code, widget.uid, p);
+    }
+    _watchHazardsAround(p);
+    _checkHazardProximity(p);
+    _updateRadarsAround(p);
+    _checkRadars(p);
+    _narrate(p);
+    _checkStops(p);
+    _checkClubPassing(p);
+  }
+
+  // ------------------------------------------------------------ alertas públicos
+
+  /// Troca a escuta de alertas quando o piloto muda de célula (~11 km).
+  void _watchHazardsAround(Position p) {
+    final (la, lo) = HazardService.cellOf(p.latitude, p.longitude);
+    final key = HazardService.cellKey(la, lo);
+    if (key == _hazardCell) return;
+    _hazardCell = key;
+    _hazardSub?.cancel();
+    _hazardSub = _hazardSvc
+        .watchAround(p.latitude, p.longitude)
+        .listen((list) => setState(() => _hazards = list));
+  }
+
+  /// Alertas da comunidade à frente: avisa (voz/tela) e mostra a faixa com
+  /// os botões "ainda está lá / não está mais".
+  void _checkHazardProximity(Position p) {
+    final shown = _shownHazard;
+    if (shown != null && !_shownManually) {
+      final d = Geolocator.distanceBetween(
+          p.latitude, p.longitude, shown.lat, shown.lng);
+      // Já passou do ponto: fecha o aviso.
+      final behind = d > 80 && !_isAhead(p, shown);
+      if (behind || d > 2200 || !shown.isActive) {
+        setState(() => _shownHazard = null);
+      }
+    }
+    // Polícia e radar móvel: distância e quantidade de avisos configuráveis
+    // (ex.: 1000 m, 2 vezes -> a 1000 e a 500 m). Demais perigos: 1 aviso.
+    final prefs = AppSettings.instance.alerts.value;
+    for (final h in _activeHazards) {
+      if (h.createdBy == widget.uid) continue;
+      final (range, repeats) = switch (h.type) {
+        HazardType.police => (prefs.policeMeters.toDouble(), prefs.policeRepeats),
+        HazardType.radar => (prefs.radarMeters.toDouble(), prefs.radarRepeats),
+        _ => (h.type.alertMeters, 1),
+      };
+      final thresholds = alertThresholds(range, repeats);
+      final done = _announced[h.id] ?? 0;
+      if (done >= thresholds.length) continue;
+      final d =
+          Geolocator.distanceBetween(p.latitude, p.longitude, h.lat, h.lng);
+      if (d > range || !_isAhead(p, h)) continue;
+      final next = nextAlert(d, done, thresholds);
+      if (next == null) continue;
+      // Um alerta novo só aparece se não houver outro na tela.
+      if (done == 0 && _shownHazard != null) continue;
+      _announced[h.id] = next;
+      HapticFeedback.heavyImpact();
+      if (_voice.alertsOn.value) {
+        _voice.alert(hazardSpeech(h.type.spoken, d));
+      } else {
+        SystemSound.play(SystemSoundType.alert);
+      }
+      if (done == 0) {
+        setState(() {
+          _shownHazard = h;
+          _shownManually = false;
+        });
+      }
+      break;
+    }
+  }
+
+  // ------------------------------------------------------------ radares
+
+  /// A base de radares foi (re)carregada: refaz a lista de radares perto.
+  void _onRadarIndex() {
+    _radarCell = null; // força recalcular com os dados novos
+    final p = _me;
+    if (p != null) _updateRadarsAround(p);
+    if (_radarIcons.isEmpty) _loadRadarIcons();
+  }
+
+  /// Prepara os ícones dos radares no mapa.
+  Future<void> _loadRadarIcons() async {
+    _radarIcons[RadarKind.fixed] = await emojiMarker('📸', Colors.indigo);
+    _radarIcons[RadarKind.section] = await emojiMarker('⏱️', Colors.indigo);
+    _radarIcons[RadarKind.redLight] = await emojiMarker('🚦', Colors.indigo);
+    if (mounted) setState(() {});
+  }
+
+  /// Radares e trechos da PRF perto do piloto (refeito a cada ~1 km).
+  void _updateRadarsAround(Position p) {
+    final idx = _radarSvc.index.value;
+    if (idx == null) return;
+    final cell = '${(p.latitude * 10).floor()}_${(p.longitude * 10).floor()}';
+    if (cell != _radarCell) {
+      _radarCell = cell;
+      _radarsAround = idx.radarsAround(p.latitude, p.longitude);
+      _stretchesAround = idx.stretchesAround(p.latitude, p.longitude);
+      _radarMarkersAt = null;
+    }
+    // Ícones no mapa: recalcula a cada 200 m (o GPS lê a cada segundo).
+    final at = _radarMarkersAt;
+    if (at != null &&
+        distanceMeters(at.latitude, at.longitude, p.latitude, p.longitude) <
+            200) {
+      return;
+    }
+    _radarMarkersAt = p;
+    // No mapa, só os 80 mais próximos (até 10 km) para não poluir.
+    final withDist = [
+      for (final r in _radarsAround)
+        (r, distanceMeters(p.latitude, p.longitude, r.lat, r.lng))
+    ]..sort((a, b) => a.$2.compareTo(b.$2));
+    setState(() => _radarMarkers = [
+          for (final (r, d) in withDist.take(80))
+            if (d <= 10000) r
+        ]);
+  }
+
+  /// Radares à frente: na pista e no sentido do piloto, nas distâncias
+  /// configuradas, sempre falando a velocidade; e trechos da PRF.
+  void _checkRadars(Position p) {
+    final banner = _radarBanner;
+    if (banner != null && banner.passed(p)) {
+      setState(() => _radarBanner = null);
+    }
+
+    // No máximo um aviso de radar a cada 6 s (evita "radar a 900 metros"
+    // repetido quando há vários radares perto).
+    final now = DateTime.now();
+    final radarQuiet =
+        now.difference(_lastRadarAlert) < const Duration(seconds: 6);
+
+    // Navegando com rota: só radares sobre a rota (a pista do piloto) e à
+    // frente, com a distância medida pela rota. Sem rota: regras de direção.
+    final w = _walker;
+    final useRoute =
+        w != null && (_navigating || _sim != null) && !_offRoute;
+    final rider = useRoute ? _proj : null;
+    final onRoute = rider != null && rider.offset < 60;
+
+    // Distância do 1º aviso e quantas vezes avisar (Configurações). Radar de
+    // avanço de sinal fica em cruzamento: uma vez só, a no máximo 300 m.
+    final prefs = AppSettings.instance.alerts.value;
+    for (final r in _radarsAround) {
+      final redLight = r.kind == RadarKind.redLight;
+      final range = redLight
+          ? min(300.0, prefs.radarMeters.toDouble())
+          : prefs.radarMeters.toDouble();
+      final thresholds =
+          alertThresholds(range, redLight ? 1 : prefs.radarRepeats);
+      final done = _radarSpoken[r.id] ?? 0;
+      if (done >= thresholds.length) continue;
+      final straight = distanceMeters(p.latitude, p.longitude, r.lat, r.lng);
+      if (straight > range + 30) continue;
+      double? d;
+      if (onRoute && w != null) {
+        d = radarAheadOnRoute(r,
+            project: w.project, riderAlong: rider.along, range: range);
+      } else if (shouldAlertRadar(r,
+          lat: p.latitude,
+          lng: p.longitude,
+          heading: _bearing,
+          speed: _speedMs,
+          neighbors: _radarsAround,
+          range: range)) {
+        d = straight;
+      }
+      if (d == null) continue;
+      final next = nextAlert(d, done, thresholds);
+      if (next == null) continue;
+      // Um radar NOVO espera 6 s depois do último aviso; as repetições do
+      // mesmo radar (ex.: a 500 m) não esperam.
+      final first = done == 0;
+      if (first && radarQuiet) continue;
+      // A base junta várias fontes: o mesmo radar pode aparecer 2–3 vezes a
+      // poucos metros. Conta para todos, para falar uma vez só.
+      for (final o in _radarsAround) {
+        if (distanceMeters(r.lat, r.lng, o.lat, o.lng) < 150) {
+          _radarSpoken[o.id] = next;
+        }
+      }
+      _lastRadarAlert = now;
+      // Sem limite na base: usa o limite da via no local do radar.
+      final roadKmh = r.limit > 0
+          ? null
+          : _speedSvc.lookup(r.lat, r.lng, _bearing, _speedMs)?.kmh;
+      final kmh = r.limit > 0 ? r.limit : roadKmh;
+      if (!first) {
+        // Repetição: só a voz (a faixa na tela continua aberta).
+        if (_voice.alertsOn.value) {
+          _voice.alert(radarSpeech(r, d, roadLimit: roadKmh));
+        }
+        return;
+      }
+      _announceRadar(
+        emoji: switch (r.kind) {
+          RadarKind.fixed => '📸',
+          RadarKind.section => '⏱️',
+          RadarKind.redLight => '🚦',
+        },
+        text: [
+          switch (r.kind) {
+            RadarKind.fixed => 'Radar fixo',
+            RadarKind.section => 'Radar de velocidade média',
+            RadarKind.redLight => 'Radar de avanço de sinal',
+          },
+          kmh != null && kmh > 0 ? 'limite $kmh km/h' : 'limite não informado',
+        ].join(' · '),
+        speech: radarSpeech(r, d, roadLimit: roadKmh),
+        passed: (q) =>
+            distanceMeters(q.latitude, q.longitude, r.lat, r.lng) >
+            range + 200,
+      );
+      return; // um aviso por vez
+    }
+
+    for (final s in _stretchesAround) {
+      if (_stretchAnnounced.contains(s.id)) continue;
+      final n = nearestOnLine(p.latitude, p.longitude, s.points);
+      if (n.meters > 1000) continue;
+      final inside = n.meters < 100;
+      if (!inside &&
+          !isAhead(
+              lat: p.latitude,
+              lng: p.longitude,
+              heading: p.heading,
+              speed: p.speed,
+              targetLat: n.lat,
+              targetLng: n.lng)) {
+        continue;
+      }
+      _stretchAnnounced.add(s.id);
+      _announceRadar(
+        emoji: '🚔',
+        text: 'Trecho com radar portátil da PRF · BR-${s.br} '
+            'km ${s.kmFrom.round()}–${s.kmTo.round()}',
+        speech: prfStretchSpeech(s, n.meters),
+        // Some ao sair do trecho (ou se não chegar a entrar nele).
+        passed: (q) =>
+            nearestOnLine(q.latitude, q.longitude, s.points).meters > 1200,
+      );
+      return;
+    }
+  }
+
+  /// Mostra a faixa de aviso no topo, vibra e fala (ou só bipa).
+  void _announceRadar({
+    required String emoji,
+    required String text,
+    required String speech,
+    required bool Function(Position) passed,
+    bool speak = true, // false = só na tela (com vibração e bipe)
+  }) {
+    HapticFeedback.heavyImpact();
+    if (speak && _voice.alertsOn.value) {
+      _voice.alert(speech);
+    } else {
+      SystemSound.play(SystemSoundType.alert);
+    }
+    setState(
+        () => _radarBanner = (emoji: emoji, text: text, passed: passed));
+  }
+
+  // ------------------------------------------------------------ lombadas,
+  // postos policiais, metade do trajeto e chuva
+
+  final Map<int, int> _poiSpoken = {}; // ponto -> avisos já feitos
+  bool _halfwaySaid = false;
+  Timer? _rainTimer;
+  DateTime _lastRainAlert = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// O ponto está à frente, no caminho da moto? (na rota, se houver; senão
+  /// no cone de ±35° da direção e até [side] m para o lado)
+  bool _onMyWay(Position p, double lat, double lng, {double side = 20}) {
+    final d = distanceMeters(p.latitude, p.longitude, lat, lng);
+    final a =
+        signedAngle(_bearing, bearingBetween(p.latitude, p.longitude, lat, lng));
+    if (a.abs() > 35) return false;
+    final w = _walker, pr = _proj;
+    if (w != null && pr != null && pr.offset < 40 && !_offRoute) {
+      return w.offsetNear(lat, lng, pr.along + d) <= side;
+    }
+    return (d * sin(a * pi / 180)).abs() <= side;
+  }
+
+  /// Lombadas, postos policiais e pedágios à frente, no caminho do piloto.
+  void _checkPois(Position p) {
+    if (_speedMs < 3 || _sim != null && !_simStarted) return;
+    final prefs = AppSettings.instance.alerts.value;
+    final bumpRange = max(150.0, _speedMs * 9);
+    const tollRange = 1000.0;
+    final range =
+        max(max(prefs.policeMeters.toDouble(), bumpRange), tollRange);
+    for (final poi in PoiService.instance.near(p.latitude, p.longitude, range)) {
+      final bump = poi.kind == PoiKind.bump;
+      final toll = poi.kind.isToll;
+      if (bump && prefs.bumps == AlertMode.off) continue;
+      if (poi.kind == PoiKind.policePost && !prefs.policePosts) continue;
+      final thresholds = bump
+          ? [bumpRange]
+          : toll
+              ? const [tollRange]
+              : alertThresholds(
+                  prefs.policeMeters.toDouble(), prefs.policeRepeats);
+      final done = _poiSpoken[poi.id] ?? 0;
+      if (done >= thresholds.length) continue;
+      final d = distanceMeters(p.latitude, p.longitude, poi.lat, poi.lng);
+      if (d > thresholds.first) continue;
+      if (!_onMyWay(p, poi.lat, poi.lng, side: bump ? 15 : 60)) continue;
+      final next = nextAlert(d, done, thresholds);
+      if (next == null) continue;
+      _poiSpoken[poi.id] = next;
+      // Pedágio: de moto, diz se a moto paga (ou é isenta, quando a base
+      // informa). De carro, só avisa a praça.
+      final moto = !_myBike.style.isCar;
+      final tollNote = !moto
+          ? ''
+          : poi.kind == PoiKind.tollMotoFree
+              ? 'moto isenta'
+              : 'moto paga pedágio';
+      final speech = bump
+          ? 'Lombada a ${spokenDistance(d)}'
+          : toll
+              ? 'Praça de pedágio a ${spokenDistance(d)}'
+                  '${tollNote.isEmpty ? '' : '. Atenção: $tollNote'}'
+              : 'Posto policial a ${spokenDistance(d)}';
+      if (done > 0) {
+        if (_voice.alertsOn.value) _voice.alert(speech);
+        return;
+      }
+      _announceRadar(
+        emoji: bump
+            ? '🔺'
+            : toll
+                ? '🛣️'
+                : '🚔',
+        text: bump
+            ? 'Lombada à frente'
+            : toll
+                ? 'Pedágio à frente${tollNote.isEmpty ? '' : ' · $tollNote'}'
+                : 'Posto policial à frente',
+        speech: speech,
+        speak: !bump || prefs.bumps == AlertMode.voice,
+        passed: (q) =>
+            distanceMeters(q.latitude, q.longitude, poi.lat, poi.lng) > 150 &&
+            !_onMyWay(q, poi.lat, poi.lng, side: 200),
+      );
+      return; // um aviso por vez
+    }
+  }
+
+  /// "Você chegou à metade do trajeto" (opção em Configurações).
+  void _checkHalfway() {
+    if (_halfwaySaid || !AppSettings.instance.alerts.value.halfway) return;
+    if (!(_navigating || _simStarted)) return;
+    final w = _walker, pr = _proj;
+    if (w == null || pr == null || pr.offset > 250 || w.length < 2000) return;
+    if (pr.along < w.length / 2) return;
+    _halfwaySaid = true;
+    final left = formatDistance((w.length - pr.along).round());
+    _voice.alert('Você chegou à metade do trajeto. Faltam $left');
+    _showTrafficBanner('🏁 Metade do trajeto! Faltam $left');
+  }
+
+  /// Chuva à frente (a pelo menos 2 km), conferida a cada 5 min.
+  Future<void> _checkRain() async {
+    final p = _me;
+    if (!mounted || p == null || !AppSettings.instance.alerts.value.rain) {
+      return;
+    }
+    if (_speedMs < 3 && _sim == null) return; // parado: nada "à frente"
+    final w = _walker, pr = _proj;
+    final onRoute = w != null && pr != null && pr.offset < 250;
+    const dists = [0, 2000, 4000, 7000, 10000, 15000];
+    final pts = <(double, double)>[];
+    for (final d in dists) {
+      if (onRoute) {
+        if (pr.along + d > w.length) break;
+        final q = w.at(pr.along + d);
+        pts.add((q.lat, q.lng));
+      } else {
+        final q = _ahead(p.latitude, p.longitude, _bearing, d.toDouble());
+        pts.add((q.latitude, q.longitude));
+      }
+    }
+    final levels = await WeatherService.rainAt(pts);
+    if (!mounted || levels == null || levels.isEmpty) return;
+    // Já está chovendo onde o piloto está: não avisa "à frente".
+    if (levels.first != RainLevel.none) return;
+    for (var i = 1; i < levels.length; i++) {
+      if (levels[i] == RainLevel.none) continue;
+      if (DateTime.now().difference(_lastRainAlert) <
+          const Duration(minutes: 20)) {
+        return;
+      }
+      _lastRainAlert = DateTime.now();
+      _voice.alert(rainSpeech(levels[i], dists[i].toDouble()));
+      _showTrafficBanner(
+          '🌧️ ${rainWord(levels[i])} a ~${dists[i] ~/ 1000} km à frente');
+      return;
+    }
+  }
+
+  /// Folha de voz: avisos falados, narração, testar voz, mais configurações.
+  void _showVoiceSettings() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            title: Text('Voz', style: Theme.of(ctx).textTheme.titleLarge),
+            subtitle: const Text(
+                'Sai pelo alto-falante ou pelo intercomunicador Bluetooth. '
+                'A música abaixa enquanto o app fala.'),
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: _voice.alertsOn,
+            builder: (_, on, __) => SwitchListTile(
+              secondary: const Icon(Icons.campaign),
+              title: const Text('Avisos falados'),
+              subtitle: const Text(
+                  'Radares (a 1 km), perigos na pista, SOS do grupo e paradas do roteiro'),
+              value: on,
+              onChanged: _voice.setAlerts,
+            ),
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: _voice.narrationOn,
+            builder: (_, on, __) => SwitchListTile(
+              secondary: const Icon(Icons.turn_right),
+              title: const Text('Narração do trajeto'),
+              subtitle: Text(_nav == null
+                  ? 'Sem rota com instruções. '
+                      '${_isLeader ? 'Abra o Roteiro e recalcule a rota.' : 'Peça ao líder para montar o roteiro.'}'
+                  : 'Curva a curva, como no GPS: "Em 300 metros, vire à direita"'),
+              value: on,
+              onChanged: (v) {
+                _voice.setNarration(v);
+                _navSynced = false;
+                if (v && _nav == null) {
+                  _snack('O roteiro ainda não tem as instruções de navegação');
+                }
+              },
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.record_voice_over),
+            title: const Text('Testar voz'),
+            onTap: () => _voice.test(hazardSpeech('radar móvel', 1000)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Mais configurações'),
+            subtitle: const Text('Tela sempre ligada, preferências de rota'),
+            onTap: () {
+              Navigator.pop(ctx);
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const SettingsScreen()));
+            },
+          ),
+          ValueListenableBuilder<RadarIndex?>(
+            valueListenable: _radarSvc.index,
+            builder: (_, idx, __) => ListTile(
+              dense: true,
+              leading: const Icon(Icons.info_outline),
+              title: Text(idx == null
+                  ? 'Base de radares ainda não baixada'
+                  : '${idx.radarCount} radares fixos · '
+                      '${idx.stretchCount} trechos da PRF'
+                      '${idx.prfLabel.isEmpty ? '' : ' (${idx.prfLabel.toLowerCase()})'}'),
+              subtitle: Text(idx?.attribution ?? ''),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// Avisa por voz a 2 km da próxima parada do roteiro e ao chegar (300 m).
+  void _checkStops(Position p) {
+    int? nearest;
+    double nearestD = double.infinity;
+    for (var i = 1; i < _stops.length; i++) {
+      final s = _stops[i];
+      if (_stopArrived.contains(s.id)) continue;
+      final d = Geolocator.distanceBetween(p.latitude, p.longitude, s.lat, s.lng);
+      if (d <= 300) {
+        // Ao chegar numa parada, ela e as anteriores contam como visitadas.
+        for (final prev in _stops.take(i + 1)) {
+          _stopArrived.add(prev.id);
+          _stopNearAnnounced.add(prev.id);
+        }
+        _voice.alert(
+            arrivalSpeech(s.name, isDestination: i == _stops.length - 1));
+        return;
+      }
+      if (d < nearestD) {
+        nearestD = d;
+        nearest = i;
+      }
+    }
+    if (nearest != null && nearestD <= 2000) {
+      final s = _stops[nearest];
+      if (_stopNearAnnounced.add(s.id)) {
+        _voice.alert(nextStopSpeech(s.name, nearestD));
+      }
+    }
+  }
+
+  /// Só avisa do que está à frente (±60° da direção da moto).
+  bool _isAhead(Position p, Hazard h) => isAhead(
+        lat: p.latitude,
+        lng: p.longitude,
+        heading: p.heading,
+        speed: p.speed,
+        targetLat: h.lat,
+        targetLng: h.lng,
+      );
+
+  /// Folha "O que tem na pista?" para reportar um alerta.
+  void _showReportSheet() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('O que tem na pista?',
+                style: Theme.of(ctx).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                for (final t in HazardType.values)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _reportHazard(t);
+                    },
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        color: t.color.withAlpha(60),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: t.color, width: 2),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(t.emoji, style: const TextStyle(fontSize: 36)),
+                          const SizedBox(height: 4),
+                          Text(t.label,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'O alerta é marcado na sua posição atual e aparece para todos os usuários do app.',
+              textAlign: TextAlign.center,
+              style: Theme.of(ctx).textTheme.bodySmall,
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  /// Reporta um alerta na posição atual (ou confirma, se já existir um igual
+  /// a menos de 150 m).
+  Future<void> _reportHazard(HazardType t) async {
+    HapticFeedback.mediumImpact();
+    try {
+      final p = _me ?? await Geolocator.getCurrentPosition();
+      // Se já existe o mesmo alerta a menos de 150 m, só confirma.
+      for (final h in _activeHazards) {
+        if (h.type != t) continue;
+        final d =
+            Geolocator.distanceBetween(p.latitude, p.longitude, h.lat, h.lng);
+        if (d < 150) {
+          if (h.createdBy != widget.uid && _voted.add(h.id)) {
+            _hazardSvc.confirm(h);
+          }
+          _snack('${t.emoji} Esse alerta já existia aqui. Confirmado!');
+          return;
+        }
+      }
+      // Confirma só quando o servidor gravar; sem internet, fica na fila.
+      var sent = false;
+      _hazardSvc.report(t, p.latitude, p.longitude, widget.uid).then((_) {
+        sent = true;
+        _snack('${t.emoji} ${t.label} enviado para todos. Obrigado!');
+      }, onError: (e) => _snack('Não foi possível enviar o alerta: $e'));
+      Future.delayed(const Duration(seconds: 6), () {
+        if (!sent && mounted) {
+          _snack('${t.emoji} ${t.label} salvo. Será enviado quando houver '
+              'internet.');
+        }
+      });
+    } catch (e) {
+      _snack('Não foi possível obter sua posição: $e');
+    }
+  }
+
+  /// Voto "ainda está lá" / "não está mais" num alerta.
+  void _voteHazard(Hazard h, bool stillThere) {
+    _voted.add(h.id);
+    if (stillThere) {
+      _hazardSvc.confirm(h);
+    } else {
+      _hazardSvc.dismiss(h);
+    }
+    setState(() => _shownHazard = null);
+    _snack('Obrigado por ajudar a comunidade!');
+  }
+
+  /// Faixa de um alerta da comunidade com a distância e os botões de voto.
+  Widget _hazardBanner(Hazard h) {
+    const white = TextStyle(color: Colors.white);
+    final mine = h.createdBy == widget.uid;
+    final canVote = !mine && !_voted.contains(h.id);
+    final dist = _dist(h.lat, h.lng).replaceFirst(' · ', '');
+    return Material(
+      color: h.type.color,
+      elevation: 6,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Text(h.type.emoji, style: const TextStyle(fontSize: 34)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(h.type.label,
+                      style: white.copyWith(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    [
+                      if (dist.isNotEmpty) dist,
+                      'visto ${_ago(h.lastSeen)}',
+                      '${h.confirmations} 👍',
+                    ].join(' · '),
+                    style: white,
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: () => setState(() => _shownHazard = null),
+            ),
+          ]),
+          if (canVote)
+            Padding(
+              padding: const EdgeInsets.only(right: 8, top: 4),
+              child: Row(children: [
+                Expanded(
+                  child: FilledButton.tonal(
+                    onPressed: () => _voteHazard(h, true),
+                    child: const Text('👍 Ainda está lá'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonal(
+                    onPressed: () => _voteHazard(h, false),
+                    child: const Text('👎 Não está mais'),
+                  ),
+                ),
+              ]),
+            ),
+          if (mine)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {
+                  _hazardSvc.dismiss(h, force: true);
+                  setState(() => _shownHazard = null);
+                },
+                child: const Text('REMOVER MEU ALERTA', style: white),
+              ),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  /// Paradas novas (do roteiro ou da viagem): atualiza a narração e o mapa.
+  void _onStops(List<Stop> stops) {
+    setState(() => _stops = stops);
+    _updateRoute();
+    // Manobras de todos os trechos, na ordem do roteiro.
+    final sig = stops.map((s) => '${s.id}:${s.steps.length}').join(',');
+    if (sig != _navSig) {
+      _navSig = sig;
+      final steps = [for (final s in stops.skip(1)) ...s.steps];
+      _nav = steps.isEmpty ? null : TurnByTurn(steps);
+      _navSynced = false;
+    }
+  }
+
+  /// Narração das curvas: confere se saiu da rota (recalcula sozinho na
+  /// navegação sozinho) e fala a próxima manobra na hora certa.
+  void _narrate(Position p) {
+    final nav = _nav;
+    // Na simulação a narração sempre fala (é para conhecer o trajeto).
+    final sim = _sim;
+    final on = sim != null
+        ? _simStarted
+        : _navigating && _voice.narrationOn.value;
+    if (!on || nav == null) return;
+    void say(String t) => _voice.narrate(t, force: sim != null);
+    if (!_navSynced) {
+      nav.syncTo(p.latitude, p.longitude);
+      _navSynced = true;
+    }
+    // Posição medida na rota (para a narração e para saber se saiu dela).
+    final w = _walker;
+    final proj = _proj;
+    _riderAlong = proj != null && proj.offset < 250 ? proj.along : null;
+    // Fora da rota: a ~60 m dela (mais, se o GPS estiver impreciso) em 3
+    // leituras seguidas (3 s). Uma leitura só não basta: o GPS "pula" em
+    // túneis e viadutos.
+    if (proj != null && sim == null) {
+      final d = proj.offset;
+      final limit = max(60.0, min(150.0, p.accuracy * 2.5));
+      if (d > limit) {
+        _offRouteCount++;
+        if (_offRouteCount >= 3 && !_isExpedition && _trip != null) {
+          // Navegando sozinho: recalcula como o Waze.
+          _reroute(p);
+        } else if (_offRouteCount == 3 && !_offRoute) {
+          _offRoute = true;
+          say('Você saiu da rota planejada');
+        }
+        return;
+      }
+      _offRouteCount = 0;
+      if (_offRoute && d < 40) {
+        _offRoute = false;
+        nav.syncTo(p.latitude, p.longitude);
+        say('Você voltou para a rota');
+      }
+    }
+    // Na simulação acelerada a moto "pula" muitos metros por leitura: as
+    // janelas de aviso crescem nesse tanto (a velocidade continua a real).
+    final jump = sim != null ? p.speed * sim.multiplier.value : 0.0;
+    String? speech;
+    if (w != null && proj != null) {
+      // Pela rota: avanço e distâncias medidos na estrada.
+      if (!nav.hasRoute) nav.attachRoute((la, lo) => w.project(la, lo).along);
+      speech = nav.updateAlong(proj.along, p.speed, jump: jump);
+    } else {
+      speech = nav.update(p.latitude, p.longitude, p.speed + jump / 8);
+    }
+    if (speech != null) say(speech);
+  }
+
+  /// Saiu da rota navegando sozinho: calcula uma nova até os pontos que
+  /// faltam na hora (e de novo, se preciso, a cada 10 s no máximo).
+  Future<void> _reroute(Position p) async {
+    final trip = _trip;
+    if (trip == null || _rerouting) return;
+    if (DateTime.now().difference(_lastReroute) < const Duration(seconds: 10)) {
+      return;
+    }
+    setState(() => _rerouting = true);
+    _lastReroute = DateTime.now();
+    _voice.narrate('Recalculando a rota');
+    var next = 1;
+    while (next < trip.stops.length - 1 &&
+        _stopArrived.contains(trip.stops[next].id)) {
+      next++;
+    }
+    final nt = await TripService.reroute(trip,
+        lat: p.latitude, lng: p.longitude, nextStopIndex: next);
+    if (!mounted) return;
+    setState(() => _rerouting = false);
+    if (nt == null) {
+      // Sem internet: permite tentar de novo logo.
+      _lastReroute = DateTime.fromMillisecondsSinceEpoch(0);
+      return;
+    }
+    _applyTrip(nt);
+  }
+
+  /// Roteiro antigo (rota que cortava as curvas): o líder recalcula uma vez,
+  /// sozinho, ao abrir o mapa; os participantes recebem a rota nova.
+  bool _stopsLoaded = false;
+  bool _upgradeTried = false;
+  /// Roteiro antigo (rota que cortava as curvas): o líder recalcula uma vez.
+  void _maybeUpgradeRoute() {
+    final exp = _exp;
+    if (_upgradeTried || !_stopsLoaded || exp == null || !_isLeader) return;
+    if (_stops.length < 2 ||
+        exp.plan.routeVersion >= TripPlan.currentRouteVersion) {
+      return;
+    }
+    _upgradeTried = true;
+    _svc.recalculateRoute(_code, exp.plan, _stops);
+  }
+
+  /// Troca a rota em uso (recálculo ou rota mais rápida).
+  void _applyTrip(Trip nt) {
+    _trip = nt;
+    _etaSpeed = null;
+    _stopArrived.clear();
+    _stopNearAnnounced.clear();
+    _offRouteCount = 0;
+    _offRoute = false;
+    _routeSig = '';
+    _onStops(nt.stops);
+  }
+
+  // ------------------------------------------------------------ trânsito
+
+  Timer? _trafficTimer;
+  DateTime _lastDelayAlert = DateTime.fromMillisecondsSinceEpoch(0);
+  int _lastDelayMin = 0;
+  double? _etaSpeed; // velocidade efetiva com o trânsito de agora (m/s)
+  String? _trafficBanner;
+  Timer? _trafficBannerTimer;
+
+  /// Navegando sozinho com "Considerar o trânsito do momento": consulta o
+  /// Google a cada 5 min. Troca para uma rota bem mais rápida (≥ 5 min de
+  /// economia, por outro caminho) ou avisa trânsito intenso na rota atual.
+  Future<void> _checkTraffic() async {
+    final trip = _trip, p = _me, w = _walker;
+    if (!mounted || trip == null || p == null || w == null || _rerouting) {
+      return;
+    }
+    if (!AppSettings.instance.route.value.liveTraffic) return;
+    var next = 1;
+    while (next < trip.stops.length - 1 &&
+        _stopArrived.contains(trip.stops[next].id)) {
+      next++;
+    }
+    final nt = await TripService.reroute(trip,
+        lat: p.latitude, lng: p.longitude, nextStopIndex: next);
+    if (!mounted || nt == null || _rerouting) return;
+
+    final remainingM = w.remainingFrom(p.latitude, p.longitude);
+    final remainingNowS = remainingM / (_etaSpeed ?? trip.averageSpeed);
+    final pts = decodePolyline(nt.plan.polyline);
+    final mid = pts.isEmpty ? null : pts[pts.length ~/ 2];
+    final otherWay = mid != null &&
+        _routeRecs.length >= 2 &&
+        nearestOnLine(mid.latitude, mid.longitude, _routeRecs).meters > 300;
+    final saving = remainingNowS - nt.durationS;
+    if (otherWay && saving >= 300) {
+      final mins = (saving / 60).round();
+      _voice.alert('Rota mais rápida encontrada: economia de $mins minutos');
+      _showTrafficBanner('🚀 Rota mais rápida: economia de $mins min');
+      _applyTrip(nt);
+      return;
+    }
+    // Mesma rota: atualiza a previsão de chegada com o trânsito de agora.
+    if (nt.durationS > 0) _etaSpeed = nt.distanceM / nt.durationS;
+    final delay = nt.trafficDelayS;
+    if (delay >= 300 && delay > 0.15 * (nt.typicalS ?? nt.durationS)) {
+      final mins = (delay / 60).round();
+      final now = DateTime.now();
+      if (now.difference(_lastDelayAlert) > const Duration(minutes: 15) ||
+          mins >= _lastDelayMin + 5) {
+        _lastDelayAlert = now;
+        _lastDelayMin = mins;
+        _voice.alert('Trânsito intenso na rota: mais $mins minutos');
+        _showTrafficBanner('🚗 Trânsito intenso na rota: +$mins min');
+      }
+    }
+  }
+
+  /// Faixa laranja temporária (20 s): trânsito, chuva, metade do trajeto.
+  void _showTrafficBanner(String text) {
+    setState(() => _trafficBanner = text);
+    _trafficBannerTimer?.cancel();
+    _trafficBannerTimer = Timer(const Duration(seconds: 20), () {
+      if (mounted) setState(() => _trafficBanner = null);
+    });
+  }
+
+  /// A rota vem pronta do roteiro (calculada pelo líder ao planejar), então
+  /// os pilotos não consultam a API de rotas. Sem rota, liga as paradas.
+  void _updateRoute() {
+    final poly = _exp?.plan.polyline ?? _trip?.plan.polyline ?? '';
+    final sig = poly.isNotEmpty
+        ? poly
+        : _stops.map((s) => '${s.lat},${s.lng}').join(';');
+    if (sig == _routeSig) return;
+    _routeSig = sig;
+    setState(() => _route = poly.isNotEmpty
+        ? decodePolyline(poly)
+        : _stops.map((s) => LatLng(s.lat, s.lng)).toList());
+    _routeRecs = [for (final q in _route) (q.latitude, q.longitude)];
+    _walker = _routeRecs.length >= 2 ? RouteWalker(_routeRecs) : null;
+    // Rota nova: as manobras são reposicionadas nela na próxima leitura.
+    _nav?.detachRoute();
+  }
+
+  bool get _isLeader => _exp?.leaderId == widget.uid;
+
+  /// Abre o roteiro da expedição.
+  Future<void> _openPlan() => Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PlanScreen(code: _code, uid: widget.uid)));
+
+  /// SOS do grupo mudaram: avisa os novos (voz, vibração e janela).
+  void _onAlerts(List<SosAlert> alerts) {
+    setState(() => _alerts = alerts);
+    final fresh = alerts.where((a) => !_seenAlerts.contains(a.id)).toList();
+    _seenAlerts.addAll(alerts.map((a) => a.id));
+    // Alertas antigos aparecem só na faixa vermelha, sem pop-up.
+    if (!_alertsLoaded) {
+      _alertsLoaded = true;
+      return;
+    }
+    for (final a in fresh) {
+      if (a.uid == widget.uid) continue;
+      final me = _me;
+      _voice.alert(
+        sosSpeech(
+            a.name,
+            me == null
+                ? null
+                : Geolocator.distanceBetween(
+                    me.latitude, me.longitude, a.lat, a.lng)),
+        urgent: true,
+      );
+      _showAlertDialog(a);
+    }
+  }
+
+  // ------------------------------------------------------------ ações
+
+  /// Envia um SOS ao grupo (segurar o botão).
+  Future<void> _sendSos() async {
+    HapticFeedback.heavyImpact();
+    try {
+      final p = _me ?? await Geolocator.getCurrentPosition();
+      final id =
+          _svc.sendSos(_code, widget.uid, widget.userName, p.latitude, p.longitude);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 8),
+        content: const Text('🚨 SOS enviado ao grupo'),
+        action: SnackBarAction(
+          label: 'CANCELAR',
+          textColor: Colors.white,
+          onPressed: () => _svc.resolveAlert(_code, id),
+        ),
+      ));
+    } catch (e) {
+      _snack('Não foi possível obter sua posição: $e');
+    }
+  }
+
+  /// Segurou no mapa: adiciona uma parada ali (expedição).
+  Future<void> _addStopAt(LatLng pos) async {
+    if (!_isLeader) {
+      _snack('Só o líder altera o roteiro');
+      return;
+    }
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nova parada'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+              hintText: 'Ex: Posto, almoço, mirante, pernoite'),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text),
+              child: const Text('Adicionar')),
+        ],
+      ),
+    );
+    if (name == null || name.trim().isEmpty) return;
+    final ok = await _svc.addToItinerary(
+      code: _code,
+      uid: widget.uid,
+      plan: _exp?.plan ?? const TripPlan(),
+      current: _stops,
+      name: name.trim(),
+      lat: pos.latitude,
+      lng: pos.longitude,
+    );
+    if (!ok) _snack('Parada salva, mas a rota não pôde ser recalculada');
+  }
+
+  /// Opções de uma parada (navegar até ela, ver no mapa).
+  void _stopOptions(Stop s) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            title: Text(s.name,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(_dist(s.lat, s.lng).replaceFirst(' · ', '')),
+          ),
+          ListTile(
+            leading: const Icon(Icons.navigation),
+            title: const Text('Navegar até aqui (Google Maps)'),
+            onTap: () {
+              Navigator.pop(ctx);
+              _navigate(s.lat, s.lng);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.route),
+            title: Text(_isLeader ? 'Editar no roteiro' : 'Ver roteiro'),
+            onTap: () {
+              Navigator.pop(ctx);
+              _openPlan();
+            },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// Abre o app do Google Maps navegando até o ponto.
+  Future<void> _navigate(double lat, double lng) async {
+    final uri = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  /// Move a câmera até um ponto e para de acompanhar a moto.
+  void _focus(double lat, double lng) {
+    _map?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(lat, lng), 15));
+  }
+
+  /// Botão de câmera: volta a acompanhar; no modo comboio, já acompanhando,
+  /// alterna entre "só a minha moto" e "o grupo todo".
+  void _centerOnMe() {
+    if (!_follow) {
+      setState(() => _follow = true);
+    } else if (_view == _MapView.convoy) {
+      setState(() => _showAll = !_showAll);
+      _lastFit = DateTime.fromMillisecondsSinceEpoch(0);
+      _snack(_showAll ? 'Mostrando o grupo todo' : 'Mostrando a sua moto');
+    }
+    final p = _me;
+    if (p != null) _updateCamera(p, force: true);
+  }
+
+  /// Volta a câmera para a moto (no modo atual) depois de arrastar o mapa.
+  void _recenter() {
+    setState(() => _follow = true);
+    _lastFit = DateTime.fromMillisecondsSinceEpoch(0);
+    final p = _me;
+    if (p != null) _updateCamera(p, force: true);
+  }
+
+  /// Troca entre Comboio (de cima) e Solo (primeira pessoa).
+  Future<void> _toggleView() async {
+    setState(() {
+      _view = _view == _MapView.convoy ? _MapView.solo : _MapView.convoy;
+      _follow = true;
+    });
+    (await SharedPreferences.getInstance()).setString('mapView', _view.name);
+    final p = _me;
+    if (p != null) {
+      _updateCamera(p, force: true);
+    } else if (_view == _MapView.convoy) {
+      // Sem GPS ainda: volta a câmera para a vista de cima.
+      _moveCamera(CameraUpdate.newCameraPosition(const CameraPosition(
+          target: LatLng(-15.78, -47.93), zoom: 4)));
+    }
+  }
+
+  /// Anima a câmera do mapa.
+  void _moveCamera(CameraUpdate u) {
+    final map = _map;
+    if (map == null) return;
+    map.animateCamera(u, duration: const Duration(milliseconds: 900));
+  }
+
+  /// Ponto [meters] à frente de (lat, lng) na direção [bearing].
+  static LatLng _ahead(double lat, double lng, double bearing, double meters) {
+    final b = bearing * pi / 180;
+    final dLat = meters * cos(b) / 111320;
+    final dLng = meters * sin(b) / (111320 * cos(lat * pi / 180));
+    return LatLng(lat + dLat, lng + dLng);
+  }
+
+  /// Câmera acompanhando a moto: de cima, o grupo todo ou primeira pessoa
+  /// (inclinada, girando com a direção). [force] ignora o intervalo mínimo.
+  void _updateCamera(Position p, {bool force = false}) {
+    // Rumo pelo deslocamento (a cada 8 m): mais estável que o do GPS e
+    // funciona em aparelhos que não informam a direção. Parado, mantém.
+    final from = _bearingFrom;
+    if (from == null) {
+      _bearingFrom = p;
+    } else if (distanceMeters(
+            from.latitude, from.longitude, p.latitude, p.longitude) >=
+        8) {
+      _bearing = bearingBetween(
+          from.latitude, from.longitude, p.latitude, p.longitude);
+      _bearingFrom = p;
+    }
+    if (_map == null || (!_follow && !force)) return;
+    final here = LatLng(p.latitude, p.longitude);
+
+    if (_view == _MapView.solo) {
+      // Primeira pessoa: moto na parte de baixo da tela, olhando a estrada.
+      final zoom = (18 + _zoomOffset).clamp(12.0, 20.0);
+      _moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
+        // Quanto mais afastado o zoom, mais à frente fica o centro.
+        target: _ahead(p.latitude, p.longitude, _bearing,
+            90 * pow(2, 18 - zoom).toDouble()),
+        zoom: zoom,
+        tilt: 65,
+        bearing: _bearing,
+      )));
+      return;
+    }
+
+    final others = [
+      for (final m in _members)
+        if (m.uid != widget.uid && m.hasLocation && !m.isStale)
+          LatLng(m.lat!, m.lng!)
+    ];
+    if (_showAll && others.isNotEmpty) {
+      // O grupo muda pouco: reenquadra a cada 10 s.
+      final now = DateTime.now();
+      if (!force && now.difference(_lastFit) < const Duration(seconds: 10)) {
+        return;
+      }
+      _lastFit = now;
+      final pts = [here, ...others];
+      var s = pts.first.latitude, n = s, w = pts.first.longitude, e = w;
+      for (final q in pts) {
+        s = min(s, q.latitude);
+        n = max(n, q.latitude);
+        w = min(w, q.longitude);
+        e = max(e, q.longitude);
+      }
+      if (n - s < 0.004 && e - w < 0.004) {
+        _moveCamera(CameraUpdate.newCameraPosition(
+            CameraPosition(target: here, zoom: 16)));
+      } else {
+        _moveCamera(CameraUpdate.newLatLngBounds(
+            LatLngBounds(southwest: LatLng(s, w), northeast: LatLng(n, e)),
+            90));
+      }
+      return;
+    }
+    // Comboio, só a minha moto: vista de cima, norte para cima.
+    _moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
+        target: here, zoom: (15.5 + _zoomOffset).clamp(5.0, 20.0))));
+  }
+
+  /// Botões + e −: acompanhando, ajusta o zoom de acompanhamento;
+  /// com o mapa solto, só aproxima/afasta.
+  void _zoom(double delta) {
+    final p = _me;
+    if (_follow && p != null && !(_view == _MapView.convoy && _showAll)) {
+      _zoomOffset = (_zoomOffset + delta).clamp(-10.0, 4.0);
+      _updateCamera(p, force: true);
+    } else {
+      _moveCamera(CameraUpdate.zoomBy(delta));
+    }
+  }
+
+  // ------------------------------------------------------------ velocidade
+
+  /// Velocidade (do GPS ou calculada), limite da pista em que o piloto está
+  /// (só pontos da rota, quando navegando) e o alerta de excesso.
+  void _updateSpeed(Position p) {
+    // Baixa os limites do estado ao abrir e a cada ~20 km rodados.
+    final c = _limitsCheckedAt;
+    if (c == null ||
+        distanceMeters(c.latitude, c.longitude, p.latitude, p.longitude) >
+            20000) {
+      _limitsCheckedAt = p;
+      _speedSvc.ensureFor(p.latitude, p.longitude);
+      PoiService.instance.ensureFor(p.latitude, p.longitude);
+    }
+    // Velocidade do GPS; se o aparelho não informar, calcula pelo deslocamento.
+    final prev = _prevPos;
+    _prevPos = p;
+    if (p.speed > 0.5) {
+      _speedMs = p.speed;
+    } else if (prev != null) {
+      final dt =
+          p.timestamp.difference(prev.timestamp).inMilliseconds / 1000.0;
+      if (dt >= 0.5 && dt <= 10) {
+        _speedMs = distanceMeters(
+                prev.latitude, prev.longitude, p.latitude, p.longitude) /
+            dt;
+      } else if (dt > 10) {
+        _speedMs = 0;
+      }
+    }
+    final kmh = _speedMs * 3.6;
+    // Em cima da rota: só vale o limite de pontos da rota (não a marginal).
+    final w = _walker, pr = _proj;
+    final onRoute = w != null && pr != null && pr.offset < 40;
+    final found = _speedSvc.lookup(p.latitude, p.longitude, _bearing, _speedMs,
+        routeOffset:
+            onRoute ? (la, lo) => w.offsetNear(la, lo, pr.along) : null);
+    _roadLimit = _limitTracker.update(found, DateTime.now());
+    final speech = _speedAlerter.update(
+        kmh, _roadLimit, _speedSvc.settings.value, DateTime.now());
+    if (speech != null) _voice.alert(speech);
+    _checkReducedSpeedAhead(p, onRoute ? pr.along : null);
+  }
+
+  // ---- Velocidade reduzida à frente ("Velocidade reduzida para 60 em 300 m")
+  (int, int)? _reducedAhead; // (limite, metros) mostrado no velocímetro
+  final Set<String> _reducedAnnounced = {};
+
+  /// Procura à frente (100 a 500 m) um limite pelo menos 10 km/h menor e
+  /// avisa "Velocidade reduzida para 60 em 300 metros".
+  void _checkReducedSpeedAhead(Position p, double? along) {
+    final cur = _roadLimit;
+    if (!AppSettings.instance.alerts.value.reducedSpeed ||
+        cur == null ||
+        _speedMs < 8) {
+      if (_reducedAhead != null) setState(() => _reducedAhead = null);
+      return;
+    }
+    final w = _walker;
+    (int, int)? found;
+    for (final d in const [100, 200, 300, 400, 500]) {
+      double la, lo, brg;
+      if (along != null && w != null) {
+        final q = w.at(along + d);
+        (la, lo, brg) = (q.lat, q.lng, q.bearing);
+      } else {
+        final q = _ahead(p.latitude, p.longitude, _bearing, d.toDouble());
+        (la, lo, brg) = (q.latitude, q.longitude, _bearing);
+      }
+      final l = _speedSvc.lookup(la, lo, brg, _speedMs,
+          routeOffset: along != null && w != null
+              ? (a, b) => w.offsetNear(a, b, along + d)
+              : null);
+      // Só placas (não estimados) e redução de pelo menos 10 km/h.
+      if (l != null && !l.estimated && l.kmh <= cur.kmh - 10) {
+        found = (l.kmh, d);
+        break;
+      }
+    }
+    if (found != _reducedAhead) setState(() => _reducedAhead = found);
+    if (found == null) return;
+    // Fala uma vez por redução (mesmo limite num raio de ~1 km).
+    final key =
+        '${found.$1}_${(p.latitude * 100).round()}_${(p.longitude * 100).round()}';
+    if (_reducedAnnounced.add(key) && found.$2 >= 200) {
+      _voice.alert('Atenção: velocidade reduzida para ${found.$1} '
+          'em ${found.$2} metros');
+    }
+  }
+
+  /// Folha de opções do alerta de velocidade (tolerância, máximo pessoal).
+  void _showSpeedSettings() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: ValueListenableBuilder<SpeedAlertSettings>(
+          valueListenable: _speedSvc.settings,
+          builder: (_, s, __) {
+            void save(SpeedAlertSettings n) => _speedSvc.save(n);
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Velocidade',
+                      style: Theme.of(ctx).textTheme.titleLarge),
+                  const SizedBox(height: 4),
+                  const Text(
+                      'O velocímetro fica vermelho ao passar do limite da via '
+                      '(âmbar quando o limite é estimado).'),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Avisar por voz ao passar do limite'),
+                    subtitle: const Text(
+                        'Só para limites de placa (não para os estimados)'),
+                    value: s.roadAlert,
+                    onChanged: (v) => save(SpeedAlertSettings(
+                        roadAlert: v,
+                        tolerance: s.tolerance,
+                        personalMax: s.personalMax)),
+                  ),
+                  if (s.roadAlert) ...[
+                    const Text('Avisar a partir de'),
+                    Wrap(spacing: 8, children: [
+                      for (final t in const [0, 5, 10])
+                        ChoiceChip(
+                          label: Text(t == 0 ? 'Limite exato' : '+$t km/h'),
+                          selected: s.tolerance == t,
+                          onSelected: (_) => save(SpeedAlertSettings(
+                              roadAlert: true,
+                              tolerance: t,
+                              personalMax: s.personalMax)),
+                        ),
+                    ]),
+                  ],
+                  const SizedBox(height: 16),
+                  const Text('Alerta de velocidade máxima'),
+                  const Text(
+                      'Avisa por voz quando você passar desta velocidade, '
+                      'em qualquer via.',
+                      style: TextStyle(fontSize: 12)),
+                  const SizedBox(height: 6),
+                  Wrap(spacing: 8, runSpacing: 4, children: [
+                    for (final v in const [0, 60, 80, 100, 110, 120, 140])
+                      ChoiceChip(
+                        label: Text(v == 0 ? 'Desligado' : '$v km/h'),
+                        selected: s.personalMax == v,
+                        onSelected: (_) => save(SpeedAlertSettings(
+                            roadAlert: s.roadAlert,
+                            tolerance: s.tolerance,
+                            personalMax: v)),
+                      ),
+                  ]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Limites das vias: projeto Pardal (ODbL) – ANTT, DERs e '
+                    '© colaboradores do OpenStreetMap. Onde não há placa '
+                    'mapeada, o limite é estimado pelo tipo de via. Respeite '
+                    'sempre a sinalização.',
+                    style: Theme.of(ctx).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Janela de SOS de um membro (ver no mapa, navegar, marcar resolvido).
+  void _showAlertDialog(SosAlert a) {
+    HapticFeedback.vibrate();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.warning_amber, color: Colors.red, size: 48),
+        title: const Text('SOS no comboio'),
+        content: Text('${a.name} pediu ajuda!${_dist(a.lat, a.lng)}'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _focus(a.lat, a.lng);
+            },
+            child: const Text('Ver no mapa'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _navigate(a.lat, a.lng);
+            },
+            child: const Text('Ir até lá'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Lista do grupo e das paradas.
+  void _showGroup() {
+    final sorted = [..._members]..sort((a, b) => a.name.compareTo(b.name));
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints:
+              BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
+          child: ListView(shrinkWrap: true, children: [
+            _sheetTitle('Pilotos (${sorted.length})'),
+            for (final m in sorted)
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor:
+                      m.isStale ? Colors.grey : Color(m.bike.color),
+                  backgroundImage: m.bike.photoUrl == null
+                      ? null
+                      : NetworkImage(m.bike.photoUrl!),
+                  child: m.bike.photoUrl == null
+                      ? Icon(m.bike.style.icon, color: Colors.white)
+                      : null,
+                ),
+                title: Text(
+                  [
+                    m.uid == widget.uid ? '${m.name} (você)' : m.name,
+                    if (m.bike.displayName.isNotEmpty) m.bike.displayName,
+                  ].join(' · '),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(!m.hasLocation
+                    ? 'Sem localização ainda'
+                    : m.isStale
+                        ? 'Sem sinal · última posição ${_ago(m.updatedAt)}'
+                        : '${(m.speed * 3.6).round()} km/h${_dist(m.lat!, m.lng!)}'),
+                onTap: m.hasLocation
+                    ? () {
+                        Navigator.pop(ctx);
+                        _focus(m.lat!, m.lng!);
+                      }
+                    : null,
+              ),
+            _sheetTitle('Paradas (${_stops.length})'),
+            if (_stops.isEmpty)
+              const ListTile(
+                  title: Text('Toque e segure no mapa para adicionar')),
+            for (var i = 0; i < _stops.length; i++)
+              ListTile(
+                leading: CircleAvatar(
+                    backgroundColor: Colors.orange, child: Text('${i + 1}')),
+                title: Text(_stops[i].name),
+                subtitle: Text(_dist(_stops[i].lat, _stops[i].lng)
+                    .replaceFirst(' · ', '')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _focus(_stops[i].lat, _stops[i].lng);
+                },
+              ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  /// Título das folhas de baixo.
+  Widget _sheetTitle(String t) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+        child: Text(t, style: Theme.of(context).textTheme.titleMedium),
+      );
+
+  /// Copia o código da expedição para enviar ao grupo.
+  Future<void> _copyCode() async {
+    await Clipboard.setData(ClipboardData(text: _code));
+    _snack('Código $_code copiado. Envie para o grupo!');
+  }
+
+  /// Sair da expedição (ou, para o líder, encerrar para todos).
+  Future<void> _leave() async {
+    // O líder pode encerrar a expedição para todos (apaga do Firebase; cada
+    // piloto fica com a viagem salva no próprio celular).
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_isLeader ? 'Sair ou encerrar?' : 'Sair da expedição?'),
+        content: Text(_isLeader
+            ? 'Sair: só você deixa o comboio.\n\nEncerrar para todos: a '
+                'expedição acaba e é apagada do servidor. A viagem fica salva '
+                'em "Minhas viagens" no celular de cada piloto.'
+            : 'Você deixará de compartilhar sua localização com o grupo. A '
+                'viagem fica salva em "Minhas viagens".'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Ficar')),
+          if (_isLeader)
+            TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: () => Navigator.pop(ctx, 'end'),
+                child: const Text('Encerrar para todos')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'leave'),
+              child: const Text('Sair')),
+        ],
+      ),
+    );
+    if (choice == null) return;
+    await _saveRecord();
+    for (final s in _subs) {
+      await s.cancel();
+    }
+    _subs.clear();
+    await _hazardSub?.cancel();
+    if (choice == 'end') {
+      try {
+        await _svc.endExpedition(_code);
+      } catch (e) {
+        _snack('Não foi possível encerrar: $e');
+      }
+    } else {
+      await _svc.leave(_code, widget.uid).catchError((_) {});
+    }
+    await NotificationService.unsubscribe(_code);
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  // ------------------------------------------------------------ histórico
+
+  TrackRecorder? _recorder;
+  String? _recordId;
+  DateTime _recordStart = DateTime.now();
+  Timer? _autosave;
+  bool _hadExpedition = false;
+  bool _endedByLeader = false;
+
+  /// Começa a gravar a viagem para "Minhas viagens" (na expedição, a mesma
+  /// viagem continua se reabrir no mesmo dia).
+  void _startRecording() {
+    if (widget.simulate) return;
+    final now = DateTime.now();
+    _recorder = TrackRecorder();
+    _recordStart = now;
+    if (_isExpedition) {
+      // Mesma expedição no mesmo dia = a mesma viagem (continua a gravação).
+      final day =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      _recordId = 'exp_${_code}_$day';
+      HistoryService.instance.get(_recordId!).then((old) {
+        if (old == null || !mounted) return;
+        _recordStart = old.startedAt;
+        _recorder?.seed(
+          [
+            for (final q in decodePolyline(old.trackPolyline))
+              (q.latitude, q.longitude)
+          ],
+          old.distanceM,
+          old.movingS,
+          old.maxKmh,
+        );
+      });
+    } else {
+      _recordId = 'solo_${now.millisecondsSinceEpoch}';
+    }
+    // Salva a cada 2 min: se o celular desligar, a viagem não se perde.
+    _autosave =
+        Timer.periodic(const Duration(minutes: 2), (_) => _saveRecord());
+  }
+
+  /// Grava a viagem em "Minhas viagens" (só no celular, nada no Firebase).
+  Future<void> _saveRecord() async {
+    final rec = _recorder, id = _recordId;
+    if (rec == null || id == null || rec.distanceM < 300) return;
+    // Mantém os gastos já registrados na viagem (o salvamento automático
+    // a cada 2 min não pode apagá-los).
+    final old = await HistoryService.instance.get(id);
+    await HistoryService.instance.save(TripRecord(
+      expenses: old?.expenses ?? const [],
+      riders: _isExpedition ? max(1, _members.length) : 1,
+      id: id,
+      expedition: _isExpedition,
+      title: _isExpedition
+          ? (_exp?.name ?? 'Expedição $_code')
+          : (_trip?.title ?? 'Só dirigir'),
+      code: _isExpedition ? _code : null,
+      startedAt: _recordStart,
+      endedAt: DateTime.now(),
+      distanceM: rec.distanceM,
+      movingS: rec.movingS,
+      maxKmh: rec.maxKmh,
+      routePolyline: _exp?.plan.polyline ?? _trip?.plan.polyline ?? '',
+      trackPolyline: rec.encoded(),
+      stops: [
+        for (final s in _stops)
+          (name: s.name, lat: s.lat, lng: s.lng, type: s.type.name)
+      ],
+    ));
+  }
+
+  /// O líder encerrou a expedição (ela sumiu do servidor).
+  Future<void> _onExpeditionEnded() async {
+    if (_endedByLeader) return;
+    _endedByLeader = true;
+    await _saveRecord();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Expedição encerrada'),
+        content: const Text('O líder encerrou a expedição. A sua viagem '
+            'ficou salva em "Minhas viagens".'),
+        actions: [
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK')),
+        ],
+      ),
+    );
+    await NotificationService.unsubscribe(_code);
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  // ------------------------------------------------------------ helpers
+
+  /// Mostra uma mensagem rápida no rodapé.
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  /// "há 5 min" a partir de uma data.
+  String _ago(DateTime? t) {
+    if (t == null) return 'agora';
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return 'agora';
+    if (d.inMinutes < 60) return 'há ${d.inMinutes} min';
+    return 'há ${d.inHours} h';
+  }
+
+  /// Retorna " · 2,3 km" (distância até você) ou "" se sem GPS.
+  String _dist(double lat, double lng) {
+    if (_me == null) return '';
+    final m = Geolocator.distanceBetween(
+        _me!.latitude, _me!.longitude, lat, lng);
+    final txt = m < 1000
+        ? '${m.round()} m'
+        : '${(m / 1000).toStringAsFixed(1).replaceAll('.', ',')} km';
+    return ' · $txt de você';
+  }
+
+  // O GPS atualiza a cada segundo. Para não reenviar todos os marcadores ao
+  // mapa nativo toda vez, os que não mudaram são reaproveitados (mesmos
+  // objetos) e só a minha moto é refeita.
+  Set<Marker> _staticMarkers = {};
+  int _staticSig = 0;
+
+  /// Marcadores do mapa: os fixos (paradas, grupo, alertas, radares)
+  /// reaproveitados e só a moto do piloto refeita a cada leitura (leve).
+  Set<Marker> _buildMarkers() {
+    final sig = Object.hashAll([
+      identityHashCode(_stops),
+      identityHashCode(_members),
+      identityHashCode(_alerts),
+      identityHashCode(_hazards),
+      identityHashCode(_radarMarkers),
+      _bikeIcons.length,
+      _hazardIcons.length,
+      _radarIcons.length,
+      // Refaz a cada 30 s para atualizar o "há X min" dos colegas.
+      DateTime.now().millisecondsSinceEpoch ~/ 30000,
+    ]);
+    if (sig != _staticSig) {
+      _staticSig = sig;
+      _staticMarkers = _buildStaticMarkers();
+    }
+    final me = _me;
+    if (me == null) return _staticMarkers;
+    final icon = _bikeIcon(widget.userName, _myBike, isMe: true);
+    return {
+      ..._staticMarkers,
+      Marker(
+        markerId: const MarkerId('me'),
+        position: LatLng(me.latitude, me.longitude),
+        zIndex: 3,
+        anchor: icon != null ? bikeMarkerAnchor : const Offset(0.5, 1),
+        icon: icon ??
+            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        infoWindow: const InfoWindow(title: 'Você'),
+      ),
+    };
+  }
+
+  Set<Polyline> _prfPolylines = {};
+  Object? _prfFor;
+
+  /// Linhas do mapa: trechos da PRF (roxo tracejado) e a rota (azul).
+  Set<Polyline> _buildPolylines() {
+    if (!identical(_prfFor, _stretchesAround)) {
+      _prfFor = _stretchesAround;
+      _prfPolylines = {
+        // Trechos onde a PRF pode fiscalizar com radar portátil.
+        for (final s in _stretchesAround)
+          Polyline(
+            polylineId: PolylineId('prf_${s.id}'),
+            points: [for (final (la, lo) in s.points) LatLng(la, lo)],
+            width: 8,
+            // Roxo tracejado: não confunde com o azul da rota.
+            color: Colors.purple.withAlpha(120),
+            patterns: [PatternItem.dash(24), PatternItem.gap(10)],
+            consumeTapEvents: true,
+            onTap: () => _snack(
+                '🚔 Trecho com possível radar portátil da PRF: BR-${s.br}, '
+                'km ${s.kmFrom.round()} a ${s.kmTo.round()}'),
+          ),
+      };
+    }
+    return {
+      ..._prfPolylines,
+      if (_route.length >= 2) ..._routePolylines(),
+    };
+  }
+
+  List<Polyline>? _routeLines;
+  /// Rota azul com borda escura (refeita só quando a rota muda).
+  List<Polyline> _routePolylines() {
+    final l = _routeLines;
+    if (l != null && identical(l.first.points, _route)) return l;
+    return _routeLines = [
+      Polyline(
+        polylineId: const PolylineId('route_border'),
+        points: _route,
+        width: 9,
+        color: MapScreen.routeBorder,
+        zIndex: 1,
+      ),
+      Polyline(
+        polylineId: const PolylineId('route'),
+        points: _route,
+        width: 6,
+        color: MapScreen.routeBlue,
+        zIndex: 2,
+      ),
+    ];
+  }
+
+  /// Marcadores que mudam pouco: paradas, grupo, SOS, alertas e radares.
+  Set<Marker> _buildStaticMarkers() {
+    final markers = <Marker>{};
+    for (var i = 0; i < _stops.length; i++) {
+      final s = _stops[i];
+      markers.add(Marker(
+        markerId: MarkerId('stop_${s.id}'),
+        position: LatLng(s.lat, s.lng),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+        infoWindow: InfoWindow(
+          title: '${i + 1}. ${s.type.emoji} ${s.name}',
+          snippet: 'Toque para opções',
+          onTap: () => _stopOptions(s),
+        ),
+      ));
+    }
+    for (final m in _members) {
+      if (!m.hasLocation || m.uid == widget.uid) continue;
+      final icon = _bikeIcon(m.name, m.bike);
+      markers.add(Marker(
+        markerId: MarkerId('member_${m.uid}'),
+        position: LatLng(m.lat!, m.lng!),
+        alpha: m.isStale ? 0.5 : 1,
+        zIndex: 2,
+        anchor: icon != null ? bikeMarkerAnchor : const Offset(0.5, 1),
+        icon: icon ??
+            BitmapDescriptor.defaultMarkerWithHue(m.isStale
+                ? BitmapDescriptor.hueViolet
+                : BitmapDescriptor.hueAzure),
+        infoWindow: InfoWindow(
+          title: m.bike.displayName.isEmpty
+              ? m.name
+              : '${m.name} · ${m.bike.displayName}',
+          snippet: m.isStale
+              ? 'Sem sinal · ${_ago(m.updatedAt)}'
+              : '${(m.speed * 3.6).round()} km/h · ${_ago(m.updatedAt)}',
+        ),
+      ));
+    }
+    for (final a in _alerts) {
+      markers.add(Marker(
+        markerId: MarkerId('sos_${a.id}'),
+        position: LatLng(a.lat, a.lng),
+        zIndex: 10,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        infoWindow: InfoWindow(
+          title: '🚨 SOS: ${a.name}',
+          snippet: 'Toque para traçar rota',
+          onTap: () => _navigate(a.lat, a.lng),
+        ),
+      ));
+    }
+    for (final r in _radarMarkers) {
+      final icon = _radarIcons[r.kind];
+      if (icon == null) break;
+      markers.add(Marker(
+        markerId: MarkerId('radar_${r.id}'),
+        position: LatLng(r.lat, r.lng),
+        anchor: const Offset(0.5, 0.5),
+        zIndex: 4,
+        icon: icon,
+        infoWindow: InfoWindow(
+          title: switch (r.kind) {
+            RadarKind.fixed => 'Radar fixo',
+            RadarKind.section => 'Radar de velocidade média',
+            RadarKind.redLight => 'Radar de avanço de sinal',
+          },
+          snippet: r.limit > 0 ? 'Limite ${r.limit} km/h' : null,
+        ),
+      ));
+    }
+    for (final h in _activeHazards) {
+      markers.add(Marker(
+        markerId: MarkerId('hazard_${h.id}'),
+        position: LatLng(h.lat, h.lng),
+        anchor: const Offset(0.5, 0.5),
+        zIndex: 5,
+        icon: _hazardIcons[h.type] ??
+            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
+        onTap: () => setState(() {
+          _shownHazard = h;
+          _shownManually = true;
+        }),
+      ));
+    }
+    return markers;
+  }
+
+  // ------------------------------------------------------------ UI
+
+  @override
+  Widget build(BuildContext context) {
+    const white = TextStyle(color: Colors.white);
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                _isExpedition
+                    ? (_exp?.name ?? 'Expedição')
+                    : widget.simulate
+                        ? 'Simulação: ${_trip?.title ?? ''}'
+                        : (_trip?.title ?? 'Navegação'),
+                overflow: TextOverflow.ellipsis),
+            Text(_isExpedition ? 'Código: $_code' : _etaText(),
+                style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+        actions: !_isExpedition
+            ? null
+            : [
+          IconButton(
+              icon: const Icon(Icons.route),
+              tooltip: 'Roteiro',
+              onPressed: _openPlan),
+          IconButton(
+              icon: const Icon(Icons.two_wheeler),
+              tooltip: 'Minha moto',
+              onPressed: _editBike),
+          IconButton(
+              icon: const Icon(Icons.share),
+              tooltip: 'Copiar código',
+              onPressed: _copyCode),
+          IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Sair da expedição',
+              onPressed: _leave),
+        ],
+      ),
+      body: Stack(children: [
+        // Arrastar, girar ou dar zoom com os dedos pausa o acompanhamento
+        // (aparece o botão "Recentralizar"). Um toque simples não pausa.
+        Listener(
+          onPointerDown: (e) => _touchStart = e.position,
+          onPointerMove: (e) {
+            final s = _touchStart;
+            if (_follow && s != null && (e.position - s).distance > 24) {
+              setState(() => _follow = false);
+            }
+          },
+          onPointerUp: (_) => _touchStart = null,
+          child: GoogleMap(
+          initialCameraPosition: const CameraPosition(
+              target: LatLng(-15.78, -47.93), zoom: 4), // Brasil
+          myLocationEnabled: false, // usamos o marcador da moto
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: false,
+          mapToolbarEnabled: false,
+          // Trânsito do Google: vias em verde/laranja/vermelho (sem custo).
+          // Na economia de bateria, sem trânsito e sem prédios 3D (menos
+          // trabalho para o processador gráfico).
+          trafficEnabled: AppSettings.instance.showTraffic.value && !_saving,
+          buildingsEnabled: !_saving,
+          // Mapa escuro à noite (ou sempre, conforme Configurações).
+          style: _darkMap ? darkMapStyle : null,
+          // Mantém o logo do Google acima da barra de navegação.
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewPadding.bottom),
+          markers: _buildMarkers(),
+          polylines: _buildPolylines(),
+          onMapCreated: (c) {
+            _map = c;
+            final p = _me;
+            if (p != null) _updateCamera(p, force: true);
+          },
+          onLongPress: _isExpedition ? _addStopAt : null,
+        ),
+        ),
+
+        // Botões e faixas ficam acima da barra de navegação do Android
+        // (no Samsung o app vai até a borda da tela).
+        Positioned.fill(child: SafeArea(top: false, child: Stack(children: [
+
+        // Faixas no topo: SOS do grupo + alerta de perigo próximo
+        Positioned(
+          top: 8,
+          left: 8,
+          right: 8,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (_rerouting)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: Colors.blue.shade700,
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  child: const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Row(children: [
+                      SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 3, color: Colors.white)),
+                      SizedBox(width: 12),
+                      Text('Recalculando a rota...',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold)),
+                    ]),
+                  ),
+                ),
+              )
+            else
+              _nextTurnCard(),
+            if (_trafficBanner != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: Colors.deepOrange.shade700,
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
+                    child: Row(children: [
+                      Expanded(
+                        child: Text(_trafficBanner!,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () =>
+                            setState(() => _trafficBanner = null),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+            if (_alerts.isNotEmpty)
+              Material(
+                color: Colors.red.shade700,
+                elevation: 6,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: Column(children: [
+                    for (final a in _alerts.take(3))
+                      Row(children: [
+                        const Icon(Icons.warning_amber, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${a.uid == widget.uid ? 'Você' : a.name} pediu ajuda · '
+                            '${_ago(a.createdAt)}${_dist(a.lat, a.lng)}',
+                            style: white,
+                          ),
+                        ),
+                        TextButton(
+                            onPressed: () => _focus(a.lat, a.lng),
+                            child: const Text('VER', style: white)),
+                        TextButton(
+                            onPressed: () => _svc.resolveAlert(_code, a.id),
+                            child: const Text('OK', style: white)),
+                      ]),
+                  ]),
+                ),
+              ),
+            if (_shownHazard != null) ...[
+              if (_alerts.isNotEmpty) const SizedBox(height: 8),
+              _hazardBanner(_shownHazard!),
+            ],
+            if (_radarBanner != null) ...[
+              const SizedBox(height: 8),
+              Material(
+                color: Colors.indigo.shade700,
+                elevation: 6,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+                  child: Row(children: [
+                    Text(_radarBanner!.emoji,
+                        style: const TextStyle(fontSize: 30)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(_radarBanner!.text,
+                          style: white.copyWith(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => setState(() => _radarBanner = null),
+                    ),
+                  ]),
+                ),
+              ),
+            ],
+            if (_passingSuggestion != null) ...[
+              const SizedBox(height: 8),
+              Material(
+                color: Colors.teal.shade700,
+                elevation: 6,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                  child: Row(children: [
+                    const Icon(Icons.shield, color: Colors.white),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '${_passingSuggestion!.name}, do seu motoclube, está em ${_passingSuggestion!.city} (~${_passingSuggestion!.distanceKm} km). Avisar que você está passando?',
+                        style: white,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        final m = _passingSuggestion!;
+                        setState(() => _passingSuggestion = null);
+                        confirmAndNotify(context,
+                            clubId: _clubId!,
+                            member: m,
+                            purpose: ClubPurpose.passing);
+                      },
+                      child: const Text('AVISAR', style: white),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () =>
+                          setState(() => _passingSuggestion = null),
+                    ),
+                  ]),
+                ),
+              ),
+            ],
+            if (_alerts.isEmpty &&
+                _shownHazard == null &&
+                _passingSuggestion == null &&
+                _stops.isEmpty &&
+                _isLeader)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.route),
+                  title: const Text('Monte o roteiro da viagem'),
+                  subtitle: const Text('Saída, paradas, pernoites e destino'),
+                  onTap: _openPlan,
+                ),
+              ),
+          ]),
+        ),
+
+        // Controles da simulação (pausar, velocidade, linha do tempo)
+        if (_sim != null)
+          Positioned(left: 8, right: 8, bottom: 16, child: _simControls()),
+
+        // Recentralizar (aparece ao arrastar o mapa) + Iniciar / encerrar
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: _sim != null ? 196 : 96,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (!_follow && _me != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    elevation: 6,
+                  ),
+                  onPressed: _recenter,
+                  icon: const Icon(Icons.navigation),
+                  label: const Text('Recentralizar',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            if (_tripButton() case final btn?) btn,
+          ]),
+        ),
+
+        // Velocímetro (toque para configurar os alertas de velocidade)
+        Positioned(
+          left: 12,
+          bottom: _sim != null ? 196 : 136,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Zoom: na mesma coluna do velocímetro, logo acima dele (assim
+              // nunca fica atrás dele nem dos botões da direita).
+              FloatingActionButton.small(
+                heroTag: 'zoomIn',
+                tooltip: 'Aproximar',
+                onPressed: () => _zoom(1),
+                child: const Icon(Icons.add, size: 28),
+              ),
+              const SizedBox(height: 6),
+              FloatingActionButton.small(
+                heroTag: 'zoomOut',
+                tooltip: 'Afastar',
+                onPressed: () => _zoom(-1),
+                child: const Icon(Icons.remove, size: 28),
+              ),
+              const SizedBox(height: 12),
+              // Velocidade reduzida à frente.
+              if (_reducedAhead case (final lim, final m))
+                Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.red, width: 3),
+                  ),
+                  child: Text('↓ $lim em $m m',
+                      style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16)),
+                ),
+              ValueListenableBuilder<SpeedAlertSettings>(
+                valueListenable: _speedSvc.settings,
+                builder: (_, s, __) {
+                  final kmh = _me == null ? null : _speedMs * 3.6;
+                  return Speedometer(
+                    kmh: kmh,
+                    limit: _roadLimit,
+                    level: kmh == null
+                        ? SpeedLevel.normal
+                        : SpeedAlerter.level(kmh, _roadLimit, s.personalMax),
+                    onTap: _showSpeedSettings,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+
+        // Modo de visualização: Comboio (de cima) x Solo (primeira pessoa)
+        if (_sim == null)
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 28,
+          child: Center(
+            child: FloatingActionButton.extended(
+              heroTag: 'view',
+              tooltip: 'Trocar visualização',
+              onPressed: _toggleView,
+              icon: Icon(_view == _MapView.convoy
+                  ? Icons.groups_2
+                  : Icons.visibility),
+              label: Text(_view == _MapView.convoy ? 'COMBOIO' : 'SOLO',
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ),
+
+        // Botão de reportar perigo (canto esquerdo)
+        if (_sim == null)
+        Positioned(
+          left: 16,
+          bottom: 24,
+          child: FloatingActionButton.large(
+            heroTag: 'hazard',
+            tooltip: 'Reportar perigo',
+            backgroundColor: Colors.amber,
+            foregroundColor: Colors.black,
+            onPressed: _showReportSheet,
+            child: const Icon(Icons.warning_amber_rounded, size: 44),
+          ),
+        ),
+
+        // Botões
+        Positioned(
+          right: 16,
+          bottom: _sim != null ? 196 : 24,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (_clubId != null) ...[
+              FloatingActionButton(
+                heroTag: 'club',
+                onPressed: _showClubActions,
+                tooltip: 'Motoclube',
+                backgroundColor: Colors.teal,
+                child: const Icon(Icons.shield, color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+            ],
+            ValueListenableBuilder<bool>(
+              valueListenable: _voice.alertsOn,
+              builder: (_, on, __) => FloatingActionButton.small(
+                heroTag: 'voice',
+                tooltip: 'Voz',
+                onPressed: _showVoiceSettings,
+                child: Icon(on ? Icons.volume_up : Icons.volume_off),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_isExpedition) ...[
+              FloatingActionButton(
+                heroTag: 'group',
+                onPressed: _showGroup,
+                tooltip: 'Grupo e paradas',
+                child: Badge(
+                  label: Text('${_members.length}'),
+                  child: const Icon(Icons.groups),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            FloatingActionButton(
+              heroTag: 'me',
+              onPressed: _centerOnMe,
+              tooltip: !_follow
+                  ? 'Voltar a acompanhar'
+                  : _view == _MapView.convoy
+                      ? (_showAll ? 'Mostrar só a minha moto' : 'Mostrar o grupo todo')
+                      : 'Acompanhando',
+              child: Icon(!_follow
+                  ? Icons.my_location
+                  : _view == _MapView.convoy
+                      ? (_showAll ? Icons.person_pin_circle : Icons.zoom_out_map)
+                      : Icons.navigation),
+            ),
+            if (_sim == null) ...[
+            const SizedBox(height: 20),
+            // Precisa SEGURAR para evitar SOS acidental (luva, vibração).
+            // Sozinho (sem grupo), abre os telefones de emergência.
+            GestureDetector(
+              onLongPress: _isExpedition ? _sendSos : _showEmergency,
+              onTap: () => _snack(_isExpedition
+                  ? 'Segure o botão para enviar o SOS'
+                  : 'Segure o botão para ver os telefones de emergência'),
+              child: Container(
+                width: 88,
+                height: 88,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: const [
+                    BoxShadow(blurRadius: 10, color: Colors.black54)
+                  ],
+                ),
+                child: const Text('SOS',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900)),
+              ),
+            ),
+            ],
+          ]),
+        ),
+      ]))),
+      ]),
+    );
+  }
+
+  // ------------------------------------------------------------ navegação
+
+  /// "Iniciar" na expedição: liga a narração, o painel de manobras e a
+  /// primeira pessoa.
+  void _startNavigation() {
+    if (_nav == null) {
+      _snack(_isLeader
+          ? 'Monte o roteiro primeiro (botão de rota no topo)'
+          : 'O líder ainda não montou o roteiro');
+      return;
+    }
+    setState(() {
+      _navigating = true;
+      _view = _MapView.solo;
+      _follow = true;
+      _navSynced = false;
+    });
+    _voice.setNarration(true);
+    final p = _me;
+    if (p != null) _updateCamera(p, force: true);
+  }
+
+  /// "Encerrar" (com confirmação): na expedição desliga a navegação; sozinho
+  /// fecha a tela.
+  Future<void> _stopNavigation() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Encerrar navegação?'),
+        content: Text(_isExpedition
+            ? 'A narração e o painel de manobras param. Você continua no '
+                'comboio, compartilhando a posição com o grupo.'
+            : 'A navegação será encerrada.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Continuar')),
+          FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Encerrar')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _voice.stop();
+    if (!mounted) return;
+    if (_isExpedition) {
+      setState(() {
+        _navigating = false;
+        _view = _MapView.convoy;
+      });
+      final p = _me;
+      if (p != null) _updateCamera(p, force: true);
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
+  /// "Iniciar simulação": a moto de mentira começa a andar.
+  void _startSimulation() {
+    final sim = _sim;
+    if (sim == null) return;
+    setState(() => _simStarted = true);
+    _navSynced = false;
+    sim.paused.value = false;
+  }
+
+  /// Botão grande de iniciar/encerrar (acima do botão Comboio/Solo).
+  Widget? _tripButton() {
+    if (_sim != null) {
+      if (_simStarted) return null; // "Encerrar" fica na barra da simulação
+      return FilledButton.icon(
+        style: FilledButton.styleFrom(
+            backgroundColor: Colors.green.shade700,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14)),
+        onPressed: _startSimulation,
+        icon: const Icon(Icons.play_arrow, size: 28),
+        label: const Text('Iniciar simulação',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+      );
+    }
+    if (_navigating) {
+      return FilledButton.icon(
+        style: FilledButton.styleFrom(
+            backgroundColor: Colors.red.shade700,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12)),
+        onPressed: _stopNavigation,
+        icon: const Icon(Icons.stop),
+        label: const Text('Encerrar',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+      );
+    }
+    if (_isExpedition && _routeRecs.length >= 2) {
+      return FilledButton.icon(
+        style: FilledButton.styleFrom(
+            backgroundColor: Colors.green.shade700,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12)),
+        onPressed: _startNavigation,
+        icon: const Icon(Icons.navigation),
+        label: const Text('Iniciar',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+      );
+    }
+    return null;
+  }
+
+  /// "Chegada 10:43 · faltam 85 km" (navegação sozinho e simulação).
+  String _etaText() {
+    final w = _walker, p = _me, trip = _trip;
+    if (w == null || trip == null) return 'Radares, perigos e velocidade';
+    final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
+    final km = formatDistance(left.round());
+    if (widget.simulate) return 'Faltam $km';
+    // Com o trânsito conferido, usa a velocidade efetiva de agora.
+    final eta = DateTime.now().add(
+        Duration(seconds: (left / (_etaSpeed ?? trip.averageSpeed)).round()));
+    return 'Chegada ${formatTime(eta)} · faltam $km';
+  }
+
+  /// Próxima manobra no topo da tela (como no Waze/Google Maps).
+  Widget _nextTurnCard() {
+    final nav = _nav, p = _me;
+    final show = nav != null &&
+        p != null &&
+        !nav.finished &&
+        (_sim != null ? _simStarted : _navigating);
+    if (!show) return const SizedBox.shrink();
+    // Mostra a próxima manobra "de verdade" (pula "Continue para...").
+    var i = nav.nextIndex;
+    while (i < nav.steps.length - 1 && nav.steps[i].isSilent) {
+      i++;
+    }
+    final s = nav.steps[i];
+    // Pela rota, quando houver; senão, em linha reta.
+    final ra = _riderAlong;
+    final d = (ra != null ? nav.routeDistanceTo(i, ra) : null) ??
+        distanceMeters(p.latitude, p.longitude, s.lat, s.lng);
+    final icon = switch (s.maneuver) {
+      final m when m.contains('left') => Icons.turn_left,
+      final m when m.contains('right') => Icons.turn_right,
+      final m when m.startsWith('roundabout') => Icons.roundabout_right,
+      'merge' => Icons.merge,
+      _ => Icons.straight,
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.green.shade800,
+        elevation: 6,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(children: [
+            Icon(icon, color: Colors.white, size: 40),
+            const SizedBox(width: 10),
+            Text(formatDistance(d.round()),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(s.text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 15)),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  /// Barra da simulação: pausar, 1x/5x/20x, visão, encerrar e linha do tempo.
+  Widget _simControls() {
+    final sim = _sim!;
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(16),
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            ValueListenableBuilder<bool>(
+              valueListenable: sim.paused,
+              builder: (_, paused, __) => IconButton.filled(
+                iconSize: 32,
+                tooltip: paused ? 'Continuar' : 'Pausar',
+                onPressed: () {
+                  if (!_simStarted) {
+                    _startSimulation();
+                  } else if (sim.finished) {
+                    sim.restart();
+                    _stopArrived.clear();
+                    _stopNearAnnounced.clear();
+                    _navSynced = false;
+                  } else {
+                    sim.paused.value = !paused;
+                  }
+                },
+                icon: Icon(sim.finished
+                    ? Icons.replay
+                    : paused
+                        ? Icons.play_arrow
+                        : Icons.pause),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ValueListenableBuilder<int>(
+                valueListenable: sim.multiplier,
+                builder: (_, m, __) => SegmentedButton<int>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: 1, label: Text('1x')),
+                    ButtonSegment(value: 5, label: Text('5x')),
+                    ButtonSegment(value: 20, label: Text('20x')),
+                  ],
+                  selected: {m},
+                  onSelectionChanged: (s) => sim.multiplier.value = s.first,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: _view == _MapView.convoy ? 'Ver em primeira pessoa' : 'Ver de cima',
+              onPressed: _toggleView,
+              icon: Icon(_view == _MapView.convoy
+                  ? Icons.visibility
+                  : Icons.map_outlined),
+            ),
+          ]),
+          if (_simStarted)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+                label: const Text('Encerrar simulação',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ValueListenableBuilder<double>(
+            valueListenable: sim.progress,
+            builder: (_, v, __) => Slider(
+              value: v.clamp(0.0, 1.0),
+              onChanged: (x) => sim.seek(x),
+              onChangeEnd: (_) {
+                // Pulou no tempo: recomeça narração e avisos do ponto novo.
+                _navSynced = false;
+                _stopArrived.clear();
+                _stopNearAnnounced.clear();
+                _radarSpoken.clear();
+                _poiSpoken.clear();
+                _halfwaySaid = false;
+                _stretchAnnounced.clear();
+                _announced.clear();
+              },
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// Sozinho não há grupo para avisar: telefones de emergência e
+  /// compartilhar a localização com quem você quiser.
+  void _showEmergency() {
+    HapticFeedback.heavyImpact();
+    final p = _me;
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const ListTile(
+            leading: Icon(Icons.emergency, color: Colors.red, size: 36),
+            title: Text('Emergência',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          ),
+          for (final (num, label) in const [
+            ('192', 'SAMU (ambulância)'),
+            ('193', 'Bombeiros (resgate)'),
+            ('191', 'PRF (rodovias federais)'),
+            ('190', 'Polícia Militar'),
+          ])
+            ListTile(
+              leading: const Icon(Icons.call),
+              title: Text('$num · $label'),
+              onTap: () => launchUrl(Uri.parse('tel:$num')),
+            ),
+          if (p != null)
+            ListTile(
+              leading: const Icon(Icons.share_location),
+              title: const Text('Enviar minha localização (WhatsApp...)'),
+              onTap: () => SharePlus.instance.share(ShareParams(
+                  text: '🆘 Preciso de ajuda. Estou aqui: '
+                      'https://www.google.com/maps/search/?api=1&query='
+                      '${p.latitude.toStringAsFixed(6)},${p.longitude.toStringAsFixed(6)}')),
+            ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Comboio: vista de cima. Solo: primeira pessoa, olhando a estrada.
+enum _MapView { convoy, solo }

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "400765436328",
+    "project_id": "helpaitechcomboio",
+    "storage_bucket": "helpaitechcomboio.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:400765436328:android:99f5548faab89f6fd7dd9d",
+        "android_client_info": {
+          "package_name": "helpaitech.comboio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6bWlrTh--fUw53ZCUJek8uKp5vmuaG5U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

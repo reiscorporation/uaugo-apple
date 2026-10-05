@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isMember(code) {
+      return exists(/databases/$(database)/documents/expeditions/$(code)/members/$(request.auth.uid));
+    }
+
+    match /expeditions/{code} {
+      // Quem tem o código consegue abrir a expedição (o código funciona como convite).
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.leaderId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.leaderId == request.auth.uid;
+
+      match /members/{uid} {
+        allow read: if signedIn() && isMember(code);
+        // Cada piloto só escreve a própria posição.
+        allow write: if signedIn() && request.auth.uid == uid;
+      }
+
+      // Roteiro: todos os membros veem; só o líder altera.
+      match /stops/{stopId} {
+        allow read: if signedIn() && isMember(code);
+        allow write: if signedIn()
+          && get(/databases/$(database)/documents/expeditions/$(code)).data.leaderId == request.auth.uid;
+      }
+
+      match /alerts/{alertId} {
+        allow read, update: if signedIn() && isMember(code);
+        allow create: if signedIn() && isMember(code)
+                      && request.resource.data.uid == request.auth.uid;
+      }
+    }
+
+    // ---------- Metadados gerados pelas Cloud Functions (ex.: versão dos radares)
+    match /meta/{doc} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // ---------- Perfil privado (autorizações, cidade base, token de push)
+    // Só o dono lê/escreve. As Cloud Functions acessam com privilégio de admin.
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ---------- Motoclubes
+    function isClubMember(clubId) {
+      return exists(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid));
+    }
+    match /clubs/{clubId} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+
+      // Membros veem nome, cidade (se autorizada) e moto. Nunca coordenadas.
+      match /members/{uid} {
+        allow read: if signedIn() && isClubMember(clubId);
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && !('lat' in request.resource.data) && !('lng' in request.resource.data);
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+      // Registro de avisos e limite de envios: só as Cloud Functions.
+      match /{sub=**} {
+        allow read, write: if false;
+      }
+    }
+
+    // ---------- Alertas públicos (polícia, buraco, perigo...) ----------
+    function validExpiry() {
+      return request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt <= request.time + duration.value(8, 'd');
+    }
+
+    match /hazards/{hazardId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.type in ['police','radar','pothole','danger','oil','animal','accident','fog','kite','risk']
+        && request.resource.data.lat is number
+        && request.resource.data.lng is number
+        && request.resource.data.cell is string
+        && request.resource.data.confirmations == 1
+        && request.resource.data.dismissals == 0
+        && validExpiry();
+      // Qualquer usuário pode votar (confirmar / dizer que não está mais).
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['confirmations','dismissals','expiresAt','lastConfirmedAt'])
+        && validExpiry();
+      allow delete: if false;
+    }
+  }
+}

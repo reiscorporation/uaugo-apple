@@ -1,0 +1,30 @@
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+functions/node_modules/
+*.iml
+.idea/
+
+# Configuração local (contém chaves)
+config.env
+config/dart_defines.json
+tests/rules/node_modules/
+ios/Pods/
+
+# Chaves das Cloud Functions
+functions/.env
+functions/node_modules/
+
+# Gerados no computador (não são código)
+*.log
+android/.gradle/
+android/local.properties
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+.metadata
+
+# Chave de assinatura das lojas: guardar à parte, com senha (docs/lojas.md)
+*.jks
+*.keystore
+android/key.properties
