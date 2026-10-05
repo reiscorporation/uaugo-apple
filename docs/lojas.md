@@ -52,7 +52,7 @@ Respostas gerais:
 |---|---|
 | O app coleta ou compartilha dados do usuário? | Sim |
 | Os dados são criptografados em trânsito? | Sim |
-| O usuário pode pedir a exclusão dos dados? | Sim: no app (Privacidade e autorizações > Excluir todos os meus dados) e pelo e-mail [privacidade@seudominio.com.br] |
+| O usuário pode pedir a exclusão dos dados? | Sim: no app (Privacidade e autorizações > Excluir todos os meus dados) e pelo e-mail helpaitech.ricardo@gmail.com |
 | Link para exclusão de dados (web) | [URL da página explicando como excluir, pode ser a seção 9 da política] |
 
 Tipos de dados (marque como **coletado**; em "compartilhado" responda **não**, pois os envios a outros usuários são iniciados pelo próprio usuário e os prestadores de serviço não contam como compartilhamento, segundo as definições do Google; confira a orientação atual no formulário):

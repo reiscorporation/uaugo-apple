@@ -461,6 +461,12 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const TermsScreen())),
           ),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Política de Privacidade'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const TermsScreen.privacy())),
+          ),
           const SizedBox(height: 24),
         ]),
       ),

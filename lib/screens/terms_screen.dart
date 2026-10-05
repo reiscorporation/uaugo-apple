@@ -49,9 +49,23 @@ class TermsService {
 
 /// Tela dos Termos. Com [onAccept], mostra a caixa "Li e aceito" e o botão
 /// de continuar (primeiro uso); sem, é só leitura.
+///
+/// Também mostra outros documentos legais: `TermsScreen.privacy()` abre a
+/// Política de Privacidade (só leitura).
 class TermsScreen extends StatefulWidget {
-  const TermsScreen({super.key, this.onAccept});
+  const TermsScreen({super.key, this.onAccept})
+      : asset = 'assets/legal/termos_de_uso.md',
+        title = 'Termos de Uso';
+
+  /// Política de Privacidade (só leitura).
+  const TermsScreen.privacy({super.key})
+      : onAccept = null,
+        asset = 'assets/legal/politica_de_privacidade.md',
+        title = 'Política de Privacidade';
+
   final VoidCallback? onAccept;
+  final String asset;
+  final String title;
 
   @override
   State<TermsScreen> createState() => _TermsScreenState();
@@ -65,7 +79,7 @@ class _TermsScreenState extends State<TermsScreen> {
   @override
   void initState() {
     super.initState();
-    rootBundle.loadString('assets/legal/termos_de_uso.md').then((t) {
+    rootBundle.loadString(widget.asset).then((t) {
       if (mounted) setState(() => _text = t);
     });
   }
@@ -84,7 +98,7 @@ class _TermsScreenState extends State<TermsScreen> {
     final mustAccept = widget.onAccept != null;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Termos de Uso'),
+        title: Text(widget.title),
         automaticallyImplyLeading: !mustAccept,
       ),
       body: SafeArea(
@@ -104,13 +118,25 @@ class _TermsScreenState extends State<TermsScreen> {
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(8, 4, 16, 12),
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const TermsScreen.privacy())),
+                            icon: const Icon(Icons.privacy_tip_outlined),
+                            label: const Text('Ler a Política de Privacidade'),
+                          ),
+                        ),
                         CheckboxListTile(
                           value: _checked,
                           onChanged: (v) =>
                               setState(() => _checked = v ?? false),
                           controlAffinity: ListTileControlAffinity.leading,
                           title: const Text(
-                              'Li e aceito os Termos de Uso. Declaro ter 18 '
+                              'Li e aceito os Termos de Uso e a Política de '
+                              'Privacidade. Declaro ter 18 '
                               'anos ou mais e que não vou manusear o celular '
                               'enquanto estiver dirigindo ou pilotando.'),
                         ),

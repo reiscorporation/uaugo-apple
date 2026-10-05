@@ -97,4 +97,4 @@ Estes Termos seguem as leis da República Federativa do Brasil. Fica eleito o fo
 
 ## 17. Contato
 
-Dúvidas, solicitações ou denúncias: **[E-MAIL DE CONTATO DA HELPAITECH]**.
+Dúvidas, solicitações ou denúncias: **helpaitech.ricardo@gmail.com**.
