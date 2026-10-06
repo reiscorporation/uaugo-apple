@@ -4,7 +4,8 @@
 // O que faz: Antes de navegar: tempo, distância, chegada, trânsito,
 //   combustível, pedágio, áreas de risco, opções (pedágios, rodovias, risco) e
 //   os botões Simular / Iniciar. A saída pode ser trocada ("Trocar") para
-//   planejar ou simular uma viagem que começa em outro lugar.
+//   planejar ou simular uma viagem que começa em outro lugar. Dá para
+//   adicionar/remover paradas no caminho antes de iniciar.
 // Quem usa: Home ("Para onde?").
 // ============================================================================
 
@@ -83,6 +84,28 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     _calc();
   }
 
+  /// Adiciona uma parada no caminho (fica antes do destino). Até 10 paradas.
+  Future<void> _addStop() async {
+    final ref = _points[_points.length - 2]; // busca perto do último ponto
+    final picked = await Navigator.of(context).push<PickedPlace>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => PlaceSearchPage(
+            near: LatLng(ref.lat, ref.lng), title: 'Parada no caminho'),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _points.insert(_points.length - 1,
+        TripPoint(picked.name, picked.lat, picked.lng)));
+    _calc();
+  }
+
+  /// Remove a parada [i] (1 = primeira parada depois da saída).
+  void _removeStop(int i) {
+    setState(() => _points.removeAt(i));
+    _calc();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -121,8 +144,9 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     final eta = t == null
         ? null
         : DateTime.now().add(Duration(seconds: t.durationS));
+    // Rolável: com várias paradas a prévia pode passar da altura da tela.
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -158,7 +182,31 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                   'em Iniciar, a navegação recalcula a partir de onde você '
                   'estiver.',
                   style: TextStyle(fontSize: 12)),
-            const SizedBox(height: 12),
+            // Paradas no caminho (entre a saída e o destino).
+            for (var i = 1; i < _points.length - 1; i++)
+              Row(children: [
+                const Icon(Icons.more_vert, color: Colors.amber, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text('Parada $i: ${_points[i].name}',
+                      overflow: TextOverflow.ellipsis),
+                ),
+                IconButton(
+                  tooltip: 'Remover parada',
+                  icon: const Icon(Icons.close, size: 20),
+                  onPressed: _loading ? null : () => _removeStop(i),
+                ),
+              ]),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed:
+                    _loading || _points.length >= 12 ? null : _addStop,
+                icon: const Icon(Icons.add_location_alt_outlined),
+                label: const Text('Adicionar parada'),
+              ),
+            ),
+            const SizedBox(height: 4),
             if (_loading)
               const Padding(
                 padding: EdgeInsets.all(16),
