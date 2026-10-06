@@ -122,13 +122,15 @@ tela nem de internet** (é testável), `services/` fala com o mundo de fora,
 | `profile_service.dart` | Perfil do veículo no celular e foto no Storage. |
 | `user_service.dart` | Autorizações, cidade base, motoclube, exclusão de dados (LGPD). |
 | `club_service.dart` | Motoclube (Cloud Functions de membros próximos e avisos). |
-| `auth_service.dart` | Login anônimo no Firebase. |
+| `auth_service.dart` | Conta: começa anônima e é **vinculada** (mesmo uid) ao entrar com Google, Apple ou e-mail/senha; esqueci a senha; sair. |
 
 ### 3.4 `lib/screens/` — telas
 
 | Arquivo | Tela |
 |---|---|
-| `startup_gate.dart` | Primeira tela: manda para as autorizações (1º uso) ou para o início. |
+| `startup_gate.dart` | Primeira tela: Termos de Uso (versão vigente) → autorizações → início. |
+| `terms_screen.dart` | Termos de Uso e Política de Privacidade (`assets/legal/`); aceite só depois de rolar até o fim; registro do aceite em `users/{uid}.terms` (versão, data do servidor, versão do app, sistema, conta). |
+| `login_screen.dart` | Entrar/criar conta e `requireAccount` (exige conta para expedição, alertas e motoclube; navegar sozinho não exige). |
 | `consent_screen.dart` | Autorizações (LGPD). |
 | `home_screen.dart` | Início: "Para onde?", "Só dirigir", expedições, motoclube, histórico. |
 | `map_screen.dart` | **Mapa/navegação** — o coração do app (detalhado na seção 4). |

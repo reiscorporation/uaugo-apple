@@ -117,6 +117,24 @@ Siga o modelo de `functions/pois.js` (servidor) + `lib/services/poi_service.dart
 
 **Regra de ouro:** ao mudar algo em `lib/logic/`, rode o teste correspondente.
 
+## 6.1 Login e documentos legais
+
+- **Provedores de login** (Firebase → Authentication → Sign-in method):
+  anônimo e e-mail/senha ativos; **Google** precisa ser ativado no console;
+  **Apple** depois da conta Apple Developer (o botão só aparece no iPhone).
+- **Google no Android** exige a impressão digital (SHA-1/SHA-256) de cada
+  chave que assina o app: a de teste já está cadastrada; ao criar a chave da
+  Play Store, cadastre a dela também e baixe de novo o `google-services.json`.
+- **Termos de Uso / Política de Privacidade:** textos em `assets/legal/`.
+  Mudou algo relevante? Aumente `TermsService.version` (terms_screen.dart):
+  todos aceitam de novo.
+- **Funções chamadas pelo app** (`deleteMyData`, `endExpedition`,
+  `clubNearby`, `clubNotify`) precisam da permissão pública de chamada
+  (Cloud Run → `roles/run.invoker` para `allUsers`); cada uma confere por
+  dentro quem chamou. Se uma função nova recusar chamadas ("not authorized to
+  invoke"), rode:
+  `gcloud run services add-iam-policy-binding NOME --region southamerica-east1 --member=allUsers --role=roles/run.invoker`
+
 ## 7. Problemas conhecidos
 
 | Problema | Solução |

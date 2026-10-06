@@ -21,7 +21,10 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'firebase_options.dart';
 import 'screens/startup_gate.dart';
+import 'screens/terms_screen.dart';
 import 'services/app_settings.dart';
+import 'services/auth_service.dart';
+import 'services/user_service.dart';
 import 'services/notification_service.dart';
 
 /// Ligado pelo scripts/testar-local.ps1: usa o Firebase Emulator Suite
@@ -52,6 +55,21 @@ Future<void> main() async {
   }
 
   await AppSettings.instance.load();
+  // Trocou de conta (entrou numa conta que já existia ou saiu): regrava o
+  // aceite dos Termos e as autorizações no uid novo, como registro.
+  AuthService.onLinked = TermsService.attachAccount;
+  AuthService.onAccountChanged = () async {
+    if (await TermsService.accepted()) {
+      await TermsService.accept(
+          method: 'aceite já feito neste aparelho, regravado ao entrar na conta');
+    }
+    final c = await UserService.loadConsents();
+    if (c != null) {
+      await UserService.saveConsents(c,
+          base: await UserService.loadBase(),
+          phone: await UserService.loadPhone());
+    }
+  };
   await NotificationService.init();
   runApp(const ComboioApp());
   NotificationService.handleInitialMessage();

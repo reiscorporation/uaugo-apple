@@ -10,9 +10,12 @@
 //   aumente [TermsService.version] para todos aceitarem de novo.
 // ============================================================================
 
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/auth_service.dart';
@@ -28,22 +31,50 @@ class TermsService {
   static Future<bool> accepted() async =>
       (await SharedPreferences.getInstance()).getString(_key) == version;
 
-  /// Registra o aceite no celular e no Firestore (users/{uid}.terms). Se não
-  /// houver internet, o Firestore envia quando a conexão voltar.
-  static Future<void> accept() async {
+  /// Registra o aceite no celular e no Firestore (users/{uid}.terms), com a
+  /// prova do aceite: versão dos Termos, data/hora do SERVIDOR (o usuário não
+  /// consegue alterar), versão do app, sistema do celular, conta (e-mail,
+  /// quando houver) e como foi aceito. Se não houver internet, o Firestore
+  /// envia quando a conexão voltar.
+  ///
+  /// [method] descreve como foi aceito (padrão: na tela dos Termos).
+  static Future<void> accept({
+    String method =
+        'leu até o fim + marcou "Li e aceito" + tocou em Continuar',
+  }) async {
     await (await SharedPreferences.getInstance()).setString(_key, version);
     try {
       final uid = await AuthService.ensureSignedIn();
+      final app = await PackageInfo.fromPlatform();
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'terms': {
           'version': version,
           'acceptedAt': FieldValue.serverTimestamp(),
+          'appVersion': '${app.version}+${app.buildNumber}',
+          'platform': Platform.operatingSystem,
+          'osVersion': Platform.operatingSystemVersion,
+          'account': AuthService.isAnonymous ? 'anônima' : AuthService.email,
+          'method': method,
         },
       }, SetOptions(merge: true));
     } catch (_) {
       // Sem conexão no primeiro uso: o aceite fica no celular e é enviado
       // de novo no próximo aceite/abertura (ver StartupGate).
     }
+  }
+
+  /// A conta anônima virou conta de verdade (mesmo uid): acrescenta o e-mail
+  /// ao registro do aceite, mantendo a data e a forma do aceite original.
+  static Future<void> attachAccount() async {
+    try {
+      final uid = await AuthService.ensureSignedIn();
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'terms': {
+          'account': AuthService.email,
+          'accountLinkedAt': FieldValue.serverTimestamp(),
+        },
+      }, SetOptions(merge: true));
+    } catch (_) {}
   }
 }
 
@@ -71,17 +102,37 @@ class TermsScreen extends StatefulWidget {
   State<TermsScreen> createState() => _TermsScreenState();
 }
 
+/// Carrega o texto; no aceite, só libera a caixa depois de rolar até o fim.
 class _TermsScreenState extends State<TermsScreen> {
   String? _text;
   bool _checked = false;
   bool _saving = false;
+
+  /// Rolou o texto até o fim? (prova de que o texto foi percorrido)
+  bool _readToEnd = false;
+  final _scroll = ScrollController();
 
   @override
   void initState() {
     super.initState();
     rootBundle.loadString(widget.asset).then((t) {
       if (mounted) setState(() => _text = t);
+      // Tela grande em que o texto cabe inteiro: já conta como lido.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onScroll());
     });
+    _scroll.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_readToEnd || !_scroll.hasClients) return;
+    final p = _scroll.position;
+    if (p.pixels >= p.maxScrollExtent - 40) setState(() => _readToEnd = true);
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
   }
 
   Future<void> _accept() async {
@@ -108,6 +159,7 @@ class _TermsScreenState extends State<TermsScreen> {
             : Column(children: [
                 Expanded(
                   child: ListView(
+                    controller: _scroll,
                     padding: const EdgeInsets.all(16),
                     children: _render(context, text),
                   ),
@@ -129,8 +181,21 @@ class _TermsScreenState extends State<TermsScreen> {
                             label: const Text('Ler a Política de Privacidade'),
                           ),
                         ),
+                        if (!_readToEnd)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 12, bottom: 4),
+                            child: Row(children: [
+                              Icon(Icons.arrow_downward, size: 18),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                    'Role o texto até o fim para poder aceitar.'),
+                              ),
+                            ]),
+                          ),
                         CheckboxListTile(
                           value: _checked,
+                          enabled: _readToEnd,
                           onChanged: (v) =>
                               setState(() => _checked = v ?? false),
                           controlAffinity: ListTileControlAffinity.leading,

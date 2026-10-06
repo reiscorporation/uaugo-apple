@@ -15,7 +15,9 @@ import '../services/app_settings.dart';
 import '../services/poi_service.dart';
 import '../services/speed_service.dart';
 import '../services/voice_service.dart';
+import '../services/auth_service.dart';
 import 'about_screen.dart';
+import 'login_screen.dart';
 import 'terms_screen.dart';
 
 /// Escolher estados e baixar os dados para usar sem internet.
@@ -124,6 +126,85 @@ class _OfflineScreenState extends State<_OfflineScreen> {
   }
 }
 
+/// Conta: entrar (se anônima) ou ver a conta, confirmar o e-mail e sair.
+class _AccountTile extends StatelessWidget {
+  const _AccountTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder(
+      stream: AuthService.changes,
+      builder: (context, _) {
+        if (AuthService.isAnonymous) {
+          return ListTile(
+            leading: const Icon(Icons.account_circle_outlined, size: 32),
+            title: const Text('Entrar ou criar conta'),
+            subtitle: const Text(
+                'Necessária para expedições, alertas e motoclube. Navegar '
+                'sozinho funciona sem conta.'),
+            onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LoginScreen())),
+          );
+        }
+        return Column(children: [
+          ListTile(
+            leading: const Icon(Icons.account_circle, size: 32),
+            title: Text(AuthService.displayName),
+            subtitle: Text(AuthService.email),
+          ),
+          if (AuthService.needsVerification) ...[
+            const ListTile(
+              leading: Icon(Icons.mark_email_unread_outlined,
+                  color: Colors.amber),
+              title: Text('Confirme seu e-mail'),
+              subtitle: Text(
+                  'Enviamos um link para o seu e-mail. Depois de confirmar, '
+                  'toque em "Já confirmei".'),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 56),
+              child: Row(children: [
+                TextButton(
+                  onPressed: AuthService.resendVerification,
+                  child: Text('Reenviar'),
+                ),
+                TextButton(
+                  onPressed: AuthService.reload,
+                  child: Text('Já confirmei'),
+                ),
+              ]),
+            ),
+          ],
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Sair da conta'),
+            onTap: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Sair da conta?'),
+                  content: const Text(
+                      'Você pode entrar de novo quando quiser. Navegar sozinho '
+                      'continua funcionando sem conta.'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancelar')),
+                    FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Sair')),
+                  ],
+                ),
+              );
+              if (ok == true) await AuthService.signOut();
+            },
+          ),
+        ]);
+      },
+    );
+  }
+}
+
 /// Distância do 1º aviso e quantas vezes avisar até o ponto.
 class _AlertPicker extends StatelessWidget {
   const _AlertPicker({
@@ -209,6 +290,8 @@ class SettingsScreen extends StatelessWidget {
       body: SafeArea(
         top: false,
         child: ListView(children: [
+          section('Conta'),
+          const _AccountTile(),
           section('Tela'),
           ValueListenableBuilder<bool>(
             valueListenable: s.keepScreenOn,

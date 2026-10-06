@@ -28,6 +28,7 @@ import 'club_screen.dart';
 import 'consent_screen.dart';
 import 'map_screen.dart';
 import 'plan_screen.dart';
+import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'about_screen.dart';
 import 'history_screen.dart';
@@ -86,6 +87,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final userName = _nameCtrl.text.trim();
     if (userName.isEmpty) {
       _snack('Informe seu nome de piloto');
+      return;
+    }
+    // Expedição exige conta: o grupo precisa saber quem é quem.
+    if (!await requireAccount(
+        context,
+        'Para criar ou entrar numa expedição, entre com sua conta. Assim o '
+        'grupo sabe quem é você e você pode usar o app em outro celular.')) {
       return;
     }
     setState(() => _busy = true);
@@ -167,6 +175,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Abre o motoclube.
   Future<void> _openClub() async {
+    if (!await requireAccount(context,
+        'O motoclube é para membros identificados: entre com sua conta.')) {
+      return;
+    }
+    if (!mounted) return;
     final name = _nameCtrl.text.trim();
     if (name.isNotEmpty) {
       final prefs = await SharedPreferences.getInstance();
@@ -277,16 +290,35 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Align(
-                alignment: Alignment.centerRight,
-                child: IconButton(
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                // Conta: "Entrar" (anônimo) ou o nome de quem entrou.
+                StreamBuilder(
+                  stream: AuthService.changes,
+                  builder: (context, _) => TextButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => AuthService.isAnonymous
+                                ? const LoginScreen()
+                                : const SettingsScreen())),
+                    icon: Icon(AuthService.isAnonymous
+                        ? Icons.account_circle_outlined
+                        : Icons.account_circle),
+                    label: Text(
+                      AuthService.isAnonymous
+                          ? 'Entrar'
+                          : AuthService.displayName.split(' ').first,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                IconButton(
                   tooltip: 'Configurações',
                   icon: const Icon(Icons.settings),
                   onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute(
                           builder: (_) => const SettingsScreen())),
                 ),
-              ),
+              ]),
               Center(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(22),

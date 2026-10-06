@@ -60,6 +60,7 @@ import '../services/voice_service.dart';
 import '../services/app_settings.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'plan_screen.dart';
+import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 
@@ -1047,8 +1048,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         targetLng: h.lng,
       );
 
-  /// Folha "O que tem na pista?" para reportar um alerta.
-  void _showReportSheet() {
+  /// Folha "O que tem na pista?" para reportar um alerta. Reportar exige
+  /// conta (evita alertas falsos anônimos); ver os alertas, não.
+  Future<void> _showReportSheet() async {
+    if (!await requireAccount(
+        context,
+        'Para reportar alertas para todos, entre com sua conta. Isso evita '
+        'alertas falsos e protege a comunidade.')) {
+      return;
+    }
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
