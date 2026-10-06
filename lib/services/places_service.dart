@@ -56,7 +56,8 @@ class PlacesService {
       final body = {
         'input': text.trim(),
         'languageCode': 'pt-BR',
-        'includedRegionCodes': ['br'],
+        // Sem restrição de país: dá para buscar cidades no exterior. O
+        // locationBias abaixo só dá preferência ao que está perto.
         'sessionToken': _session,
         if (nearLat != null && nearLng != null)
           'locationBias': {
