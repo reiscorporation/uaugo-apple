@@ -74,11 +74,11 @@ class ClubService {
   DocumentReference<Map<String, dynamic>> _club(String id) =>
       _db.collection('clubs').doc(id);
 
-  /// Código aleatório de 6 caracteres para um clube novo.
+  /// Código aleatório de 8 caracteres para um clube novo (antigos: 6).
   String _randomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final r = Random.secure();
-    return List.generate(6, (_) => chars[r.nextInt(chars.length)]).join();
+    return List.generate(8, (_) => chars[r.nextInt(chars.length)]).join();
   }
 
   /// Cria um clube e coloca o criador como membro. Devolve o código.

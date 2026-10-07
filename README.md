@@ -69,7 +69,7 @@ O que só você pode fazer: criar as contas, ativar o plano Blaze, o login Anôn
 
 1. Crie um repositório **privado** no GitHub e envie o projeto.
 2. A cada envio, a aba **Actions** roda: testes do app, testes das regras, build Android (gera um APK para baixar) e build iOS num Mac virtual.
-3. Opcional: em *Settings → Secrets and variables → Actions*, cadastre `ANDROID_MAPS_KEY` e `DIRECTIONS_API_KEY` para o APK já sair com mapa e rotas.
+3. Opcional: em *Settings → Secrets and variables → Actions*, cadastre `ANDROID_MAPS_KEY` para o APK já sair com o mapa (rotas e busca de lugares vêm do servidor).
 4. Depois de rodar `flutterfire configure`, envie também `lib/firebase_options.dart` (repositório privado) para o APK da nuvem se conectar ao seu Firebase.
 
 ## 🔒 App Check (proteção do backend)
@@ -128,10 +128,7 @@ Crie chaves e **restrinja** cada uma (por app Android / bundle iOS / API).
   ```swift
   GMSServices.provideAPIKey("SUA_CHAVE_IOS_AQUI")
   ```
-- **Rotas:** passe a chave da Directions API ao rodar/compilar (sem ela o app liga as paradas em linha reta):
-  ```bash
-  flutter run --dart-define=DIRECTIONS_API_KEY=SUA_CHAVE
-  ```
+- **Rotas e busca de lugares:** a chave fica no **servidor**, nunca no app. Grave em `functions/.env` a linha `MAPS_SERVER_KEY=SUA_CHAVE` (chave restrita à Directions API e à Places API (New)) e publique as funções. O `scripts\preparar-nuvem.ps1` faz isso sozinho.
 
 ## 5. Configuração extra do iOS
 Em `ios/Runner/Info.plist`, dentro do `<dict>` principal:
@@ -158,7 +155,7 @@ Push no iPhone: crie uma **APNs Key** no Apple Developer e envie em Firebase →
 
 ## 6. Rodar
 ```bash
-flutter run --dart-define=DIRECTIONS_API_KEY=SUA_CHAVE
+flutter run
 ```
 Teste com 2 celulares: um cria a expedição, o outro entra com o código.
 

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -32,11 +34,28 @@ android {
         versionName = flutter.versionName
     }
 
+    // Chave de upload da Google Play: android/key.properties (fora do git)
+    // aponta para o arquivo .jks guardado à parte (docs/lojas.md). Sem esse
+    // arquivo, a versão final é assinada com a chave de teste (só para rodar).
+    val keyProps = Properties().apply {
+        val f = rootProject.file("key.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    signingConfigs {
+        if (keyProps.containsKey("storeFile")) {
+            create("upload") {
+                storeFile = file(keyProps.getProperty("storeFile"))
+                storePassword = keyProps.getProperty("storePassword")
+                keyAlias = keyProps.getProperty("keyAlias")
+                keyPassword = keyProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("upload")
+                ?: signingConfigs.getByName("debug")
         }
     }
 }

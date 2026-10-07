@@ -17,14 +17,21 @@ import '../models/bike.dart';
 
 final Map<String, ui.Image> _photoCache = {};
 
+/// Maior foto aceita (o Storage já recusa envios acima disso).
+const _maxPhotoBytes = 2 * 1024 * 1024;
+
 /// Baixa a foto do veículo para desenhar no marcador (null se falhar).
+/// Só baixa do Storage do próprio app (BikeProfile.safePhotoUrl), até 2 MB.
 Future<ui.Image?> _loadPhoto(String url) async {
+  if (BikeProfile.safePhotoUrl(url) == null) return null;
   final cached = _photoCache[url];
   if (cached != null) return cached;
   try {
     final res =
         await http.get(Uri.parse(url)).timeout(const Duration(seconds: 15));
-    if (res.statusCode != 200) return null;
+    if (res.statusCode != 200 || res.bodyBytes.length > _maxPhotoBytes) {
+      return null;
+    }
     final codec =
         await ui.instantiateImageCodec(res.bodyBytes, targetWidth: 160);
     final frame = await codec.getNextFrame();

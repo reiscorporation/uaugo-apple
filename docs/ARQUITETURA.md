@@ -1,20 +1,103 @@
-# Arquitetura do Comboio
+# Arquitetura do Comboio (padrão TOGAF)
 
-Este documento explica **como o app é organizado e como os dados circulam**,
-para quem for dar manutenção. Para o passo a passo de compilar, testar,
-publicar e fazer mudanças comuns, veja [MANUTENCAO.md](MANUTENCAO.md).
+Este documento descreve a arquitetura do Comboio seguindo o **TOGAF**
+(The Open Group Architecture Framework), organizado pelas fases do seu
+método, o **ADM** (Architecture Development Method). Ele é atualizado **a
+cada mudança no app** (ver [Fase H](#fase-h--gestão-de-mudanças-da-arquitetura)).
 
-- **App:** Flutter (Dart), um só código para Android e iPhone.
-- **Servidor:** Firebase (Firestore, Storage, Auth anônima, Cloud Functions em
-  Node.js, Cloud Messaging).
-- **Mapas e rotas:** Google Maps SDK, Directions API e Places API.
-- **Dados abertos:** radares e limites (projeto Pardal / OpenStreetMap / ANTT /
-  DNIT / DERs), lombadas, postos policiais e pedágios (OpenStreetMap), trechos
-  de radar portátil (PRF), previsão do tempo (Open-Meteo).
+Para compilar, testar, publicar e fazer mudanças comuns, veja
+[MANUTENCAO.md](MANUTENCAO.md).
+
+| Item | Valor |
+|---|---|
+| Sistema | Comboio — navegação e viagens em grupo de moto e carro |
+| Responsável | Ricardo Reis — HelpAITech (helpaitech.ricardo@gmail.com) |
+| Versão do documento | 2.0 (2026-10-06) |
+| Projeto Firebase | `helpaitechcomboio` (região `southamerica-east1`) |
+
+**Mapa do documento (fases do ADM):**
+
+| Fase TOGAF | Seção |
+|---|---|
+| Preliminar | [Princípios de arquitetura](#fase-preliminar--princípios-de-arquitetura) |
+| A — Visão | [Visão da arquitetura](#fase-a--visão-da-arquitetura) |
+| B — Negócio | [Arquitetura de negócio](#fase-b--arquitetura-de-negócio) |
+| C — Sistemas de informação | [Dados](#fase-c1--arquitetura-de-dados) e [Aplicação](#fase-c2--arquitetura-de-aplicação) |
+| D — Tecnologia | [Arquitetura de tecnologia](#fase-d--arquitetura-de-tecnologia) |
+| Transversal | [Arquitetura de segurança](#arquitetura-de-segurança-transversal) |
+| E/F — Oportunidades e migração | [Roteiro](#fases-e-e-f--oportunidades-soluções-e-plano-de-migração) |
+| G — Governança | [Governança da implementação](#fase-g--governança-da-implementação) |
+| H — Mudanças | [Registro de mudanças](#fase-h--gestão-de-mudanças-da-arquitetura) |
+| Requisitos | [Requisitos e decisões (ADRs)](#gestão-de-requisitos-e-decisões-de-arquitetura-adrs) |
 
 ---
 
-## 1. Visão geral
+## Fase Preliminar — Princípios de arquitetura
+
+Regras que orientam **todas** as decisões. Uma mudança que contrarie um
+princípio precisa de um ADR (decisão registrada) explicando o motivo.
+
+| # | Princípio | O que significa na prática |
+|---|---|---|
+| P1 | **Leveza no celular** | O app tem que rodar bem em celulares simples: índices em grade, cálculos uma vez por leitura do GPS, tela não redesenha minimizada, dados baixados por estado. |
+| P2 | **Celular primeiro (dados locais)** | Tudo o que não precisa ser compartilhado fica no celular (histórico, configurações, radares). O servidor guarda só o que é compartilhado ao vivo. |
+| P3 | **Custo mínimo** | Downloads só quando a versão muda; rotas da expedição calculadas uma vez e gravadas; limites diários por usuário nas APIs pagas. |
+| P4 | **Privacidade (LGPD)** | Coleta mínima, autorização explícita, exclusão de dados pelo próprio usuário, prazos de retenção curtos. Coordenadas nunca vão para o motoclube. |
+| P5 | **Segurança por padrão** | Nenhuma chave paga dentro do app; toda escrita validada pelas regras do servidor; conta de verdade para tudo que é compartilhado; só o app legítimo acessa o backend (App Check). |
+| P6 | **Funciona sem sinal** | Estrada tem trechos sem internet: escritas entram na fila do Firestore; navegação, radares e limites funcionam offline. |
+| P7 | **Simples de manter** | Código comentado em português, camadas claras, testes automáticos para a lógica e para as regras de segurança. |
+
+---
+
+## Fase A — Visão da arquitetura
+
+**Propósito.** Um app para quem viaja em grupo de moto ou carro: ver o grupo
+no mapa, seguir o mesmo roteiro, receber avisos (radares, lombadas, limite da
+via, chuva, alertas da comunidade) e pedir ajuda (SOS). Também navega sozinho.
+
+**Partes interessadas.**
+
+| Parte | Interesse |
+|---|---|
+| Piloto/motorista | Navegação segura, avisos por voz, app leve, privacidade. |
+| Líder da expedição | Montar roteiro, acompanhar o grupo, encerrar a viagem. |
+| Membro do motoclube | Encontrar e avisar membros próximos sem expor a posição. |
+| HelpAITech (dona) | Custo baixo, conformidade (LGPD, lojas), marca, manutenção simples. |
+| Lojas (Google/Apple) | Política de privacidade, exclusão de conta, permissões justificadas. |
+| Provedores de dados | Créditos e licenças (OpenStreetMap/ODbL, Pardal, Open-Meteo). |
+
+**Escopo.** App Android e iPhone (Flutter), backend Firebase. Fora do escopo:
+versão web, mapas offline do Google (proibido pelos termos), base pública de
+crimes (não existe).
+
+**Restrições.** Orçamento pequeno (plano Blaze pago por uso); desenvolvedor
+pessoa física; nome do app pode mudar ("RodaJunto" em avaliação).
+
+---
+
+## Fase B — Arquitetura de negócio
+
+**Atores:** usuário anônimo (só navega sozinho), usuário com conta (Google,
+Apple ou e-mail), líder, membro, membro de motoclube, servidor (rotinas).
+
+**Capacidades e processos principais.**
+
+| Capacidade | Processo | Exige conta? |
+|---|---|---|
+| Aceite dos termos | 1º uso: Termos (rolar até o fim) → autorizações → início. Registro em `users/{uid}.terms`. | Não |
+| Navegar sozinho | "Para onde?" → prévia (tempo, custo, pedágio, riscos) → navegar/simular. | Não |
+| Expedição | Líder cria (código de 8 caracteres) → monta roteiro → membros entram pelo código → posições ao vivo → líder encerra (apaga tudo do servidor). | **Sim** |
+| SOS | Membro aciona → push para o grupo → qualquer membro marca "resolvido". | **Sim** |
+| Alertas da comunidade | Reportar (polícia, buraco…) → outros confirmam/descartam (1 voto por pessoa) → some ao vencer. | **Sim** para criar/votar; ver é livre |
+| Motoclube | Criar/entrar → ver membros (cidade, nunca coordenadas) → pedir ajuda/avisar (só a quem autorizou). | **Sim** |
+| Histórico | Gravação da viagem no celular → "Minhas viagens" → compartilhar imagem/GPX. | Não |
+| Exclusão de dados | Configurações → "Excluir meus dados" (função `deleteMyData`). | Não |
+
+---
+
+## Fase C1 — Arquitetura de dados
+
+### Visão geral do fluxo
 
 ```
                 ┌──────────────────────── celular ─────────────────────────┐
@@ -27,197 +110,44 @@ publicar e fazer mudanças comuns, veja [MANUTENCAO.md](MANUTENCAO.md).
                 │   dados guardados no celular: radares, limites, lombadas, │
                 │   histórico, configurações                                 │
                 └───────▲───────────────────────┬──────────────────────────┘
-                        │ baixa 1x por semana   │ só o que é compartilhado
-                        │ (por estado)          ▼ ao vivo
+                        │ baixa só quando muda  │ só o que é compartilhado
+                        │ (por estado)          ▼ ao vivo + rotas/lugares
                 ┌───────┴──────── Firebase ─────────────────────────────────┐
                 │ Storage: public/radares, public/limites/UF, public/pois/UF│
+                │          bikes/{uid}/ (fotos, até 2 MB)                   │
                 │ Firestore: expedições, membros, paradas, SOS, alertas,    │
-                │            motoclubes, meta (versões dos arquivos)        │
-                │ Functions: atualizam os dados toda semana, SOS por push,  │
-                │            motoclube, exclusão de dados, limpeza          │
+                │            votos, motoclubes, meta, usage                 │
+                │ Functions: rotas/lugares (chave do Google), dados abertos,│
+                │            SOS por push, motoclube, exclusão, limpeza     │
                 └───────────────────────────────────────────────────────────┘
 ```
 
-**Princípio de custo e leveza:** tudo o que dá para ficar no celular fica no
-celular (radares, limites, lombadas, histórico, configurações). O Firebase só
-guarda o que precisa ser compartilhado ao vivo (expedição em andamento e
-alertas da comunidade). Os arquivos de dados são baixados **por estado** e só
-quando mudam.
+### Firestore (servidor)
 
----
+| Coleção | Conteúdo | Quem lê/escreve | Retenção |
+|---|---|---|---|
+| `expeditions/{código}` | Nome, líder, plano (rota). | Com conta e código: lê. Só o líder altera. | Apagada pelo líder ou após 30 dias parada. |
+| `…/members/{uid}` | Nome, veículo (foto só do Storage do app), posição, velocidade. | Membros leem; cada um escreve só o seu (campos e tamanhos validados). | Com a expedição. |
+| `…/stops/{id}` | Paradas do roteiro, trechos e manobras. | Membros leem; só o líder escreve. | Com a expedição. |
+| `…/alerts/{id}` | SOS (quem, onde, resolvido). | Membro cria em nome próprio; outros só marcam "resolvido". | Com a expedição. |
+| `hazards/{id}` | Alertas da comunidade (tipo, posição, célula, contagens, validade). | Todos leem; com conta cria; votos só pelo processo de voto. | **TTL** em `expiresAt`. |
+| `hazards/{id}/votes/{uid}` | Voto da pessoa (confirma/descarta). Garante 1 voto por pessoa. | Cada um vê só o seu; não muda nem apaga. | **TTL** em `expiresAt` (7 dias). |
+| `users/{uid}` | Aceite dos termos, autorizações, cidade base, token de push. Privado. | Só o dono (e as Functions). | Até a exclusão de dados. |
+| `clubs/{id}` + `members` | Motoclube: nome; membros com nome, cidade, moto. | Membros leem; cada um escreve só o seu. Nunca coordenadas. | Avisos: 180 dias. |
+| `meta/{doc}` | Versão dos arquivos públicos. | Logados leem; só as Functions escrevem. | — |
+| `usage/{uid}` | Contagem diária de consultas de rotas/lugares. | Só as Functions. | Sobrescrito a cada dia. |
 
-## 2. Pastas do projeto
+As regras estão em `firestore.rules` e são testadas em `tests/rules/rules.test.js`
+(57 testes).
 
-| Pasta | O que tem |
-|---|---|
-| `lib/` | Código do app (Dart). Detalhado na seção 3. |
-| `test/` | Testes automáticos da lógica (rodar com `flutter test`). |
-| `functions/` | Cloud Functions (Node.js) que rodam no servidor. Seção 5. |
-| `tests/` | Testes das regras de segurança do Firestore (`rules.test.js`). |
-| `assets/branding/` | Logos, ícone do app e fotos dos créditos. |
-| `scripts/` | Scripts PowerShell de instalação, configuração, teste e execução. |
-| `android/`, `ios/` | Projetos nativos gerados pelo Flutter (permissões, chaves). |
-| `config/` | `dart_defines.json` com a chave da Directions API (não versionar). |
-| `docs/` | Esta documentação e o guia de publicação nas lojas (`lojas.md`). |
-| `firestore.rules`, `storage.rules` | Regras de segurança do banco e dos arquivos. |
-| `firestore.indexes.json` | Índices e TTL (apagar alertas vencidos sozinho). |
-| `config.env` | Chaves e IDs locais (NÃO versionar; modelo em `config.env.example`). |
+### Storage (servidor)
 
----
-
-## 3. O app (`lib/`)
-
-O código é dividido em 5 camadas. A regra é: **`logic/` não sabe nada de
-tela nem de internet** (é testável), `services/` fala com o mundo de fora,
-`screens/` e `widgets/` só montam a tela.
-
-### 3.1 `lib/logic/` — regras puras (sem tela, sem internet)
-
-| Arquivo | Responsabilidade |
-|---|---|
-| `geo.dart` | Codificar/decodificar o traçado das rotas (formato "encoded polyline" do Google) e simplificar traçados mantendo as curvas. |
-| `navigation.dart` | Narração curva a curva (`TurnByTurn`): limpa o texto do Google ("Pegue a saída 210…"), decide quando falar (2 km, ~800 m e na hora) medindo a distância **pela rota**. |
-| `simulation.dart` | `RouteWalker`: anda por um traçado por distância (posição, direção) e projeta a moto na rota (quanto já andou, quanto se afastou). Usado na simulação, na narração, nos radares e no limite da via. |
-| `radars.dart` | Base de radares fixos e trechos da PRF (`RadarIndex`), regras para saber se um radar está na pista/sentido do piloto e as frases faladas. |
-| `speed.dart` | Limites de velocidade (`SpeedLimitIndex`): escolhe o limite **da pista em que o piloto está** (rota ou linha da direção), alertas de excesso (`SpeedAlerter`). |
-| `pois.dart` | Lombadas, postos policiais e pedágios (`PoiIndex`), numa grade de ~1 km para consulta rápida. |
-| `speech.dart` | Frases faladas comuns ("a 500 metros") e as distâncias dos avisos repetidos (ex.: 1000 m e 500 m). |
-| `weather.dart` | Classifica a chuva (fraca, forte, tempestade) e monta a frase. |
-| `track.dart` | Grava o caminho percorrido e calcula km, tempo em movimento e velocidades. |
-| `costs.dart` | Consumo e gastos: litros/custo estimados, consumo real, formatação em reais. |
-| `itinerary.dart` | Agenda do roteiro da expedição (horários de chegada por parada e por dia). |
-| `map_style.dart` | Mapa noturno: estilo escuro e cálculo do pôr do sol pela posição. |
-
-### 3.2 `lib/models/` — formatos dos dados
-
-| Arquivo | O que representa |
-|---|---|
-| `expedition.dart` | Expedição, plano (`TripPlan`), membro, parada (`Stop`), SOS. Converte de/para o Firestore. |
-| `trip.dart` | Viagem **sem** expedição (navegação sozinho/simulação). Só no celular. |
-| `trip_record.dart` | Viagem gravada em "Minhas viagens" (caminho, estatísticas, gastos). |
-| `hazard.dart` | Tipos de alerta da comunidade (polícia, buraco, pipas, área de risco…) e quanto tempo duram. |
-| `bike.dart` | Perfil do veículo (moto ou carro): marca, modelo, tipo, cor, foto. |
-| `privacy.dart` | Autorizações da LGPD e cidade base (motoclube). |
-
-### 3.3 `lib/services/` — comunicação com o mundo de fora
-
-| Arquivo | O que faz |
-|---|---|
-| `location_service.dart` | GPS (1 leitura/s; 2 s na economia de bateria), com serviço em primeiro plano no Android. |
-| `directions_service.dart` | Rotas do Google (Directions API): traçado detalhado, tempos, manobras, pedágio, alternativas (mais curta / evitar áreas de risco), trânsito. |
-| `places_service.dart` | Busca de lugares por nome (Places API). |
-| `trip_service.dart` | Monta uma `Trip` (rota sozinho) e recalcula a partir da posição atual. |
-| `expedition_service.dart` | Expedição no Firestore: criar, entrar, membros, paradas, SOS, posição, encerrar. |
-| `hazard_service.dart` | Alertas da comunidade no Firestore (células de ~11 km para não baixar o país todo). |
-| `radar_service.dart` | Baixa e guarda a base de radares (Storage → celular). |
-| `speed_service.dart` | Baixa por estado os limites de velocidade; configurações do alerta de velocidade. |
-| `poi_service.dart` | Baixa por estado lombadas, postos e pedágios. |
-| `weather_service.dart` | Previsão de chuva em vários pontos de uma vez (Open-Meteo). |
-| `voice_service.dart` | Voz (texto para fala), fila de frases, abaixa a música, modo rápido da simulação. |
-| `notification_service.dart` | Push (Firebase Messaging) e notificações locais. |
-| `history_service.dart` | "Minhas viagens": arquivo `viagens.json` no celular. |
-| `app_settings.dart` | Todas as configurações do app (tela, rotas, avisos, consumo, bateria), guardadas no celular. |
-| `battery_service.dart` | Decide se liga a economia de bateria (nível, carregando, modo do sistema). |
-| `simulated_drive.dart` | "GPS de mentira" da simulação (acelera/freia pelo limite da via). |
-| `profile_service.dart` | Perfil do veículo no celular e foto no Storage. |
-| `user_service.dart` | Autorizações, cidade base, motoclube, exclusão de dados (LGPD). |
-| `club_service.dart` | Motoclube (Cloud Functions de membros próximos e avisos). |
-| `auth_service.dart` | Conta: começa anônima e é **vinculada** (mesmo uid) ao entrar com Google, Apple ou e-mail/senha; esqueci a senha; sair. |
-
-### 3.4 `lib/screens/` — telas
-
-| Arquivo | Tela |
-|---|---|
-| `startup_gate.dart` | Primeira tela: Termos de Uso (versão vigente) → autorizações → início. |
-| `terms_screen.dart` | Termos de Uso e Política de Privacidade (`assets/legal/`); aceite só depois de rolar até o fim; registro do aceite em `users/{uid}.terms` (versão, data do servidor, versão do app, sistema, conta). |
-| `login_screen.dart` | Entrar/criar conta e `requireAccount` (exige conta para expedição, alertas e motoclube; navegar sozinho não exige). |
-| `consent_screen.dart` | Autorizações (LGPD). |
-| `home_screen.dart` | Início: "Para onde?", "Só dirigir", expedições, motoclube, histórico. |
-| `map_screen.dart` | **Mapa/navegação** — o coração do app (detalhado na seção 4). |
-| `plan_screen.dart` | Roteiro da expedição (paradas, horários, opções de rota, simular). |
-| `history_screen.dart` | "Minhas viagens" e o detalhe de cada viagem (gastos, compartilhar). |
-| `settings_screen.dart` | Configurações e "Usar sem internet". |
-| `profile_screen.dart` | "Minha moto / Meu carro" e consumo. |
-| `club_screen.dart` | Motoclube. |
-| `about_screen.dart` | Sobre: autoria (Ricardo Reis / HelpAITech) e créditos das fontes. |
-
-### 3.5 `lib/widgets/` — peças de tela reaproveitadas
-
-`speedometer.dart` (velocímetro com a placa do limite), `place_search.dart`
-(busca de lugar), `trip_preview_sheet.dart` (prévia da rota: tempo, custo,
-pedágio, riscos, Simular/Iniciar), `trip_share.dart` (imagem e GPX para redes
-sociais), `trip_expenses.dart` (gastos da viagem), `bike_marker.dart` e
-`emoji_marker.dart` (ícones no mapa), `club_nearby_sheet.dart` (motoclube).
-
----
-
-## 4. A tela do mapa (`map_screen.dart`) passo a passo
-
-É a maior tela porque concentra a navegação. Ela tem **3 modos**:
-
-| Modo | Como abre | O que muda |
+| Caminho | Conteúdo | Regras |
 |---|---|---|
-| Expedição | `MapScreen(code: 'ABC123', …)` | Envia a posição ao grupo (1x/min), SOS para o grupo, membros no mapa. |
-| Sozinho ("Para onde?" / "Só dirigir") | `MapScreen(trip: …)` ou sem `trip` | Nada vai para o Firebase; recalcula a rota ao sair dela; trânsito ao vivo. |
-| Simulação | `MapScreen(trip: …, simulate: true)` | GPS de mentira; nada é enviado; voz em modo rápido. |
+| `public/radares.json.gz`, `public/limites/UF.json.gz`, `public/pois/UF.json.gz` | Dados abertos processados. | Logados leem; só as Functions escrevem. |
+| `bikes/{uid}/{arquivo}` | Foto do veículo. | Logados leem; só o dono envia; até 2 MB; só JPEG/PNG/WebP. |
 
-**A cada leitura do GPS (`_onPosition`)**, nesta ordem:
-
-1. Guarda a posição e calcula **uma vez** onde a moto está na rota (`_proj`).
-2. `_updateSpeed`: velocidade, **limite da via** (só pontos da pista da rota) e
-   aviso de **velocidade reduzida à frente**.
-3. `_checkPois`: lombadas, postos policiais e pedágios à frente.
-4. `_checkHalfway`: aviso de metade do trajeto.
-5. Câmera (`_updateCamera`): de cima (Comboio) ou primeira pessoa (Solo).
-6. Gravação do caminho para o histórico.
-7. Envio da posição ao grupo (só expedição, no máximo 1x/min).
-8. Alertas da comunidade, radares (`_checkRadars`) e narração (`_narrate`).
-
-**Temporizadores:** chuva (5 min), trânsito (5 min, só sozinho e com a opção
-ligada), salvamento do histórico (2 min), atualização dos textos (30 s),
-bateria (2 min).
-
-**Economia de bateria:** com a tela apagada ou o app minimizado
-(`didChangeAppLifecycleState`), a tela não é redesenhada, mas voz, avisos e
-gravação continuam. No modo econômico, o GPS lê a cada 2 s e o mapa fica sem
-prédios 3D e sem trânsito.
-
----
-
-## 5. Servidor (`functions/` — Cloud Functions, região `southamerica-east1`)
-
-| Função | Quando roda | O que faz |
-|---|---|---|
-| `updateRadars` | Segunda e quinta 05:00 | Baixa radares (Pardal), junta duplicados (prefere fonte oficial), trechos da PRF; grava `public/radares.json.gz`. Arquivo: `radars.js`. |
-| `updateSpeedLimits` | Segunda 05:30 | Limites de velocidade por estado → `public/limites/UF.json.gz`. Arquivo: `speedlimits.js`. |
-| `updatePois` | Todo dia 04:10 | Lombadas, postos policiais rodoviários e pedágios (OpenStreetMap/Overpass) → `public/pois/UF.json.gz`. Refaz cada estado a cada 6 dias. Arquivo: `pois.js`. |
-| `onSos` | Ao criar um SOS | Push para todo o grupo. |
-| `onStop` | Ao criar uma parada | Push para o grupo. |
-| `endExpedition` | Chamada pelo líder | Apaga a expedição inteira do servidor. |
-| `clubNearby`, `clubNotify` | Chamadas pelo app | Motoclube: membros próximos (sem revelar a posição exata) e avisos. |
-| `deleteMyData` | Chamada pelo app | Exclusão de dados (LGPD). |
-| `cleanup` | Todo dia 04:00 | Apaga expedições paradas há 30 dias e avisos antigos do motoclube. |
-
-Os índices `meta/limits`, `meta/pois` e `meta/radars` no Firestore guardam a
-**versão** de cada arquivo; o app só baixa de novo quando a versão muda.
-
----
-
-## 6. Banco de dados (Firestore)
-
-| Coleção | Conteúdo | Quem lê/escreve |
-|---|---|---|
-| `expeditions/{código}` | Nome, líder, plano (rota). Subcoleções `members`, `stops`, `alerts` (SOS). | Membros da expedição. Apagada pelo líder ou após 30 dias. |
-| `hazards/{id}` | Alertas da comunidade (tipo, posição, célula, votos, validade). | Todos os usuários logados. **TTL** em `expiresAt`: o Firebase apaga sozinho quando vence. |
-| `users/{uid}` | Autorizações e cidade base (motoclube). Privado. | Só o dono (e as Functions). |
-| `clubs/{id}` | Motoclubes e membros. | Membros do clube. |
-| `meta/{doc}` | Versões dos arquivos públicos. | Leitura para logados; escrita só pelas Functions. |
-
-As regras estão em `firestore.rules` e são testadas por `tests/rules.test.js`.
-
----
-
-## 7. O que fica guardado no celular
+### Dados no celular
 
 | O quê | Onde |
 |---|---|
@@ -227,12 +157,9 @@ As regras estão em `firestore.rules` e são testadas por `tests/rules.test.js`.
 | Histórico ("Minhas viagens") | `viagens.json` na pasta de suporte |
 | Expedição em andamento | Cache offline do Firestore |
 
-> Desinstalar o app apaga tudo isso. O histórico não vai para a nuvem (decisão
-> de custo e privacidade).
+> Desinstalar o app apaga tudo isso. O histórico não vai para a nuvem (ADR-02).
 
----
-
-## 8. Fontes de dados e licenças
+### Fontes de dados e licenças
 
 | Dado | Fonte | Licença / observação |
 |---|---|---|
@@ -242,3 +169,260 @@ As regras estão em `firestore.rules` e são testadas por `tests/rules.test.js`.
 | Radar portátil | PRF (lista oficial) + DNIT/SNV | Dados públicos. |
 | Chuva | Open-Meteo | Grátis **para uso não comercial**; uso comercial exige plano pago. |
 | Áreas de risco | Reportes dos próprios usuários | Não existe base pública nacional de assaltos. |
+
+---
+
+## Fase C2 — Arquitetura de aplicação
+
+### Pastas do projeto
+
+| Pasta | O que tem |
+|---|---|
+| `lib/` | Código do app (Dart), detalhado abaixo. |
+| `test/` | Testes automáticos da lógica (`flutter test`, 103 testes). |
+| `functions/` | Cloud Functions (Node.js) que rodam no servidor. |
+| `tests/rules/` | Testes das regras de segurança do Firestore. |
+| `assets/branding/`, `assets/legal/` | Logos, ícone, créditos; Termos e Política. |
+| `scripts/` | Scripts PowerShell de instalação, configuração, teste e execução. |
+| `android/`, `ios/` | Projetos nativos (permissões, chave do mapa). |
+| `config/` | `dart_defines.json` (vazio: nenhuma chave paga vai no app). |
+| `docs/` | Esta documentação, manutenção, lojas, termos e política. |
+| `firestore.rules`, `storage.rules` | Regras de segurança do banco e dos arquivos. |
+| `firestore.indexes.json` | Índices e TTL. |
+| `config.env`, `functions/.env` | Chaves locais (NÃO versionar; modelo em `config.env.example`). |
+
+### App (`lib/`) em camadas
+
+**`logic/` não sabe nada de tela nem de internet** (é testável),
+`services/` fala com o mundo de fora, `screens/` e `widgets/` montam a tela.
+
+#### `lib/logic/` — regras puras
+
+| Arquivo | Responsabilidade |
+|---|---|
+| `geo.dart` | Codificar/decodificar o traçado das rotas ("encoded polyline"), simplificar traçados, regra de remoção de alerta por votos. |
+| `navigation.dart` | Narração curva a curva (`TurnByTurn`): limpa o texto do Google, decide quando falar (2 km, ~800 m e na hora) medindo **pela rota**. |
+| `simulation.dart` | `RouteWalker`: anda por um traçado e projeta a moto na rota. Usado na simulação, narração, radares e limite da via. |
+| `radars.dart` | Radares fixos e trechos da PRF (`RadarIndex`), pista/sentido, frases faladas. |
+| `speed.dart` | Limites de velocidade (`SpeedLimitIndex`) da pista do piloto, alertas de excesso (`SpeedAlerter`). |
+| `pois.dart` | Lombadas, postos policiais e pedágios (`PoiIndex`), grade de ~1 km. |
+| `speech.dart` | Frases comuns e distâncias dos avisos repetidos. |
+| `weather.dart` | Classifica a chuva e monta a frase. |
+| `track.dart` | Grava o caminho e calcula km, tempo e velocidades. |
+| `costs.dart` | Consumo e gastos. |
+| `itinerary.dart` | Agenda do roteiro (horários por parada e por dia). |
+| `map_style.dart` | Mapa noturno e pôr do sol. |
+
+#### `lib/models/` — formatos dos dados
+
+| Arquivo | O que representa |
+|---|---|
+| `expedition.dart` | Expedição, plano (`TripPlan`), membro, parada (`Stop`), SOS. |
+| `trip.dart` | Viagem **sem** expedição. Só no celular. |
+| `trip_record.dart` | Viagem gravada em "Minhas viagens". |
+| `hazard.dart` | Tipos de alerta da comunidade e quanto duram. |
+| `bike.dart` | Perfil do veículo. `safePhotoUrl` descarta fotos fora do Storage do app. |
+| `privacy.dart` | Autorizações da LGPD e cidade base. |
+
+#### `lib/services/` — comunicação com o mundo de fora
+
+| Arquivo | O que faz |
+|---|---|
+| `location_service.dart` | GPS (1 leitura/s; 2 s na economia de bateria), serviço em primeiro plano no Android. |
+| `directions_service.dart` | Rotas pela **função `directions`** do servidor: traçado, tempos, manobras, pedágio, alternativas, trânsito. |
+| `places_service.dart` | Busca de lugares pela **função `places`** do servidor (sessões para baratear). |
+| `trip_service.dart` | Monta uma `Trip` e recalcula a partir da posição atual. |
+| `expedition_service.dart` | Expedição: criar (código de 8), entrar, membros, paradas, SOS, posição, encerrar. |
+| `hazard_service.dart` | Alertas da comunidade (células de ~11 km); voto em lote (voto + contagem). |
+| `radar_service.dart`, `speed_service.dart`, `poi_service.dart` | Baixam e guardam os dados abertos por estado. |
+| `weather_service.dart` | Previsão de chuva (Open-Meteo). |
+| `voice_service.dart` | Voz, fila de frases, abaixa a música. |
+| `notification_service.dart` | Push e notificações locais. |
+| `history_service.dart` | "Minhas viagens" (`viagens.json`). |
+| `app_settings.dart`, `battery_service.dart` | Configurações e economia de bateria. |
+| `simulated_drive.dart` | GPS de mentira da simulação. |
+| `profile_service.dart` | Perfil do veículo e foto no Storage. |
+| `user_service.dart` | Autorizações, cidade base, exclusão de dados. |
+| `club_service.dart` | Motoclube (código de 8). |
+| `auth_service.dart` | Conta anônima **vinculada** (mesmo uid) a Google, Apple ou e-mail; renova o token após vincular. |
+
+#### `lib/screens/` e `lib/widgets/`
+
+| Tela | Função |
+|---|---|
+| `startup_gate.dart` | Termos → autorizações → início. |
+| `terms_screen.dart` | Termos e Política; aceite após rolar até o fim; registro do aceite. |
+| `login_screen.dart` | Entrar/criar conta; `requireAccount` para expedição, alertas e motoclube. |
+| `consent_screen.dart` | Autorizações (LGPD). |
+| `home_screen.dart` | Início: "Para onde?", "Só dirigir", expedições, motoclube, histórico. |
+| `map_screen.dart` | **Mapa/navegação** (abaixo). |
+| `plan_screen.dart` | Roteiro da expedição. |
+| `history_screen.dart` | "Minhas viagens". |
+| `settings_screen.dart` | Configurações, conta, uso sem internet. |
+| `profile_screen.dart` | Veículo e consumo. |
+| `club_screen.dart` | Motoclube. |
+| `about_screen.dart` | Autoria e créditos. |
+
+Widgets: `speedometer.dart`, `place_search.dart`, `trip_preview_sheet.dart`
+(prévia, paradas, trocar saída), `trip_share.dart`, `trip_expenses.dart`,
+`bike_marker.dart` (foto só do Storage do app, até 2 MB), `emoji_marker.dart`,
+`club_nearby_sheet.dart`.
+
+### A tela do mapa (`map_screen.dart`)
+
+| Modo | Como abre | O que muda |
+|---|---|---|
+| Expedição | `MapScreen(code: …)` | Envia a posição ao grupo (1x/min), SOS, membros no mapa. |
+| Sozinho | `MapScreen(trip: …)` ou sem `trip` | Nada vai para o Firestore; recalcula ao sair da rota; trânsito ao vivo. |
+| Simulação | `MapScreen(trip: …, simulate: true)` | GPS de mentira; nada é enviado; voz em modo rápido. |
+
+**A cada leitura do GPS (`_onPosition`)**, nesta ordem: posição na rota
+(`_proj`, calculada uma vez) → velocidade e limite da via → lombadas, postos e
+pedágios → aviso de metade → câmera → gravação do caminho → envio ao grupo
+(só expedição, máx. 1x/min) → alertas, radares e narração.
+
+**Temporizadores:** chuva (5 min), trânsito (5 min), salvamento do histórico
+(2 min), textos (30 s), bateria (2 min). Minimizado, a tela não redesenha, mas
+voz, avisos e gravação continuam.
+
+### Servidor (`functions/`, região `southamerica-east1`)
+
+| Função | Quando roda | O que faz |
+|---|---|---|
+| `directions` | Chamada pelo app | Rotas (Directions API) com a chave do servidor. Login obrigatório; 300/dia por usuário. Arquivo: `maps.js`. |
+| `places` | Chamada pelo app | Busca e detalhe de lugares (Places API New). Login obrigatório; 1500/dia. `maps.js`. |
+| `updateRadars` | Segunda e quinta 05:00 | Radares (Pardal) + trechos da PRF → `public/radares.json.gz`. `radars.js`. |
+| `updateSpeedLimits` | Segunda 05:30 | Limites por estado → `public/limites/UF.json.gz`. `speedlimits.js`. |
+| `updatePois` | Todo dia 04:10 | Lombadas, postos e pedágios (OSM) → `public/pois/UF.json.gz`. `pois.js`. |
+| `onSos`, `onStop` | Ao criar SOS / parada | Push para o grupo. |
+| `endExpedition` | Chamada pelo líder (com conta) | Apaga a expedição inteira. |
+| `clubNearby`, `clubNotify` | Chamadas pelo app (com conta) | Motoclube: membros próximos (sem posição exata) e avisos (5/hora). |
+| `deleteMyData` | Chamada pelo app | Exclusão de dados (LGPD). |
+| `cleanup` | Todo dia | Expedições paradas há 30 dias, avisos antigos do motoclube. |
+
+`meta/{limits,pois,radars}` guardam a **versão** de cada arquivo; o app só
+baixa de novo quando muda.
+
+---
+
+## Fase D — Arquitetura de tecnologia
+
+| Camada | Tecnologia |
+|---|---|
+| App | Flutter 3.47 (Dart), Android (minSdk 23) e iOS 15+. |
+| Mapa | Google Maps SDK (chaves restritas por app: SHA-1/pacote no Android, bundle no iOS). |
+| Autenticação | Firebase Auth: anônima → vinculada a Google, Apple, e-mail/senha. |
+| Banco | Cloud Firestore (cache offline ligado). TTL em `hazards` e `votes`. |
+| Arquivos | Cloud Storage for Firebase (`helpaitechcomboio.firebasestorage.app`). |
+| Servidor | Cloud Functions v2 (Node 20, Cloud Run), `firebase-functions` 7, `firebase-admin` 14. Funções chamáveis precisam de `roles/run.invoker` para `allUsers`. |
+| Push | Firebase Cloud Messaging (tópico por expedição). |
+| Integridade do app | Firebase App Check: Play Integrity (Android), App Attest/DeviceCheck (iOS), provedor de depuração em testes. |
+| APIs externas | Directions API e Places API (só pelo servidor), Overpass, Pardal, Open-Meteo. |
+| CI | GitHub Actions: testes, APK debug, build iOS sem assinatura. |
+| Site público | Firebase Hosting `helpaitechcomboio.web.app`: `/privacidade`, `/termos`, `/excluir-dados` (exigidos pelas lojas). |
+| Distribuição | Google Play (conta pessoal); AAB assinado com a chave de upload (`android/key.properties` → `.jks` fora do repositório); a Play reassina com a chave de assinatura do app. |
+| Ambientes | Produção (`helpaitechcomboio`); emulador local (`demo-comboio`, `scripts/testar-local.ps1`). O emulador exige Java 21+ (usar o do Android Studio: `jbr`). |
+
+**Chaves e segredos**
+
+| Chave | Onde fica | Restrição |
+|---|---|---|
+| Comboio Android / iOS (mapa) | Dentro do app (necessário para o SDK do mapa) | Só o SDK de mapas, só o app assinado. |
+| Comboio Servidor (rotas e lugares) | `functions/.env` → `MAPS_SERVER_KEY` (só no servidor) | Só Directions e Places. |
+| ~~Comboio Rotas~~ | Antiga, estava dentro do app | **Bloqueada** (só aceita um site inexistente); apagar de vez depois. |
+
+---
+
+## Arquitetura de segurança (transversal)
+
+Resultado da auditoria de segurança de 2026-10 e os controles aplicados.
+
+| # | Ameaça | Controle | Situação |
+|---|---|---|---|
+| S1 | Extrair a chave do Google do APK e gerar cobranças | Chave só no servidor (`directions`/`places`), login obrigatório, limite diário por usuário | ✅ Feito (chave antiga bloqueada) |
+| S2 | Scripts/robôs chamando o backend fora do app | App Check (Play Integrity / App Attest) | 🟡 Ativado; **exigir** após registrar os tokens de depuração |
+| S3 | Foto maliciosa ou enorme baixada pelos celulares do grupo | Só URLs do Storage do app, pasta do próprio usuário (regras + app), até 2 MB, só JPEG/PNG/WebP | ✅ Feito |
+| S4 | Spam com contas anônimas descartáveis | Conta de verdade para expedição, SOS, alertas, votos e motoclube (regras + funções) | ✅ Feito |
+| S5 | Votos repetidos para apagar/manter alertas | 1 voto por pessoa (`votes/{uid}` no mesmo lote, validado nas regras) | ✅ Feito |
+| S6 | Adulterar SOS de outro membro | SOS só muda para "resolvido"; resto imutável | ✅ Feito |
+| S7 | Dados inválidos/gigantes no banco | Validação de campos, tipos, coordenadas e tamanhos | ✅ Feito |
+| S8 | Adivinhar o código de uma expedição/clube | Códigos novos com 8 caracteres (32^8 ≈ 1 trilhão) | ✅ Feito |
+| S9 | Dependências do servidor vulneráveis | `firebase-admin` 14, `firebase-functions` 7, `uuid` corrigido (0 vulnerabilidades) | ✅ Feito |
+| — | Invadir o celular do usuário | O app não executa código baixado, não abre arquivos de terceiros e só pede permissões necessárias | ✅ Sem risco identificado |
+
+Testes de segurança: `tests/rules/rules.test.js` (regras do Firestore) e
+`test/models_test.dart` (filtro de fotos).
+
+---
+
+## Fases E e F — Oportunidades, soluções e plano de migração
+
+| Pacote de trabalho | Dependência | Situação |
+|---|---|---|
+| Publicar regras, Storage e funções das correções S1–S9 | Autorização do responsável | ✅ Publicado em 2026-10-06 |
+| Instalar a nova versão no aparelho de teste | Publicação acima | ✅ Galaxy S24 |
+| Desativar a chave "Comboio Rotas" | App atualizado | ✅ Bloqueada (o Google só deixa apagar após alguns dias sem uso) |
+| Apagar de vez a chave "Comboio Rotas" | ~7 dias sem uso | Pendente |
+| Site público com Termos, Política e exclusão de dados | — | ✅ No ar |
+| Chave de upload e AAB assinado | — | ✅ Gerados |
+| Enviar o AAB ao teste fechado e cadastrar o SHA da chave de assinatura da Play no Firebase e no mapa | Conta Play | Pendente |
+| Exigir App Check (funções: `ENFORCE_APP_CHECK=true`; Firestore e Storage no console) | Tokens de depuração dos aparelhos de teste registrados | Pendente |
+| Ativar o login com Google no console do Firebase | — | Pendente (responsável) |
+| Contas nas lojas (Google Play, Apple Developer) | Definição do nome | Pendente (responsável) |
+| Possível troca do nome para "RodaJunto" e registro no INPI | Decisão do responsável | Em avaliação |
+| Backup no Google Drive da HelpAITech | Google Drive para computador | Pendente (responsável) |
+
+**Transição:** códigos antigos de 6 caracteres continuam aceitos; só os novos
+têm 8. Versões antigas do app perdem o voto em alertas e a criação de
+expedição até serem atualizadas.
+
+---
+
+## Fase G — Governança da implementação
+
+Antes de publicar qualquer mudança:
+
+1. `flutter analyze` sem erros e `flutter test` passando.
+2. Regras: `firebase emulators:exec --only firestore --project demo-comboio "npm --prefix tests/rules test"` passando.
+3. Servidor: `npm audit --omit=dev` sem vulnerabilidades.
+4. Nenhum segredo no git (`config.env`, `functions/.env`, `config/dart_defines.json` estão no `.gitignore`).
+5. Mudança que afete princípios, segurança ou dados → atualizar este documento (Fase H) e, se for decisão, criar um ADR.
+6. Publicação no servidor e commits só com a aprovação do responsável.
+
+---
+
+## Fase H — Gestão de mudanças da arquitetura
+
+| Data | Versão | Mudança | Seções afetadas |
+|---|---|---|---|
+| 2026-10-06 | 2.1 | Site público no Firebase Hosting (`public/`, gerado por `scripts/gerar-paginas.js`): Termos, Política (v1.1: rotas passam pelo servidor sem guardar) e exclusão de dados. Chave de upload da Google Play (fora do git) e assinatura da versão final no Gradle. | C2, D, E/F |
+| 2026-10-06 | 2.0 | Documento reorganizado no padrão TOGAF. Correções de segurança: rotas/lugares pelo servidor (S1), App Check ativado (S2), fotos restritas (S3), conta obrigatória para recursos compartilhados (S4), 1 voto por pessoa (S5), SOS protegido (S6), validação de campos (S7), códigos de 8 caracteres (S8), dependências atualizadas (S9). | C1, C2, D, Segurança, E/F |
+| 2026-10 | 1.x | Login com conta (Google/Apple/e-mail) vinculado ao anônimo; Termos de Uso e Política com aceite registrado; paradas na prévia da rota; busca de lugares no exterior. | B, C2 |
+
+---
+
+## Gestão de requisitos e decisões de arquitetura (ADRs)
+
+### Requisitos não funcionais
+
+| Id | Requisito |
+|---|---|
+| RNF-01 | Rodar fluido em celulares de entrada (P1). |
+| RNF-02 | Navegação, radares e limites funcionam sem internet (P6). |
+| RNF-03 | Conformidade com a LGPD: autorização, exclusão, retenção curta (P4). |
+| RNF-04 | Nenhuma chave de API paga dentro do app (P5). |
+| RNF-05 | Custo mensal proporcional ao uso, com limites por usuário (P3). |
+
+### ADRs
+
+| Id | Decisão | Motivo | Consequência |
+|---|---|---|---|
+| ADR-01 | Flutter + Firebase | Um código para Android e iPhone; backend sem servidor próprio. | Dependência do Google/Firebase. |
+| ADR-02 | Histórico só no celular | Custo e privacidade (pedido do responsável). | Desinstalar apaga o histórico. |
+| ADR-03 | Conta anônima vinculada ao login | Usa o app sem cadastro; ao entrar, mantém o mesmo uid e os dados. | Regras distinguem anônimo (`sign_in_provider`). |
+| ADR-04 | Dados abertos processados no servidor e baixados por estado | Leveza e custo (P1, P3). | Rotinas diárias/semanais nas Functions. |
+| ADR-05 | Rotas e lugares por proxy no servidor (`maps.js`) | A chave no APK podia ser extraída (S1). | +1 salto de rede (~100–300 ms); limite diário por usuário em `usage/{uid}`. |
+| ADR-06 | Conta de verdade para recursos compartilhados | Evita spam com contas descartáveis (S4). | Quem só navega não precisa de conta. |
+| ADR-07 | Voto registrado em `hazards/{id}/votes/{uid}` no mesmo lote | Única forma de garantir 1 voto por pessoa só com regras (S5). | TTL também em `votes`. |
+| ADR-08 | Códigos de 8 caracteres | Inviabiliza adivinhar convites (S8). | Códigos antigos de 6 continuam válidos. |
+| ADR-09 | App Check exigido só após registrar os aparelhos de teste | Exigir antes quebraria as versões de teste. | Período curto com App Check só monitorando. |

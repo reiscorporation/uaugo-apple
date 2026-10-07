@@ -117,7 +117,22 @@ class BikeProfile {
       model: m['model'] ?? '',
       style: BikeStyle.fromName(m['style'] as String?),
       color: (m['color'] as num?)?.toInt() ?? 0xFFFF9800,
-      photoUrl: m['photoUrl'] as String?,
+      photoUrl: safePhotoUrl(m['photoUrl']),
     );
+  }
+
+  /// Endereço permitido para a foto: só o Storage do próprio app, na pasta
+  /// bikes/ (lá as regras limitam a 2 MB e a imagens JPEG/PNG/WebP).
+  /// Qualquer outro endereço vindo do servidor é ignorado (segurança: ninguém
+  /// faz o celular do grupo baixar arquivos de sites de terceiros).
+  static const photoPrefix =
+      'https://firebasestorage.googleapis.com/v0/b/helpaitechcomboio.firebasestorage.app/o/bikes%2F';
+
+  static String? safePhotoUrl(Object? url) {
+    if (url is! String || url.length > 400) return null;
+    if (!url.startsWith(photoPrefix)) return null;
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host != 'firebasestorage.googleapis.com') return null;
+    return url;
   }
 }

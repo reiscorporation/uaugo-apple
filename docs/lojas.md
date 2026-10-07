@@ -38,7 +38,7 @@ O Comboio mostra no mapa, em tempo real, onde está cada piloto da sua expediç�
 - Você decide quem pode te encontrar e te contatar
 
 **Sua privacidade em primeiro lugar**
-Sem cadastro de e-mail ou senha. Nenhuma autorização opcional vem ligada, e você pode excluir todos os seus dados pelo próprio app.
+Para navegar sozinho não precisa de cadastro; para o grupo, entre com Google ou e-mail. Nenhuma autorização opcional vem ligada, e você pode excluir todos os seus dados pelo próprio app.
 
 Importante: não manuseie o celular enquanto pilota. Pare em local seguro. Em emergência, ligue 192 (SAMU), 193 (Bombeiros) ou 191 (PRF).
 
@@ -53,7 +53,7 @@ Respostas gerais:
 | O app coleta ou compartilha dados do usuário? | Sim |
 | Os dados são criptografados em trânsito? | Sim |
 | O usuário pode pedir a exclusão dos dados? | Sim: no app (Privacidade e autorizações > Excluir todos os meus dados) e pelo e-mail helpaitech.ricardo@gmail.com |
-| Link para exclusão de dados (web) | [URL da página explicando como excluir, pode ser a seção 9 da política] |
+| Link para exclusão de dados (web) | https://helpaitechcomboio.web.app/excluir-dados |
 
 Tipos de dados (marque como **coletado**; em "compartilhado" responda **não**, pois os envios a outros usuários são iniciados pelo próprio usuário e os prestadores de serviço não contam como compartilhamento, segundo as definições do Google; confira a orientação atual no formulário):
 
@@ -111,7 +111,7 @@ Publique o vídeo como "não listado" no YouTube e cole o link.
 >
 > **Localização em segundo plano:** durante uma expedição, a posição continua sendo compartilhada com o grupo com o app minimizado, para que os pilotos saibam onde cada um está enquanto pilotam e para que o SOS mostre a posição correta. O indicador de localização do iOS fica visível, e a coleta termina quando o usuário sai da expedição.
 >
-> **Conta:** não há cadastro com e-mail ou senha (autenticação anônima). A exclusão de dados está em Privacidade e autorizações > Excluir todos os meus dados.
+> **Conta:** navegar sozinho não exige cadastro; expedições, alertas e motoclube exigem entrar com Apple, Google ou e-mail. [Informe aqui um e-mail e senha de teste.] A exclusão de dados está em Privacidade e autorizações > Excluir todos os meus dados.
 >
 > **Conteúdo gerado por usuários:** fotos de motos e nomes ficam visíveis apenas para os membros das expedições e motoclubes privados (acesso por código). Alertas de perigo não exibem o autor.
 
@@ -123,3 +123,37 @@ Publique o vídeo como "não listado" no YouTube e cole o link.
 - **Classificação etária:** responda ao questionário; o app não tem violência, conteúdo adulto nem compras.
 - **Capturas de tela:** mapa com o comboio, faixa de alerta de perigo, tela do motoclube, tela "Minha moto" e tela de autorizações.
 - **Teste fechado no Google Play:** contas pessoais novas precisam de um período de teste fechado com testadores antes da produção. Confira a regra atual no Play Console.
+
+---
+
+## 7. Links públicos (Firebase Hosting)
+
+Gerados de `assets/legal/` por `node scripts/gerar-paginas.js` e publicados com
+`firebase deploy --only hosting`. Mudou o texto no app? Gere e publique de novo.
+
+| Uso no console | Link |
+|---|---|
+| Política de Privacidade | https://helpaitechcomboio.web.app/privacidade |
+| Termos de Uso | https://helpaitechcomboio.web.app/termos |
+| Exclusão de conta e dados | https://helpaitechcomboio.web.app/excluir-dados |
+
+## 8. Assinatura e envio para a Google Play
+
+- **Conta Google Play:** pessoal, ID 6256935240609624046.
+- **Chave de upload:** `E:\APP\comboio-chaves\comboio-upload.jks` (alias `upload`;
+  senha no `LEIA-ME` da mesma pasta). Fica FORA do git. Guarde uma cópia no
+  Drive da HelpAITech. `android/key.properties` aponta para ela.
+  - SHA-1: `AE:BB:4C:DB:A3:08:92:CA:CC:23:45:1A:77:37:AA:26:1D:0A:52:C0`
+  - Já cadastrada no Firebase e na chave "Comboio Android" do mapa.
+- **Gerar o pacote:** `flutter build appbundle --release --dart-define-from-file=config/dart_defines.json`
+  → `build/app/outputs/bundle/release/app-release.aab`. A cada envio, aumente
+  o número depois do `+` em `version:` no `pubspec.yaml`.
+- **Depois do 1º envio:** a Play cria a **chave de assinatura do app** (Play
+  Console → Testar e lançar → Configuração → Integridade do app → Assinatura do
+  app). Copie o SHA-1 e o SHA-256 dela e cadastre no Firebase (Configurações do
+  projeto → app Android → Adicionar impressão digital) e na chave "Comboio
+  Android" (Google Cloud → Credenciais). Sem isso, na versão baixada da loja o
+  login com Google falha e o mapa fica cinza.
+- **App Check:** com o app vindo da Play, o Play Integrity funciona sozinho.
+- **Teste fechado:** contas pessoais novas precisam de 12 testadores por 14
+  dias seguidos antes da produção.

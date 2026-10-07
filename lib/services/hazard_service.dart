@@ -8,6 +8,7 @@
 // ============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../logic/geo.dart';
 import '../models/hazard.dart';
@@ -96,23 +97,38 @@ class HazardService {
     });
   }
 
-  /// "Ainda está lá": renova o prazo do alerta.
-  void confirm(Hazard h) {
-    _col.doc(h.id).update({
-      'confirmations': FieldValue.increment(1),
-      'lastConfirmedAt': FieldValue.serverTimestamp(),
-      'expiresAt': Timestamp.fromDate(DateTime.now().add(h.type.lifetime)),
-    });
+  /// Grava o voto e a contagem no mesmo lote. As regras do Firestore aceitam
+  /// UM voto por pessoa em cada alerta (hazards/{id}/votes/{uid}); o voto é
+  /// apagado sozinho pelo TTL (campo expiresAt), como o próprio alerta.
+  void _vote(Hazard h, bool up, Map<String, dynamic> changes) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final batch = FirebaseFirestore.instance.batch()
+      ..set(_col.doc(h.id).collection('votes').doc(uid), {
+        'up': up,
+        'expiresAt':
+            Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+      })
+      ..update(_col.doc(h.id), changes);
+    batch.commit().catchError((_) {}); // já votou: o servidor recusa
   }
 
+  /// "Ainda está lá": renova o prazo do alerta.
+  void confirm(Hazard h) => _vote(h, true, {
+        'confirmations': FieldValue.increment(1),
+        'lastConfirmedAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(DateTime.now().add(h.type.lifetime)),
+      });
+
   /// "Não está mais": com 2 votos (ou mais votos contra do que a favor),
-  /// o alerta some do mapa.
+  /// o alerta some do mapa. [force]: o autor removendo o próprio alerta.
   void dismiss(Hazard h, {bool force = false}) {
     final remove = shouldRemoveHazard(
         confirmations: h.confirmations, dismissals: h.dismissals, force: force);
-    _col.doc(h.id).update({
+    _vote(h, false, {
       'dismissals': FieldValue.increment(1),
-      if (remove) 'expiresAt': Timestamp.now(),
+      // Hora do servidor: as regras só aceitam "agora" para remover.
+      if (remove) 'expiresAt': FieldValue.serverTimestamp(),
     });
   }
 }

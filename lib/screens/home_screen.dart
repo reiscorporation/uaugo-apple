@@ -431,7 +431,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     controller: _codeCtrl,
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(
-                      labelText: 'Código (6 letras)',
+                      labelText: 'Código do convite',
                       border: OutlineInputBorder(),
                     ),
                   ),

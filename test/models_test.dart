@@ -25,13 +25,26 @@ void main() {
         model: 'Fat Boy',
         style: BikeStyle.custom,
         color: 0xFF212121,
-        photoUrl: 'https://exemplo/foto.jpg',
+        photoUrl: '${BikeProfile.photoPrefix}u1%2F1.jpg?alt=media',
       );
       final c = BikeProfile.fromMap(b.toMap());
       expect(c.displayName, b.displayName);
       expect(c.style, BikeStyle.custom);
       expect(c.color, 0xFF212121);
       expect(c.photoUrl, b.photoUrl);
+    });
+
+    test('foto de fora do Storage do app é ignorada', () {
+      for (final u in [
+        'https://exemplo.com/foto.jpg',
+        'http://firebasestorage.googleapis.com/v0/b/helpaitechcomboio.firebasestorage.app/o/bikes%2Fa',
+        'https://firebasestorage.googleapis.com/v0/b/outro-projeto.appspot.com/o/bikes%2Fa',
+        'https://firebasestorage.googleapis.com/v0/b/helpaitechcomboio.firebasestorage.app/o/public%2Fx',
+        42,
+      ]) {
+        expect(BikeProfile.fromMap({'photoUrl': u}).photoUrl, isNull,
+            reason: '$u');
+      }
     });
 
     test('copyWith com clearPhoto remove a foto', () {

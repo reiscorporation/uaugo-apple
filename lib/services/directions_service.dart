@@ -13,8 +13,8 @@
 
 import 'dart:convert';
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:http/http.dart' as http;
 
 import '../logic/geo.dart';
 import '../logic/navigation.dart';
@@ -53,18 +53,18 @@ class RouteResult {
 }
 
 /// Traça a rota real pelas estradas passando por todas as paradas.
-/// Sem chave (ou sem internet), cai para linhas retas entre as paradas.
+/// Sem internet, cai para linhas retas entre as paradas.
 ///
-/// Passe a chave ao rodar:
-///   flutter run --dart-define=DIRECTIONS_API_KEY=SUA_CHAVE
+/// A chave do Google fica no SERVIDOR (functions/maps.js): o app chama a
+/// função "directions", que exige login e tem limite diário por usuário.
 class DirectionsService {
-  static const _key = String.fromEnvironment('DIRECTIONS_API_KEY');
+  static final _fn = FirebaseFunctions.instanceFor(region: 'southamerica-east1');
 
   /// A API aceita até 25 paradas intermediárias por pedido; roteiros maiores
   /// são calculados em blocos e emendados.
   static const _maxWaypoints = 23;
 
-  static bool get available => _key.isNotEmpty;
+  static bool get available => true;
 
   /// Só o traçado (cai para linhas retas entre os pontos se falhar).
   static Future<List<LatLng>> route(List<LatLng> points) async {
@@ -78,7 +78,7 @@ class DirectionsService {
     bool avoidTolls = false,
     bool avoidHighways = false,
   }) async {
-    if (points.length < 2 || _key.isEmpty) return null;
+    if (points.length < 2) return null;
     final legs = <RouteLeg>[];
     final steps = <List<NavStep>>[];
     final path = <LatLng>[];
@@ -139,19 +139,23 @@ class DirectionsService {
       // só devolve alternativas quando não há paradas no meio.)
       final shortest = prefs.preference == RoutePreference.shortest;
       final wantAlternatives = shortest || risks.isNotEmpty;
-      final uri = Uri.https('maps.googleapis.com', '/maps/api/directions/json', {
+      // A consulta passa pelo servidor (função "directions"), que guarda a
+      // chave do Google: ela não fica dentro do app.
+      final res = await _fn
+          .httpsCallable('directions',
+              options: HttpsCallableOptions(
+                  timeout: const Duration(seconds: 25)))
+          .call({
         'origin': _fmt(points.first),
         'destination': _fmt(points.last),
         if (mids.isNotEmpty) 'waypoints': mids,
-        if (avoid.isNotEmpty) 'avoid': avoid.join('|'),
-        if (wantAlternatives && mids.isEmpty) 'alternatives': 'true',
-        if (prefs.liveTraffic) 'departure_time': 'now',
-        'mode': 'driving',
-        'language': 'pt-BR',
-        'key': _key,
+        'avoid': avoid,
+        'alternatives': wantAlternatives && mids.isEmpty,
+        'traffic': prefs.liveTraffic,
       });
-      final res = await http.get(uri).timeout(const Duration(seconds: 15));
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      // Converte o mapa da função para Map<String, dynamic>.
+      final body =
+          jsonDecode(jsonEncode(res.data)) as Map<String, dynamic>;
       if (body['status'] != 'OK') return null;
       final routes = (body['routes'] as List).cast<Map<String, dynamic>>();
       int dist(Map<String, dynamic> r) => (r['legs'] as List)
@@ -214,5 +218,6 @@ class DirectionsService {
   }
 
   /// Coordenada no formato do Google: "-27.59,-48.54".
-  static String _fmt(LatLng p) => '${p.latitude},${p.longitude}';
+  static String _fmt(LatLng p) =>
+      '${p.latitude.toStringAsFixed(6)},${p.longitude.toStringAsFixed(6)}';
 }

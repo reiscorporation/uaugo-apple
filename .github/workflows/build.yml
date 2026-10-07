@@ -62,10 +62,8 @@ jobs:
         shell: pwsh
         env:
           ANDROID_MAPS_KEY: ${{ secrets.ANDROID_MAPS_KEY }}
-          DIRECTIONS_API_KEY: ${{ secrets.DIRECTIONS_API_KEY }}
         run: |
           if ($env:ANDROID_MAPS_KEY) { "ANDROID_MAPS_KEY=$env:ANDROID_MAPS_KEY" | Add-Content config.env }
-          if ($env:DIRECTIONS_API_KEY) { "DIRECTIONS_API_KEY=$env:DIRECTIONS_API_KEY" | Add-Content config.env }
           ./scripts/configurar.ps1 -CI
       - name: Build APK (debug)
         run: flutter build apk --debug --dart-define-from-file=config/dart_defines.json

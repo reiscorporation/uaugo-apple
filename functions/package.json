@@ -1,9 +1,16 @@
 {
-  "name": "comboio-functions",
-  "main": "index.js",
-  "engines": { "node": "20" },
-  "dependencies": {
-    "firebase-admin": "^12.6.0",
-    "firebase-functions": "^6.0.1"
-  }
+    "name": "comboio-functions",
+    "main": "index.js",
+    "engines": {
+        "node": "20"
+    },
+    "dependencies": {
+        "@google-cloud/firestore": "^9.3.1",
+        "@google-cloud/storage": "^8.2.0",
+        "firebase-admin": "^14.5.0",
+        "firebase-functions": "^7.4.0"
+    },
+    "overrides": {
+        "uuid": "^11.1.1"
+    }
 }

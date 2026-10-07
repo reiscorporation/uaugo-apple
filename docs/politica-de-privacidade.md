@@ -1,6 +1,6 @@
 # Política de Privacidade do Comboio
 
-Versão 1.0, de 05/10/2026.
+Versão 1.1, de 06/10/2026.
 
 Esta Política explica quais dados pessoais o aplicativo **Comboio** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
@@ -20,7 +20,7 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 - Registro do **aceite dos Termos** e das **autorizações** (versão, data e hora). Finalidade: comprovar o aceite. Base legal: cumprimento de obrigação legal e exercício regular de direitos (art. 7º, II e VI).
 
 **Localização (GPS)**
-- **Navegando sozinho ou em "Só dirigir":** a localização é usada **apenas no celular** (rota, avisos, velocímetro). Ela **não é enviada ao nosso servidor**. Para calcular a rota, a busca e a previsão do tempo, são enviados ao Google e ao Open-Meteo os pontos necessários (origem, destino e pontos à frente).
+- **Navegando sozinho ou em "Só dirigir":** a localização é usada **apenas no celular** (rota, avisos, velocímetro). Ela **não é enviada ao nosso servidor**. Para calcular a rota e buscar lugares, os pontos necessários (origem, destino, paradas e o texto da busca) passam pelo nosso servidor, que os repassa ao Google **sem guardá-los**; para a previsão do tempo, os pontos à frente são enviados ao Open-Meteo.
 - **Em uma expedição:** sua posição, velocidade e horário são enviados aos **participantes da expedição** (no máximo 1 vez por minuto) enquanto ela estiver aberta, inclusive com o App minimizado (notificação fixa "Comboio ativo"). Base legal: consentimento (art. 7º, I), dado na tela de autorizações e ao entrar na expedição.
 - **SOS:** sua posição é enviada aos participantes da expedição.
 - **Alerta reportado:** a posição do alerta e o identificador de quem reportou ficam visíveis aos usuários durante a validade do alerta.
@@ -55,6 +55,7 @@ O banco de dados, os arquivos e as funções do servidor ficam na região **São
 - **Alertas da comunidade:** pela validade de cada tipo (de **1 hora a 7 dias**), e depois apagados automaticamente.
 - **Avisos do motoclube:** **180 dias**.
 - **Conta, autorizações e aceite dos Termos:** enquanto a conta existir.
+- **Contagem diária de consultas de rotas e lugares** (só o número, para limitar abusos): substituída a cada dia.
 - **Dados no celular:** até você excluir ou desinstalar o App.
 
 ## 7. Seus direitos (art. 18 da LGPD)

@@ -1,4 +1,4 @@
-﻿<#
+<#
   Comboio - configura o Google Cloud e o Firebase pela linha de comando:
   ativa APIs, cria o banco, cria as chaves do Maps restritas, liga o TTL
   dos alertas e publica regras e funções.
@@ -69,11 +69,15 @@ function New-ChaveMaps([string]$Nome, [string[]]$Extra) {
 Write-Etapa 'Criando as chaves do Google Maps (restritas)'
 $kAndroid = New-ChaveMaps 'Comboio Android' @('--api-target=service=maps-android-backend.googleapis.com', "--allowed-application=sha1_fingerprint=$sha1,package_name=$pkg")
 $kIos     = New-ChaveMaps 'Comboio iOS'     @('--api-target=service=maps-ios-backend.googleapis.com', "--allowed-bundle-ids=$pkg")
-$kDir     = New-ChaveMaps 'Comboio Rotas'   @('--api-target=service=directions-backend.googleapis.com')
+# Rotas e busca de lugares: chave SÓ do servidor (nunca entra no app).
+$kSrv     = New-ChaveMaps 'Comboio Servidor (rotas e lugares)' @('--api-target=service=directions-backend.googleapis.com', '--api-target=service=places.googleapis.com')
 Set-ConfigValue 'ANDROID_MAPS_KEY' $kAndroid
 Set-ConfigValue 'IOS_MAPS_KEY' $kIos
-Set-ConfigValue 'DIRECTIONS_API_KEY' $kDir
-Write-Ok 'Chaves salvas em config.env'
+Write-Ok 'Chaves do mapa salvas em config.env'
+$envFile = Join-Path $Root 'functions/.env'
+$linhas = if (Test-Path $envFile) { @(Get-Content $envFile | Where-Object { $_ -notmatch '^MAPS_SERVER_KEY=' }) } else { @() }
+[IO.File]::WriteAllLines($envFile, $linhas + "MAPS_SERVER_KEY=$kSrv", $Utf8)
+Write-Ok 'Chave do servidor salva em functions/.env'
 Invoke-AplicarConfig (Read-Config)
 
 Write-Etapa 'Expiração automática dos alertas (TTL)'

@@ -28,3 +28,6 @@ ios/Flutter/flutter_export_environment.sh
 *.jks
 *.keystore
 android/key.properties
+
+# Cache do deploy do Firebase Hosting
+.firebase/

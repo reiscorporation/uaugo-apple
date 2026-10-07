@@ -7,6 +7,8 @@
  * - endExpedition ............ o líder encerra a expedição (apaga tudo)
  * - clubNearby, clubNotify ... motoclube (membros próximos, avisos)
  * - deleteMyData ............. exclusão de dados (LGPD)
+ * - directions, places ....... rotas e busca de lugares (chave do Google só aqui;
+ *                              functions/maps.js, limite diário por usuário)
  * - updateRadars ............. radares e trechos da PRF (seg. e qui.)
  * - updateSpeedLimits ........ limites de velocidade por estado (segunda)
  * - updatePois ............... lombadas, postos e pedágios (todo dia)
@@ -29,6 +31,7 @@ const zlib = require("zlib");
 const { buildRadarData } = require("./radars");
 const { buildSpeedLimits } = require("./speedlimits");
 const { buildPois } = require("./pois");
+const maps = require("./maps");
 
 initializeApp();
 const db = getFirestore();
@@ -37,6 +40,19 @@ const region = "southamerica-east1";
 // Ative (true) em functions/.env depois de registrar o app no App Check.
 const enforceAppCheck = process.env.ENFORCE_APP_CHECK === "true";
 const callOpts = { region, enforceAppCheck };
+
+/**
+ * Exige conta de verdade (Google, Apple ou e-mail), não a anônima do
+ * primeiro uso. Mesma regra do Firestore (hasAccount). Devolve o uid.
+ */
+function accountUid(req) {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Faça login.");
+  if (req.auth.token?.firebase?.sign_in_provider === "anonymous") {
+    throw new HttpsError("permission-denied", "Entre com sua conta para usar esta função.");
+  }
+  return uid;
+}
 
 // No Emulator Suite (scripts/testar-local.ps1) não existe FCM local:
 // em vez de enviar o push, só registra no log do emulador.
@@ -91,10 +107,9 @@ exports.onStop = onDocumentCreated(
  * paradas, SOS). O histórico da viagem fica só no celular de cada piloto.
  */
 exports.endExpedition = onCall(callOpts, async (req) => {
-  const uid = req.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Faça login.");
+  const uid = accountUid(req);
   const code = req.data?.code;
-  if (typeof code !== "string" || !/^[A-Z0-9]{6}$/.test(code)) {
+  if (typeof code !== "string" || !/^[A-Z0-9]{6,8}$/.test(code)) {
     throw new HttpsError("invalid-argument", "Código inválido.");
   }
   const ref = db.doc(`expeditions/${code}`);
@@ -106,6 +121,11 @@ exports.endExpedition = onCall(callOpts, async (req) => {
   await db.recursiveDelete(ref);
   return { ok: true };
 });
+
+// ===================== Rotas e lugares (chave fica no servidor) ===========
+// Detalhes em maps.js. O app chama estas funções no lugar do Google direto.
+exports.directions = onCall(callOpts, maps.directions);
+exports.places = onCall(callOpts, maps.places);
 
 // ===================== Motoclube =====================
 
@@ -144,8 +164,7 @@ function validCoords(lat, lng) {
  * distância arredondada em km.
  */
 exports.clubNearby = onCall(callOpts, async (req) => {
-  const uid = req.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Faça login.");
+  const uid = accountUid(req);
   const { clubId, lat, lng, purpose } = req.data || {};
   if (!validCoords(lat, lng) || !CONSENT_FOR[purpose]) {
     throw new HttpsError("invalid-argument", "Dados inválidos.");
@@ -181,8 +200,7 @@ exports.clubNearby = onCall(callOpts, async (req) => {
  * somente se ele autorizou esse tipo de contato. Limite: 5 envios/hora.
  */
 exports.clubNotify = onCall(callOpts, async (req) => {
-  const uid = req.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Faça login.");
+  const uid = accountUid(req);
   const { clubId, targetUid, type, lat, lng, message, phone } = req.data || {};
   if (!CONSENT_FOR[type] || typeof targetUid !== "string" || targetUid === uid) {
     throw new HttpsError("invalid-argument", "Dados inválidos.");
@@ -260,7 +278,7 @@ exports.deleteMyData = onCall(callOpts, async (req) => {
   if (!uid) throw new HttpsError("unauthenticated", "Faça login.");
   const { expeditions, clubId } = req.data || {};
   const codes = Array.isArray(expeditions)
-    ? expeditions.filter((c) => typeof c === "string" && /^[A-Z0-9]{6}$/.test(c)).slice(0, 50)
+    ? expeditions.filter((c) => typeof c === "string" && /^[A-Z0-9]{6,8}$/.test(c)).slice(0, 50)
     : [];
 
   for (const code of codes) {
@@ -275,7 +293,7 @@ exports.deleteMyData = onCall(callOpts, async (req) => {
     await Promise.all(stops.docs.map((d) => d.ref.update({ createdBy: null })));
   }
 
-  if (typeof clubId === "string" && /^[A-Z0-9]{6}$/.test(clubId)) {
+  if (typeof clubId === "string" && /^[A-Z0-9]{6,8}$/.test(clubId)) {
     const club = db.doc(`clubs/${clubId}`);
     const snap = await club.get();
     if (snap.exists && snap.data().createdBy === uid) await club.update({ createdBy: null });

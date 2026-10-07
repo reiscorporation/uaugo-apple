@@ -1942,7 +1942,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       m.isStale ? Colors.grey : Color(m.bike.color),
                   backgroundImage: m.bike.photoUrl == null
                       ? null
-                      : NetworkImage(m.bike.photoUrl!),
+                      : ResizeImage(NetworkImage(m.bike.photoUrl!), width: 96),
                   child: m.bike.photoUrl == null
                       ? Icon(m.bike.style.icon, color: Colors.white)
                       : null,

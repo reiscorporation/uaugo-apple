@@ -39,11 +39,13 @@ class ExpeditionService {
   DocumentReference<Map<String, dynamic>> _exp(String code) =>
       _db.collection('expeditions').doc(code);
 
-  /// Código aleatório de 6 caracteres (sem letras que confundem).
+  /// Código aleatório de 8 caracteres (sem letras que confundem). São 32^8
+  /// (~1 trilhão) combinações: inviável adivinhar o código de um grupo.
+  /// Códigos antigos de 6 caracteres continuam valendo.
   String _randomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final r = Random.secure();
-    return List.generate(6, (_) => chars[r.nextInt(chars.length)]).join();
+    return List.generate(8, (_) => chars[r.nextInt(chars.length)]).join();
   }
 
   /// Cria a expedição (o criador vira líder e membro). Devolve o código.

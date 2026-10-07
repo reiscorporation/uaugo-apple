@@ -63,6 +63,25 @@ firebase deploy --only functions:updatePois --project helpaitechcomboio  # só u
 firebase deploy --only firestore:rules,storage --project helpaitechcomboio
 ```
 
+- **Chave do Google para rotas e lugares** fica SÓ no servidor:
+  `functions/.env` → `MAPS_SERVER_KEY` (nunca no app). Limite diário por
+  usuário: `functions/maps.js` → `LIMITS`.
+- **Dependências do servidor:** o `firebase-admin` 14 não traz mais o
+  `@google-cloud/firestore` e o `@google-cloud/storage`; eles precisam estar
+  no `package.json` (senão o deploy falha com "Container Healthcheck failed").
+  Antes de publicar: `npm audit --omit=dev` sem vulnerabilidades.
+- Se o deploy disser "Cannot determine backend specification. Timeout", rode
+  antes `$env:FUNCTIONS_DISCOVERY_TIMEOUT='60'`.
+
+### App Check (só o app verdadeiro acessa o servidor)
+- Android usa Play Integrity; a versão de teste (debug) usa um **token de
+  depuração** por aparelho. Na 1ª abertura, o app escreve no log
+  (`adb logcat`) "Enter this debug secret…". Cadastre em Firebase → App Check
+  → Apps → ⋮ → Gerenciar tokens de depuração. Já cadastrado: Galaxy S24.
+- Para **exigir**: funções → `ENFORCE_APP_CHECK=true` em `functions/.env` e
+  publicar; Firestore e Storage → Firebase → App Check → APIs → Aplicar.
+- Aparelho novo de teste sem token cadastrado = app sem acesso ao servidor.
+
 As funções agendadas (radares, limites, lombadas) rodam sozinhas. Para forçar
 uma execução agora: Console do Google Cloud → Cloud Scheduler → a tarefa →
 "Forçar execução".
@@ -113,7 +132,7 @@ Siga o modelo de `functions/pois.js` (servidor) + `lib/services/poi_service.dart
 | `test/costs_theme_test.dart` | Gastos, consumo, pôr do sol, pedágio |
 | `test/track_test.dart` | Gravação do caminho e histórico |
 | `test/itinerary_test.dart`, `models_test.dart`, `geo_test.dart`, `speech_test.dart` | Agenda, modelos, traçados, frases |
-| `tests/rules.test.js` | Regras de segurança do Firestore |
+| `tests/rules/rules.test.js` | Regras de segurança do Firestore (o emulador exige Java 21+: antes, `$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'`) |
 
 **Regra de ouro:** ao mudar algo em `lib/logic/`, rode o teste correspondente.
 
@@ -129,7 +148,7 @@ Siga o modelo de `functions/pois.js` (servidor) + `lib/services/poi_service.dart
   Mudou algo relevante? Aumente `TermsService.version` (terms_screen.dart):
   todos aceitam de novo.
 - **Funções chamadas pelo app** (`deleteMyData`, `endExpedition`,
-  `clubNearby`, `clubNotify`) precisam da permissão pública de chamada
+  `clubNearby`, `clubNotify`, `directions`, `places`) precisam da permissão pública de chamada
   (Cloud Run → `roles/run.invoker` para `allUsers`); cada uma confere por
   dentro quem chamou. Se uma função nova recusar chamadas ("not authorized to
   invoke"), rode:

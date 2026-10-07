@@ -1,4 +1,4 @@
-﻿# Funções compartilhadas pelos scripts do Comboio (Windows, Mac e Linux com PowerShell 7).
+# Funções compartilhadas pelos scripts do Comboio (Windows, Mac e Linux com PowerShell 7).
 # 'Continue' porque ferramentas como gcloud escrevem progresso no stderr;
 # as falhas são verificadas por $LASTEXITCODE e 'throw'.
 $ErrorActionPreference = 'Continue'
@@ -53,7 +53,6 @@ function Get-Valor($cfg, [string]$Key, [string]$Padrao) {
 function Invoke-AplicarConfig($cfg) {
   $androidKey = Get-Valor $cfg 'ANDROID_MAPS_KEY' 'SUA_CHAVE_ANDROID_AQUI'
   $iosKey     = Get-Valor $cfg 'IOS_MAPS_KEY' 'SUA_CHAVE_IOS_AQUI'
-  $dirKey     = Get-Valor $cfg 'DIRECTIONS_API_KEY' ''
 
   # --- Android: permissões, chave do Maps e apps externos (WhatsApp, telefone)
   $manifest = Join-Path $Root 'android/app/src/main/AndroidManifest.xml'
@@ -167,8 +166,9 @@ function Invoke-AplicarConfig($cfg) {
   }
   Write-Ok 'Chave do Maps no AppDelegate'
 
-  # --- Chave de rotas para o flutter run/build
+  # --- Valores extras do flutter run/build. A chave de rotas e lugares NÃO
+  # vai no app: fica no servidor (functions/.env, MAPS_SERVER_KEY).
   $defs = Join-Path $Root 'config/dart_defines.json'
-  [IO.File]::WriteAllText($defs, "{ `"DIRECTIONS_API_KEY`": `"$dirKey`" }", $Utf8)
+  [IO.File]::WriteAllText($defs, '{}', $Utf8)
   Write-Ok 'config/dart_defines.json'
 }

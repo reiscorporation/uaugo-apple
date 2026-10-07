@@ -71,6 +71,7 @@ class AuthService {
       if (current.isAnonymous) {
         // Vincula: mantém o mesmo uid e todos os dados.
         await current.linkWithProvider(provider);
+        await _refreshToken();
         await onLinked?.call();
       } else {
         await _auth.signInWithProvider(provider);
@@ -86,6 +87,14 @@ class AuthService {
         rethrow;
       }
     }
+  }
+
+  /// Renova o token de acesso logo após vincular a conta: as regras do
+  /// Firestore leem dele se a conta ainda é anônima.
+  static Future<void> _refreshToken() async {
+    try {
+      await _auth.currentUser?.getIdToken(true);
+    } catch (_) {}
   }
 
   // ---------------------------------------------------------- e-mail
@@ -106,6 +115,7 @@ class AuthService {
             .user!;
     if (name.trim().isNotEmpty) await u.updateDisplayName(name.trim());
     await u.sendEmailVerification();
+    await _refreshToken();
     if (wasAnonymous) {
       await onLinked?.call();
     } else {

@@ -1,36 +1,98 @@
 rules_version = '2';
+// Regras de segurança do Firestore. Visão geral e motivos de cada regra:
+// docs/ARQUITETURA.md (Arquitetura de Segurança). Testes: tests/rules.
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---------- Funções de apoio
     function signedIn() { return request.auth != null; }
+    // Conta de verdade (Google, Apple ou e-mail). A conta anônima do primeiro
+    // uso só navega sozinha: não entra em grupos nem publica nada.
+    function hasAccount() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function str(v, max) { return v is string && v.size() <= max; }
+    function isLat(v) { return v is number && v >= -90 && v <= 90; }
+    function isLng(v) { return v is number && v >= -180 && v <= 180; }
+    // Campo opcional: se veio, precisa ser válido.
+    function optStr(d, k, max) { return !(k in d) || str(d[k], max); }
+    function optNum(d, k) { return !(k in d) || d[k] is number; }
+
     function isMember(code) {
       return exists(/databases/$(database)/documents/expeditions/$(code)/members/$(request.auth.uid));
     }
 
+    // Foto do veículo: só do Storage do app, na pasta do próprio usuário
+    // (lá o Storage limita a 2 MB e a JPEG/PNG/WebP).
+    function validPhoto(url) {
+      return url == null || (url is string && url.size() <= 400 && url.matches(
+        '^https://firebasestorage[.]googleapis[.]com/v0/b/helpaitechcomboio[.]firebasestorage[.]app/o/bikes%2F'
+        + request.auth.uid + '%2F[^/?]+([?].*)?$'));
+    }
+    function validBike(b) {
+      return b is map
+        && b.keys().hasOnly(['brand', 'model', 'style', 'color', 'photoUrl'])
+        && optStr(b, 'brand', 40) && optStr(b, 'model', 60) && optStr(b, 'style', 20)
+        && (!('color' in b) || b.color is int)
+        && (!('photoUrl' in b) || validPhoto(b.photoUrl));
+    }
+
+    // ---------- Expedições
     match /expeditions/{code} {
-      // Quem tem o código consegue abrir a expedição (o código funciona como convite).
-      allow get: if signedIn();
+      // Quem tem o código consegue abrir a expedição (o código é o convite).
+      // Códigos novos têm 8 caracteres (32^8 combinações: inviável adivinhar).
+      allow get: if hasAccount();
       allow list: if false;
-      allow create: if signedIn() && request.resource.data.leaderId == request.auth.uid;
-      allow update, delete: if signedIn() && resource.data.leaderId == request.auth.uid;
+      allow create: if hasAccount()
+        && code.matches('^[A-Z0-9]{8}$')
+        && request.resource.data.leaderId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['name', 'leaderId', 'createdAt', 'plan'])
+        && str(request.resource.data.name, 60);
+      allow update: if hasAccount() && resource.data.leaderId == request.auth.uid
+        && request.resource.data.leaderId == resource.data.leaderId
+        && str(request.resource.data.name, 60);
+      allow delete: if hasAccount() && resource.data.leaderId == request.auth.uid;
 
       match /members/{uid} {
-        allow read: if signedIn() && isMember(code);
-        // Cada piloto só escreve a própria posição.
-        allow write: if signedIn() && request.auth.uid == uid;
+        function validMember() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['name', 'joinedAt', 'bike', 'lat', 'lng', 'speed', 'heading', 'updatedAt'])
+            && optStr(d, 'name', 60)
+            && (!('lat' in d) || isLat(d.lat)) && (!('lng' in d) || isLng(d.lng))
+            && optNum(d, 'speed') && optNum(d, 'heading')
+            && (!('bike' in d) || validBike(d.bike));
+        }
+        allow read: if hasAccount() && isMember(code);
+        // Cada piloto só escreve o próprio registro (nome, moto e posição),
+        // e só numa expedição que existe.
+        allow create: if hasAccount() && request.auth.uid == uid
+          && exists(/databases/$(database)/documents/expeditions/$(code))
+          && validMember();
+        allow update: if hasAccount() && request.auth.uid == uid && validMember();
+        allow delete: if signedIn() && request.auth.uid == uid;
       }
 
       // Roteiro: todos os membros veem; só o líder altera.
       match /stops/{stopId} {
-        allow read: if signedIn() && isMember(code);
-        allow write: if signedIn()
+        allow read: if hasAccount() && isMember(code);
+        allow write: if hasAccount()
           && get(/databases/$(database)/documents/expeditions/$(code)).data.leaderId == request.auth.uid;
       }
 
+      // SOS: o membro aciona em nome próprio; qualquer membro pode marcar
+      // como resolvido, mas ninguém altera quem pediu, onde nem quando.
       match /alerts/{alertId} {
-        allow read, update: if signedIn() && isMember(code);
-        allow create: if signedIn() && isMember(code)
-                      && request.resource.data.uid == request.auth.uid;
+        allow read: if hasAccount() && isMember(code);
+        allow create: if hasAccount() && isMember(code)
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'lat', 'lng', 'resolved', 'createdAt'])
+          && request.resource.data.uid == request.auth.uid
+          && str(request.resource.data.name, 60)
+          && isLat(request.resource.data.lat) && isLng(request.resource.data.lng)
+          && request.resource.data.resolved == false;
+        allow update: if hasAccount() && isMember(code)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved', 'resolvedAt'])
+          && request.resource.data.resolved == true;
+        allow delete: if false;
       }
     }
 
@@ -40,8 +102,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---------- Uso diário das funções de rotas/lugares: só o servidor
+    match /usage/{uid} {
+      allow read, write: if false;
+    }
+
     // ---------- Perfil privado (autorizações, cidade base, token de push)
-    // Só o dono lê/escreve. As Cloud Functions acessam com privilégio de admin.
+    // Só o dono lê/escreve. A conta anônima também (aceite dos Termos).
     match /users/{uid} {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
@@ -51,16 +118,30 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid));
     }
     match /clubs/{clubId} {
-      allow get: if signedIn();
+      allow get: if hasAccount();
       allow list: if false;
-      allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+      allow create: if hasAccount()
+        && clubId.matches('^[A-Z0-9]{8}$')
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.keys().hasOnly(['name', 'createdBy', 'createdAt'])
+        && str(request.resource.data.name, 60);
+      allow update: if hasAccount() && resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdBy == resource.data.createdBy
+        && str(request.resource.data.name, 60);
+      allow delete: if hasAccount() && resource.data.createdBy == request.auth.uid;
 
       // Membros veem nome, cidade (se autorizada) e moto. Nunca coordenadas.
       match /members/{uid} {
-        allow read: if signedIn() && isClubMember(clubId);
-        allow create, update: if signedIn() && request.auth.uid == uid
-          && !('lat' in request.resource.data) && !('lng' in request.resource.data);
+        function validClubMember() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['name', 'city', 'bike', 'joinedAt'])
+            && optStr(d, 'name', 60) && optStr(d, 'city', 80) && optStr(d, 'bike', 100);
+        }
+        allow read: if hasAccount() && isClubMember(clubId);
+        allow create: if hasAccount() && request.auth.uid == uid
+          && exists(/databases/$(database)/documents/clubs/$(clubId))
+          && validClubMember();
+        allow update: if hasAccount() && request.auth.uid == uid && validClubMember();
         allow delete: if signedIn() && request.auth.uid == uid;
       }
       // Registro de avisos e limite de envios: só as Cloud Functions.
@@ -76,22 +157,65 @@ service cloud.firestore {
     }
 
     match /hazards/{hazardId} {
+      function voteRef() {
+        return /databases/$(database)/documents/hazards/$(hazardId)/votes/$(request.auth.uid);
+      }
+      // Um voto por pessoa: o voto (votes/{uid}) é gravado junto com a
+      // contagem, no mesmo lote. Se o voto já existia, a contagem é recusada.
+      function validVote() {
+        let d = request.resource.data;
+        let r = resource.data;
+        let keys = d.diff(r).affectedKeys();
+        return !exists(voteRef()) && existsAfter(voteRef())
+          && (
+            // "Ainda está lá": +1 confirmação e renova o prazo (não vale o autor).
+            (getAfter(voteRef()).data.up == true
+              && r.createdBy != request.auth.uid
+              && keys.hasOnly(['confirmations', 'expiresAt', 'lastConfirmedAt'])
+              && d.confirmations == r.confirmations + 1
+              && validExpiry())
+            ||
+            // "Não está mais": +1 descarte; some do mapa (prazo = agora) com 2
+            // descartes, com mais descartes que confirmações, ou pelo autor.
+            (getAfter(voteRef()).data.up == false
+              && keys.hasOnly(['dismissals', 'expiresAt'])
+              && d.dismissals == r.dismissals + 1
+              && (!('expiresAt' in keys)
+                  || (d.expiresAt == request.time
+                      && (r.createdBy == request.auth.uid
+                          || d.dismissals >= 2
+                          || d.dismissals > r.confirmations))))
+          );
+      }
+
+      // Ler: todos (inclusive a conta anônima, que navega sozinha).
       allow read: if signedIn();
-      allow create: if signedIn()
+      allow create: if hasAccount()
+        && request.resource.data.keys().hasOnly(['type', 'lat', 'lng', 'cell', 'createdBy', 'createdAt', 'expiresAt', 'confirmations', 'dismissals'])
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.type in ['police','radar','pothole','danger','oil','animal','accident','fog','kite','risk']
-        && request.resource.data.lat is number
-        && request.resource.data.lng is number
-        && request.resource.data.cell is string
+        && isLat(request.resource.data.lat)
+        && isLng(request.resource.data.lng)
+        && str(request.resource.data.cell, 20)
         && request.resource.data.confirmations == 1
         && request.resource.data.dismissals == 0
         && validExpiry();
-      // Qualquer usuário pode votar (confirmar / dizer que não está mais).
-      allow update: if signedIn()
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['confirmations','dismissals','expiresAt','lastConfirmedAt'])
-        && validExpiry();
+      allow update: if hasAccount() && validVote();
       allow delete: if false;
+
+      // Votos: cada um vê só o próprio; não muda nem apaga (o TTL apaga).
+      match /votes/{uid} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create: if hasAccount() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['up', 'expiresAt'])
+          && request.resource.data.up is bool
+          && validExpiry()
+          && getAfter(/databases/$(database)/documents/hazards/$(hazardId)).data.confirmations
+             + getAfter(/databases/$(database)/documents/hazards/$(hazardId)).data.dismissals
+             == get(/databases/$(database)/documents/hazards/$(hazardId)).data.confirmations
+             + get(/databases/$(database)/documents/hazards/$(hazardId)).data.dismissals + 1;
+        allow update, delete: if false;
+      }
     }
   }
 }
