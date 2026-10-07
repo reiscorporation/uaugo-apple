@@ -1,6 +1,6 @@
 # Política de Privacidade do Comboio
 
-Versão 1.1, de 06/10/2026.
+Versão 1.2, de 06/10/2026.
 
 Esta Política explica quais dados pessoais o aplicativo **Comboio** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
@@ -11,7 +11,7 @@ Esta Política explica quais dados pessoais o aplicativo **Comboio** ("App") tra
 
 ## 2. Princípio do App: o mínimo possível no servidor
 
-O que dá para ficar no seu celular fica no seu celular: **histórico de viagens, configurações, telefone, gastos e os dados de radares e limites**. No servidor fica só o que precisa ser compartilhado ao vivo com outras pessoas (expedição em andamento, alertas da comunidade e motoclube).
+O que dá para ficar no seu celular fica no seu celular: **histórico de viagens, configurações, telefone, gastos e os dados de radares e limites**. No servidor fica só o que precisa ser compartilhado ao vivo com outras pessoas (expedição em andamento, alertas da comunidade e clube).
 
 ## 3. Dados tratados e finalidades
 
@@ -28,19 +28,20 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 **Perfil exibido ao grupo**
 - Nome de piloto, marca, modelo, tipo e cor do veículo e a **foto do veículo** (se você enviar). Finalidade: mostrar quem é quem no mapa da expedição.
 
-**Motoclube (opcional, só com sua autorização)**
+**Clube (opcional, só com sua autorização)**
+- O clube é cadastrado pelo **presidente**, com código de ativação fornecido pela HelpAITech. Para entrar, cada membro usa um **convite de uso único** gerado pelo presidente. Guardamos quem é o presidente e **quem convidou cada membro**, para garantir que só membros oficiais participem. O presidente pode remover membros.
 - **Cidade base** arredondada a ~1 km, nome e clube. Outros membros veem apenas o nome, a cidade e a distância aproximada, **nunca sua posição exata**.
 - **Telefone:** fica **só no seu celular** e é enviado apenas quando você pede ajuda ou avisa alguém e marca essa opção.
 
 **Notificações**
-- Token de notificações do celular (Firebase Cloud Messaging). Finalidade: avisar SOS e paradas do grupo e mensagens do motoclube.
+- Token de notificações do celular (Firebase Cloud Messaging). Finalidade: avisar SOS e paradas do grupo e mensagens do clube.
 
 **Dados que ficam só no celular**
 - Histórico de viagens (caminho, estatísticas, gastos), configurações, consumo do veículo e telefone. **Não temos acesso a eles.** Desinstalar o App apaga esses dados.
 
 ## 4. Com quem compartilhamos
 
-- **Outros usuários**, apenas o descrito acima (participantes da sua expedição, membros do seu motoclube e alertas públicos).
+- **Outros usuários**, apenas o descrito acima (participantes da sua expedição, membros do seu clube e alertas públicos).
 - **Operadores (prestadores de serviço):** Google LLC (Firebase: banco de dados, arquivos, login, notificações e funções; Google Maps, Directions e Places) e Open-Meteo (previsão do tempo, só coordenadas, sem identificação).
 - **Autoridades**, quando houver obrigação legal ou ordem judicial.
 - **Não vendemos** dados pessoais e não os usamos para publicidade.
@@ -53,7 +54,8 @@ O banco de dados, os arquivos e as funções do servidor ficam na região **São
 
 - **Expedição** (participantes, posições, paradas, SOS): até o líder encerrar ou após **30 dias sem atividade**.
 - **Alertas da comunidade:** pela validade de cada tipo (de **1 hora a 7 dias**), e depois apagados automaticamente.
-- **Avisos do motoclube:** **180 dias**.
+- **Avisos do clube:** **180 dias**.
+- **Convites do clube:** até vencerem (**7 dias**), e depois apagados automaticamente.
 - **Conta, autorizações e aceite dos Termos:** enquanto a conta existir.
 - **Contagem diária de consultas de rotas e lugares** (só o número, para limitar abusos): substituída a cada dia.
 - **Dados no celular:** até você excluir ou desinstalar o App.
@@ -72,7 +74,7 @@ Usamos conexões criptografadas, regras de acesso no banco de dados (cada pessoa
 
 ## 9. Como excluir seus dados
 
-No App: **Privacidade e autorizações → Excluir todos os meus dados**. Isso apaga sua conta, suas participações em expedições, seu cadastro no motoclube e os dados do celular. Os alertas que você reportou deixam de ser associados a você. Se não tiver mais o App, peça pelo e-mail helpaitech.ricardo@gmail.com.
+No App: **Privacidade e autorizações → Excluir todos os meus dados**. Isso apaga sua conta, suas participações em expedições, seu cadastro no clube e os dados do celular. Os alertas que você reportou deixam de ser associados a você. Se não tiver mais o App, peça pelo e-mail helpaitech.ricardo@gmail.com.
 
 ## 10. Idade mínima
 

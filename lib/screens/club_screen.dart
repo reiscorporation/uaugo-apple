@@ -1,14 +1,19 @@
 // ============================================================================
-// club_screen.dart — Tela do motoclube
+// club_screen.dart — Tela do clube
 //
-// O que faz: Entrar/criar um motoclube, ver membros e configurar o que o
-//   piloto aceita receber (pedidos de ajuda, avisos de passagem).
-// Quem usa: HomeScreen (botão Motoclube).
-// Onde mexer: Regras do servidor: functions/index.js (clubNearby, clubNotify).
+// O que faz: Clube oficial. O presidente cria o clube com o código de
+//   ativação da HelpAITech e gera convites de uso único; o membro entra com
+//   o convite. Também: membros (o presidente pode remover), pedidos de ajuda
+//   e avisos de passagem.
+// Quem usa: HomeScreen (botão Clube).
+// Onde mexer: Regras do servidor: functions/clubs.js (criar, convidar,
+//   entrar) e functions/index.js (clubNearby, clubNotify).
 // ============================================================================
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/privacy.dart';
 import '../services/auth_service.dart';
@@ -18,7 +23,7 @@ import '../services/user_service.dart';
 import '../widgets/club_nearby_sheet.dart';
 import 'consent_screen.dart';
 
-/// Tela do motoclube: entrar com código, criar, ver membros, sair.
+/// Tela do clube: entrar com código, criar, ver membros, sair.
 class ClubScreen extends StatefulWidget {
   const ClubScreen({super.key, required this.userName});
   final String userName;
@@ -32,8 +37,10 @@ class _ClubScreenState extends State<ClubScreen> {
   final _svc = ClubService.instance;
   final _nameCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
+  final _activationCtrl = TextEditingController();
   String? _clubId;
   String? _clubName;
+  String _presidentId = '';
   String? _uid;
   Consents _consents = const Consents();
   bool _loading = true;
@@ -45,41 +52,58 @@ class _ClubScreenState extends State<ClubScreen> {
     _load();
   }
 
-  /// Carrega o clube salvo no celular e as autorizações.
+  /// Carrega o clube salvo no celular e as autorizações. Confere no
+  /// servidor se a pessoa ainda é membro (o presidente pode remover).
   Future<void> _load() async {
     final uid = await AuthService.ensureSignedIn();
-    final id = await UserService.loadClubId();
-    final name = await UserService.loadClubName();
+    var id = await UserService.loadClubId();
+    var name = await UserService.loadClubName();
     final c = await UserService.loadConsents() ?? const Consents();
+    String president = '';
+    if (id != null) {
+      final club = await _svc.find(id);
+      if (club == null) {
+        // Removido do clube (ou clube encerrado): limpa no celular.
+        await UserService.setClub(null, null);
+        id = null;
+        name = null;
+      } else {
+        name = club.name;
+        president = club.presidentId;
+      }
+    }
     if (!mounted) return;
     setState(() {
       _uid = uid;
       _clubId = id;
       _clubName = name;
+      _presidentId = president;
       _consents = c;
       _loading = false;
     });
   }
 
+  bool get _isPresident => _presidentId.isNotEmpty && _presidentId == _uid;
+
   /// Mostra uma mensagem rápida no rodapé.
   void _snack(String msg) => ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(msg)));
 
-  /// Entra no clube: salva no celular e registra a cidade base no servidor.
-  Future<void> _enter(String clubId, String clubName) async {
+  /// Cidade base (só se autorizou "ser encontrado") e veículo, enviados ao
+  /// entrar no clube.
+  Future<(String, String)> _cityAndBike() async {
     final base = await UserService.loadBase();
     final bike = await ProfileService.load();
-    await _svc.join(
-      clubId: clubId,
-      uid: _uid!,
-      userName: widget.userName,
-      city: _consents.findable ? (base?.city ?? '') : '',
-      bike: bike.displayName,
-    );
-    await UserService.setClub(clubId, clubName);
+    return (_consents.findable ? (base?.city ?? '') : '', bike.displayName);
+  }
+
+  /// Guarda o clube no celular e mostra a tela do clube.
+  Future<void> _entered(Club club) async {
+    await UserService.setClub(club.id, club.name);
     setState(() {
-      _clubId = clubId;
-      _clubName = clubName;
+      _clubId = club.id;
+      _clubName = club.name;
+      _presidentId = club.presidentId;
     });
   }
 
@@ -92,6 +116,8 @@ class _ClubScreenState extends State<ClubScreen> {
     setState(() => _busy = true);
     try {
       await action();
+    } on FirebaseFunctionsException catch (e) {
+      _snack(e.message ?? 'Não foi possível concluir. Tente de novo.');
     } catch (e) {
       _snack('Erro: $e');
     } finally {
@@ -99,34 +125,119 @@ class _ClubScreenState extends State<ClubScreen> {
     }
   }
 
-  /// Cria um clube novo com o nome digitado.
+  /// Presidente: cria o clube com o código de ativação da HelpAITech.
   void _create() => _run(() async {
+        final code = _activationCtrl.text.trim();
         final name = _nameCtrl.text.trim();
-        if (name.isEmpty) {
-          _snack('Digite o nome do motoclube');
+        if (code.isEmpty || name.isEmpty) {
+          _snack('Digite o código de ativação e o nome do clube');
           return;
         }
-        final id = await _svc.create(name, _uid!);
-        await _enter(id, name);
+        final (city, bike) = await _cityAndBike();
+        await _entered(await _svc.createWithActivation(
+          activationCode: code,
+          name: name,
+          memberName: widget.userName,
+          city: city,
+          bike: bike,
+        ));
+        _snack('Clube criado! Agora gere convites para os membros.');
       });
 
-  /// Entra num clube pelo código digitado.
+  /// Membro: entra com o convite de uso único recebido do presidente.
   void _join() => _run(() async {
-        final code = _codeCtrl.text.trim().toUpperCase();
-        final club = await _svc.find(code);
-        if (club == null) {
-          _snack('Motoclube "$code" não encontrado');
+        final code = _codeCtrl.text.trim();
+        if (code.isEmpty) {
+          _snack('Digite o convite recebido do presidente do clube');
           return;
         }
-        await _enter(club.id, club.name);
+        final (city, bike) = await _cityAndBike();
+        await _entered(await _svc.joinWithInvite(
+          inviteCode: code,
+          memberName: widget.userName,
+          city: city,
+          bike: bike,
+        ));
       });
+
+  /// Presidente: gera um convite de uso único e mostra para enviar.
+  void _invite() => _run(() async {
+        final inv = await _svc.createInvite(_clubId!);
+        if (!mounted) return;
+        final d = inv.expiresAt;
+        final msg = 'Convite para entrar no clube $_clubName no app '
+            'Comboio: ${inv.display}\n(vale para UMA pessoa, até '
+            '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')})';
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Convite de uso único'),
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              SelectableText(inv.display,
+                  style: Theme.of(ctx).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold, letterSpacing: 2)),
+              const SizedBox(height: 12),
+              const Text('Envie para UM membro. Ele digita em Clube → '
+                  '"Entrar no meu clube". Depois de usado, o convite não vale '
+                  'mais. Vale por 7 dias.'),
+            ]),
+            actions: [
+              TextButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: msg));
+                    Navigator.pop(ctx);
+                    _snack('Convite copiado');
+                  },
+                  child: const Text('Copiar')),
+              FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    SharePlus.instance.share(ShareParams(text: msg));
+                  },
+                  icon: const Icon(Icons.share),
+                  label: const Text('Enviar')),
+            ],
+          ),
+        );
+      });
+
+  /// Presidente: remove um membro (com confirmação).
+  Future<void> _remove(ClubMember m) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Remover ${m.name} do clube?'),
+        content: const Text('Para voltar, ele vai precisar de um novo convite.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Remover')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _svc.removeMember(_clubId!, m.uid);
+      _snack('${m.name} foi removido do clube');
+    } catch (e) {
+      _snack('Não foi possível remover: $e');
+    }
+  }
 
   /// Sai do clube (com confirmação).
   Future<void> _leave() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Sair do motoclube?'),
+        title: const Text('Sair do clube?'),
+        content: Text(_isPresident
+            ? 'Você é o presidente. Saindo, ninguém mais poderá gerar '
+                'convites até a HelpAITech indicar um novo presidente. Para '
+                'voltar, você precisará de um convite.'
+            : 'Para voltar, você precisará de um novo convite do presidente.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -165,7 +276,7 @@ class _ClubScreenState extends State<ClubScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Motoclube')),
+      appBar: AppBar(title: const Text('Clube')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : AbsorbPointer(
@@ -180,7 +291,7 @@ class _ClubScreenState extends State<ClubScreen> {
         padding: const EdgeInsets.all(20),
         children: [
           Text(
-            'Faça parte do seu motoclube no app para pedir ajuda ao membro mais próximo ou avisar quando passar pela cidade de alguém.',
+            'Faça parte do seu clube no app para pedir ajuda ao membro mais próximo ou avisar quando passar pela cidade de alguém.',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 20),
@@ -192,12 +303,17 @@ class _ClubScreenState extends State<ClubScreen> {
                   children: [
                     Text('Entrar no meu clube',
                         style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(
+                        'Peça ao presidente do seu clube um convite. Cada '
+                        'convite vale para uma pessoa só.',
+                        style: theme.textTheme.bodySmall),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _codeCtrl,
                       textCapitalization: TextCapitalization.characters,
                       decoration: const InputDecoration(
-                          labelText: 'Código do clube',
+                          labelText: 'Convite (ex.: ABCD-2345)',
                           border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
@@ -212,23 +328,33 @@ class _ClubScreenState extends State<ClubScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Cadastrar meu clube',
+                    Text('Sou presidente: cadastrar o clube',
                         style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(
+                        'O cadastro do clube é feito pelo presidente, com o '
+                        'código de ativação fornecido pela HelpAITech. Para '
+                        'solicitar: helpaitech.ricardo@gmail.com',
+                        style: theme.textTheme.bodySmall),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _activationCtrl,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: const InputDecoration(
+                          labelText: 'Código de ativação',
+                          border: OutlineInputBorder()),
+                    ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _nameCtrl,
                       textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
-                          labelText: 'Nome do motoclube',
+                          labelText: 'Nome do clube',
                           border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton(
                         onPressed: _create, child: const Text('Cadastrar')),
-                    const SizedBox(height: 8),
-                    Text(
-                        'Você recebe um código para enviar aos membros do clube.',
-                        style: theme.textTheme.bodySmall),
                   ]),
             ),
           ),
@@ -248,18 +374,21 @@ class _ClubScreenState extends State<ClubScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(_clubName ?? '', style: theme.textTheme.titleLarge),
-                    Text('Código: $_clubId', style: theme.textTheme.bodySmall),
+                    Text(_isPresident ? 'Você é o presidente' : 'Membro oficial',
+                        style: theme.textTheme.bodySmall),
                   ]),
             ),
-            IconButton(
-              icon: const Icon(Icons.copy),
-              tooltip: 'Copiar código',
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: _clubId!));
-                _snack('Código copiado');
-              },
-            ),
           ]),
+          if (_isPresident) ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48)),
+              onPressed: _invite,
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('Convidar membro (convite de uso único)'),
+            ),
+          ],
           const SizedBox(height: 16),
           Text('Suas autorizações', style: theme.textTheme.titleSmall),
           const SizedBox(height: 8),
@@ -306,17 +435,27 @@ class _ClubScreenState extends State<ClubScreen> {
                     leading: CircleAvatar(
                         child: Text(
                             m.name.isEmpty ? '?' : m.name[0].toUpperCase())),
-                    title: Text(m.uid == _uid ? '${m.name} (você)' : m.name),
+                    title: Text([
+                      m.uid == _uid ? '${m.name} (você)' : m.name,
+                      if (m.isPresident) '· presidente',
+                    ].join(' ')),
                     subtitle: Text([
                       m.city.isEmpty ? 'Cidade não compartilhada' : m.city,
                       if (m.bike.isNotEmpty) m.bike,
                     ].join(' · ')),
+                    trailing: _isPresident && m.uid != _uid
+                        ? IconButton(
+                            icon: const Icon(Icons.person_remove_outlined),
+                            tooltip: 'Remover do clube',
+                            onPressed: () => _remove(m),
+                          )
+                        : null,
                   ),
               ]);
             },
           ),
           const SizedBox(height: 16),
-          TextButton(onPressed: _leave, child: const Text('Sair do motoclube')),
+          TextButton(onPressed: _leave, child: const Text('Sair do clube')),
         ],
       );
 }

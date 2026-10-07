@@ -78,7 +78,7 @@ fs.writeFileSync(path.join(out, "excluir-dados.html"), page("Excluir seus dados 
   "## O que é apagado\n\n" +
   "- Conta (login), autorizações e registro do aceite dos Termos.\n" +
   "- Participação em expedições (nome, veículo, foto e posições) e pedidos de SOS.\n" +
-  "- Cadastro no motoclube e avisos enviados.\n" +
+  "- Cadastro no clube e avisos enviados.\n" +
   "- Dados guardados no celular (histórico de viagens, configurações).\n\n" +
   "## O que pode ficar\n\n" +
   "- Alertas da comunidade que você reportou ficam até vencer (de 1 hora a 7 dias), **sem identificar você**.\n\n" +

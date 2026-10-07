@@ -102,8 +102,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // ---------- Uso diário das funções de rotas/lugares: só o servidor
+    // ---------- Só o servidor: uso diário das funções, códigos de ativação
+    // de clube (HelpAITech) e convites de uso único.
     match /usage/{uid} {
+      allow read, write: if false;
+    }
+    match /clubActivations/{code} {
+      allow read, write: if false;
+    }
+    match /clubInvites/{code} {
       allow read, write: if false;
     }
 
@@ -113,36 +120,34 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
 
-    // ---------- Motoclubes
+    // ---------- Clubes
     function isClubMember(clubId) {
       return exists(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid));
     }
+    // Clube OFICIAL: criar (presidente, com código de ativação da
+    // HelpAITech) e entrar (convite de uso único) só pelo servidor
+    // (functions/clubs.js). O app só lê, edita o próprio cadastro e sai;
+    // o presidente pode remover membros.
+    function isPresident(clubId) {
+      let c = get(/databases/$(database)/documents/clubs/$(clubId)).data;
+      return c.get('presidentId', c.get('createdBy', null)) == request.auth.uid;
+    }
     match /clubs/{clubId} {
-      allow get: if hasAccount();
-      allow list: if false;
-      allow create: if hasAccount()
-        && clubId.matches('^[A-Z0-9]{8}$')
-        && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.keys().hasOnly(['name', 'createdBy', 'createdAt'])
-        && str(request.resource.data.name, 60);
-      allow update: if hasAccount() && resource.data.createdBy == request.auth.uid
-        && request.resource.data.createdBy == resource.data.createdBy
-        && str(request.resource.data.name, 60);
-      allow delete: if hasAccount() && resource.data.createdBy == request.auth.uid;
+      allow get: if hasAccount() && isClubMember(clubId);
+      allow list, create, update, delete: if false;
 
       // Membros veem nome, cidade (se autorizada) e moto. Nunca coordenadas.
       match /members/{uid} {
-        function validClubMember() {
-          let d = request.resource.data;
-          return d.keys().hasOnly(['name', 'city', 'bike', 'joinedAt'])
-            && optStr(d, 'name', 60) && optStr(d, 'city', 80) && optStr(d, 'bike', 100);
-        }
         allow read: if hasAccount() && isClubMember(clubId);
-        allow create: if hasAccount() && request.auth.uid == uid
-          && exists(/databases/$(database)/documents/clubs/$(clubId))
-          && validClubMember();
-        allow update: if hasAccount() && request.auth.uid == uid && validClubMember();
-        allow delete: if signedIn() && request.auth.uid == uid;
+        allow create: if false;
+        // Cada um muda só nome, cidade e moto (nunca o papel nem quem convidou).
+        allow update: if hasAccount() && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'city', 'bike'])
+          && optStr(request.resource.data, 'name', 60)
+          && optStr(request.resource.data, 'city', 80)
+          && optStr(request.resource.data, 'bike', 100);
+        // Sair do clube, ou o presidente remover um membro.
+        allow delete: if signedIn() && (request.auth.uid == uid || isPresident(clubId));
       }
       // Registro de avisos e limite de envios: só as Cloud Functions.
       match /{sub=**} {

@@ -3,11 +3,11 @@
 //
 // O que faz: Todo aparelho começa com uma conta ANÔNIMA (sem cadastro). Quando
 //   a pessoa entra com Google, Apple ou e-mail e senha, a conta anônima é
-//   VINCULADA à nova (mesmo uid): expedições, alertas e motoclube continuam.
+//   VINCULADA à nova (mesmo uid): expedições, alertas e clube continuam.
 //   Se a conta já existia (ex.: outro celular), entra nela e regrava os
 //   aceites (termos/autorizações) para o uid dessa conta.
 // Quem usa: LoginScreen, Configurações (Minha conta), telas que exigem conta
-//   (criar/entrar em expedição, reportar alertas, motoclube).
+//   (criar/entrar em expedição, reportar alertas, clube).
 // Onde mexer: Provedores ativos no Firebase (Authentication → Sign-in method):
 //   anônimo, e-mail/senha, Google e (no iPhone) Apple.
 // ============================================================================

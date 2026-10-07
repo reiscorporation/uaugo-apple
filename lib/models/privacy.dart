@@ -7,7 +7,7 @@ class Consents {
   /// Obrigatória para usar o app: posição ao vivo com o comboio.
   final bool shareLiveLocation;
 
-  /// Aparecer (nome, cidade base, distância aproximada) para o motoclube.
+  /// Aparecer (nome, cidade base, distância aproximada) para o clube.
   final bool findable;
 
   /// Receber pedidos de ajuda de membros do clube próximos.

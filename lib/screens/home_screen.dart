@@ -2,7 +2,7 @@
 // home_screen.dart — Tela inicial
 //
 // O que faz: "Para onde?" (navegação sozinho), "Só dirigir", nome do piloto,
-//   veículo, histórico, motoclube, criar/entrar em expedição e créditos.
+//   veículo, histórico, clube, criar/entrar em expedição e créditos.
 // Quem usa: StartupGate.
 // Onde mexer: Fluxo do "Para onde?": _whereTo (busca → prévia → MapScreen).
 // ============================================================================
@@ -173,10 +173,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (b != null) setState(() => _bike = b);
   }
 
-  /// Abre o motoclube.
+  /// Abre o clube.
   Future<void> _openClub() async {
     if (!await requireAccount(context,
-        'O motoclube é para membros identificados: entre com sua conta.')) {
+        'O clube é para membros identificados: entre com sua conta.')) {
       return;
     }
     if (!mounted) return;
@@ -393,8 +393,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: _openClub,
                 icon: const Icon(Icons.shield_outlined),
                 label: Text(_clubName == null
-                    ? 'Motoclube'
-                    : 'Motoclube: $_clubName'),
+                    ? 'Clube'
+                    : 'Clube: $_clubName'),
               ),
               if (_lastCode != null) ...[
                 const SizedBox(height: 16),

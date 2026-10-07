@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// - Expedições: cada uma é um "tópico" (push de SOS e novas paradas).
-/// - Motoclube: push direto para o aparelho do membro (token salvo em
+/// - Clube: push direto para o aparelho do membro (token salvo em
 ///   users/{uid}), enviado pela Cloud Function `clubNotify`.
 class NotificationService {
   static final _fm = FirebaseMessaging.instance;
@@ -42,7 +42,7 @@ class NotificationService {
     });
   }
 
-  /// Guarda o token de push do celular em users/{uid} (para o motoclube).
+  /// Guarda o token de push do celular em users/{uid} (para o clube).
   static Future<void> saveToken(String uid) async {
     final doc = FirebaseFirestore.instance.collection('users').doc(uid);
     try {
@@ -75,7 +75,7 @@ class NotificationService {
     }
   }
 
-  /// Mostra pedidos do motoclube com atalhos: ir até lá, WhatsApp, ligar.
+  /// Mostra pedidos do clube com atalhos: ir até lá, WhatsApp, ligar.
   static void _show(RemoteMessage m) {
     final d = m.data;
     final type = (d['type'] ?? '') as String;

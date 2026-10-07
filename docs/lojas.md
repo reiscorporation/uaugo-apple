@@ -11,7 +11,7 @@ Textos prontos para colar nos consoles. Revise os trechos entre colchetes.
 | Nome | Comboio: moto em grupo | 30 |
 | Subtítulo (Apple) | Expedições de moto em comboio | 30 |
 | Descrição curta (Google) | Comboio no mapa, paradas, SOS e alertas de perigo para viagens de moto em grupo. | 80 |
-| Palavras-chave (Apple) | moto,motociclismo,expedição,viagem,motoclube,grupo,rota,SOS,estrada,mototurismo,motoqueiro,trilha | 100 |
+| Palavras-chave (Apple) | moto,motociclismo,expedição,viagem,clube,grupo,rota,SOS,estrada,mototurismo,motoqueiro,trilha | 100 |
 | Categoria | Mapas e navegação (Google) · Navegação (Apple) | |
 
 ### Descrição completa
@@ -32,7 +32,7 @@ O Comboio mostra no mapa, em tempo real, onde está cada piloto da sua expediç�
 - Aviso sonoro quando você se aproxima de um perigo à frente
 - Botões grandes, pensados para uso com luvas
 
-**Para o motoclube**
+**Para o clube**
 - Peça ajuda ao membro do clube mais próximo
 - Avise quando estiver passando pela cidade de alguém do clube
 - Você decide quem pode te encontrar e te contatar
@@ -60,7 +60,7 @@ Tipos de dados (marque como **coletado**; em "compartilhado" responda **não**, 
 | Tipo de dado | Obrigatório? | Finalidade | Observação |
 |---|---|---|---|
 | Local exato | Obrigatório | Funcionalidade do app | Posição no comboio, SOS, pedido de ajuda |
-| Local aproximado | Opcional | Funcionalidade do app | Cidade base do motoclube |
+| Local aproximado | Opcional | Funcionalidade do app | Cidade base do clube |
 | Nome | Obrigatório | Funcionalidade do app | Nome de piloto |
 | Número de telefone | Opcional | Funcionalidade do app | Processado de forma temporária (não armazenado) |
 | Fotos | Opcional | Funcionalidade do app | Foto da moto |
@@ -111,9 +111,9 @@ Publique o vídeo como "não listado" no YouTube e cole o link.
 >
 > **Localização em segundo plano:** durante uma expedição, a posição continua sendo compartilhada com o grupo com o app minimizado, para que os pilotos saibam onde cada um está enquanto pilotam e para que o SOS mostre a posição correta. O indicador de localização do iOS fica visível, e a coleta termina quando o usuário sai da expedição.
 >
-> **Conta:** navegar sozinho não exige cadastro; expedições, alertas e motoclube exigem entrar com Apple, Google ou e-mail. [Informe aqui um e-mail e senha de teste.] A exclusão de dados está em Privacidade e autorizações > Excluir todos os meus dados.
+> **Conta:** navegar sozinho não exige cadastro; expedições, alertas e clube exigem entrar com Apple, Google ou e-mail. [Informe aqui um e-mail e senha de teste.] A exclusão de dados está em Privacidade e autorizações > Excluir todos os meus dados.
 >
-> **Conteúdo gerado por usuários:** fotos de motos e nomes ficam visíveis apenas para os membros das expedições e motoclubes privados (acesso por código). Alertas de perigo não exibem o autor.
+> **Conteúdo gerado por usuários:** fotos de motos e nomes ficam visíveis apenas para os membros das expedições e clubes privados (acesso por código). Alertas de perigo não exibem o autor.
 
 ---
 
@@ -121,7 +121,7 @@ Publique o vídeo como "não listado" no YouTube e cole o link.
 
 - **Conteúdo gerado por usuários (Apple, diretriz 1.2):** apps com conteúdo de usuários podem precisar de forma de denunciar e bloquear. Como fotos e nomes só aparecem em grupos privados, pode não ser exigido, mas se o revisor pedir, será preciso incluir "Denunciar foto" e "Bloquear usuário".
 - **Classificação etária:** responda ao questionário; o app não tem violência, conteúdo adulto nem compras.
-- **Capturas de tela:** mapa com o comboio, faixa de alerta de perigo, tela do motoclube, tela "Minha moto" e tela de autorizações.
+- **Capturas de tela:** mapa com o comboio, faixa de alerta de perigo, tela do clube, tela "Minha moto" e tela de autorizações.
 - **Teste fechado no Google Play:** contas pessoais novas precisam de um período de teste fechado com testadores antes da produção. Confira a regra atual no Play Console.
 
 ---

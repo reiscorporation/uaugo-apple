@@ -34,7 +34,7 @@ Desenvolvido por **Ricardo Reis / HelpAITech**.
 - **Alertas públicos estilo Waze** (🚓 polícia, 📷 radar móvel, 🕳️ buraco, ⚠️ perigo, 🛢️ óleo/areia, 🐄 animal, 💥 acidente, 🌫️ neblina, 🪁 pipas/cerol, 🚨 área de risco): visíveis para todos os usuários, com aviso falado e votação "ainda está lá / não está mais"
 - **Minha moto / Meu carro:** cada piloto coloca foto, marca, modelo, tipo e cor. O mapa mostra o veículo de cada amigo com nome e modelo (ex: "João · Kawasaki Versys 650")
 - **Autorizações no cadastro (LGPD):** no primeiro uso, o piloto escolhe o que autoriza; tudo opcional vem desligado e pode ser revogado depois
-- **Motoclube:** pedir ajuda ao membro mais próximo, avisar quando passar pela cidade de alguém, e sugestão automática de aviso ao se aproximar (até 25 km) de um membro
+- **Clube:** pedir ajuda ao membro mais próximo, avisar quando passar pela cidade de alguém, e sugestão automática de aviso ao se aproximar (até 25 km) de um membro
 - **Excluir meus dados** no app (Privacidade e autorizações) e limpeza automática diária conforme a política
 - Botão **SOS** (segurar para enviar): alerta na tela + push para todo o grupo, mesmo com app fechado
 - Funciona com sinal fraco: posições, paradas e SOS ficam salvos no celular e são enviados quando o sinal volta
@@ -177,9 +177,9 @@ lib/
     location_service.dart        GPS em primeiro/segundo plano
     directions_service.dart      rota pelas estradas
     hazard_service.dart          alertas públicos (polícia, buraco...)
-    notification_service.dart    push por expedição e do motoclube
+    notification_service.dart    push por expedição e do clube
     user_service.dart            autorizações, cidade base, telefone
-    club_service.dart            motoclube e chamadas às Cloud Functions
+    club_service.dart            clube e chamadas às Cloud Functions
   models/bike.dart               marcas, estilos, cores da moto
   services/profile_service.dart  salva perfil e envia foto
   widgets/bike_marker.dart       marcador com foto + etiqueta
@@ -187,11 +187,11 @@ lib/
     home_screen.dart             nome, criar / entrar
     profile_screen.dart          "Minha moto"
     consent_screen.dart          autorizações (cadastro / privacidade)
-    club_screen.dart             motoclube: entrar, membros, pedir ajuda
+    club_screen.dart             clube: entrar, membros, pedir ajuda
     map_screen.dart              mapa, paradas, grupo, SOS
   logic/geo.dart                 cálculos puros (direção, votos, polyline)
   screens/startup_gate.dart      exige autorizações no primeiro uso
-functions/index.js               push; motoclube; exclusão de dados; limpeza diária
+functions/index.js               push; clube; exclusão de dados; limpeza diária
 scripts/                         instalação e automação (PowerShell)
 test/ e tests/rules/             testes do app e das regras de segurança
 .github/workflows/build.yml      compilação e testes na nuvem
@@ -218,13 +218,13 @@ Na tela inicial ("Configurar minha moto") ou no mapa (ícone de moto no topo):
 > Logos e desenhos oficiais das fabricantes são marcas registradas e **não** são usados.
 > Para incluí-los seria preciso autorização/licenciamento de cada marca.
 
-## Motoclube e autorizações
+## Clube e autorizações
 **Cadastro:** a tela "Autorizações" aparece obrigatoriamente no primeiro uso.
 
 | Autorização | Padrão | O que libera |
 |---|---|---|
 | Compartilhar localização com o comboio | desligada (obrigatória para usar) | posição ao vivo só para a expedição aberta |
-| Ser encontrado pelo motoclube | desligada | nome, cidade base e distância aproximada visíveis ao clube |
+| Ser encontrado pelo clube | desligada | nome, cidade base e distância aproximada visíveis ao clube |
 | Receber pedidos de ajuda | desligada | notificação com a localização de quem precisa |
 | Receber avisos de passagem | desligada | aviso quando um membro passa pela sua cidade |
 
@@ -234,7 +234,7 @@ Na tela inicial ("Configurar minha moto") ou no mapa (ícone de moto no topo):
 - Limite de 5 avisos por hora por pessoa, para evitar abuso.
 - As autorizações ficam registradas com data (`acceptedAt`) e versão. Se mudar o texto, aumente `Consents.currentVersion` para pedir o aceite de novo.
 
-**Clube:** um membro cadastra o clube e recebe um código; os demais entram com o código. Tela inicial → "Motoclube".
+**Clube:** um membro cadastra o clube e recebe um código; os demais entram com o código. Tela inicial → "Clube".
 
 **No mapa:** botão verde-azulado (escudo) → pedir ajuda ao mais próximo / avisar que está passando.
 

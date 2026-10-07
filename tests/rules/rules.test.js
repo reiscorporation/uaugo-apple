@@ -41,8 +41,9 @@ beforeEach(async () => {
     await setDoc(doc(f, "expeditions/ABC123/members/carol"), { name: "Carol" });
     await setDoc(doc(f, "expeditions/ABC123/alerts/sos1"),
       { uid: "carol", name: "Carol", lat: 1, lng: 1, resolved: false });
-    await setDoc(doc(f, "clubs/CLUB01"), { name: "Clube", createdBy: "alice" });
-    await setDoc(doc(f, "clubs/CLUB01/members/alice"), { name: "Alice", city: "" });
+    await setDoc(doc(f, "clubs/CLUB01"), { name: "Clube", createdBy: "alice", presidentId: "alice" });
+    await setDoc(doc(f, "clubs/CLUB01/members/alice"), { name: "Alice", city: "", role: "president" });
+    await setDoc(doc(f, "clubs/CLUB01/members/carol"), { name: "Carol", city: "", role: "member" });
     await setDoc(doc(f, "users/alice"), { consent: { findable: true } });
     await setDoc(doc(f, "hazards/h1"), {
       type: "pothole", lat: -21, lng: -47, cell: "-210_-470", createdBy: "alice",
@@ -148,14 +149,29 @@ describe("Motoclube", () => {
       { lat: -21, lng: -47 }, { merge: true })));
   it("app não acessa o registro de avisos", () =>
     assertFails(getDoc(doc(db("alice"), "clubs/CLUB01/rate/alice"))));
-  it("conta anônima não entra no clube", () =>
-    assertFails(setDoc(doc(anon("dave"), "clubs/CLUB01/members/dave"), { name: "Dave" })));
-  it("com conta, entra no clube", () =>
-    assertSucceeds(setDoc(doc(db("bob"), "clubs/CLUB01/members/bob"),
+  it("ninguém entra no clube direto pelo banco (só com convite, pelo servidor)", () =>
+    assertFails(setDoc(doc(db("bob"), "clubs/CLUB01/members/bob"),
       { name: "Bob", city: "Ribeirão Preto", bike: "Versys" })));
-  it("clube novo exige código de 8", async () => {
-    await assertFails(setDoc(doc(db("bob"), "clubs/CLB123"), { name: "C", createdBy: "bob" }));
-    await assertSucceeds(setDoc(doc(db("bob"), "clubs/CLUB2345"), { name: "C", createdBy: "bob" }));
+  it("ninguém cria clube direto pelo banco (só com código de ativação)", () =>
+    assertFails(setDoc(doc(db("bob"), "clubs/CLUB2345"), { name: "C", createdBy: "bob" })));
+  it("quem não é membro não abre o clube", () =>
+    assertFails(getDoc(doc(db("bob"), "clubs/CLUB01"))));
+  it("membro abre o clube", () =>
+    assertSucceeds(getDoc(doc(db("alice"), "clubs/CLUB01"))));
+  it("membro muda a própria cidade", () =>
+    assertSucceeds(setDoc(doc(db("alice"), "clubs/CLUB01/members/alice"),
+      { city: "Franca" }, { merge: true })));
+  it("membro não se promove a presidente", () =>
+    assertFails(setDoc(doc(db("carol"), "clubs/CLUB01/members/carol"),
+      { role: "president" }, { merge: true })));
+  it("membro não remove outro membro", () =>
+    assertFails(deleteDoc(doc(db("carol"), "clubs/CLUB01/members/alice"))));
+  it("presidente remove um membro", () =>
+    assertSucceeds(deleteDoc(doc(db("alice"), "clubs/CLUB01/members/carol"))));
+  it("app não lê códigos de ativação nem convites", async () => {
+    await assertFails(getDoc(doc(db("alice"), "clubActivations/ABCDEFGH2345")));
+    await assertFails(getDoc(doc(db("alice"), "clubInvites/ABCD2345")));
+    await assertFails(getDocs(collection(db("alice"), "clubInvites")));
   });
   it("membro pode sair do clube", () =>
     assertSucceeds(deleteDoc(doc(db("alice"), "clubs/CLUB01/members/alice"))));

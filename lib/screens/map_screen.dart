@@ -224,7 +224,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Hazard? _shownHazard;
   bool _shownManually = false;
 
-  // ---- Motoclube
+  // ---- Clube
   String? _clubId;
   NearbyMember? _passingSuggestion;
   Position? _lastClubCheckPos;
@@ -391,7 +391,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Ações do motoclube (pedir ajuda, avisar passagem).
+  /// Ações do clube (pedir ajuda, avisar passagem).
   void _showClubActions() {
     showModalBottomSheet(
       context: context,
@@ -2572,7 +2572,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        '${_passingSuggestion!.name}, do seu motoclube, está em ${_passingSuggestion!.city} (~${_passingSuggestion!.distanceKm} km). Avisar que você está passando?',
+                        '${_passingSuggestion!.name}, do seu clube, está em ${_passingSuggestion!.city} (~${_passingSuggestion!.distanceKm} km). Avisar que você está passando?',
                         style: white,
                       ),
                     ),
@@ -2746,7 +2746,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               FloatingActionButton(
                 heroTag: 'club',
                 onPressed: _showClubActions,
-                tooltip: 'Motoclube',
+                tooltip: 'Clube',
                 backgroundColor: Colors.teal,
                 child: const Icon(Icons.shield, color: Colors.white),
               ),

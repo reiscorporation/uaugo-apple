@@ -1,9 +1,9 @@
 // ============================================================================
-// club_nearby_sheet.dart — Motoclube: membros próximos
+// club_nearby_sheet.dart — Clube: membros próximos
 //
 // O que faz: Folha para pedir ajuda ou avisar membros do clube que estão
 //   perto.
-// Quem usa: MapScreen (botão do motoclube).
+// Quem usa: MapScreen (botão do clube).
 // ============================================================================
 
 import 'package:cloud_functions/cloud_functions.dart';
@@ -156,7 +156,7 @@ class _NearbySheetState extends State<_NearbySheet> {
           padding: const EdgeInsets.all(16),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(
-              isHelp ? 'Pedir ajuda ao motoclube' : 'Avisar membros próximos',
+              isHelp ? 'Pedir ajuda ao clube' : 'Avisar membros próximos',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 4),

@@ -2,7 +2,7 @@
 // consent_screen.dart — Autorizações (LGPD)
 //
 // O que faz: No primeiro uso, o piloto escolhe o que autoriza (localização
-//   obrigatória para o comboio; motoclube opcional). Permite revogar e excluir
+//   obrigatória para o comboio; clube opcional). Permite revogar e excluir
 //   os dados depois.
 // Quem usa: StartupGate e Home (Privacidade e autorizações).
 // Onde mexer: Textos legais e opções: este arquivo + models/privacy.dart.
@@ -121,7 +121,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
         icon: const Icon(Icons.delete_forever, color: Colors.red, size: 40),
         title: const Text('Excluir todos os meus dados?'),
         content: const Text(
-            'Vamos apagar seu perfil, autorizações, cidade base, foto da moto, sua participação em expedições e no motoclube. Alertas de perigo que você reportou continuam visíveis, mas sem ligação com você. Essa ação não pode ser desfeita.'),
+            'Vamos apagar seu perfil, autorizações, cidade base, foto da moto, sua participação em expedições e no clube. Alertas de perigo que você reportou continuam visíveis, mas sem ligação com você. Essa ação não pode ser desfeita.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -192,7 +192,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                 subtitle: const Text(
                     'Obrigatório. Só os pilotos das expedições em que você entrar veem sua posição, e só enquanto a expedição estiver aberta.'),
               ),
-              _section('Motoclube'),
+              _section('Clube'),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
@@ -206,7 +206,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                   setState(() => _c = _c.copyWith(findable: v));
                   if (v && _base == null) _detect();
                 },
-                title: const Text('Ser encontrado por membros do meu motoclube'),
+                title: const Text('Ser encontrado por membros do meu clube'),
                 subtitle: const Text(
                     'Eles veem apenas seu nome, sua cidade base e a distância aproximada, nunca sua localização exata.'),
               ),

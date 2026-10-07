@@ -90,6 +90,17 @@ uma execução agora: Console do Google Cloud → Cloud Scheduler → a tarefa �
 
 ## 5. Receitas de mudanças comuns
 
+### Liberar um clube novo (código de ativação para o presidente)
+Só a HelpAITech gera. Na raiz do projeto (gcloud logado):
+```powershell
+node scripts/gerar-codigos-clube.js 1 "Clube Lobos da Estrada - pres. João"
+node scripts/gerar-codigos-clube.js --listar     # todos os códigos e se já foram usados
+```
+Envie o código (ex.: `59VR-6JQM-85QS`) ao presidente. Ele cadastra o clube em
+Clube → "Sou presidente: cadastrar o clube" e depois gera um **convite de uso
+único** para cada membro (botão "Convidar membro"). Trocar o presidente:
+Firestore → `clubs/{id}` → campo `presidentId` (e `role` em `members`).
+
 ### Adicionar um tipo de alerta da comunidade (ex.: "Obra na pista")
 1. `lib/models/hazard.dart`: inclua o tipo no `enum HazardType` (nome, emoji,
    cor, duração, distância do aviso, frase falada).
@@ -135,6 +146,7 @@ Siga o modelo de `functions/pois.js` (servidor) + `lib/services/poi_service.dart
 | `test/track_test.dart` | Gravação do caminho e histórico |
 | `test/itinerary_test.dart`, `models_test.dart`, `geo_test.dart`, `speech_test.dart` | Agenda, modelos, traçados, frases |
 | `tests/rules/rules.test.js` | Regras de segurança do Firestore (o emulador exige Java 21+: antes, `$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'`) |
+| `functions/test/clubs.test.js` | Clube oficial: código de ativação, convite de uso único, tentativas. Rodar: `firebase emulators:exec --only firestore --project demo-comboio "node --test functions/test/clubs.test.js"` |
 
 **Regra de ouro:** ao mudar algo em `lib/logic/`, rode o teste correspondente.
 

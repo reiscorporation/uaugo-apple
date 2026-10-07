@@ -1,7 +1,7 @@
 // ============================================================================
 // user_service.dart — Dados do usuário (LGPD)
 //
-// O que faz: Autorizações, cidade base, telefone (só no celular), motoclube e
+// O que faz: Autorizações, cidade base, telefone (só no celular), clube e
 //   a exclusão completa dos dados.
 // Quem usa: ConsentScreen, ClubScreen, MapScreen.
 // ============================================================================
@@ -20,7 +20,7 @@ import '../models/privacy.dart';
 import 'auth_service.dart';
 import 'notification_service.dart';
 
-/// Autorizações, cidade base, telefone e motoclube do usuário.
+/// Autorizações, cidade base, telefone e clube do usuário.
 ///
 /// No Firestore, `users/{uid}` é PRIVADO (só o dono lê/escreve). As Cloud
 /// Functions leem esse documento para achar membros próximos sem nunca
@@ -91,15 +91,15 @@ class UserService {
   static Future<String> loadPhone() async =>
       (await SharedPreferences.getInstance()).getString(_kPhone) ?? '';
 
-  /// Código do motoclube do piloto (null = sem clube).
+  /// Código do clube do piloto (null = sem clube).
   static Future<String?> loadClubId() async =>
       (await SharedPreferences.getInstance()).getString(_kClubId);
 
-  /// Nome do motoclube do piloto.
+  /// Nome do clube do piloto.
   static Future<String?> loadClubName() async =>
       (await SharedPreferences.getInstance()).getString(_kClubName);
 
-  /// Entra (id e nome) ou sai (null) do motoclube.
+  /// Entra (id e nome) ou sai (null) do clube.
   static Future<void> setClub(String? id, String? name) async {
     final prefs = await SharedPreferences.getInstance();
     if (id == null) {
@@ -112,7 +112,7 @@ class UserService {
   }
 
   /// Salva as autorizações no celular e em users/{uid} (o servidor precisa
-  /// delas para o motoclube). Revogar "ser encontrado" apaga a cidade base.
+  /// delas para o clube). Revogar "ser encontrado" apaga a cidade base.
   static Future<void> saveConsents(
     Consents c, {
     BaseLocation? base,

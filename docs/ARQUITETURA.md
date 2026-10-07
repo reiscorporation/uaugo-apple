@@ -42,7 +42,7 @@ princípio precisa de um ADR (decisão registrada) explicando o motivo.
 | P1 | **Leveza no celular** | O app tem que rodar bem em celulares simples: índices em grade, cálculos uma vez por leitura do GPS, tela não redesenha minimizada, dados baixados por estado. |
 | P2 | **Celular primeiro (dados locais)** | Tudo o que não precisa ser compartilhado fica no celular (histórico, configurações, radares). O servidor guarda só o que é compartilhado ao vivo. |
 | P3 | **Custo mínimo** | Downloads só quando a versão muda; rotas da expedição calculadas uma vez e gravadas; limites diários por usuário nas APIs pagas. |
-| P4 | **Privacidade (LGPD)** | Coleta mínima, autorização explícita, exclusão de dados pelo próprio usuário, prazos de retenção curtos. Coordenadas nunca vão para o motoclube. |
+| P4 | **Privacidade (LGPD)** | Coleta mínima, autorização explícita, exclusão de dados pelo próprio usuário, prazos de retenção curtos. Coordenadas nunca vão para o clube. |
 | P5 | **Segurança por padrão** | Nenhuma chave paga dentro do app; toda escrita validada pelas regras do servidor; conta de verdade para tudo que é compartilhado; só o app legítimo acessa o backend (App Check). |
 | P6 | **Funciona sem sinal** | Estrada tem trechos sem internet: escritas entram na fila do Firestore; navegação, radares e limites funcionam offline. |
 | P7 | **Simples de manter** | Código comentado em português, camadas claras, testes automáticos para a lógica e para as regras de segurança. |
@@ -61,7 +61,8 @@ via, chuva, alertas da comunidade) e pedir ajuda (SOS). Também navega sozinho.
 |---|---|
 | Piloto/motorista | Navegação segura, avisos por voz, app leve, privacidade. |
 | Líder da expedição | Montar roteiro, acompanhar o grupo, encerrar a viagem. |
-| Membro do motoclube | Encontrar e avisar membros próximos sem expor a posição. |
+| Presidente do clube | Cadastrar o clube oficial (com código de ativação da HelpAITech), convidar e remover membros. |
+| Membro do clube | Encontrar e avisar membros próximos sem expor a posição. |
 | HelpAITech (dona) | Custo baixo, conformidade (LGPD, lojas), marca, manutenção simples. |
 | Lojas (Google/Apple) | Política de privacidade, exclusão de conta, permissões justificadas. |
 | Provedores de dados | Créditos e licenças (OpenStreetMap/ODbL, Pardal, Open-Meteo). |
@@ -78,7 +79,7 @@ pessoa física; nome do app pode mudar ("RodaJunto" em avaliação).
 ## Fase B — Arquitetura de negócio
 
 **Atores:** usuário anônimo (só navega sozinho), usuário com conta (Google,
-Apple ou e-mail), líder, membro, membro de motoclube, servidor (rotinas).
+Apple ou e-mail), líder, membro, presidente de clube, membro de clube, HelpAITech (emite códigos de ativação), servidor (rotinas). "Clube" serve para qualquer tipo de grupo (motoclube, jipeiros, carros antigos...).
 
 **Capacidades e processos principais.**
 
@@ -89,7 +90,7 @@ Apple ou e-mail), líder, membro, membro de motoclube, servidor (rotinas).
 | Expedição | Líder cria (código de 8 caracteres) → monta roteiro → membros entram pelo código → posições ao vivo → líder encerra (apaga tudo do servidor). | **Sim** |
 | SOS | Membro aciona → push para o grupo → qualquer membro marca "resolvido". | **Sim** |
 | Alertas da comunidade | Reportar (polícia, buraco…) → outros confirmam/descartam (1 voto por pessoa) → some ao vencer. | **Sim** para criar/votar; ver é livre |
-| Motoclube | Criar/entrar → ver membros (cidade, nunca coordenadas) → pedir ajuda/avisar (só a quem autorizou). | **Sim** |
+| Clube oficial | HelpAITech gera um código de ativação (`scripts/gerar-codigos-clube.js`) → presidente cadastra o clube → gera **convites de uso único** (7 dias) → cada membro entra com o seu → presidente pode remover membros → ver membros (cidade, nunca coordenadas) → pedir ajuda/avisar (só a quem autorizou). | **Sim** |
 | Histórico | Gravação da viagem no celular → "Minhas viagens" → compartilhar imagem/GPX. | Não |
 | Exclusão de dados | Configurações → "Excluir meus dados" (função `deleteMyData`). | Não |
 
@@ -116,9 +117,9 @@ Apple ou e-mail), líder, membro, membro de motoclube, servidor (rotinas).
                 │ Storage: public/radares, public/limites/UF, public/pois/UF│
                 │          bikes/{uid}/ (fotos, até 2 MB)                   │
                 │ Firestore: expedições, membros, paradas, SOS, alertas,    │
-                │            votos, motoclubes, meta, usage                 │
+                │            votos, clubes, meta, usage                 │
                 │ Functions: rotas/lugares (chave do Google), dados abertos,│
-                │            SOS por push, motoclube, exclusão, limpeza     │
+                │            SOS por push, clube, exclusão, limpeza     │
                 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -133,9 +134,11 @@ Apple ou e-mail), líder, membro, membro de motoclube, servidor (rotinas).
 | `hazards/{id}` | Alertas da comunidade (tipo, posição, célula, contagens, validade). | Todos leem; com conta cria; votos só pelo processo de voto. | **TTL** em `expiresAt`. |
 | `hazards/{id}/votes/{uid}` | Voto da pessoa (confirma/descarta). Garante 1 voto por pessoa. | Cada um vê só o seu; não muda nem apaga. | **TTL** em `expiresAt` (7 dias). |
 | `users/{uid}` | Aceite dos termos, autorizações, cidade base, token de push. Privado. | Só o dono (e as Functions). | Até a exclusão de dados. |
-| `clubs/{id}` + `members` | Motoclube: nome; membros com nome, cidade, moto. | Membros leem; cada um escreve só o seu. Nunca coordenadas. | Avisos: 180 dias. |
+| `clubs/{id}` + `members` | Clube: nome, presidente (`presidentId`); membros com nome, cidade, veículo, papel (`president`/`member`) e quem convidou. | Só membros leem. Criar clube e entrar: **só o servidor**. Cada um muda nome/cidade/veículo; o presidente remove membros. Nunca coordenadas. | Avisos: 180 dias. |
+| `clubActivations/{código}` | Códigos de ativação emitidos pela HelpAITech (situação, anotação, clube criado). | Só o servidor e o script da HelpAITech. | Permanente (registro). |
+| `clubInvites/{código}` | Convites de uso único (clube, quem gerou, quem usou, validade). | Só o servidor. | **TTL**: 7 dias. |
 | `meta/{doc}` | Versão dos arquivos públicos. | Logados leem; só as Functions escrevem. | — |
-| `usage/{uid}` | Contagem diária de consultas de rotas/lugares. | Só as Functions. | Sobrescrito a cada dia. |
+| `usage/{uid}` | Contagem diária de consultas de rotas/lugares e de códigos de clube errados. | Só as Functions. | Sobrescrito a cada dia. |
 
 As regras estão em `firestore.rules` e são testadas em `tests/rules/rules.test.js`
 (57 testes).
@@ -243,7 +246,7 @@ As regras estão em `firestore.rules` e são testadas em `tests/rules/rules.test
 | `simulated_drive.dart` | GPS de mentira da simulação. |
 | `profile_service.dart` | Perfil do veículo e foto no Storage. |
 | `user_service.dart` | Autorizações, cidade base, exclusão de dados. |
-| `club_service.dart` | Motoclube (código de 8). |
+| `club_service.dart` | Clube oficial: criar com código de ativação, convites, entrar, remover membro (pelas funções `createClub`, `createClubInvite`, `joinClub`). |
 | `auth_service.dart` | Conta anônima **vinculada** (mesmo uid) a Google, Apple ou e-mail; renova o token após vincular. |
 
 #### `lib/screens/` e `lib/widgets/`
@@ -252,15 +255,15 @@ As regras estão em `firestore.rules` e são testadas em `tests/rules/rules.test
 |---|---|
 | `startup_gate.dart` | Termos → autorizações → início. |
 | `terms_screen.dart` | Termos e Política; aceite após rolar até o fim; registro do aceite. |
-| `login_screen.dart` | Entrar/criar conta; `requireAccount` para expedição, alertas e motoclube. |
+| `login_screen.dart` | Entrar/criar conta; `requireAccount` para expedição, alertas e clube. |
 | `consent_screen.dart` | Autorizações (LGPD). |
-| `home_screen.dart` | Início: "Para onde?", "Só dirigir", expedições, motoclube, histórico. |
+| `home_screen.dart` | Início: "Para onde?", "Só dirigir", expedições, clube, histórico. |
 | `map_screen.dart` | **Mapa/navegação** (abaixo). |
 | `plan_screen.dart` | Roteiro da expedição. |
 | `history_screen.dart` | "Minhas viagens". |
 | `settings_screen.dart` | Configurações, conta, uso sem internet. |
 | `profile_screen.dart` | Veículo e consumo. |
-| `club_screen.dart` | Motoclube. |
+| `club_screen.dart` | Clube: entrar com convite, cadastrar (presidente), convidar e remover membros. |
 | `about_screen.dart` | Autoria e créditos. |
 
 Widgets: `speedometer.dart`, `place_search.dart`, `trip_preview_sheet.dart`
@@ -296,9 +299,12 @@ voz, avisos e gravação continuam.
 | `updatePois` | Todo dia 04:10 | Lombadas, postos e pedágios (OSM) → `public/pois/UF.json.gz`. `pois.js`. |
 | `onSos`, `onStop` | Ao criar SOS / parada | Push para o grupo. |
 | `endExpedition` | Chamada pelo líder (com conta) | Apaga a expedição inteira. |
-| `clubNearby`, `clubNotify` | Chamadas pelo app (com conta) | Motoclube: membros próximos (sem posição exata) e avisos (5/hora). |
+| `createClub` | Chamada pelo presidente | Cria o clube com o código de ativação (uso único). `clubs.js`. |
+| `createClubInvite` | Chamada pelo presidente | Gera convite de uso único (7 dias; até 50/dia). `clubs.js`. |
+| `joinClub` | Chamada pelo novo membro | Entra com o convite e o invalida. Tentativas erradas: até 20/dia. `clubs.js`. |
+| `clubNearby`, `clubNotify` | Chamadas pelo app (com conta) | Clube: membros próximos (sem posição exata) e avisos (5/hora). |
 | `deleteMyData` | Chamada pelo app | Exclusão de dados (LGPD). |
-| `cleanup` | Todo dia | Expedições paradas há 30 dias, avisos antigos do motoclube. |
+| `cleanup` | Todo dia | Expedições paradas há 30 dias, avisos antigos do clube. |
 
 `meta/{limits,pois,radars}` guardam a **versão** de cada arquivo; o app só
 baixa de novo quando muda.
@@ -342,11 +348,12 @@ Resultado da auditoria de segurança de 2026-10 e os controles aplicados.
 | S1 | Extrair a chave do Google do APK e gerar cobranças | Chave só no servidor (`directions`/`places`), login obrigatório, limite diário por usuário | ✅ Feito (chave antiga bloqueada) |
 | S2 | Scripts/robôs chamando o backend fora do app | App Check (Play Integrity / App Attest) | ✅ Exigido (funções, Firestore e Storage) desde 2026-10-06 |
 | S3 | Foto maliciosa ou enorme baixada pelos celulares do grupo | Só URLs do Storage do app, pasta do próprio usuário (regras + app), até 2 MB, só JPEG/PNG/WebP | ✅ Feito |
-| S4 | Spam com contas anônimas descartáveis | Conta de verdade para expedição, SOS, alertas, votos e motoclube (regras + funções) | ✅ Feito |
+| S4 | Spam com contas anônimas descartáveis | Conta de verdade para expedição, SOS, alertas, votos e clube (regras + funções) | ✅ Feito |
 | S5 | Votos repetidos para apagar/manter alertas | 1 voto por pessoa (`votes/{uid}` no mesmo lote, validado nas regras) | ✅ Feito |
 | S6 | Adulterar SOS de outro membro | SOS só muda para "resolvido"; resto imutável | ✅ Feito |
 | S7 | Dados inválidos/gigantes no banco | Validação de campos, tipos, coordenadas e tamanhos | ✅ Feito |
 | S8 | Adivinhar o código de uma expedição/clube | Códigos novos com 8 caracteres (32^8 ≈ 1 trilhão) | ✅ Feito |
+| S10 | Clubes falsos ou pessoas de fora em clubes | Clube só com código de ativação da HelpAITech; entrada só com convite de uso único do presidente; tudo no servidor; tentativas erradas limitadas (20/dia) | ✅ Feito |
 | S9 | Dependências do servidor vulneráveis | `firebase-admin` 14, `firebase-functions` 7, `uuid` corrigido (0 vulnerabilidades) | ✅ Feito |
 | — | Invadir o celular do usuário | O app não executa código baixado, não abre arquivos de terceiros e só pede permissões necessárias | ✅ Sem risco identificado |
 
@@ -396,6 +403,7 @@ Antes de publicar qualquer mudança:
 
 | Data | Versão | Mudança | Seções afetadas |
 |---|---|---|---|
+| 2026-10-06 | 2.3 | **Clube oficial**: criação só com código de ativação da HelpAITech (presidente), entrada só com convite de uso único, presidente remove membros. "Motoclube" passa a se chamar **"Clube"** (serve para jipeiros, carros antigos etc.). Política v1.2. | B, C1, C2, Segurança, ADR-10 |
 | 2026-10-06 | 2.2 | App Check **exigido** nas funções chamáveis (`ENFORCE_APP_CHECK=true`), no Firestore e no Storage, após confirmar tokens VALID do aparelho de teste. | D, Segurança, E/F |
 | 2026-10-06 | 2.1 | Site público no Firebase Hosting (`public/`, gerado por `scripts/gerar-paginas.js`): Termos, Política (v1.1: rotas passam pelo servidor sem guardar) e exclusão de dados. Chave de upload da Google Play (fora do git) e assinatura da versão final no Gradle. | C2, D, E/F |
 | 2026-10-06 | 2.0 | Documento reorganizado no padrão TOGAF. Correções de segurança: rotas/lugares pelo servidor (S1), App Check ativado (S2), fotos restritas (S3), conta obrigatória para recursos compartilhados (S4), 1 voto por pessoa (S5), SOS protegido (S6), validação de campos (S7), códigos de 8 caracteres (S8), dependências atualizadas (S9). | C1, C2, D, Segurança, E/F |
@@ -428,3 +436,4 @@ Antes de publicar qualquer mudança:
 | ADR-07 | Voto registrado em `hazards/{id}/votes/{uid}` no mesmo lote | Única forma de garantir 1 voto por pessoa só com regras (S5). | TTL também em `votes`. |
 | ADR-08 | Códigos de 8 caracteres | Inviabiliza adivinhar convites (S8). | Códigos antigos de 6 continuam válidos. |
 | ADR-09 | App Check exigido só após registrar os aparelhos de teste | Exigir antes quebraria as versões de teste. | Período curto com App Check só monitorando. |
+| ADR-10 | Clube oficial controlado pelo servidor (ativação + convite de uso único) | Garantir que só presidentes reais criem clubes e só membros oficiais entrem (pedido do responsável). | HelpAITech precisa emitir códigos; clubes antigos (sem código) continuam, sem novos membros por código. |

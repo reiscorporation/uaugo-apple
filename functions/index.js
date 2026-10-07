@@ -5,7 +5,9 @@
  * Funções (detalhes em docs/ARQUITETURA.md, seção 5):
  * - onSos, onStop ............ push para o grupo ao criar SOS / parada
  * - endExpedition ............ o líder encerra a expedição (apaga tudo)
- * - clubNearby, clubNotify ... motoclube (membros próximos, avisos)
+ * - clubNearby, clubNotify ... clube (membros próximos, avisos)
+ * - createClub, createClubInvite, joinClub ... clube oficial: criar com
+ *                              código de ativação, convites de uso único (clubs.js)
  * - deleteMyData ............. exclusão de dados (LGPD)
  * - directions, places ....... rotas e busca de lugares (chave do Google só aqui;
  *                              functions/maps.js, limite diário por usuário)
@@ -32,6 +34,7 @@ const { buildRadarData } = require("./radars");
 const { buildSpeedLimits } = require("./speedlimits");
 const { buildPois } = require("./pois");
 const maps = require("./maps");
+const clubs = require("./clubs");
 
 initializeApp();
 const db = getFirestore();
@@ -127,7 +130,13 @@ exports.endExpedition = onCall(callOpts, async (req) => {
 exports.directions = onCall(callOpts, maps.directions);
 exports.places = onCall(callOpts, maps.places);
 
-// ===================== Motoclube =====================
+// ===================== Clube =====================
+
+// Criar (presidente, com código de ativação da HelpAITech), convidar e entrar
+// (convite de uso único). Detalhes em clubs.js.
+exports.createClub = onCall(callOpts, (req) => clubs.createClub(accountUid(req), req.data));
+exports.createClubInvite = onCall(callOpts, (req) => clubs.createClubInvite(accountUid(req), req.data));
+exports.joinClub = onCall(callOpts, (req) => clubs.joinClub(accountUid(req), req.data));
 
 const CONSENT_FOR = { help: "receiveHelp", passing: "receivePassing" };
 const MAX_KM = 300;
@@ -234,8 +243,8 @@ exports.clubNotify = onCall(callOpts, async (req) => {
   const isHelp = type === "help";
   const name = sender.name || "Um membro";
   let body = isHelp
-    ? `${name}, do seu motoclube, precisa de ajuda perto de você.`
-    : `${name}, do seu motoclube, está passando pela sua cidade.`;
+    ? `${name}, do seu clube, precisa de ajuda perto de você.`
+    : `${name}, do seu clube, está passando pela sua cidade.`;
   if (typeof message === "string" && message.trim()) {
     body += ` "${message.trim().slice(0, 140)}"`;
   }
@@ -250,7 +259,7 @@ exports.clubNotify = onCall(callOpts, async (req) => {
   await sendPush({
     token: target.fcmToken,
     notification: {
-      title: isHelp ? "🆘 Pedido de ajuda do motoclube" : "🏍️ Membro do clube de passagem",
+      title: isHelp ? "🆘 Pedido de ajuda do clube" : "🏍️ Membro do clube de passagem",
       body,
     },
     data,
@@ -296,7 +305,11 @@ exports.deleteMyData = onCall(callOpts, async (req) => {
   if (typeof clubId === "string" && /^[A-Z0-9]{6,8}$/.test(clubId)) {
     const club = db.doc(`clubs/${clubId}`);
     const snap = await club.get();
-    if (snap.exists && snap.data().createdBy === uid) await club.update({ createdBy: null });
+    // Presidente excluindo os dados: o clube fica sem presidente (a HelpAITech
+    // pode indicar outro editando presidentId no console).
+    if (snap.exists && (snap.data().createdBy === uid || snap.data().presidentId === uid)) {
+      await club.update({ createdBy: null, presidentId: null });
+    }
     await club.collection("members").doc(uid).delete();
     await club.collection("rate").doc(uid).delete();
     const sent = await club.collection("notifications").where("from", "==", uid).get();
@@ -421,7 +434,7 @@ exports.updatePois = onSchedule(
  * Limpeza diária conforme a Política de Privacidade:
  * - expedições sem atividade há 30 dias (com paradas e SOS); o histórico
  *   de cada piloto fica no próprio celular (\"Minhas viagens\");
- * - registros de avisos do motoclube com mais de 180 dias.
+ * - registros de avisos do clube com mais de 180 dias.
  * Alertas de perigo são apagados pela política TTL do Firestore.
  */
 exports.cleanup = onSchedule(

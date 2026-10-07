@@ -140,7 +140,7 @@ class _AccountTile extends StatelessWidget {
             leading: const Icon(Icons.account_circle_outlined, size: 32),
             title: const Text('Entrar ou criar conta'),
             subtitle: const Text(
-                'Necessária para expedições, alertas e motoclube. Navegar '
+                'Necessária para expedições, alertas e clube. Navegar '
                 'sozinho funciona sem conta.'),
             onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const LoginScreen())),

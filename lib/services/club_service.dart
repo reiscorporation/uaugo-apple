@@ -1,22 +1,36 @@
 // ============================================================================
-// club_service.dart — Motoclube
+// club_service.dart — Clube
 //
-// O que faz: Clubes, membros e as chamadas às Cloud Functions de membros
-//   próximos e avisos (sem revelar a posição exata de ninguém).
-// Quem usa: ClubScreen, MapScreen, ClubNearbySheet.
+// O que faz: Clube OFICIAL. Só o presidente cria o clube, com um código
+//   de ativação fornecido pela HelpAITech; os membros entram com um convite
+//   de uso único gerado pelo presidente. Tudo isso é conferido no servidor
+//   (functions/clubs.js). Também: membros, membros próximos e avisos (sem
+//   revelar a posição exata de ninguém).
+// Quem usa: ClubScreen, MapScreen, ClubNearbySheet, ConsentScreen.
+// Onde mexer: Gerar códigos de ativação: scripts/gerar-codigos-clube.js.
 // ============================================================================
-
-import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-/// Motoclube: código e nome.
+/// Clube: código interno, nome e presidente.
 class Club {
   final String id;
   final String name;
-  final String createdBy;
-  Club({required this.id, required this.name, required this.createdBy});
+  final String presidentId;
+  Club({required this.id, required this.name, this.presidentId = ''});
+}
+
+/// Convite de uso único gerado pelo presidente.
+class ClubInvite {
+  final String code; // 8 caracteres, mostrado como XXXX-XXXX
+  final DateTime expiresAt;
+  const ClubInvite(this.code, this.expiresAt);
+
+  /// "ABCD2345" -> "ABCD-2345" (mais fácil de ditar e digitar).
+  String get display =>
+      code.length == 8 ? '${code.substring(0, 4)}-${code.substring(4)}' : code;
 }
 
 /// Membro do clube (nome e cidade; nunca a posição exata).
@@ -25,11 +39,13 @@ class ClubMember {
   final String name;
   final String city;
   final String bike;
+  final bool isPresident;
   ClubMember(
       {required this.uid,
       required this.name,
       required this.city,
-      required this.bike});
+      required this.bike,
+      this.isPresident = false});
 }
 
 /// Membro próximo devolvido pela Cloud Function: sem coordenadas,
@@ -62,7 +78,7 @@ class NearbyMember {
 /// passando pela sua cidade".
 enum ClubPurpose { help, passing }
 
-/// Motoclubes no Firestore e as Cloud Functions de membros próximos.
+/// Clubes no Firestore e as Cloud Functions de membros próximos.
 class ClubService {
   ClubService._();
   static final instance = ClubService._();
@@ -74,51 +90,80 @@ class ClubService {
   DocumentReference<Map<String, dynamic>> _club(String id) =>
       _db.collection('clubs').doc(id);
 
-  /// Código aleatório de 8 caracteres para um clube novo (antigos: 6).
-  String _randomCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final r = Random.secure();
-    return List.generate(8, (_) => chars[r.nextInt(chars.length)]).join();
+  /// Chama uma função do servidor e devolve o resultado como Map.
+  Future<Map<String, dynamic>> _call(
+      String name, Map<String, dynamic> data) async {
+    final res = await _fn.httpsCallable(name).call(data);
+    return Map<String, dynamic>.from(res.data as Map);
   }
 
-  /// Cria um clube e coloca o criador como membro. Devolve o código.
-  Future<String> create(String name, String uid) async {
-    String code;
-    do {
-      code = _randomCode();
-    } while ((await _club(code).get()).exists);
-    await _club(code).set({
-      'name': name,
-      'createdBy': uid,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    return code;
-  }
-
-  /// Procura um clube pelo código (null se não existir).
-  Future<Club?> find(String id) async {
-    final d = await _club(id).get();
-    if (!d.exists) return null;
-    final data = d.data()!;
-    return Club(
-        id: d.id, name: data['name'] ?? d.id, createdBy: data['createdBy'] ?? '');
-  }
-
-  /// Só grava a cidade se o usuário autorizou "ser encontrado".
-  Future<void> join({
-    required String clubId,
-    required String uid,
-    required String userName,
+  /// O PRESIDENTE cria o clube com o código de ativação fornecido pela
+  /// HelpAITech (cada código cria um único clube). [city] só se o usuário
+  /// autorizou "ser encontrado". Devolve o clube criado.
+  Future<Club> createWithActivation({
+    required String activationCode,
+    required String name,
+    required String memberName,
     required String city,
     required String bike,
-  }) {
-    return _club(clubId).collection('members').doc(uid).set({
-      'name': userName,
+  }) async {
+    final r = await _call('createClub', {
+      'activationCode': activationCode,
+      'name': name,
+      'memberName': memberName,
       'city': city,
       'bike': bike,
-      'joinedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    });
+    return Club(
+        id: r['clubId'] as String,
+        name: r['name'] as String,
+        presidentId: _uidOrEmpty());
   }
+
+  /// O presidente gera um CONVITE de uso único (vale 7 dias e uma entrada).
+  Future<ClubInvite> createInvite(String clubId) async {
+    final r = await _call('createClubInvite', {'clubId': clubId});
+    return ClubInvite(r['code'] as String,
+        DateTime.fromMillisecondsSinceEpoch((r['expiresAt'] as num).toInt()));
+  }
+
+  /// Entra no clube com o convite recebido do presidente.
+  Future<Club> joinWithInvite({
+    required String inviteCode,
+    required String memberName,
+    required String city,
+    required String bike,
+  }) async {
+    final r = await _call('joinClub', {
+      'inviteCode': inviteCode,
+      'memberName': memberName,
+      'city': city,
+      'bike': bike,
+    });
+    return Club(id: r['clubId'] as String, name: r['name'] as String);
+  }
+
+  /// Dados do clube (só membros conseguem ler). null se não existir mais
+  /// ou se a pessoa foi removida.
+  Future<Club?> find(String id) async {
+    try {
+      final d = await _club(id).get();
+      if (!d.exists) return null;
+      final data = d.data()!;
+      return Club(
+          id: d.id,
+          name: data['name'] ?? d.id,
+          presidentId: (data['presidentId'] ?? data['createdBy'] ?? '') as String);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// O presidente remove um membro do clube.
+  Future<void> removeMember(String clubId, String uid) =>
+      _club(clubId).collection('members').doc(uid).delete();
+
+  String _uidOrEmpty() => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   /// Atualiza a cidade base do membro no clube.
   Future<void> updateCity(String clubId, String uid, String city) => _club(clubId)
@@ -138,6 +183,7 @@ class ClubService {
                 name: d.data()['name'] ?? 'Membro',
                 city: d.data()['city'] ?? '',
                 bike: d.data()['bike'] ?? '',
+                isPresident: d.data()['role'] == 'president',
               ))
           .toList());
 
