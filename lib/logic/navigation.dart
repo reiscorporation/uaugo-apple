@@ -316,3 +316,54 @@ class TurnByTurn {
     return null;
   }
 }
+
+// ------------------------------------------------------------ chegada
+
+/// Chegada numa parada/destino: até 80 m PELA ROTA (o que falta de estrada),
+/// e no máximo 400 m em linha reta (proteção contra traçados que passam
+/// perto de si mesmos, como em serras e retornos).
+const arriveRouteMeters = 80.0;
+const arriveRouteMaxStraight = 400.0;
+
+/// Fora da rota (ou sem traçado): só em linha reta, bem mais perto.
+const arriveStraightMeters = 120.0;
+
+/// O piloto está "na rota" se estiver a menos disto do traçado.
+const onRouteMaxOffset = 150.0;
+
+/// Quanto falta até a parada. Pela rota quando dá (o piloto está no traçado
+/// e a posição da parada no traçado é conhecida); senão em linha reta.
+/// Antes media só em linha reta: em curvas e serras avisava "você chegou"
+/// faltando 1 km de estrada.
+({double meters, bool byRoute}) distanceToStop({
+  required double straight,
+  double? riderAlong,
+  double? riderOffset,
+  double? stopAlong,
+}) {
+  if (riderAlong != null &&
+      riderOffset != null &&
+      riderOffset < onRouteMaxOffset &&
+      stopAlong != null) {
+    return (meters: stopAlong - riderAlong, byRoute: true);
+  }
+  return (meters: straight, byRoute: false);
+}
+
+/// Chegou na parada? (veja [distanceToStop])
+bool hasArrived({
+  required double straight,
+  double? riderAlong,
+  double? riderOffset,
+  double? stopAlong,
+}) {
+  final d = distanceToStop(
+      straight: straight,
+      riderAlong: riderAlong,
+      riderOffset: riderOffset,
+      stopAlong: stopAlong);
+  return d.byRoute
+      // Negativo = já passou do ponto (conta como chegada se estiver perto).
+      ? d.meters <= arriveRouteMeters && straight <= arriveRouteMaxStraight
+      : d.meters <= arriveStraightMeters;
+}

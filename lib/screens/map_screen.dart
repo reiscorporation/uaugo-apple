@@ -1029,15 +1029,58 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Avisa por voz a 2 km da próxima parada do roteiro e ao chegar (300 m).
+  // Posição de cada parada no traçado (metros desde o início), recalculada
+  // quando a rota ou as paradas mudam.
+  Map<String, double> _stopAlongs = const {};
+  Object? _stopAlongsKey;
+
+  /// Posição da parada [i] no traçado, ou null se ela não está na rota.
+  double? _stopAlong(int i) {
+    final w = _walker;
+    if (w == null) return null;
+    final key = (w, _stops.map((s) => s.id).join(','));
+    if (key != _stopAlongsKey) {
+      _stopAlongsKey = key;
+      final m = <String, double>{};
+      for (var j = 1; j < _stops.length; j++) {
+        final s = _stops[j];
+        if (j == _stops.length - 1) {
+          m[s.id] = w.length; // destino = fim do traçado
+        } else {
+          final pr = w.project(s.lat, s.lng);
+          if (pr.offset < 300) m[s.id] = pr.along;
+        }
+      }
+      _stopAlongs = m;
+    }
+    return _stopAlongs[_stops[i].id];
+  }
+
+  /// Avisa por voz a 2 km da próxima parada do roteiro e ao chegar. As
+  /// distâncias são medidas PELA ROTA quando possível (logic/navigation.dart:
+  /// distanceToStop / hasArrived); antes eram em linha reta e, em curvas,
+  /// avisava "você chegou" faltando 1 km.
   void _checkStops(Position p) {
     int? nearest;
     double nearestD = double.infinity;
+    final pr = _proj;
     for (var i = 1; i < _stops.length; i++) {
       final s = _stops[i];
       if (_stopArrived.contains(s.id)) continue;
-      final d = Geolocator.distanceBetween(p.latitude, p.longitude, s.lat, s.lng);
-      if (d <= 300) {
+      final straight =
+          Geolocator.distanceBetween(p.latitude, p.longitude, s.lat, s.lng);
+      final stopAlong = _stopAlong(i);
+      final dist = distanceToStop(
+          straight: straight,
+          riderAlong: pr?.along,
+          riderOffset: pr?.offset,
+          stopAlong: stopAlong);
+      final d = dist.meters < 0 ? straight : dist.meters;
+      if (hasArrived(
+          straight: straight,
+          riderAlong: pr?.along,
+          riderOffset: pr?.offset,
+          stopAlong: stopAlong)) {
         // Ao chegar numa parada, ela e as anteriores contam como visitadas.
         for (final prev in _stops.take(i + 1)) {
           _stopArrived.add(prev.id);
