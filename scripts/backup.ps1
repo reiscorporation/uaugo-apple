@@ -1,4 +1,4 @@
-﻿# ============================================================================
+# ============================================================================
 # backup.ps1 — Backup do código-fonte no Google Drive
 #
 # O que faz:
@@ -11,7 +11,7 @@
 #
 # Uso (na pasta do projeto):
 #   .\scripts\backup.ps1                         # usa a pasta salva/encontrada
-#   .\scripts\backup.ps1 -Destino 'G:\Meu Drive\HelpAITech\Comboio'
+#   .\scripts\backup.ps1 -Destino 'G:\Meu Drive\HelpAITech\RodaJunto'
 #   .\scripts\backup.ps1 -Mensagem 'Antes de publicar na loja'
 #   .\scripts\backup.ps1 -IncluirChaves          # também as chaves (ver abaixo)
 #
@@ -46,7 +46,7 @@ if (-not $Destino) {
   foreach ($d in Get-PSDrive -PSProvider FileSystem) {
     foreach ($nome in 'Meu Drive', 'My Drive') {
       $p = Join-Path $d.Root $nome
-      if (Test-Path $p) { $Destino = Join-Path $p 'HelpAITech\Comboio\backup'; break }
+      if (Test-Path $p) { $Destino = Join-Path $p 'HelpAITech\RodaJunto\backup'; break }
     }
     if ($Destino) { break }
   }

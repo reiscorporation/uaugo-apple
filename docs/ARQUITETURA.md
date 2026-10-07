@@ -1,6 +1,6 @@
-# Arquitetura do Comboio (padrão TOGAF)
+# Arquitetura do RodaJunto (padrão TOGAF)
 
-Este documento descreve a arquitetura do Comboio seguindo o **TOGAF**
+Este documento descreve a arquitetura do RodaJunto seguindo o **TOGAF**
 (The Open Group Architecture Framework), organizado pelas fases do seu
 método, o **ADM** (Architecture Development Method). Ele é atualizado **a
 cada mudança no app** (ver [Fase H](#fase-h--gestão-de-mudanças-da-arquitetura)).
@@ -10,7 +10,7 @@ Para compilar, testar, publicar e fazer mudanças comuns, veja
 
 | Item | Valor |
 |---|---|
-| Sistema | Comboio — navegação e viagens em grupo de moto e carro |
+| Sistema | RodaJunto — navegação e viagens em grupo de moto e carro |
 | Responsável | Ricardo Reis — HelpAITech (helpaitech.ricardo@gmail.com) |
 | Versão do documento | 2.0 (2026-10-06) |
 | Projeto Firebase | `helpaitechcomboio` (região `southamerica-east1`) |
@@ -72,7 +72,7 @@ versão web, mapas offline do Google (proibido pelos termos), base pública de
 crimes (não existe).
 
 **Restrições.** Orçamento pequeno (plano Blaze pago por uso); desenvolvedor
-pessoa física; nome do app pode mudar ("RodaJunto" em avaliação).
+pessoa física. Nome do app: **RodaJunto** (antes "Comboio"); o identificador interno `helpaitech.comboio`, o projeto Firebase e os nomes das chaves continuam com "comboio" (não aparecem para o usuário e não podem mudar depois de publicar).
 
 ---
 
@@ -378,7 +378,8 @@ Testes de segurança: `tests/rules/rules.test.js` (regras do Firestore) e
 | ✅ Exigir App Check (funções: `ENFORCE_APP_CHECK=true`; Firestore e Storage no console) | Tokens de depuração dos aparelhos de teste registrados | ✅ Feito |
 | Ativar o login com Google no console do Firebase | — | Pendente (responsável) |
 | Contas nas lojas (Google Play, Apple Developer) | Definição do nome | Pendente (responsável) |
-| Possível troca do nome para "RodaJunto" e registro no INPI | Decisão do responsável | Em avaliação |
+| Nome do app: RodaJunto (trocado em 2026-10-07) | — | ✅ Feito |
+| Registro da marca RodaJunto no INPI | Responsável | Pendente |
 | Backup no Google Drive da HelpAITech | Google Drive para computador | Pendente (responsável) |
 
 **Transição:** códigos antigos de 6 caracteres continuam aceitos; só os novos
@@ -404,6 +405,7 @@ Antes de publicar qualquer mudança:
 
 | Data | Versão | Mudança | Seções afetadas |
 |---|---|---|---|
+| 2026-10-07 | 2.5 | App renomeado para **RodaJunto** (nome exibido, textos, Termos v1.1 com novo aceite, Política v1.4, páginas públicas); identificadores internos continuam `comboio`. Botão de **radar móvel com um toque** e agradecimento por voz ao reportar. Rotina de radares mantém a última lista boa da PRF se a nova falhar e envia **alerta por e-mail** (Cloud Monitoring, `alerta()`). | B, C2, D, Segurança |
 | 2026-10-07 | 2.4 | Clube com **vários administradores** (código de ativação por pessoa; promover/rebaixar no app; `setClubAdmin`). 30 clubes conhecidos **pré-cadastrados** como reservados (`scripts/criar-clubes.js`, lista em `scripts/clubes-iniciais.json`). Política v1.3. | B, C1, C2, Segurança |
 | 2026-10-06 | 2.3 | **Clube oficial**: criação só com código de ativação da HelpAITech (presidente), entrada só com convite de uso único, presidente remove membros. "Motoclube" passa a se chamar **"Clube"** (serve para jipeiros, carros antigos etc.). Política v1.2. | B, C1, C2, Segurança, ADR-10 |
 | 2026-10-06 | 2.2 | App Check **exigido** nas funções chamáveis (`ENFORCE_APP_CHECK=true`), no Firestore e no Storage, após confirmar tokens VALID do aparelho de teste. | D, Segurança, E/F |

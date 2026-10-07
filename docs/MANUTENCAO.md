@@ -1,4 +1,4 @@
-# Guia de manutenção do Comboio
+# Guia de manutenção do RodaJunto
 
 Passo a passo para quem vai mexer no código. Para entender a organização do
 app, leia antes [ARQUITETURA.md](ARQUITETURA.md).
@@ -11,7 +11,7 @@ app, leia antes [ARQUITETURA.md](ARQUITETURA.md).
 - **Histórico de versões:** o projeto usa Git (pasta `.git`). Cada backup
   registra uma "foto" do código; dá para ver e voltar a qualquer versão.
 - **Backup no Google Drive da HelpAITech:** rode `.\scripts\backup.ps1`. Ele
-  registra as mudanças e copia para `Meu Drive\HelpAITech\Comboio\backup`:
+  registra as mudanças e copia para `Meu Drive\HelpAITech\RodaJunto\backup`:
   `comboio-historico.bundle` (todas as versões) e um `.zip` do código atual.
   **Restaurar:** `git clone comboio-historico.bundle comboio`.
 - As chaves (`config.env`, `config/dart_defines.json`, `functions/.env`) não
@@ -176,6 +176,24 @@ Siga o modelo de `functions/pois.js` (servidor) + `lib/services/poi_service.dart
   dentro quem chamou. Se uma função nova recusar chamadas ("not authorized to
   invoke"), rode:
   `gcloud run services add-iam-policy-binding NOME --region southamerica-east1 --member=allUsers --role=roles/run.invoker`
+
+## 6.2 Alertas das rotinas (e-mail)
+
+As rotinas automáticas (radares/PRF, limites, lombadas, limpeza) mandam
+e-mail para **helpaitech.ricardo@gmail.com** quando falham ou quando algo
+precisa de atenção (no máximo 1 e-mail por hora). Configuração:
+Google Cloud → Monitoring → Alertas → política **"RodaJunto - rotina com
+problema"** (definição em `config/alerta-rotinas.json`; canal de e-mail
+"HelpAITech (e-mail)"). No código, `alerta("...")` em `functions/index.js`.
+
+| Mensagem no e-mail/log | O que fazer |
+|---|---|
+| `PRF: lista nova indisponível ou incompleta` | O app continua com a lista anterior. Abra a página da PRF (trechos críticos): se o formato mudou, ajustar `findCurrentPrfSheet`/`loadPrfStretches` em `functions/radars.js`. |
+| `PRF: a lista ... venceu` | A PRF ainda não publicou a lista nova. Normalmente se resolve sozinho em poucos dias. |
+| `PRF: N trechos sem traçado no SNV` | O DNIT publicou uma camada nova da malha: atualizar `SNV_LAYER` em `functions/radars.js`. |
+| Erro com "Poucos radares" ou falha geral | O arquivo anterior continua valendo. Ver o log (Cloud Logging → serviço `updateradars`) e rodar de novo pelo Cloud Scheduler. |
+
+Para conferir no log: Cloud Logging, filtro `textPayload:"[ALERTA]"`.
 
 ## 7. Problemas conhecidos
 

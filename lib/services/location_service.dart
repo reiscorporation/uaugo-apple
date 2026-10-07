@@ -46,7 +46,7 @@ class LocationService {
         distanceFilter: 0,
         intervalDuration: Duration(seconds: saving ? 2 : 1),
         foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationTitle: 'Comboio ativo',
+          notificationTitle: 'RodaJunto ativo',
           notificationText: 'Compartilhando sua localização com o grupo',
           enableWakeLock: true,
         ),

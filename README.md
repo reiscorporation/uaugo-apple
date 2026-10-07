@@ -1,4 +1,4 @@
-# 🏍️🚗 Comboio — viagens em grupo, de moto ou de carro
+# 🏍️🚗 RodaJunto — viagens em grupo, de moto ou de carro
 
 App Flutter (iPhone + Android) com Google Maps e Firebase.
 Desenvolvido por **Ricardo Reis / HelpAITech**.
@@ -18,7 +18,7 @@ Desenvolvido por **Ricardo Reis / HelpAITech**.
 - Avisos: **radares** (sempre com a velocidade), **lombadas**, **postos
   policiais**, **pedágios** (moto paga / isenta), **chuva à frente**, metade
   do trajeto, trechos de radar portátil da PRF
-- **Simulação** da viagem (1x, 5x, 20x), modos Comboio (de cima) e Solo (1ª
+- **Simulação** da viagem (1x, 5x, 20x), modos COMBOIO (de cima) e Solo (1ª
   pessoa), **mapa noturno** automático, zoom e "Recentralizar"
 - **Minhas viagens** (só no celular): caminho feito, estatísticas, **gastos e
   consumo**, imagem e GPX para redes sociais

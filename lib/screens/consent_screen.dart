@@ -82,7 +82,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
   /// Salva as autorizações (celular e servidor) e segue para o app.
   Future<void> _save() async {
     if (!_c.shareLiveLocation) {
-      _snack('A primeira autorização é necessária para usar o Comboio');
+      _snack('A primeira autorização é necessária para usar o RodaJunto');
       return;
     }
     if (_c.findable && _base == null) {

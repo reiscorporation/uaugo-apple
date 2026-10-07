@@ -46,7 +46,7 @@ async function fetchUf(uf) {
         method: "POST",
         headers: {
           "content-type": "application/x-www-form-urlencoded",
-          "user-agent": "Comboio/1.0 (app de viagens; contato HelpAITech)",
+          "user-agent": "RodaJunto/1.0 (app de viagens; contato HelpAITech)",
         },
         body: "data=" + encodeURIComponent(query(uf)),
         signal: AbortSignal.timeout(700000),

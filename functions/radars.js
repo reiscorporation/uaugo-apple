@@ -350,6 +350,11 @@ async function buildRadarData({ log = console.log, today = new Date() } = {}) {
       stretches.push([s.uf, s.br, s.a, s.b, encodePolyline(pts)]);
     }
     log(`PRF: ${stretches.length} trechos no mapa, ${missing} sem traçado no SNV`);
+    if (missing > list.length * 0.05) {
+      // Muitos trechos sem traçado: a malha do DNIT (SNV_LAYER) pode ter mudado.
+      console.error(`[ALERTA] PRF: ${missing} de ${list.length} trechos sem traçado no SNV ` +
+        `(camada ${SNV_LAYER}). Confira se o DNIT publicou uma camada nova.`);
+    }
     prf = {
       label: sheet.label,
       validFrom: sheet.from.toISOString().slice(0, 10),

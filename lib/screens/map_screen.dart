@@ -1113,8 +1113,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Botão roxo: marca radar móvel na posição atual com um toque (exige
+  /// conta, como todo alerta).
+  Future<void> _quickRadar() async {
+    if (!await requireAccount(
+        context,
+        'Para avisar radares para todos, entre com sua conta. Isso evita '
+        'alertas falsos e protege a comunidade.')) {
+      return;
+    }
+    if (mounted) _reportHazard(HazardType.radar);
+  }
+
   /// Reporta um alerta na posição atual (ou confirma, se já existir um igual
-  /// a menos de 150 m).
+  /// a menos de 150 m). Agradece por voz: quem está pilotando não lê a tela.
   Future<void> _reportHazard(HazardType t) async {
     HapticFeedback.mediumImpact();
     try {
@@ -1129,11 +1141,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             _hazardSvc.confirm(h);
           }
           _snack('${t.emoji} Esse alerta já existia aqui. Confirmado!');
+          _voice.alert('Alerta de ${t.spoken} confirmado. Obrigado!');
           return;
         }
       }
       // Confirma só quando o servidor gravar; sem internet, fica na fila.
       var sent = false;
+      // Fala na hora (mesmo sem internet o alerta fica na fila).
+      _voice.alert('Alerta de ${t.spoken} enviado. Obrigado por avisar a comunidade!');
       _hazardSvc.report(t, p.latitude, p.longitude, widget.uid).then((_) {
         sent = true;
         _snack('${t.emoji} ${t.label} enviado para todos. Obrigado!');
@@ -2651,6 +2666,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Radar móvel com UM toque: é o alerta mais útil para todos e
+              // precisa ser rápido de marcar. Fica no topo desta coluna.
+              if (_sim == null) ...[
+                FloatingActionButton(
+                  heroTag: 'radar',
+                  tooltip: 'Avisar radar móvel aqui',
+                  backgroundColor: HazardType.radar.color,
+                  foregroundColor: Colors.white,
+                  onPressed: _quickRadar,
+                  child: Text(HazardType.radar.emoji,
+                      style: const TextStyle(fontSize: 28)),
+                ),
+                const SizedBox(height: 10),
+              ],
               // Zoom: na mesma coluna do velocímetro, logo acima dele (assim
               // nunca fica atrás dele nem dos botões da direita).
               FloatingActionButton.small(

@@ -1,5 +1,5 @@
 /**
- * Cloud Functions do Comboio (rodam no servidor do Firebase, região
+ * Cloud Functions do RodaJunto (rodam no servidor do Firebase, região
  * southamerica-east1). Publicar: `firebase deploy --only functions`.
  *
  * Funções (detalhes em docs/ARQUITETURA.md, seção 5):
@@ -56,6 +56,16 @@ function accountUid(req) {
     throw new HttpsError("permission-denied", "Entre com sua conta para usar esta função.");
   }
   return uid;
+}
+
+/**
+ * Problema numa rotina que precisa de atenção humana: vai para o log com
+ * gravidade ERROR e o prefixo [ALERTA]. O Cloud Monitoring manda um e-mail
+ * para a HelpAITech (política "RodaJunto - rotina com problema"; veja
+ * docs/MANUTENCAO.md). Erros que derrubam a função também disparam o e-mail.
+ */
+function alerta(msg) {
+  console.error(`[ALERTA] ${msg}`);
 }
 
 // No Emulator Suite (scripts/testar-local.ps1) não existe FCM local:
@@ -351,9 +361,32 @@ exports.updateRadars = onSchedule(
     if (data.radars.length < 1000) {
       throw new Error(`Poucos radares (${data.radars.length}); mantendo a versão anterior`);
     }
+
+    // Trechos da PRF: se a lista nova falhou ou veio muito menor, mantém a
+    // última lista boa (publicada) e avisa por e-mail (alerta).
+    const file = getStorage().bucket().file("public/radares.json.gz");
+    let previousPrf = null;
+    try {
+      const [buf] = await file.download();
+      previousPrf = JSON.parse(zlib.gunzipSync(buf).toString()).prf || null;
+    } catch (e) {
+      console.log(`Sem arquivo anterior de radares: ${e.message}`);
+    }
+    const prevCount = previousPrf ? previousPrf.stretches.length : 0;
+    const newCount = data.prf ? data.prf.stretches.length : 0;
+    if (newCount < prevCount * 0.5) {
+      alerta(`PRF: lista nova indisponível ou incompleta (${newCount} trechos, antes ${prevCount}). ` +
+        `Mantida a lista anterior "${previousPrf?.label}". Confira a página da PRF.`);
+      data.prf = previousPrf;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (data.prf?.validTo && data.prf.validTo < today) {
+      alerta(`PRF: a lista "${data.prf.label}" venceu em ${data.prf.validTo} e não há lista nova na página.`);
+    }
+
     const gz = zlib.gzipSync(JSON.stringify(data), { level: 9 });
     const version = Date.now();
-    await getStorage().bucket().file("public/radares.json.gz").save(gz, {
+    await file.save(gz, {
       contentType: "application/octet-stream",
       resumable: false,
       metadata: { cacheControl: "no-cache" },

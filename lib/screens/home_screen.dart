@@ -327,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              Text('Comboio',
+              Text('RodaJunto',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.headlineMedium
                       ?.copyWith(fontWeight: FontWeight.bold)),

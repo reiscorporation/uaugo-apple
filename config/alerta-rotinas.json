@@ -1,0 +1,22 @@
+{
+  "displayName": "RodaJunto - rotina com problema",
+  "documentation": {
+    "content": "Uma rotina automática do RodaJunto (radares/PRF, limites de velocidade, lombadas ou limpeza) falhou ou precisa de atenção. Veja a mensagem no log (Cloud Logging) e o docs/MANUTENCAO.md, seção 'Alertas das rotinas'.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Erro ou [ALERTA] numa rotina",
+      "conditionMatchedLog": {
+        "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=(\"updateradars\" OR \"updatespeedlimits\" OR \"updatepois\" OR \"cleanup\") AND severity>=ERROR"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "notificationRateLimit": { "period": "3600s" },
+    "autoClose": "86400s"
+  },
+  "severity": "ERROR",
+  "enabled": true
+}
