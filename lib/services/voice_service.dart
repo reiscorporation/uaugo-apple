@@ -26,6 +26,10 @@ class VoiceService {
   bool _ready = false;
   bool _speaking = false;
 
+  /// true enquanto o app está falando (os comandos de voz pausam para não
+  /// ouvir o próprio app).
+  final speaking = ValueNotifier<bool>(false);
+
   /// Avisos falados (perigos, radares, SOS, paradas). Ligado por padrão.
   final alertsOn = ValueNotifier<bool>(true);
 
@@ -103,6 +107,10 @@ class VoiceService {
   /// Fala mesmo com tudo desligado (botão "Testar voz").
   void test(String text) => _say(text, urgent: true);
 
+  /// Resposta a um comando de voz ("Radar marcado"): fala mesmo com os
+  /// avisos desligados, porque foi o piloto que pediu.
+  void reply(String text) => _say(text, urgent: true);
+
   /// Cala a voz e limpa a fila.
   Future<void> stop() async {
     _queue.clear();
@@ -110,6 +118,7 @@ class VoiceService {
       await _tts.stop();
     } catch (_) {}
     _speaking = false;
+    speaking.value = false;
   }
 
   /// Fala ou põe na fila. [urgent] passa na frente (ex.: SOS).
@@ -135,6 +144,7 @@ class VoiceService {
     }
     if (_speaking) return;
     _speaking = true;
+    speaking.value = true;
     while (_queue.isNotEmpty) {
       final next = _queue.removeAt(0);
       debugPrint('Voz: $next');
@@ -145,5 +155,6 @@ class VoiceService {
       }
     }
     _speaking = false;
+    speaking.value = false;
   }
 }

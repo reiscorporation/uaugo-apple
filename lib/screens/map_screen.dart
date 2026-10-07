@@ -21,6 +21,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../logic/voice_commands.dart';
 import '../logic/geo.dart';
 import '../models/bike.dart';
 import '../models/expedition.dart';
@@ -58,6 +59,7 @@ import '../logic/speech.dart';
 import '../logic/speed.dart';
 import '../services/radar_service.dart';
 import '../services/speed_service.dart';
+import '../services/voice_command_service.dart';
 import '../services/voice_service.dart';
 import '../services/app_settings.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -124,6 +126,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _inBackground = state != AppLifecycleState.resumed;
+    // Comandos de voz só com o app na tela (o Android não deixa ouvir o
+    // microfone em segundo plano sem um serviço próprio).
+    _inBackground ? _voiceCmd.stop() : _voiceCmd.start();
     if (!_inBackground) {
       final p = _me;
       if (mounted) setState(() {});
@@ -168,6 +173,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // do aviso depende do tipo (radar: 1.000 m; demais: 500 m).
   final _hazardSvc = HazardService.instance;
   final _voice = VoiceService.instance;
+  final _voiceCmd = VoiceCommandService.instance;
+  // Último alerta marcado por voz (para "roda junto cancelar").
+  ({HazardType type, double lat, double lng, DateTime at})? _lastVoiceReport;
 
   // ---- Paradas do roteiro já anunciadas por voz
   final Set<String> _stopNearAnnounced = {};
@@ -336,6 +344,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     });
     _loadHazardIcons();
     _voice.init();
+    // Comandos de voz (opcional, Configurações → Acessibilidade).
+    _subs.add(_voiceCmd.commands.listen(_onVoiceCommand));
+    _voiceCmd.start();
     _radarSvc.index.addListener(_onRadarIndex);
     _radarSvc.init();
     _speedSvc.loadSettings();
@@ -468,6 +479,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     for (final s in _subs) {
       s.cancel();
     }
+    _voiceCmd.stop();
     _gpsSub?.cancel();
     BatteryService.instance.saving.removeListener(_onSavingChanged);
     BatteryService.instance.stop();
@@ -1190,6 +1202,65 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _snack('Obrigado por ajudar a comunidade!');
   }
 
+  /// Comando de voz reconhecido (mãos livres, para quem está de luva):
+  /// "roda junto radar" marca o alerta, "roda junto cancelar" desfaz o último
+  /// marcado por voz e "sim"/"não" respondem à pergunta "ainda está lá?".
+  Future<void> _onVoiceCommand(VoiceCommand cmd) async {
+    if (!mounted) return;
+    switch (cmd) {
+      case ReportCommand(:final type):
+        if (_sim != null) {
+          _voice.reply('Na simulação os alertas não são enviados.');
+        } else if (AuthService.isAnonymous) {
+          _voice.reply('Para marcar alertas, entre com sua conta no app.');
+        } else {
+          final p = _me;
+          if (p != null) {
+            _lastVoiceReport = (
+              type: type,
+              lat: p.latitude,
+              lng: p.longitude,
+              at: DateTime.now(),
+            );
+          }
+          // _reportHazard confirma por voz ("Alerta de radar móvel enviado").
+          await _reportHazard(type);
+        }
+      case CancelCommand():
+        final last = _lastVoiceReport;
+        Hazard? mine;
+        if (last != null &&
+            DateTime.now().difference(last.at) < const Duration(minutes: 10)) {
+          for (final h in _activeHazards) {
+            if (h.createdBy == widget.uid &&
+                h.type == last.type &&
+                Geolocator.distanceBetween(last.lat, last.lng, h.lat, h.lng) <
+                    80) {
+              mine = h;
+              break;
+            }
+          }
+        }
+        if (mine == null) {
+          _voice.reply('Não encontrei um alerta seu para cancelar.');
+        } else {
+          _hazardSvc.dismiss(mine, force: true);
+          _lastVoiceReport = null;
+          _voice.reply('Alerta de ${mine.type.spoken} cancelado.');
+        }
+      case AnswerCommand(:final yes):
+        final h = _askHazard ??
+            (_shownHazard != null &&
+                    _shownHazard!.createdBy != widget.uid &&
+                    !_voted.contains(_shownHazard!.id)
+                ? _shownHazard
+                : null);
+        if (h == null) return; // nada perguntado agora: ignora
+        _voteHazard(h, yes);
+        _voice.reply(yes ? 'Confirmado. Obrigado!' : 'Certo, vou avisar que não está mais. Obrigado!');
+    }
+  }
+
   /// Distância para considerar que o piloto "passou pelo" alerta.
   static const _passRadiusM = 150.0;
 
@@ -1217,7 +1288,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _passedNear.remove(h.id);
         HapticFeedback.mediumImpact();
         _voice.alert('Você passou pelo alerta de ${h.type.spoken}. '
-            'Ainda está lá? Responda na tela.');
+            '${_voiceCmd.enabled.value ? 'Ainda está lá? Diga sim ou não.' : 'Ainda está lá? Responda na tela.'}');
         setState(() {
           _askHazard = h;
           if (_shownHazard?.id == h.id) _shownHazard = null;

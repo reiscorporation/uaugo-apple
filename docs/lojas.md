@@ -67,6 +67,8 @@ Tipos de dados (marque como **coletado**; em "compartilhado" responda **não**, 
 | Outros conteúdos gerados pelo usuário | Opcional | Funcionalidade do app | Paradas, alertas de perigo, mensagens ao clube |
 | IDs do dispositivo ou outros IDs | Obrigatório | Funcionalidade do app | Identificador anônimo e token de notificação |
 
+> **Áudio (comandos de voz):** NÃO marque "Gravações de voz ou som". O microfone só é usado se o usuário ligar a função, e o reconhecimento é feito no aparelho: o áudio não é coletado nem enviado (processamento no dispositivo não conta como coleta para o Google Play). Na permissão RECORD_AUDIO, a justificativa é: comandos de voz para marcar alertas sem tocar na tela (acessibilidade para quem pilota de luva).
+
 ---
 
 ## 3. Google Play: serviço em primeiro plano de localização

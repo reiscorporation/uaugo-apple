@@ -246,6 +246,7 @@ As regras estão em `firestore.rules` e são testadas em `tests/rules/rules.test
 | `simulated_drive.dart` | GPS de mentira da simulação. |
 | `profile_service.dart` | Perfil do veículo e foto no Storage. |
 | `user_service.dart` | Autorizações, cidade base, exclusão de dados. |
+| `voice_command_service.dart` | Comandos de voz (opcional): baixa o modelo, pede o microfone, ouve com o mapa aberto e pausa enquanto o app fala. Frases em `logic/voice_commands.dart`. |
 | `club_service.dart` | Clube oficial: criar com código de ativação, convites, entrar, remover membro (pelas funções `createClub`, `createClubInvite`, `joinClub`). |
 | `auth_service.dart` | Conta anônima **vinculada** (mesmo uid) a Google, Apple ou e-mail; renova o token após vincular. |
 
@@ -405,6 +406,7 @@ Antes de publicar qualquer mudança:
 
 | Data | Versão | Mudança | Seções afetadas |
 |---|---|---|---|
+| 2026-10-07 | 2.7 | **Acessibilidade: comandos de voz** (opcional, desligado por padrão, só Android). Reconhecimento **offline** com Vosk (`android/.../VoiceCommands.kt`) restrito a uma lista fechada de frases ("roda junto radar"…, "sim"/"não"); modelo pt (~31 MB) baixado do Storage (`public/voz/`) só ao ligar. Política v1.5 (microfone). ADR-11. | B, C2, D, Segurança |
 | 2026-10-07 | 2.6 | **"Ainda está lá?"**: ao passar a menos de 150 m de um alerta de outra pessoa, o app pergunta por voz e na tela (botões grandes, 25 s); a resposta vira voto. Painéis de baixo roláveis e acima da barra do Android (`widgets/safe_sheet.dart`). | B, C2 |
 | 2026-10-07 | 2.5 | App renomeado para **RodaJunto** (nome exibido, textos, Termos v1.1 com novo aceite, Política v1.4, páginas públicas); identificadores internos continuam `comboio`. Botão de **radar móvel com um toque** e agradecimento por voz ao reportar. Rotina de radares mantém a última lista boa da PRF se a nova falhar e envia **alerta por e-mail** (Cloud Monitoring, `alerta()`). | B, C2, D, Segurança |
 | 2026-10-07 | 2.4 | Clube com **vários administradores** (código de ativação por pessoa; promover/rebaixar no app; `setClubAdmin`). 30 clubes conhecidos **pré-cadastrados** como reservados (`scripts/criar-clubes.js`, lista em `scripts/clubes-iniciais.json`). Política v1.3. | B, C1, C2, Segurança |
@@ -442,3 +444,4 @@ Antes de publicar qualquer mudança:
 | ADR-08 | Códigos de 8 caracteres | Inviabiliza adivinhar convites (S8). | Códigos antigos de 6 continuam válidos. |
 | ADR-09 | App Check exigido só após registrar os aparelhos de teste | Exigir antes quebraria as versões de teste. | Período curto com App Check só monitorando. |
 | ADR-10 | Clube oficial controlado pelo servidor (ativação + convite de uso único) | Garantir que só administradores autorizados pela HelpAITech gerenciem clubes e só membros oficiais entrem (pedido do responsável). | HelpAITech precisa emitir códigos; clubes antigos (sem código) continuam, sem novos membros por código. |
+| ADR-11 | Comandos de voz com Vosk offline + gramática fechada, ativados pela frase "roda junto" | Mãos livres para quem usa luva, sem enviar áudio, sem internet e sem disparo falso (testado com ruído de 0 dB: comandos certos, conversa e barulho nunca dispararam). O reconhecedor do sistema (speech_to_text) não escuta continuamente e apita; o pacote vosk_flutter estava abandonado, por isso a ponte nativa própria. | +~3 MB no app (bibliotecas) e 31 MB baixados só por quem liga; ouve só com o mapa aberto; iPhone fica para depois. |

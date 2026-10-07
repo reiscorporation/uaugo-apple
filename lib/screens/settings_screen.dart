@@ -14,6 +14,8 @@ import '../logic/speech.dart';
 import '../services/app_settings.dart';
 import '../services/poi_service.dart';
 import '../services/speed_service.dart';
+import '../logic/voice_commands.dart';
+import '../services/voice_command_service.dart';
 import '../services/voice_service.dart';
 import '../services/auth_service.dart';
 import 'about_screen.dart';
@@ -529,6 +531,10 @@ class SettingsScreen extends StatelessWidget {
               onChanged: voice.setNarration,
             ),
           ),
+          if (VoiceCommandService.supported) ...[
+            section('Acessibilidade'),
+            const _VoiceCommandsTile(),
+          ],
           section('Sobre'),
           ListTile(
             leading: const Icon(Icons.info_outline),
@@ -553,6 +559,80 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 24),
         ]),
       ),
+    );
+  }
+}
+
+/// Comandos de voz (opcional): liga/desliga, baixa o modelo de voz na
+/// primeira vez e mostra a lista de comandos.
+class _VoiceCommandsTile extends StatefulWidget {
+  const _VoiceCommandsTile();
+
+  @override
+  State<_VoiceCommandsTile> createState() => _VoiceCommandsTileState();
+}
+
+/// Estado: ligando (download) ou não.
+class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
+  final _svc = VoiceCommandService.instance;
+  bool _busy = false;
+
+  Future<void> _toggle(bool on) async {
+    if (!on) {
+      await _svc.disable();
+      return;
+    }
+    setState(() => _busy = true);
+    final error = await _svc.enable();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error ??
+            'Comandos de voz ligados. Funcionam com o mapa aberto na tela.')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final words = voiceAlertWords.keys.join(', ');
+    return ValueListenableBuilder<bool>(
+      valueListenable: _svc.enabled,
+      builder: (_, on, __) => Column(children: [
+        SwitchListTile(
+          secondary: const Icon(Icons.mic),
+          title: const Text('Comandos de voz (mãos livres)'),
+          subtitle: const Text(
+              'Para quem está de luva: marque alertas e responda às perguntas '
+              'falando, sem tocar na tela. O reconhecimento é feito no próprio '
+              'celular: o áudio não sai do aparelho.'),
+          value: on,
+          onChanged: _busy ? null : _toggle,
+        ),
+        if (_busy)
+          ValueListenableBuilder<double>(
+            valueListenable: _svc.progress,
+            builder: (_, p, __) => Padding(
+              padding: const EdgeInsets.fromLTRB(72, 0, 16, 8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Baixando o reconhecimento de voz (~31 MB, só uma vez)…',
+                    style: theme.textTheme.bodySmall),
+                const SizedBox(height: 6),
+                LinearProgressIndicator(value: p > 0 ? p : null),
+              ]),
+            ),
+          ),
+        if (on)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(72, 0, 16, 8),
+            child: Text(
+              'Diga "roda junto" e o alerta: $words.\n'
+              'Exemplo: "roda junto radar". Para desfazer: "roda junto cancelar". '
+              'Quando o app perguntar "ainda está lá?", responda "sim" ou "não".\n'
+              'Funciona com o mapa aberto na tela (use "Manter a tela ligada").',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+      ]),
     );
   }
 }

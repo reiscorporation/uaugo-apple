@@ -69,3 +69,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Comandos de voz offline (opcional; o modelo é baixado só quando o piloto liga).
+    implementation("com.alphacephei:vosk-android:0.3.75")
+}

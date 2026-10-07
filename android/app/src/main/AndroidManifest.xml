@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Comandos de voz (opcional, Configurações → Acessibilidade). Reconhecimento offline. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
         android:label="RodaJunto"
         android:name="${applicationName}"

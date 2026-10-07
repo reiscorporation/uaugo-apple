@@ -22,6 +22,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'firebase_options.dart';
 import 'screens/startup_gate.dart';
 import 'screens/terms_screen.dart';
+import 'services/voice_command_service.dart';
 import 'services/app_settings.dart';
 import 'services/auth_service.dart';
 import 'services/user_service.dart';
@@ -55,6 +56,7 @@ Future<void> main() async {
   }
 
   await AppSettings.instance.load();
+  await VoiceCommandService.instance.load();
   // Trocou de conta (entrou numa conta que já existia ou saiu): regrava o
   // aceite dos Termos e as autorizações no uid novo, como registro.
   AuthService.onLinked = TermsService.attachAccount;

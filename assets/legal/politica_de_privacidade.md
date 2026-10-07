@@ -1,6 +1,6 @@
 # Política de Privacidade do RodaJunto
 
-Versão 1.4, de 07/10/2026 (o app passou a se chamar RodaJunto; antes, "Comboio").
+Versão 1.5, de 07/10/2026 (o app passou a se chamar RodaJunto; antes, "Comboio").
 
 Esta Política explica quais dados pessoais o aplicativo **RodaJunto** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
@@ -32,6 +32,9 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 - Cada clube tem **administradores**, habilitados com códigos de ativação fornecidos pela HelpAITech. Para entrar, cada membro usa um **convite de uso único** gerado por um administrador. Guardamos quem são os administradores e **quem convidou cada membro**, para garantir que só membros oficiais participem. Administradores podem remover membros. A HelpAITech pode pré-cadastrar o **nome** de clubes conhecidos; eles só aparecem no App depois que um administrador do próprio clube ativa o acesso.
 - **Cidade base** arredondada a ~1 km, nome e clube. Outros membros veem apenas o nome, a cidade e a distância aproximada, **nunca sua posição exata**.
 - **Telefone:** fica **só no seu celular** e é enviado apenas quando você pede ajuda ou avisa alguém e marca essa opção.
+
+**Comandos de voz (opcional, desligado por padrão)**
+- Se você ligar em Configurações → Acessibilidade, o App usa o **microfone** com o mapa aberto para reconhecer comandos como "roda junto radar" e as respostas "sim"/"não". O reconhecimento é feito **no próprio celular** (sem internet): **o áudio não é gravado, não é guardado e não sai do aparelho**. Só os comandos reconhecidos viram ações (por exemplo, um alerta). Você pode desligar a qualquer momento. Base legal: consentimento (art. 7º, I).
 
 **Notificações**
 - Token de notificações do celular (Firebase Cloud Messaging). Finalidade: avisar SOS e paradas do grupo e mensagens do clube.
