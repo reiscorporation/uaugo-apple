@@ -105,11 +105,53 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool _saving = false; // economia de bateria ligada agora
   bool _inBackground = false; // tela apagada / app minimizado
 
+  /// GPS em segundo plano (app minimizado ou tela apagada) só quando é útil:
+  /// numa expedição (o grupo precisa da sua posição) ou navegando até um
+  /// destino ("Para onde?"). Em "Só dirigir" e na simulação, o GPS para ao
+  /// sair do app e volta ao abrir de novo: assim o app não gasta bateria
+  /// esquecido em segundo plano.
+  bool get _keepGpsInBackground =>
+      _sim == null && (_isExpedition || _trip != null);
+
+  /// Parado há tanto tempo em segundo plano = o piloto esqueceu o app aberto:
+  /// o GPS desliga (volta sozinho ao abrir o app).
+  static const _idleBackgroundLimit = Duration(minutes: 15);
+  DateTime? _idleSince;
+
   /// (Re)inicia o GPS no modo atual (normal ou econômico).
   void _startGps() {
     _gpsSub?.cancel();
-    _gpsSub = LocationService.track(saving: _saving)
-        .listen(_onPosition, onError: (e) => _snack('GPS: $e'));
+    _idleSince = null;
+    _gpsSub = LocationService.track(
+      saving: _saving,
+      background: _keepGpsInBackground,
+      notificationText: _isExpedition
+          ? 'Compartilhando sua localização com o grupo'
+          : 'Navegação ativa. Abra o app e encerre para parar.',
+    ).listen(_onPosition, onError: (e) => _snack('GPS: $e'));
+  }
+
+  /// Desliga o GPS (e o serviço com a notificação fixa).
+  void _stopGps() {
+    _gpsSub?.cancel();
+    _gpsSub = null;
+  }
+
+  /// Em segundo plano: desliga o GPS se o piloto está parado há muito tempo.
+  void _checkIdleInBackground(Position p) {
+    if (!_inBackground) {
+      _idleSince = null;
+      return;
+    }
+    if (p.speed > 1.5) {
+      _idleSince = null;
+      return;
+    }
+    _idleSince ??= DateTime.now();
+    if (DateTime.now().difference(_idleSince!) > _idleBackgroundLimit) {
+      debugPrint('GPS desligado: parado em segundo plano há 15 min');
+      _stopGps();
+    }
   }
 
   /// A economia de bateria ligou/desligou: refaz o GPS e o mapa.
@@ -129,6 +171,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Comandos de voz só com o app na tela (o Android não deixa ouvir o
     // microfone em segundo plano sem um serviço próprio).
     _inBackground ? _voiceCmd.stop() : _voiceCmd.start();
+    // GPS: para ao sair do app quando não é preciso (veja
+    // _keepGpsInBackground) e volta ao abrir de novo.
+    final left = state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden;
+    if (left && !_keepGpsInBackground) _stopGps();
+    if (state == AppLifecycleState.resumed && _sim == null && _gpsSub == null) {
+      _startGps();
+    }
     if (!_inBackground) {
       final p = _me;
       if (mounted) setState(() {});
@@ -513,6 +563,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Nova posição do GPS (ou da simulação): tudo que depende da posição
   /// acontece aqui, nesta ordem. Veja docs/ARQUITETURA.md, seção 4.
   void _onPosition(Position p) {
+    if (_sim == null) _checkIdleInBackground(p);
     // Minimizado / tela apagada: guarda a posição sem redesenhar a tela
     // (a voz, os avisos e a gravação continuam).
     if (_inBackground) {

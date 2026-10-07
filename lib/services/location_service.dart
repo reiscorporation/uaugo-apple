@@ -36,7 +36,16 @@ class LocationService {
   ///
   /// [saving] (economia de bateria): precisão alta (em vez da máxima) e uma
   /// leitura a cada 2 s. O GPS é o maior consumo depois da tela.
-  static Stream<Position> track({bool saving = false}) {
+  ///
+  /// [background]: continuar com o app minimizado (só em expedição ou
+  /// navegação até um destino). Sem isso, não há serviço nem notificação
+  /// fixa: o GPS para quando o app sai da tela. O serviço também para se o
+  /// app for fechado pela lista de recentes (AndroidManifest: stopWithTask).
+  static Stream<Position> track({
+    bool saving = false,
+    bool background = false,
+    String notificationText = 'Navegação ativa',
+  }) {
     final accuracy =
         saving ? LocationAccuracy.high : LocationAccuracy.bestForNavigation;
     final LocationSettings settings;
@@ -45,20 +54,22 @@ class LocationService {
         accuracy: accuracy,
         distanceFilter: 0,
         intervalDuration: Duration(seconds: saving ? 2 : 1),
-        foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationTitle: 'RodaJunto ativo',
-          notificationText: 'Compartilhando sua localização com o grupo',
-          enableWakeLock: true,
-        ),
+        foregroundNotificationConfig: background
+            ? ForegroundNotificationConfig(
+                notificationTitle: 'RodaJunto ativo',
+                notificationText: notificationText,
+                enableWakeLock: true,
+              )
+            : null,
       );
     } else if (defaultTargetPlatform == TargetPlatform.iOS) {
       settings = AppleSettings(
         accuracy: accuracy,
         activityType: ActivityType.automotiveNavigation,
         distanceFilter: 0,
-        pauseLocationUpdatesAutomatically: false,
-        showBackgroundLocationIndicator: true,
-        allowBackgroundLocationUpdates: true,
+        pauseLocationUpdatesAutomatically: !background,
+        showBackgroundLocationIndicator: background,
+        allowBackgroundLocationUpdates: background,
       );
     } else {
       settings = LocationSettings(accuracy: accuracy, distanceFilter: 0);
