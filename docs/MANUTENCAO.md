@@ -78,8 +78,10 @@ firebase deploy --only firestore:rules,storage --project helpaitechcomboio
   depuração** por aparelho. Na 1ª abertura, o app escreve no log
   (`adb logcat`) "Enter this debug secret…". Cadastre em Firebase → App Check
   → Apps → ⋮ → Gerenciar tokens de depuração. Já cadastrado: Galaxy S24.
-- Para **exigir**: funções → `ENFORCE_APP_CHECK=true` em `functions/.env` e
-  publicar; Firestore e Storage → Firebase → App Check → APIs → Aplicar.
+- **Já exigido** (desde 2026-10-06): funções (`ENFORCE_APP_CHECK=true` em
+  `functions/.env`), Firestore e Storage (Firebase → App Check → APIs).
+  Emergência (app da loja sendo recusado): mude para `false`, publique as
+  funções e, no console, troque Firestore/Storage para "Não aplicado".
 - Aparelho novo de teste sem token cadastrado = app sem acesso ao servidor.
 
 As funções agendadas (radares, limites, lombadas) rodam sozinhas. Para forçar

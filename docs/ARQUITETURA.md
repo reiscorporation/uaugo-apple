@@ -340,7 +340,7 @@ Resultado da auditoria de segurança de 2026-10 e os controles aplicados.
 | # | Ameaça | Controle | Situação |
 |---|---|---|---|
 | S1 | Extrair a chave do Google do APK e gerar cobranças | Chave só no servidor (`directions`/`places`), login obrigatório, limite diário por usuário | ✅ Feito (chave antiga bloqueada) |
-| S2 | Scripts/robôs chamando o backend fora do app | App Check (Play Integrity / App Attest) | 🟡 Ativado; **exigir** após registrar os tokens de depuração |
+| S2 | Scripts/robôs chamando o backend fora do app | App Check (Play Integrity / App Attest) | ✅ Exigido (funções, Firestore e Storage) desde 2026-10-06 |
 | S3 | Foto maliciosa ou enorme baixada pelos celulares do grupo | Só URLs do Storage do app, pasta do próprio usuário (regras + app), até 2 MB, só JPEG/PNG/WebP | ✅ Feito |
 | S4 | Spam com contas anônimas descartáveis | Conta de verdade para expedição, SOS, alertas, votos e motoclube (regras + funções) | ✅ Feito |
 | S5 | Votos repetidos para apagar/manter alertas | 1 voto por pessoa (`votes/{uid}` no mesmo lote, validado nas regras) | ✅ Feito |
@@ -366,7 +366,8 @@ Testes de segurança: `tests/rules/rules.test.js` (regras do Firestore) e
 | Site público com Termos, Política e exclusão de dados | — | ✅ No ar |
 | Chave de upload e AAB assinado | — | ✅ Gerados |
 | Enviar o AAB ao teste fechado e cadastrar o SHA da chave de assinatura da Play no Firebase e no mapa | Conta Play | Pendente |
-| Exigir App Check (funções: `ENFORCE_APP_CHECK=true`; Firestore e Storage no console) | Tokens de depuração dos aparelhos de teste registrados | Pendente |
+| Vincular o projeto do Google Cloud no Play Console (Integridade do app → Play Integrity API), senão o App Check recusa quem baixar da loja | 1º envio do AAB | Pendente |
+| ✅ Exigir App Check (funções: `ENFORCE_APP_CHECK=true`; Firestore e Storage no console) | Tokens de depuração dos aparelhos de teste registrados | ✅ Feito |
 | Ativar o login com Google no console do Firebase | — | Pendente (responsável) |
 | Contas nas lojas (Google Play, Apple Developer) | Definição do nome | Pendente (responsável) |
 | Possível troca do nome para "RodaJunto" e registro no INPI | Decisão do responsável | Em avaliação |
@@ -395,6 +396,7 @@ Antes de publicar qualquer mudança:
 
 | Data | Versão | Mudança | Seções afetadas |
 |---|---|---|---|
+| 2026-10-06 | 2.2 | App Check **exigido** nas funções chamáveis (`ENFORCE_APP_CHECK=true`), no Firestore e no Storage, após confirmar tokens VALID do aparelho de teste. | D, Segurança, E/F |
 | 2026-10-06 | 2.1 | Site público no Firebase Hosting (`public/`, gerado por `scripts/gerar-paginas.js`): Termos, Política (v1.1: rotas passam pelo servidor sem guardar) e exclusão de dados. Chave de upload da Google Play (fora do git) e assinatura da versão final no Gradle. | C2, D, E/F |
 | 2026-10-06 | 2.0 | Documento reorganizado no padrão TOGAF. Correções de segurança: rotas/lugares pelo servidor (S1), App Check ativado (S2), fotos restritas (S3), conta obrigatória para recursos compartilhados (S4), 1 voto por pessoa (S5), SOS protegido (S6), validação de campos (S7), códigos de 8 caracteres (S8), dependências atualizadas (S9). | C1, C2, D, Segurança, E/F |
 | 2026-10 | 1.x | Login com conta (Google/Apple/e-mail) vinculado ao anônimo; Termos de Uso e Política com aceite registrado; paradas na prévia da rota; busca de lugares no exterior. | B, C2 |

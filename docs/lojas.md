@@ -154,6 +154,9 @@ Gerados de `assets/legal/` por `node scripts/gerar-paginas.js` e publicados com
   projeto → app Android → Adicionar impressão digital) e na chave "Comboio
   Android" (Google Cloud → Credenciais). Sem isso, na versão baixada da loja o
   login com Google falha e o mapa fica cinza.
-- **App Check:** com o app vindo da Play, o Play Integrity funciona sozinho.
+- **App Check (já exigido no servidor):** vincule o projeto do Google Cloud
+  `helpaitechcomboio` em Play Console → Testar e lançar → Integridade do app →
+  Play Integrity API → **Vincular projeto do Cloud**. Sem isso, quem baixar da
+  loja é recusado pelo servidor.
 - **Teste fechado:** contas pessoais novas precisam de 12 testadores por 14
   dias seguidos antes da produção.
