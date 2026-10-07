@@ -29,6 +29,7 @@ import '../services/expedition_service.dart';
 import '../services/hazard_service.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
+import '../services/auth_service.dart';
 import '../services/club_service.dart';
 import '../services/profile_service.dart';
 import '../services/user_service.dart';
@@ -224,6 +225,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final Set<String> _voted = {}; // já votados por este usuário
   Hazard? _shownHazard;
   bool _shownManually = false;
+  // "Ainda está lá?": alertas por onde o piloto passou perto (< 150 m), os
+  // que já foram perguntados e a pergunta na tela agora.
+  final Set<String> _passedNear = {};
+  final Set<String> _askedHazards = {};
+  Hazard? _askHazard;
+  Timer? _askTimer;
 
   // ---- Clube
   String? _clubId;
@@ -467,6 +474,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
     _hazardSub?.cancel();
+    _askTimer?.cancel();
     _radarSvc.index.removeListener(_onRadarIndex);
     _sim?.dispose();
     if (_sim != null) {
@@ -563,6 +571,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         setState(() => _shownHazard = null);
       }
     }
+    _askIfPassed(p);
     // Polícia e radar móvel: distância e quantidade de avisos configuráveis
     // (ex.: 1000 m, 2 vezes -> a 1000 e a 500 m). Demais perigos: 1 aviso.
     final prefs = AppSettings.instance.alerts.value;
@@ -1173,8 +1182,109 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     } else {
       _hazardSvc.dismiss(h);
     }
-    setState(() => _shownHazard = null);
+    _askTimer?.cancel();
+    setState(() {
+      _shownHazard = null;
+      if (_askHazard?.id == h.id) _askHazard = null;
+    });
     _snack('Obrigado por ajudar a comunidade!');
+  }
+
+  /// Distância para considerar que o piloto "passou pelo" alerta.
+  static const _passRadiusM = 150.0;
+
+  /// Depois que o piloto passa por um alerta de outra pessoa (chegou a menos
+  /// de 150 m e já ficou para trás), pergunta por voz e na tela se ainda está
+  /// lá. Assim os alertas se mantêm atualizados. Uma vez por alerta; não
+  /// pergunta na simulação, sem conta ou se já votou.
+  void _askIfPassed(Position p) {
+    if (_sim != null || AuthService.isAnonymous) return;
+    for (final h in _activeHazards) {
+      if (h.createdBy == widget.uid ||
+          _voted.contains(h.id) ||
+          _askedHazards.contains(h.id)) {
+        continue;
+      }
+      final d =
+          Geolocator.distanceBetween(p.latitude, p.longitude, h.lat, h.lng);
+      if (d <= _passRadiusM) {
+        _passedNear.add(h.id);
+        continue;
+      }
+      // Passou perto e agora está se afastando, com o alerta para trás.
+      if (_passedNear.contains(h.id) && !_isAhead(p, h) && _askHazard == null) {
+        _askedHazards.add(h.id);
+        _passedNear.remove(h.id);
+        HapticFeedback.mediumImpact();
+        _voice.alert('Você passou pelo alerta de ${h.type.spoken}. '
+            'Ainda está lá? Responda na tela.');
+        setState(() {
+          _askHazard = h;
+          if (_shownHazard?.id == h.id) _shownHazard = null;
+        });
+        // Sem resposta em 25 s, a pergunta some (nada é registrado).
+        _askTimer?.cancel();
+        _askTimer = Timer(const Duration(seconds: 25), () {
+          if (mounted) setState(() => _askHazard = null);
+        });
+        break;
+      }
+    }
+  }
+
+  /// Pergunta "ainda está lá?" depois de passar pelo alerta: botões grandes
+  /// (dá para tocar de luva).
+  Widget _askBanner(Hazard h) {
+    const white = TextStyle(color: Colors.white);
+    Widget big(String label, bool still, Color color) => Expanded(
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(56),
+              textStyle:
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            onPressed: () => _voteHazard(h, still),
+            child: Text(label),
+          ),
+        );
+    return Material(
+      color: h.type.color,
+      elevation: 8,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 4, 10),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Text(h.type.emoji, style: const TextStyle(fontSize: 30)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('${h.type.label} ainda está lá?',
+                  style: white.copyWith(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              tooltip: 'Não sei',
+              onPressed: () {
+                _askTimer?.cancel();
+                setState(() => _askHazard = null);
+              },
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Row(children: [
+              big('👍 Sim', true, Colors.green.shade700),
+              const SizedBox(width: 8),
+              big('👎 Não está', false, Colors.red.shade700),
+            ]),
+          ),
+        ]),
+      ),
+    );
   }
 
   /// Faixa de um alerta da comunidade com a distância e os botões de voto.
@@ -2546,7 +2656,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ]),
                 ),
               ),
-            if (_shownHazard != null) ...[
+            if (_askHazard != null) ...[
+              if (_alerts.isNotEmpty) const SizedBox(height: 8),
+              _askBanner(_askHazard!),
+            ] else if (_shownHazard != null) ...[
               if (_alerts.isNotEmpty) const SizedBox(height: 8),
               _hazardBanner(_shownHazard!),
             ],
