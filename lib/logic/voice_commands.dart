@@ -24,6 +24,7 @@ const voiceAlertWords = <String, HazardType>{
   'polícia': HazardType.police,
   'óleo': HazardType.oil,
   'buraco': HazardType.pothole,
+  'lombada': HazardType.bump,
   'acidente': HazardType.accident,
   'animal': HazardType.animal,
   'neblina': HazardType.fog,

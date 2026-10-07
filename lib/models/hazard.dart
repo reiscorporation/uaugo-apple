@@ -20,6 +20,9 @@ enum HazardType {
       'radar móvel'),
   pothole('Buraco', '🕳️', Color(0xFF6D4C41), Duration(days: 7), 500,
       'buraco'),
+  // Lombada nova ou que não está no mapa (as conhecidas vêm do OpenStreetMap).
+  bump('Lombada', '🚧', Color(0xFFF9A825), Duration(days: 7), 500,
+      'lombada'),
   danger('Perigo na pista', '⚠️', Color(0xFFFFA000), Duration(hours: 3), 500,
       'perigo na pista'),
   oil('Óleo / areia', '🛢️', Color(0xFF546E7A), Duration(hours: 12), 500,

@@ -195,6 +195,8 @@ describe("Alertas públicos", () => {
   });
   it("cria alerta válido", () =>
     assertSucceeds(setDoc(doc(db("bob"), "hazards/h2"), novo())));
+  it("aceita lombada", () =>
+    assertSucceeds(setDoc(doc(db("bob"), "hazards/h8"), novo({ type: "bump" }))));
   it("recusa tipo inválido", () =>
     assertFails(setDoc(doc(db("bob"), "hazards/h3"), novo({ type: "ovni" }))));
   it("recusa prazo maior que 8 dias", () =>
