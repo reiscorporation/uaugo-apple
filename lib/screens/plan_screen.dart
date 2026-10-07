@@ -25,6 +25,7 @@ import '../services/expedition_service.dart';
 import '../logic/costs.dart';
 import '../models/trip.dart';
 import '../services/app_settings.dart';
+import '../widgets/safe_sheet.dart';
 import '../widgets/emoji_marker.dart';
 import '../widgets/place_search.dart';
 import 'map_screen.dart';
@@ -356,7 +357,7 @@ class _PlanScreenState extends State<PlanScreen> {
 
   /// Mostra a parada no mapa.
   void _viewStop(Stop s) {
-    showModalBottomSheet(
+    showSafeSheet(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [

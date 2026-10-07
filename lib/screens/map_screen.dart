@@ -32,6 +32,7 @@ import '../services/notification_service.dart';
 import '../services/club_service.dart';
 import '../services/profile_service.dart';
 import '../services/user_service.dart';
+import '../widgets/safe_sheet.dart';
 import '../widgets/club_nearby_sheet.dart';
 import '../widgets/bike_marker.dart';
 import '../widgets/emoji_marker.dart';
@@ -393,7 +394,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Ações do clube (pedir ajuda, avisar passagem).
   void _showClubActions() {
-    showModalBottomSheet(
+    showSafeSheet(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -934,7 +935,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Folha de voz: avisos falados, narração, testar voz, mais configurações.
   void _showVoiceSettings() {
-    showModalBottomSheet(
+    showSafeSheet(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -1058,7 +1059,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       return;
     }
     if (!mounted) return;
-    showModalBottomSheet(
+    showSafeSheet(
       context: context,
       builder: (ctx) => SafeArea(
         child: Padding(
@@ -1562,7 +1563,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Opções de uma parada (navegar até ela, ver no mapa).
   void _stopOptions(Stop s) {
-    showModalBottomSheet(
+    showSafeSheet(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -3128,7 +3129,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _showEmergency() {
     HapticFeedback.heavyImpact();
     final p = _me;
-    showModalBottomSheet(
+    showSafeSheet(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
