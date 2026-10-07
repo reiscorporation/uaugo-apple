@@ -114,6 +114,7 @@ class VoiceCommandService {
 
   /// Começa a ouvir (chamado pelo MapScreen ao abrir / voltar ao app).
   Future<void> start() async {
+    debugPrint('Comandos de voz: start (ligado=${enabled.value}, ouvindo=$_listening)');
     if (!supported || !enabled.value || _listening) return;
     if (!await _modelReady()) return;
     if (!(await _method.invokeMethod<bool>('hasMic') ?? false)) return;
@@ -133,6 +134,7 @@ class VoiceCommandService {
 
   /// Para de ouvir (mapa fechado, app minimizado ou função desligada).
   Future<void> stop() async {
+    debugPrint('Comandos de voz: stop (ouvindo=$_listening)');
     if (!_listening) return;
     _listening = false;
     VoiceService.instance.speaking.removeListener(_onSpeaking);
