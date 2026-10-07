@@ -111,7 +111,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// sair do app e volta ao abrir de novo: assim o app não gasta bateria
   /// esquecido em segundo plano.
   bool get _keepGpsInBackground =>
-      _sim == null && (_isExpedition || _trip != null);
+      _sim == null &&
+      (_isExpedition || (_trip != null && !_arrivedAtDestination));
 
   /// Parado há tanto tempo em segundo plano = o piloto esqueceu o app aberto:
   /// o GPS desliga (volta sozinho ao abrir o app).
@@ -1137,8 +1138,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           _stopArrived.add(prev.id);
           _stopNearAnnounced.add(prev.id);
         }
-        _voice.alert(
-            arrivalSpeech(s.name, isDestination: i == _stops.length - 1));
+        if (i == _stops.length - 1) {
+          _onArrivedDestination(s); // destino final: encerra a navegação
+        } else {
+          _voice.alert(arrivalSpeech(s.name, isDestination: false));
+        }
         return;
       }
       if (d < nearestD) {
@@ -3152,6 +3156,74 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _voice.setNarration(true);
     final p = _me;
     if (p != null) _updateCamera(p, force: true);
+  }
+
+  bool _arrivedAtDestination = false;
+
+  /// Chegou ao destino final: a navegação termina sozinha (narração e
+  /// recálculo de rota param).
+  /// - Sozinho: salva a viagem em "Minhas viagens", desliga o GPS e mostra
+  ///   "Você chegou"; a tela fecha sozinha em 20 s (dá para ficar no mapa).
+  /// - Expedição: só a navegação para; continua compartilhando a posição
+  ///   com o grupo até sair da expedição.
+  /// - Simulação: a moto de mentira para.
+  Future<void> _onArrivedDestination(Stop s) async {
+    if (_arrivedAtDestination) return;
+    _arrivedAtDestination = true;
+    setState(() {
+      _navigating = false;
+      _offRoute = false;
+    });
+    final sim = _sim;
+    if (sim != null) {
+      sim.paused.value = true;
+      _voice.narrate('Você chegou ao destino: ${s.name}. Fim da simulação.',
+          force: true);
+      return;
+    }
+    if (_isExpedition) {
+      _voice.alert('Você chegou ao destino: ${s.name}. Navegação encerrada.');
+      _snack('🏁 Chegada! A navegação foi encerrada; você continua no comboio.');
+      return;
+    }
+    _voice.alert('Você chegou ao destino: ${s.name}. Viagem encerrada.');
+    await _saveRecord();
+    _stopGps();
+    if (!mounted) return;
+    var autoClose = true;
+    BuildContext? dialogCtx;
+    final timer = Timer(const Duration(seconds: 20), () {
+      final c = dialogCtx;
+      if (autoClose && c != null && c.mounted) Navigator.of(c).pop('close');
+    });
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        dialogCtx = ctx;
+        return AlertDialog(
+          title: const Text('🏁 Você chegou!'),
+          content: Text('${s.name}\n\nA navegação foi encerrada e a viagem '
+              'ficou salva em "Minhas viagens".\n\nEsta tela fecha sozinha '
+              'em 20 segundos.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, 'stay'),
+                child: const Text('Ficar no mapa')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, 'close'),
+                child: const Text('Fechar')),
+          ],
+        );
+      },
+    );
+    autoClose = false;
+    timer.cancel();
+    if (!mounted) return;
+    if (choice == 'stay') {
+      _startGps(); // só o mapa e os avisos, sem navegação
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   /// "Encerrar" (com confirmação): na expedição desliga a navegação; sozinho

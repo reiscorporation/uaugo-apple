@@ -406,6 +406,7 @@ Antes de publicar qualquer mudança:
 
 | Data | Versão | Mudança | Seções afetadas |
 |---|---|---|---|
+| 2026-10-07 | 2.10 | **Fim da navegação no destino**: ao chegar (regra pela rota), a navegação termina sozinha. Sozinho: salva a viagem, desliga o GPS e mostra "Você chegou" (fecha em 20 s). Expedição: para a narração e continua no comboio. Simulação: a moto para. | B, C2 |
 | 2026-10-07 | 2.9 | **Bateria em segundo plano**: GPS (e o serviço com notificação fixa) só continua com o app minimizado em **expedição** ou **navegação até um destino**; em "Só dirigir" e na simulação ele para ao sair do app. Desliga sozinho após 15 min parado em segundo plano. O serviço de localização para ao fechar o app pela lista de recentes (`stopWithTask`). | C2, D |
 | 2026-10-07 | 2.8 | Alerta **Lombada** (comunidade + `roda junto lombada`). **Chegada medida pela rota** (`hasArrived`/`distanceToStop` em `logic/navigation.dart`): 80 m de estrada (máx. 400 m em linha reta); fora da rota, 120 m em linha reta. Antes: 300 m em linha reta, que na cidade avisava "você chegou" faltando 1 km. | C2 |
 | 2026-10-07 | 2.7 | **Acessibilidade: comandos de voz** (opcional, desligado por padrão, só Android). Reconhecimento **offline** com Vosk (`android/.../VoiceCommands.kt`) restrito a uma lista fechada de frases ("roda junto radar"…, "sim"/"não"); modelo pt (~31 MB) baixado do Storage (`public/voz/`) só ao ligar. Política v1.5 (microfone). ADR-11. | B, C2, D, Segurança |
