@@ -1,13 +1,13 @@
 // ============================================================================
 // club_screen.dart — Tela do clube
 //
-// O que faz: Clube oficial. O presidente cria o clube com o código de
-//   ativação da HelpAITech e gera convites de uso único; o membro entra com
-//   o convite. Também: membros (o presidente pode remover), pedidos de ajuda
-//   e avisos de passagem.
+// O que faz: Clube oficial. O administrador ativa o acesso com o código da
+//   HelpAITech (clube já cadastrado ou novo) e gera convites de uso único; o
+//   membro entra com o convite. Administradores removem membros e promovem
+//   outros administradores. Também: pedidos de ajuda e avisos de passagem.
 // Quem usa: HomeScreen (botão Clube).
-// Onde mexer: Regras do servidor: functions/clubs.js (criar, convidar,
-//   entrar) e functions/index.js (clubNearby, clubNotify).
+// Onde mexer: Regras do servidor: functions/clubs.js (ativar, convidar,
+//   entrar, administradores) e functions/index.js (clubNearby, clubNotify).
 // ============================================================================
 
 import 'package:cloud_functions/cloud_functions.dart';
@@ -23,7 +23,8 @@ import '../services/user_service.dart';
 import '../widgets/club_nearby_sheet.dart';
 import 'consent_screen.dart';
 
-/// Tela do clube: entrar com código, criar, ver membros, sair.
+/// Tela do clube: entrar com convite, ativar como administrador, convidar,
+/// gerenciar membros, sair.
 class ClubScreen extends StatefulWidget {
   const ClubScreen({super.key, required this.userName});
   final String userName;
@@ -40,7 +41,7 @@ class _ClubScreenState extends State<ClubScreen> {
   final _activationCtrl = TextEditingController();
   String? _clubId;
   String? _clubName;
-  String _presidentId = '';
+  List<String> _admins = const [];
   String? _uid;
   Consents _consents = const Consents();
   bool _loading = true;
@@ -53,13 +54,13 @@ class _ClubScreenState extends State<ClubScreen> {
   }
 
   /// Carrega o clube salvo no celular e as autorizações. Confere no
-  /// servidor se a pessoa ainda é membro (o presidente pode remover).
+  /// servidor se a pessoa ainda é membro (um administrador pode remover).
   Future<void> _load() async {
     final uid = await AuthService.ensureSignedIn();
     var id = await UserService.loadClubId();
     var name = await UserService.loadClubName();
     final c = await UserService.loadConsents() ?? const Consents();
-    String president = '';
+    List<String> admins = const [];
     if (id != null) {
       final club = await _svc.find(id);
       if (club == null) {
@@ -69,7 +70,7 @@ class _ClubScreenState extends State<ClubScreen> {
         name = null;
       } else {
         name = club.name;
-        president = club.presidentId;
+        admins = club.admins;
       }
     }
     if (!mounted) return;
@@ -77,13 +78,19 @@ class _ClubScreenState extends State<ClubScreen> {
       _uid = uid;
       _clubId = id;
       _clubName = name;
-      _presidentId = president;
+      _admins = admins;
       _consents = c;
       _loading = false;
     });
   }
 
-  bool get _isPresident => _presidentId.isNotEmpty && _presidentId == _uid;
+  bool get _isAdmin => _uid != null && _admins.contains(_uid);
+
+  /// Relê os administradores (depois de promover/rebaixar alguém).
+  Future<void> _refreshAdmins() async {
+    final club = await _svc.find(_clubId!);
+    if (mounted && club != null) setState(() => _admins = club.admins);
+  }
 
   /// Mostra uma mensagem rápida no rodapé.
   void _snack(String msg) => ScaffoldMessenger.of(context)
@@ -103,7 +110,7 @@ class _ClubScreenState extends State<ClubScreen> {
     setState(() {
       _clubId = club.id;
       _clubName = club.name;
-      _presidentId = club.presidentId;
+      _admins = club.admins;
     });
   }
 
@@ -125,30 +132,33 @@ class _ClubScreenState extends State<ClubScreen> {
     }
   }
 
-  /// Presidente: cria o clube com o código de ativação da HelpAITech.
-  void _create() => _run(() async {
+  /// Administrador: ativa o acesso com o código da HelpAITech. Se o código
+  /// é de um clube já cadastrado, o nome vem do cadastro; senão, cria um
+  /// clube novo com o nome digitado.
+  void _activate() => _run(() async {
         final code = _activationCtrl.text.trim();
-        final name = _nameCtrl.text.trim();
-        if (code.isEmpty || name.isEmpty) {
-          _snack('Digite o código de ativação e o nome do clube');
+        if (code.isEmpty) {
+          _snack('Digite o código de ativação');
           return;
         }
         final (city, bike) = await _cityAndBike();
-        await _entered(await _svc.createWithActivation(
+        final club = await _svc.activate(
           activationCode: code,
-          name: name,
+          name: _nameCtrl.text.trim(),
           memberName: widget.userName,
           city: city,
           bike: bike,
-        ));
-        _snack('Clube criado! Agora gere convites para os membros.');
+        );
+        await _entered(club);
+        _snack('Você é administrador do ${club.name}. Agora gere convites '
+            'para os membros.');
       });
 
-  /// Membro: entra com o convite de uso único recebido do presidente.
+  /// Membro: entra com o convite de uso único recebido de um administrador.
   void _join() => _run(() async {
         final code = _codeCtrl.text.trim();
         if (code.isEmpty) {
-          _snack('Digite o convite recebido do presidente do clube');
+          _snack('Digite o convite recebido de um administrador do clube');
           return;
         }
         final (city, bike) = await _cityAndBike();
@@ -160,7 +170,7 @@ class _ClubScreenState extends State<ClubScreen> {
         ));
       });
 
-  /// Presidente: gera um convite de uso único e mostra para enviar.
+  /// Administrador: gera um convite de uso único e mostra para enviar.
   void _invite() => _run(() async {
         final inv = await _svc.createInvite(_clubId!);
         if (!mounted) return;
@@ -201,7 +211,17 @@ class _ClubScreenState extends State<ClubScreen> {
         );
       });
 
-  /// Presidente: remove um membro (com confirmação).
+  /// Administrador: promove um membro ou tira a função de administrador.
+  Future<void> _toggleAdmin(ClubMember m) => _run(() async {
+        await _svc.setAdmin(_clubId!, m.uid, !m.isAdmin);
+        await _refreshAdmins();
+        _snack(m.isAdmin
+            ? '${m.name} não é mais administrador'
+            : '${m.name} agora é administrador');
+      });
+
+  /// Administrador: remove um membro (com confirmação). Se ele for
+  /// administrador, tira a função antes.
   Future<void> _remove(ClubMember m) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -219,12 +239,12 @@ class _ClubScreenState extends State<ClubScreen> {
       ),
     );
     if (ok != true) return;
-    try {
+    await _run(() async {
+      if (m.isAdmin) await _svc.setAdmin(_clubId!, m.uid, false);
       await _svc.removeMember(_clubId!, m.uid);
+      await _refreshAdmins();
       _snack('${m.name} foi removido do clube');
-    } catch (e) {
-      _snack('Não foi possível remover: $e');
-    }
+    });
   }
 
   /// Sai do clube (com confirmação).
@@ -233,11 +253,11 @@ class _ClubScreenState extends State<ClubScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Sair do clube?'),
-        content: Text(_isPresident
-            ? 'Você é o presidente. Saindo, ninguém mais poderá gerar '
-                'convites até a HelpAITech indicar um novo presidente. Para '
-                'voltar, você precisará de um convite.'
-            : 'Para voltar, você precisará de um novo convite do presidente.'),
+        content: Text(_isAdmin
+            ? 'Você é administrador. Se for o único, promova outro membro '
+                'antes de sair. Para voltar, você precisará de um convite.'
+            : 'Para voltar, você precisará de um novo convite de um '
+                'administrador.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -249,11 +269,17 @@ class _ClubScreenState extends State<ClubScreen> {
       ),
     );
     if (ok != true) return;
-    await _svc.leave(_clubId!, _uid!);
-    await UserService.setClub(null, null);
-    setState(() {
-      _clubId = null;
-      _clubName = null;
+    await _run(() async {
+      // Administrador tira a própria função antes (o servidor recusa se ele
+      // for o único).
+      if (_isAdmin) await _svc.setAdmin(_clubId!, _uid!, false);
+      await _svc.leave(_clubId!, _uid!);
+      await UserService.setClub(null, null);
+      setState(() {
+        _clubId = null;
+        _clubName = null;
+        _admins = const [];
+      });
     });
   }
 
@@ -305,8 +331,8 @@ class _ClubScreenState extends State<ClubScreen> {
                         style: theme.textTheme.titleMedium),
                     const SizedBox(height: 4),
                     Text(
-                        'Peça ao presidente do seu clube um convite. Cada '
-                        'convite vale para uma pessoa só.',
+                        'Peça a um administrador do seu clube um convite. '
+                        'Cada convite vale para uma pessoa só.',
                         style: theme.textTheme.bodySmall),
                     const SizedBox(height: 12),
                     TextField(
@@ -328,13 +354,13 @@ class _ClubScreenState extends State<ClubScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Sou presidente: cadastrar o clube',
+                    Text('Sou administrador do clube',
                         style: theme.textTheme.titleMedium),
                     const SizedBox(height: 4),
                     Text(
-                        'O cadastro do clube é feito pelo presidente, com o '
-                        'código de ativação fornecido pela HelpAITech. Para '
-                        'solicitar: helpaitech.ricardo@gmail.com',
+                        'Os administradores de cada clube recebem da '
+                        'HelpAITech um código de ativação (um por pessoa). '
+                        'Para solicitar: helpaitech.ricardo@gmail.com',
                         style: theme.textTheme.bodySmall),
                     const SizedBox(height: 12),
                     TextField(
@@ -349,12 +375,14 @@ class _ClubScreenState extends State<ClubScreen> {
                       controller: _nameCtrl,
                       textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
-                          labelText: 'Nome do clube',
+                          labelText: 'Nome do clube (só se for um clube novo)',
+                          helperText:
+                              'Se o seu clube já está cadastrado, deixe em branco.',
                           border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton(
-                        onPressed: _create, child: const Text('Cadastrar')),
+                        onPressed: _activate, child: const Text('Ativar')),
                   ]),
             ),
           ),
@@ -374,12 +402,12 @@ class _ClubScreenState extends State<ClubScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(_clubName ?? '', style: theme.textTheme.titleLarge),
-                    Text(_isPresident ? 'Você é o presidente' : 'Membro oficial',
+                    Text(_isAdmin ? 'Você é administrador' : 'Membro oficial',
                         style: theme.textTheme.bodySmall),
                   ]),
             ),
           ]),
-          if (_isPresident) ...[
+          if (_isAdmin) ...[
             const SizedBox(height: 12),
             FilledButton.icon(
               style: FilledButton.styleFrom(
@@ -437,17 +465,27 @@ class _ClubScreenState extends State<ClubScreen> {
                             m.name.isEmpty ? '?' : m.name[0].toUpperCase())),
                     title: Text([
                       m.uid == _uid ? '${m.name} (você)' : m.name,
-                      if (m.isPresident) '· presidente',
+                      if (m.isAdmin) '· administrador',
                     ].join(' ')),
                     subtitle: Text([
                       m.city.isEmpty ? 'Cidade não compartilhada' : m.city,
                       if (m.bike.isNotEmpty) m.bike,
                     ].join(' · ')),
-                    trailing: _isPresident && m.uid != _uid
-                        ? IconButton(
-                            icon: const Icon(Icons.person_remove_outlined),
-                            tooltip: 'Remover do clube',
-                            onPressed: () => _remove(m),
+                    trailing: _isAdmin && m.uid != _uid
+                        ? PopupMenuButton<String>(
+                            tooltip: 'Gerenciar membro',
+                            onSelected: (v) =>
+                                v == 'admin' ? _toggleAdmin(m) : _remove(m),
+                            itemBuilder: (_) => [
+                              PopupMenuItem(
+                                  value: 'admin',
+                                  child: Text(m.isAdmin
+                                      ? 'Tirar função de administrador'
+                                      : 'Tornar administrador')),
+                              const PopupMenuItem(
+                                  value: 'remove',
+                                  child: Text('Remover do clube')),
+                            ],
                           )
                         : null,
                   ),

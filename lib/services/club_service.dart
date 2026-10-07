@@ -1,28 +1,34 @@
 // ============================================================================
 // club_service.dart — Clube
 //
-// O que faz: Clube OFICIAL. Só o presidente cria o clube, com um código
-//   de ativação fornecido pela HelpAITech; os membros entram com um convite
-//   de uso único gerado pelo presidente. Tudo isso é conferido no servidor
-//   (functions/clubs.js). Também: membros, membros próximos e avisos (sem
-//   revelar a posição exata de ninguém).
+// O que faz: Clube OFICIAL. Os ADMINISTRADORES de cada clube ativam o
+//   acesso com um código de ativação fornecido pela HelpAITech (clubes já
+//   pré-cadastrados ou novos). Os administradores geram convites de uso único
+//   para os membros, removem membros e promovem outros administradores. Tudo
+//   isso é conferido no servidor (functions/clubs.js). Também: membros,
+//   membros próximos e avisos (sem revelar a posição exata de ninguém).
 // Quem usa: ClubScreen, MapScreen, ClubNearbySheet, ConsentScreen.
-// Onde mexer: Gerar códigos de ativação: scripts/gerar-codigos-clube.js.
+// Onde mexer: Clubes pré-cadastrados: scripts/criar-clubes.js. Códigos de
+//   ativação: scripts/gerar-codigos-clube.js.
 // ============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-/// Clube: código interno, nome e presidente.
+/// Clube: código interno, nome e administradores.
 class Club {
   final String id;
   final String name;
-  final String presidentId;
-  Club({required this.id, required this.name, this.presidentId = ''});
+  final List<String> admins;
+  Club({required this.id, required this.name, this.admins = const []});
+
+  /// O usuário atual administra este clube?
+  bool get iAmAdmin =>
+      admins.contains(FirebaseAuth.instance.currentUser?.uid ?? '-');
 }
 
-/// Convite de uso único gerado pelo presidente.
+/// Convite de uso único gerado por um administrador.
 class ClubInvite {
   final String code; // 8 caracteres, mostrado como XXXX-XXXX
   final DateTime expiresAt;
@@ -39,13 +45,13 @@ class ClubMember {
   final String name;
   final String city;
   final String bike;
-  final bool isPresident;
+  final bool isAdmin;
   ClubMember(
       {required this.uid,
       required this.name,
       required this.city,
       required this.bike,
-      this.isPresident = false});
+      this.isAdmin = false});
 }
 
 /// Membro próximo devolvido pela Cloud Function: sem coordenadas,
@@ -97,10 +103,11 @@ class ClubService {
     return Map<String, dynamic>.from(res.data as Map);
   }
 
-  /// O PRESIDENTE cria o clube com o código de ativação fornecido pela
-  /// HelpAITech (cada código cria um único clube). [city] só se o usuário
-  /// autorizou "ser encontrado". Devolve o clube criado.
-  Future<Club> createWithActivation({
+  /// Usa o código de ativação da HelpAITech: a pessoa vira ADMINISTRADORA do
+  /// clube do código (já cadastrado) ou cria um clube novo com [name] (só
+  /// quando o código não é de um clube cadastrado). [city] só se o usuário
+  /// autorizou "ser encontrado". Devolve o clube.
+  Future<Club> activate({
     required String activationCode,
     required String name,
     required String memberName,
@@ -109,25 +116,26 @@ class ClubService {
   }) async {
     final r = await _call('createClub', {
       'activationCode': activationCode,
-      'name': name,
+      if (name.isNotEmpty) 'name': name,
       'memberName': memberName,
       'city': city,
       'bike': bike,
     });
-    return Club(
-        id: r['clubId'] as String,
-        name: r['name'] as String,
-        presidentId: _uidOrEmpty());
+    return await find(r['clubId'] as String) ??
+        Club(id: r['clubId'] as String, name: r['name'] as String, admins: [
+          FirebaseAuth.instance.currentUser?.uid ?? '',
+        ]);
   }
 
-  /// O presidente gera um CONVITE de uso único (vale 7 dias e uma entrada).
+  /// Um administrador gera um CONVITE de uso único (vale 7 dias e uma
+  /// entrada).
   Future<ClubInvite> createInvite(String clubId) async {
     final r = await _call('createClubInvite', {'clubId': clubId});
     return ClubInvite(r['code'] as String,
         DateTime.fromMillisecondsSinceEpoch((r['expiresAt'] as num).toInt()));
   }
 
-  /// Entra no clube com o convite recebido do presidente.
+  /// Entra no clube com o convite recebido de um administrador.
   Future<Club> joinWithInvite({
     required String inviteCode,
     required String memberName,
@@ -150,20 +158,27 @@ class ClubService {
       final d = await _club(id).get();
       if (!d.exists) return null;
       final data = d.data()!;
-      return Club(
-          id: d.id,
-          name: data['name'] ?? d.id,
-          presidentId: (data['presidentId'] ?? data['createdBy'] ?? '') as String);
+      // Formato antigo (um presidente) vale como um administrador.
+      final admins = data['admins'] is List
+          ? List<String>.from(data['admins'] as List)
+          : [
+              if ((data['presidentId'] ?? data['createdBy']) is String)
+                (data['presidentId'] ?? data['createdBy']) as String,
+            ];
+      return Club(id: d.id, name: data['name'] ?? d.id, admins: admins);
     } catch (_) {
       return null;
     }
   }
 
-  /// O presidente remove um membro do clube.
+  /// Um administrador promove um membro ([admin] true) ou tira a função
+  /// (false). O servidor não deixa o clube ficar sem administrador.
+  Future<void> setAdmin(String clubId, String uid, bool admin) =>
+      _call('setClubAdmin', {'clubId': clubId, 'uid': uid, 'admin': admin});
+
+  /// Um administrador remove um membro (que não seja administrador).
   Future<void> removeMember(String clubId, String uid) =>
       _club(clubId).collection('members').doc(uid).delete();
-
-  String _uidOrEmpty() => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   /// Atualiza a cidade base do membro no clube.
   Future<void> updateCity(String clubId, String uid, String city) => _club(clubId)
@@ -183,7 +198,8 @@ class ClubService {
                 name: d.data()['name'] ?? 'Membro',
                 city: d.data()['city'] ?? '',
                 bike: d.data()['bike'] ?? '',
-                isPresident: d.data()['role'] == 'president',
+                isAdmin: d.data()['role'] == 'admin' ||
+                    d.data()['role'] == 'president',
               ))
           .toList());
 

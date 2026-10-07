@@ -90,16 +90,25 @@ uma execução agora: Console do Google Cloud → Cloud Scheduler → a tarefa �
 
 ## 5. Receitas de mudanças comuns
 
-### Liberar um clube novo (código de ativação para o presidente)
-Só a HelpAITech gera. Na raiz do projeto (gcloud logado):
+### Clubes e administradores (só a HelpAITech)
+Na raiz do projeto, com o gcloud logado:
 ```powershell
-node scripts/gerar-codigos-clube.js 1 "Clube Lobos da Estrada - pres. João"
-node scripts/gerar-codigos-clube.js --listar     # todos os códigos e se já foram usados
+node scripts/criar-clubes.js --listar                         # clubes, IDs e nº de administradores
+node scripts/criar-clubes.js "Jipeiros do Vale" MG            # pré-cadastra um clube (fica invisível)
+node scripts/gerar-codigos-clube.js --clube RJKVYQCX "João"   # código para UM administrador desse clube
+node scripts/gerar-codigos-clube.js 1 "Fulano - clube novo"   # código que cria um clube novo
+node scripts/gerar-codigos-clube.js --listar                  # códigos e se já foram usados
 ```
-Envie o código (ex.: `59VR-6JQM-85QS`) ao presidente. Ele cadastra o clube em
-Clube → "Sou presidente: cadastrar o clube" e depois gera um **convite de uso
-único** para cada membro (botão "Convidar membro"). Trocar o presidente:
-Firestore → `clubs/{id}` → campo `presidentId` (e `role` em `members`).
+- Um código = uma pessoa administradora. Para vários administradores, gere
+  um código para cada (todos com o mesmo `--clube`).
+- No app: Clube → "Sou administrador do clube" → código → **Ativar** (o nome
+  vem do cadastro). Depois: "Convidar membro" gera um **convite de uso único**.
+- Dentro do app, um administrador promove/rebaixa outros (menu ⋮ do membro);
+  o clube nunca fica sem administrador.
+- **Antes de entregar um código**, confirme que a pessoa representa mesmo o
+  clube (os nomes pré-cadastrados são de clubes reais).
+- Lista inicial: `scripts/clubes-iniciais.json` (rodar `node scripts/criar-clubes.js`
+  de novo não duplica).
 
 ### Adicionar um tipo de alerta da comunidade (ex.: "Obra na pista")
 1. `lib/models/hazard.dart`: inclua o tipo no `enum HazardType` (nome, emoji,

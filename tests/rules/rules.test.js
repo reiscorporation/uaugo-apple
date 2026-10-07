@@ -41,8 +41,8 @@ beforeEach(async () => {
     await setDoc(doc(f, "expeditions/ABC123/members/carol"), { name: "Carol" });
     await setDoc(doc(f, "expeditions/ABC123/alerts/sos1"),
       { uid: "carol", name: "Carol", lat: 1, lng: 1, resolved: false });
-    await setDoc(doc(f, "clubs/CLUB01"), { name: "Clube", createdBy: "alice", presidentId: "alice" });
-    await setDoc(doc(f, "clubs/CLUB01/members/alice"), { name: "Alice", city: "", role: "president" });
+    await setDoc(doc(f, "clubs/CLUB01"), { name: "Clube", admins: ["alice"] });
+    await setDoc(doc(f, "clubs/CLUB01/members/alice"), { name: "Alice", city: "", role: "admin" });
     await setDoc(doc(f, "clubs/CLUB01/members/carol"), { name: "Carol", city: "", role: "member" });
     await setDoc(doc(f, "users/alice"), { consent: { findable: true } });
     await setDoc(doc(f, "hazards/h1"), {
@@ -161,12 +161,12 @@ describe("Motoclube", () => {
   it("membro muda a própria cidade", () =>
     assertSucceeds(setDoc(doc(db("alice"), "clubs/CLUB01/members/alice"),
       { city: "Franca" }, { merge: true })));
-  it("membro não se promove a presidente", () =>
+  it("membro não se promove a administrador", () =>
     assertFails(setDoc(doc(db("carol"), "clubs/CLUB01/members/carol"),
-      { role: "president" }, { merge: true })));
+      { role: "admin" }, { merge: true })));
   it("membro não remove outro membro", () =>
     assertFails(deleteDoc(doc(db("carol"), "clubs/CLUB01/members/alice"))));
-  it("presidente remove um membro", () =>
+  it("administrador remove um membro", () =>
     assertSucceeds(deleteDoc(doc(db("alice"), "clubs/CLUB01/members/carol"))));
   it("app não lê códigos de ativação nem convites", async () => {
     await assertFails(getDoc(doc(db("alice"), "clubActivations/ABCDEFGH2345")));
@@ -174,7 +174,18 @@ describe("Motoclube", () => {
     await assertFails(getDocs(collection(db("alice"), "clubInvites")));
   });
   it("membro pode sair do clube", () =>
-    assertSucceeds(deleteDoc(doc(db("alice"), "clubs/CLUB01/members/alice"))));
+    assertSucceeds(deleteDoc(doc(db("carol"), "clubs/CLUB01/members/carol"))));
+  it("administrador só sai depois de deixar a função", () =>
+    assertFails(deleteDoc(doc(db("alice"), "clubs/CLUB01/members/alice"))));
+  it("clube antigo (presidentId): o presidente remove membro", async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      const f = c.firestore();
+      await setDoc(doc(f, "clubs/OLD1"), { name: "Velho", presidentId: "bob" });
+      await setDoc(doc(f, "clubs/OLD1/members/bob"), { name: "Bob", role: "president" });
+      await setDoc(doc(f, "clubs/OLD1/members/dan"), { name: "Dan", role: "member" });
+    });
+    await assertSucceeds(deleteDoc(doc(db("bob"), "clubs/OLD1/members/dan")));
+  });
 });
 
 describe("Alertas públicos", () => {

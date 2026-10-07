@@ -6,8 +6,9 @@
  * - onSos, onStop ............ push para o grupo ao criar SOS / parada
  * - endExpedition ............ o líder encerra a expedição (apaga tudo)
  * - clubNearby, clubNotify ... clube (membros próximos, avisos)
- * - createClub, createClubInvite, joinClub ... clube oficial: criar com
- *                              código de ativação, convites de uso único (clubs.js)
+ * - createClub, createClubInvite, joinClub, setClubAdmin ... clube oficial:
+ *                              administradores pelo código de ativação da
+ *                              HelpAITech, convites de uso único (clubs.js)
  * - deleteMyData ............. exclusão de dados (LGPD)
  * - directions, places ....... rotas e busca de lugares (chave do Google só aqui;
  *                              functions/maps.js, limite diário por usuário)
@@ -132,11 +133,12 @@ exports.places = onCall(callOpts, maps.places);
 
 // ===================== Clube =====================
 
-// Criar (presidente, com código de ativação da HelpAITech), convidar e entrar
-// (convite de uso único). Detalhes em clubs.js.
+// Ativar (administrador, com código de ativação da HelpAITech), convidar,
+// entrar (convite de uso único) e gerenciar administradores. Ver clubs.js.
 exports.createClub = onCall(callOpts, (req) => clubs.createClub(accountUid(req), req.data));
 exports.createClubInvite = onCall(callOpts, (req) => clubs.createClubInvite(accountUid(req), req.data));
 exports.joinClub = onCall(callOpts, (req) => clubs.joinClub(accountUid(req), req.data));
+exports.setClubAdmin = onCall(callOpts, (req) => clubs.setClubAdmin(accountUid(req), req.data));
 
 const CONSENT_FOR = { help: "receiveHelp", passing: "receivePassing" };
 const MAX_KM = 300;
@@ -305,10 +307,11 @@ exports.deleteMyData = onCall(callOpts, async (req) => {
   if (typeof clubId === "string" && /^[A-Z0-9]{6,8}$/.test(clubId)) {
     const club = db.doc(`clubs/${clubId}`);
     const snap = await club.get();
-    // Presidente excluindo os dados: o clube fica sem presidente (a HelpAITech
-    // pode indicar outro editando presidentId no console).
-    if (snap.exists && (snap.data().createdBy === uid || snap.data().presidentId === uid)) {
-      await club.update({ createdBy: null, presidentId: null });
+    // Administrador excluindo os dados: sai da lista de administradores. Se
+    // era o único, a HelpAITech gera um novo código de ativação para o clube.
+    if (snap.exists) {
+      const next = clubs.adminsOf(snap.data()).filter((a) => a !== uid);
+      await club.update({ admins: next, createdBy: null, presidentId: null });
     }
     await club.collection("members").doc(uid).delete();
     await club.collection("rate").doc(uid).delete();

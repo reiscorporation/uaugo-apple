@@ -1,6 +1,6 @@
 # Política de Privacidade do Comboio
 
-Versão 1.2, de 06/10/2026.
+Versão 1.3, de 07/10/2026.
 
 Esta Política explica quais dados pessoais o aplicativo **Comboio** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
@@ -29,7 +29,7 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 - Nome de piloto, marca, modelo, tipo e cor do veículo e a **foto do veículo** (se você enviar). Finalidade: mostrar quem é quem no mapa da expedição.
 
 **Clube (opcional, só com sua autorização)**
-- O clube é cadastrado pelo **presidente**, com código de ativação fornecido pela HelpAITech. Para entrar, cada membro usa um **convite de uso único** gerado pelo presidente. Guardamos quem é o presidente e **quem convidou cada membro**, para garantir que só membros oficiais participem. O presidente pode remover membros.
+- Cada clube tem **administradores**, habilitados com códigos de ativação fornecidos pela HelpAITech. Para entrar, cada membro usa um **convite de uso único** gerado por um administrador. Guardamos quem são os administradores e **quem convidou cada membro**, para garantir que só membros oficiais participem. Administradores podem remover membros. A HelpAITech pode pré-cadastrar o **nome** de clubes conhecidos; eles só aparecem no App depois que um administrador do próprio clube ativa o acesso.
 - **Cidade base** arredondada a ~1 km, nome e clube. Outros membros veem apenas o nome, a cidade e a distância aproximada, **nunca sua posição exata**.
 - **Telefone:** fica **só no seu celular** e é enviado apenas quando você pede ajuda ou avisa alguém e marca essa opção.
 

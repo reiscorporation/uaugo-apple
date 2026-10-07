@@ -124,13 +124,20 @@ service cloud.firestore {
     function isClubMember(clubId) {
       return exists(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid));
     }
-    // Clube OFICIAL: criar (presidente, com código de ativação da
-    // HelpAITech) e entrar (convite de uso único) só pelo servidor
-    // (functions/clubs.js). O app só lê, edita o próprio cadastro e sai;
-    // o presidente pode remover membros.
-    function isPresident(clubId) {
+    // Clube OFICIAL: ativar (administradores, com código de ativação da
+    // HelpAITech), entrar (convite de uso único) e mudar administradores só
+    // pelo servidor (functions/clubs.js). O app só lê, edita o próprio
+    // cadastro e sai; administradores removem membros.
+    function isClubAdmin(clubId) {
       let c = get(/databases/$(database)/documents/clubs/$(clubId)).data;
-      return c.get('presidentId', c.get('createdBy', null)) == request.auth.uid;
+      return 'admins' in c
+        ? request.auth.uid in c.admins
+        : c.get('presidentId', c.get('createdBy', null)) == request.auth.uid;
+    }
+    // Administrador precisa perder a função (setClubAdmin) antes de sair ou
+    // ser removido: assim a lista de administradores fica sempre certa.
+    function isAdminMember() {
+      return resource.data.get('role', 'member') in ['admin', 'president'];
     }
     match /clubs/{clubId} {
       allow get: if hasAccount() && isClubMember(clubId);
@@ -146,8 +153,9 @@ service cloud.firestore {
           && optStr(request.resource.data, 'name', 60)
           && optStr(request.resource.data, 'city', 80)
           && optStr(request.resource.data, 'bike', 100);
-        // Sair do clube, ou o presidente remover um membro.
-        allow delete: if signedIn() && (request.auth.uid == uid || isPresident(clubId));
+        // Sair do clube, ou um administrador remover um membro.
+        allow delete: if signedIn() && !isAdminMember()
+          && (request.auth.uid == uid || isClubAdmin(clubId));
       }
       // Registro de avisos e limite de envios: só as Cloud Functions.
       match /{sub=**} {

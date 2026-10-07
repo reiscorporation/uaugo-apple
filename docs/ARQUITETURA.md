@@ -61,7 +61,7 @@ via, chuva, alertas da comunidade) e pedir ajuda (SOS). Também navega sozinho.
 |---|---|
 | Piloto/motorista | Navegação segura, avisos por voz, app leve, privacidade. |
 | Líder da expedição | Montar roteiro, acompanhar o grupo, encerrar a viagem. |
-| Presidente do clube | Cadastrar o clube oficial (com código de ativação da HelpAITech), convidar e remover membros. |
+| Administrador do clube | Ativar o clube (código de ativação da HelpAITech, um por pessoa), convidar e remover membros, promover outros administradores. |
 | Membro do clube | Encontrar e avisar membros próximos sem expor a posição. |
 | HelpAITech (dona) | Custo baixo, conformidade (LGPD, lojas), marca, manutenção simples. |
 | Lojas (Google/Apple) | Política de privacidade, exclusão de conta, permissões justificadas. |
@@ -79,7 +79,7 @@ pessoa física; nome do app pode mudar ("RodaJunto" em avaliação).
 ## Fase B — Arquitetura de negócio
 
 **Atores:** usuário anônimo (só navega sozinho), usuário com conta (Google,
-Apple ou e-mail), líder, membro, presidente de clube, membro de clube, HelpAITech (emite códigos de ativação), servidor (rotinas). "Clube" serve para qualquer tipo de grupo (motoclube, jipeiros, carros antigos...).
+Apple ou e-mail), líder, membro, administrador de clube, membro de clube, HelpAITech (emite códigos de ativação), servidor (rotinas). "Clube" serve para qualquer tipo de grupo (motoclube, jipeiros, carros antigos...).
 
 **Capacidades e processos principais.**
 
@@ -90,7 +90,7 @@ Apple ou e-mail), líder, membro, presidente de clube, membro de clube, HelpAITe
 | Expedição | Líder cria (código de 8 caracteres) → monta roteiro → membros entram pelo código → posições ao vivo → líder encerra (apaga tudo do servidor). | **Sim** |
 | SOS | Membro aciona → push para o grupo → qualquer membro marca "resolvido". | **Sim** |
 | Alertas da comunidade | Reportar (polícia, buraco…) → outros confirmam/descartam (1 voto por pessoa) → some ao vencer. | **Sim** para criar/votar; ver é livre |
-| Clube oficial | HelpAITech gera um código de ativação (`scripts/gerar-codigos-clube.js`) → presidente cadastra o clube → gera **convites de uso único** (7 dias) → cada membro entra com o seu → presidente pode remover membros → ver membros (cidade, nunca coordenadas) → pedir ajuda/avisar (só a quem autorizou). | **Sim** |
+| Clube oficial | HelpAITech pré-cadastra clubes conhecidos (`scripts/criar-clubes.js`, invisíveis até a ativação) e gera um código de ativação por administrador (`scripts/gerar-codigos-clube.js --clube ID`) → o administrador ativa → gera **convites de uso único** (7 dias) → cada membro entra com o seu → administradores removem membros e promovem/rebaixam administradores (nunca fica sem nenhum) → ver membros (cidade, nunca coordenadas) → pedir ajuda/avisar (só a quem autorizou). | **Sim** |
 | Histórico | Gravação da viagem no celular → "Minhas viagens" → compartilhar imagem/GPX. | Não |
 | Exclusão de dados | Configurações → "Excluir meus dados" (função `deleteMyData`). | Não |
 
@@ -134,7 +134,7 @@ Apple ou e-mail), líder, membro, presidente de clube, membro de clube, HelpAITe
 | `hazards/{id}` | Alertas da comunidade (tipo, posição, célula, contagens, validade). | Todos leem; com conta cria; votos só pelo processo de voto. | **TTL** em `expiresAt`. |
 | `hazards/{id}/votes/{uid}` | Voto da pessoa (confirma/descarta). Garante 1 voto por pessoa. | Cada um vê só o seu; não muda nem apaga. | **TTL** em `expiresAt` (7 dias). |
 | `users/{uid}` | Aceite dos termos, autorizações, cidade base, token de push. Privado. | Só o dono (e as Functions). | Até a exclusão de dados. |
-| `clubs/{id}` + `members` | Clube: nome, presidente (`presidentId`); membros com nome, cidade, veículo, papel (`president`/`member`) e quem convidou. | Só membros leem. Criar clube e entrar: **só o servidor**. Cada um muda nome/cidade/veículo; o presidente remove membros. Nunca coordenadas. | Avisos: 180 dias. |
+| `clubs/{id}` + `members` | Clube: nome, UF, situação (`reserved` = pré-cadastrado, `active`), administradores (`admins`); membros com nome, cidade, veículo, papel (`admin`/`member`) e quem convidou. | Só membros leem (clube reservado é invisível). Ativar, entrar e mudar administradores: **só o servidor**. Cada um muda nome/cidade/veículo; administradores removem membros (não administradores). Nunca coordenadas. | Avisos: 180 dias. |
 | `clubActivations/{código}` | Códigos de ativação emitidos pela HelpAITech (situação, anotação, clube criado). | Só o servidor e o script da HelpAITech. | Permanente (registro). |
 | `clubInvites/{código}` | Convites de uso único (clube, quem gerou, quem usou, validade). | Só o servidor. | **TTL**: 7 dias. |
 | `meta/{doc}` | Versão dos arquivos públicos. | Logados leem; só as Functions escrevem. | — |
@@ -263,7 +263,7 @@ As regras estão em `firestore.rules` e são testadas em `tests/rules/rules.test
 | `history_screen.dart` | "Minhas viagens". |
 | `settings_screen.dart` | Configurações, conta, uso sem internet. |
 | `profile_screen.dart` | Veículo e consumo. |
-| `club_screen.dart` | Clube: entrar com convite, cadastrar (presidente), convidar e remover membros. |
+| `club_screen.dart` | Clube: entrar com convite, ativar como administrador, convidar, remover membros, promover/rebaixar administradores. |
 | `about_screen.dart` | Autoria e créditos. |
 
 Widgets: `speedometer.dart`, `place_search.dart`, `trip_preview_sheet.dart`
@@ -299,8 +299,9 @@ voz, avisos e gravação continuam.
 | `updatePois` | Todo dia 04:10 | Lombadas, postos e pedágios (OSM) → `public/pois/UF.json.gz`. `pois.js`. |
 | `onSos`, `onStop` | Ao criar SOS / parada | Push para o grupo. |
 | `endExpedition` | Chamada pelo líder (com conta) | Apaga a expedição inteira. |
-| `createClub` | Chamada pelo presidente | Cria o clube com o código de ativação (uso único). `clubs.js`. |
-| `createClubInvite` | Chamada pelo presidente | Gera convite de uso único (7 dias; até 50/dia). `clubs.js`. |
+| `createClub` | Chamada por quem recebeu código de ativação | Torna a pessoa administradora do clube do código (ou cria clube novo). Uso único. `clubs.js`. |
+| `createClubInvite` | Chamada por administrador | Gera convite de uso único (7 dias; até 50/dia por administrador). `clubs.js`. |
+| `setClubAdmin` | Chamada por administrador | Promove/rebaixa administrador; recusa deixar o clube sem nenhum. `clubs.js`. |
 | `joinClub` | Chamada pelo novo membro | Entra com o convite e o invalida. Tentativas erradas: até 20/dia. `clubs.js`. |
 | `clubNearby`, `clubNotify` | Chamadas pelo app (com conta) | Clube: membros próximos (sem posição exata) e avisos (5/hora). |
 | `deleteMyData` | Chamada pelo app | Exclusão de dados (LGPD). |
@@ -353,7 +354,7 @@ Resultado da auditoria de segurança de 2026-10 e os controles aplicados.
 | S6 | Adulterar SOS de outro membro | SOS só muda para "resolvido"; resto imutável | ✅ Feito |
 | S7 | Dados inválidos/gigantes no banco | Validação de campos, tipos, coordenadas e tamanhos | ✅ Feito |
 | S8 | Adivinhar o código de uma expedição/clube | Códigos novos com 8 caracteres (32^8 ≈ 1 trilhão) | ✅ Feito |
-| S10 | Clubes falsos ou pessoas de fora em clubes | Clube só com código de ativação da HelpAITech; entrada só com convite de uso único do presidente; tudo no servidor; tentativas erradas limitadas (20/dia) | ✅ Feito |
+| S10 | Clubes falsos ou pessoas de fora em clubes | Clube só com código de ativação da HelpAITech; administradores só com código de ativação; entrada só com convite de uso único de um administrador; tudo no servidor; tentativas erradas limitadas (20/dia) | ✅ Feito |
 | S9 | Dependências do servidor vulneráveis | `firebase-admin` 14, `firebase-functions` 7, `uuid` corrigido (0 vulnerabilidades) | ✅ Feito |
 | — | Invadir o celular do usuário | O app não executa código baixado, não abre arquivos de terceiros e só pede permissões necessárias | ✅ Sem risco identificado |
 
@@ -403,6 +404,7 @@ Antes de publicar qualquer mudança:
 
 | Data | Versão | Mudança | Seções afetadas |
 |---|---|---|---|
+| 2026-10-07 | 2.4 | Clube com **vários administradores** (código de ativação por pessoa; promover/rebaixar no app; `setClubAdmin`). 30 clubes conhecidos **pré-cadastrados** como reservados (`scripts/criar-clubes.js`, lista em `scripts/clubes-iniciais.json`). Política v1.3. | B, C1, C2, Segurança |
 | 2026-10-06 | 2.3 | **Clube oficial**: criação só com código de ativação da HelpAITech (presidente), entrada só com convite de uso único, presidente remove membros. "Motoclube" passa a se chamar **"Clube"** (serve para jipeiros, carros antigos etc.). Política v1.2. | B, C1, C2, Segurança, ADR-10 |
 | 2026-10-06 | 2.2 | App Check **exigido** nas funções chamáveis (`ENFORCE_APP_CHECK=true`), no Firestore e no Storage, após confirmar tokens VALID do aparelho de teste. | D, Segurança, E/F |
 | 2026-10-06 | 2.1 | Site público no Firebase Hosting (`public/`, gerado por `scripts/gerar-paginas.js`): Termos, Política (v1.1: rotas passam pelo servidor sem guardar) e exclusão de dados. Chave de upload da Google Play (fora do git) e assinatura da versão final no Gradle. | C2, D, E/F |
@@ -436,4 +438,4 @@ Antes de publicar qualquer mudança:
 | ADR-07 | Voto registrado em `hazards/{id}/votes/{uid}` no mesmo lote | Única forma de garantir 1 voto por pessoa só com regras (S5). | TTL também em `votes`. |
 | ADR-08 | Códigos de 8 caracteres | Inviabiliza adivinhar convites (S8). | Códigos antigos de 6 continuam válidos. |
 | ADR-09 | App Check exigido só após registrar os aparelhos de teste | Exigir antes quebraria as versões de teste. | Período curto com App Check só monitorando. |
-| ADR-10 | Clube oficial controlado pelo servidor (ativação + convite de uso único) | Garantir que só presidentes reais criem clubes e só membros oficiais entrem (pedido do responsável). | HelpAITech precisa emitir códigos; clubes antigos (sem código) continuam, sem novos membros por código. |
+| ADR-10 | Clube oficial controlado pelo servidor (ativação + convite de uso único) | Garantir que só administradores autorizados pela HelpAITech gerenciem clubes e só membros oficiais entrem (pedido do responsável). | HelpAITech precisa emitir códigos; clubes antigos (sem código) continuam, sem novos membros por código. |

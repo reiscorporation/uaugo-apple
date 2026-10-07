@@ -1,20 +1,25 @@
 /**
- * Clube oficial: criação e entrada controladas pelo SERVIDOR.
+ * Clube oficial: criação, administradores e entrada controlados pelo SERVIDOR.
  *
- * - Criar clube: só o PRESIDENTE, com um CÓDIGO DE ATIVAÇÃO fornecido pela
- *   HelpAITech (clubActivations/{código}, gerado por
- *   scripts/gerar-codigos-clube.js). Cada código cria um único clube.
- * - Entrar no clube: só com um CONVITE de uso único gerado pelo presidente
- *   no app (clubInvites/{código}, vale 7 dias e uma entrada).
- * - As coleções clubActivations e clubInvites não são acessíveis pelo app
+ * - Clubes podem ser PRÉ-CADASTRADOS pela HelpAITech (scripts/criar-clubes.js):
+ *   ficam invisíveis no app até terem administradores.
+ * - ADMINISTRADORES: quem usa um CÓDIGO DE ATIVAÇÃO fornecido pela HelpAITech
+ *   (clubActivations/{código}, scripts/gerar-codigos-clube.js) vira
+ *   administrador do clube daquele código. Um clube pode ter vários
+ *   administradores (um código para cada). Código sem clube vinculado cria
+ *   um clube novo com o nome informado.
+ * - Administradores geram CONVITES de uso único (clubInvites/{código}, 7 dias),
+ *   removem membros e promovem/rebaixam outros administradores (o clube
+ *   nunca fica sem nenhum).
+ * - clubActivations e clubInvites não são acessíveis pelo app
  *   (firestore.rules): tudo passa por estas funções.
- * - Tentativas erradas de código são limitadas por dia (usage/{uid}),
- *   para ninguém tentar adivinhar.
+ * - Tentativas erradas de código são limitadas por dia (usage/{uid}).
  *
  * Funções (chamadas pelo app com httpsCallable):
- * - createClub:       { activationCode, name, memberName, city?, bike? } -> { clubId, name }
+ * - createClub:       { activationCode, name?, memberName, city?, bike? } -> { clubId, name }
  * - createClubInvite: { clubId } -> { code, expiresAt }
  * - joinClub:         { inviteCode, memberName, city?, bike? } -> { clubId, name }
+ * - setClubAdmin:     { clubId, uid, admin: true|false } -> { ok }
  */
 
 const { HttpsError } = require("firebase-functions/v2/https");
@@ -24,7 +29,7 @@ const crypto = require("crypto");
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sem letras que confundem
 const INVITE_DAYS = 7;
 const MAX_TRIES_PER_DAY = 20; // códigos errados (ativação + convite)
-const MAX_INVITES_PER_DAY = 50; // por presidente
+const MAX_INVITES_PER_DAY = 50; // por administrador
 
 /** Código aleatório seguro com [n] caracteres do ALPHABET. */
 function randomCode(n) {
@@ -44,7 +49,14 @@ function text(v, max, required, label) {
   return s;
 }
 
-/** Conta uma tentativa de código errado; recusa depois do limite do dia. */
+/** Administradores do clube (inclui o formato antigo, com presidentId). */
+function adminsOf(club) {
+  if (Array.isArray(club.admins)) return [...club.admins];
+  const old = club.presidentId || club.createdBy;
+  return old ? [old] : [];
+}
+
+/** Conta uma tentativa de código errado. */
 async function countFailedTry(uid) {
   const db = getFirestore();
   const ref = db.doc(`usage/${uid}`);
@@ -56,6 +68,7 @@ async function countFailedTry(uid) {
   });
 }
 
+/** Recusa depois de muitas tentativas erradas no mesmo dia. */
 async function checkTries(uid) {
   const d = (await getFirestore().doc(`usage/${uid}`).get()).data() || {};
   const day = new Date().toISOString().slice(0, 10);
@@ -65,14 +78,26 @@ async function checkTries(uid) {
   }
 }
 
-/** Presidente usa o código de ativação para criar o clube. */
+/** Confere se [uid] administra o clube; devolve os dados do clube. */
+async function requireAdmin(clubId, uid) {
+  const snap = await getFirestore().doc(`clubs/${clubId}`).get();
+  if (!snap.exists || !adminsOf(snap.data()).includes(uid)) {
+    throw new HttpsError("permission-denied", "Só os administradores do clube podem fazer isso.");
+  }
+  return snap.data();
+}
+
+/**
+ * Usa o código de ativação: vira administrador do clube vinculado ao código
+ * (clube pré-cadastrado) ou cria um clube novo com o nome informado.
+ */
 async function createClub(uid, data) {
   const db = getFirestore();
   const code = normalize(data?.activationCode);
-  const name = text(data?.name, 60, true, "o nome do clube");
-  const memberName = text(data?.memberName, 60, true, "seu nome de piloto");
+  const memberName = text(data?.memberName, 60, true, "seu nome");
   const city = text(data?.city, 80, false);
   const bike = text(data?.bike, 100, false);
+  const newName = text(data?.name, 60, false);
   await checkTries(uid);
   if (code.length !== 12) {
     await countFailedTry(uid);
@@ -80,47 +105,66 @@ async function createClub(uid, data) {
   }
 
   const actRef = db.doc(`clubActivations/${code}`);
-  let clubId = randomCode(8);
-  while ((await db.doc(`clubs/${clubId}`).get()).exists) clubId = randomCode(8);
-  const clubRef = db.doc(`clubs/${clubId}`);
+  // Id para o caso de o código não ter clube vinculado (clube novo).
+  let freshId = randomCode(8);
+  while ((await db.doc(`clubs/${freshId}`).get()).exists) freshId = randomCode(8);
 
-  const ok = await db.runTransaction(async (tx) => {
+  const result = await db.runTransaction(async (tx) => {
+    // 1) Leituras (o Firestore exige ler tudo antes de gravar).
     const act = await tx.get(actRef);
-    if (!act.exists || act.data().status !== "available") return false;
-    tx.set(clubRef, {
-      name,
-      createdBy: uid,
-      presidentId: uid,
-      activationCode: code,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    tx.set(clubRef.collection("members").doc(uid), {
-      name: memberName, city, bike, role: "president",
-      joinedAt: FieldValue.serverTimestamp(),
-    });
+    if (!act.exists || act.data().status !== "available") return { error: "Código de ativação inválido ou já utilizado." };
+    const a = act.data();
+    const clubId = a.clubId || freshId;
+    const clubRef = db.doc(`clubs/${clubId}`);
+    const memberRef = db.doc(`clubs/${clubId}/members/${uid}`);
+    const club = a.clubId ? await tx.get(clubRef) : null;
+    const m = await tx.get(memberRef);
+
+    // 2) Gravações.
+    let name;
+    if (a.clubId) {
+      // Clube já cadastrado pela HelpAITech: a pessoa vira administradora.
+      if (!club.exists) return { error: "O clube deste código não existe mais. Fale com a HelpAITech." };
+      name = club.data().name;
+      tx.update(clubRef, {
+        admins: [...new Set([...adminsOf(club.data()), uid])],
+        status: "active",
+        activatedAt: club.data().activatedAt || FieldValue.serverTimestamp(),
+      });
+    } else {
+      if (!newName) return { error: "Informe o nome do clube.", soft: true };
+      name = newName;
+      tx.set(clubRef, {
+        name, admins: [uid], status: "active", createdBy: uid,
+        createdAt: FieldValue.serverTimestamp(), activatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    // Membro (ou já membro) passa a ser administrador.
+    if (m.exists) {
+      tx.update(memberRef, { role: "admin" });
+    } else {
+      tx.set(memberRef, {
+        name: memberName, city, bike, role: "admin", joinedAt: FieldValue.serverTimestamp(),
+      });
+    }
     tx.update(actRef, {
-      status: "used", usedBy: uid, clubId, clubName: name,
-      usedAt: FieldValue.serverTimestamp(),
+      status: "used", usedBy: uid, clubId, clubName: name, usedAt: FieldValue.serverTimestamp(),
     });
-    return true;
+    return { clubId, name };
   });
-  if (!ok) {
-    await countFailedTry(uid);
-    throw new HttpsError("not-found", "Código de ativação inválido ou já utilizado.");
+  if (result.error) {
+    if (!result.soft) await countFailedTry(uid);
+    throw new HttpsError(result.soft ? "invalid-argument" : "not-found", result.error);
   }
-  return { clubId, name };
+  return result;
 }
 
-/** O presidente gera um convite de uso único para um novo membro. */
+/** Um administrador gera um convite de uso único para um novo membro. */
 async function createClubInvite(uid, data) {
   const db = getFirestore();
   const clubId = normalize(data?.clubId);
-  const club = await db.doc(`clubs/${clubId}`).get();
-  const president = club.exists && (club.data().presidentId || club.data().createdBy);
-  if (!club.exists || president !== uid) {
-    throw new HttpsError("permission-denied", "Só o presidente do clube gera convites.");
-  }
-  // Limite diário de convites por presidente.
+  await requireAdmin(clubId, uid);
+  // Limite diário de convites por administrador.
   const since = Timestamp.fromMillis(Date.now() - 24 * 3600e3);
   const today = await db.collection("clubInvites")
     .where("createdBy", "==", uid).where("createdAt", ">=", since).count().get();
@@ -141,7 +185,7 @@ async function createClubInvite(uid, data) {
 async function joinClub(uid, data) {
   const db = getFirestore();
   const code = normalize(data?.inviteCode);
-  const memberName = text(data?.memberName, 60, true, "seu nome de piloto");
+  const memberName = text(data?.memberName, 60, true, "seu nome");
   const city = text(data?.city, 80, false);
   const bike = text(data?.bike, 100, false);
   await checkTries(uid);
@@ -155,8 +199,8 @@ async function joinClub(uid, data) {
     const inv = await tx.get(invRef);
     if (!inv.exists) return { error: "Convite inválido." };
     const i = inv.data();
-    if (i.usedBy) return { error: "Este convite já foi usado. Peça um novo ao presidente." };
-    if (i.expiresAt.toMillis() < Date.now()) return { error: "Convite vencido. Peça um novo ao presidente." };
+    if (i.usedBy) return { error: "Este convite já foi usado. Peça um novo a um administrador do clube." };
+    if (i.expiresAt.toMillis() < Date.now()) return { error: "Convite vencido. Peça um novo a um administrador do clube." };
     const clubRef = db.doc(`clubs/${i.clubId}`);
     const club = await tx.get(clubRef);
     if (!club.exists) return { error: "Este clube não existe mais." };
@@ -178,4 +222,31 @@ async function joinClub(uid, data) {
   return result;
 }
 
-module.exports = { createClub, createClubInvite, joinClub, normalize, randomCode, ALPHABET };
+/** Um administrador promove um membro a administrador, ou tira a função. */
+async function setClubAdmin(uid, data) {
+  const db = getFirestore();
+  const clubId = normalize(data?.clubId);
+  const target = typeof data?.uid === "string" ? data.uid : "";
+  const makeAdmin = data?.admin === true;
+  const club = await requireAdmin(clubId, uid);
+  const memberRef = db.doc(`clubs/${clubId}/members/${target}`);
+  if (!target || !(await memberRef.get()).exists) {
+    throw new HttpsError("not-found", "Membro não encontrado.");
+  }
+  const admins = adminsOf(club);
+  if (!makeAdmin && admins.length === 1 && admins[0] === target) {
+    throw new HttpsError("failed-precondition",
+      "O clube precisa de pelo menos um administrador. Promova outro membro antes.");
+  }
+  const next = makeAdmin ? [...new Set([...admins, target])] : admins.filter((a) => a !== target);
+  const batch = db.batch();
+  // Grava a lista completa (e limpa o formato antigo presidentId/createdBy).
+  batch.update(db.doc(`clubs/${clubId}`), { admins: next });
+  batch.update(memberRef, { role: makeAdmin ? "admin" : "member" });
+  await batch.commit();
+  return { ok: true };
+}
+
+module.exports = {
+  createClub, createClubInvite, joinClub, setClubAdmin, adminsOf, normalize, randomCode, ALPHABET,
+};
