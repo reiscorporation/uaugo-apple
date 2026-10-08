@@ -56,7 +56,7 @@ class LocationService {
         intervalDuration: Duration(seconds: saving ? 2 : 1),
         foregroundNotificationConfig: background
             ? ForegroundNotificationConfig(
-                notificationTitle: 'RodaJunto ativo',
+                notificationTitle: 'Convoyar ativo',
                 notificationText: notificationText,
                 enableWakeLock: true,
               )

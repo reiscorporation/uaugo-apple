@@ -1,5 +1,5 @@
 /**
- * Cloud Functions do RodaJunto (rodam no servidor do Firebase, região
+ * Cloud Functions do Convoyar (rodam no servidor do Firebase, região
  * southamerica-east1). Publicar: `firebase deploy --only functions`.
  *
  * Funções (detalhes em docs/ARQUITETURA.md, seção 5):
@@ -61,7 +61,7 @@ function accountUid(req) {
 /**
  * Problema numa rotina que precisa de atenção humana: vai para o log com
  * gravidade ERROR e o prefixo [ALERTA]. O Cloud Monitoring manda um e-mail
- * para a HelpAITech (política "RodaJunto - rotina com problema"; veja
+ * para a HelpAITech (política "Convoyar - rotina com problema"; veja
  * docs/MANUTENCAO.md). Erros que derrubam a função também disparam o e-mail.
  */
 function alerta(msg) {

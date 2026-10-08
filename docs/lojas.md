@@ -8,9 +8,9 @@ Textos prontos para colar nos consoles. Revise os trechos entre colchetes.
 
 | Campo | Texto | Limite |
 |---|---|---|
-| Nome | RodaJunto: viagem em grupo | 30 |
+| Nome | Convoyar: viagem em grupo | 30 |
 | Subtítulo (Apple) | Expedições de moto em comboio | 30 |
-| Descrição curta (Google) | RodaJunto no mapa, paradas, SOS e alertas de perigo para viagens de moto em grupo. | 80 |
+| Descrição curta (Google) | Convoyar no mapa, paradas, SOS e alertas de perigo para viagens de moto em grupo. | 80 |
 | Palavras-chave (Apple) | moto,motociclismo,expedição,viagem,clube,grupo,rota,SOS,estrada,mototurismo,motoqueiro,trilha | 100 |
 | Categoria | Mapas e navegação (Google) · Navegação (Apple) | |
 
@@ -18,7 +18,7 @@ Textos prontos para colar nos consoles. Revise os trechos entre colchetes.
 
 Viajar de moto em grupo ficou mais seguro e organizado.
 
-O RodaJunto mostra no mapa, em tempo real, onde está cada piloto da sua expedição, com a foto da moto de cada um. Combine paradas, trace a rota pelas estradas e saiba na hora quando alguém ficou para trás.
+O Convoyar mostra no mapa, em tempo real, onde está cada piloto da sua expedição, com a foto da moto de cada um. Combine paradas, trace a rota pelas estradas e saiba na hora quando alguém ficou para trás.
 
 **Para o grupo**
 - Crie uma expedição e convide os amigos com um código
@@ -75,12 +75,12 @@ Tipos de dados (marque como **coletado**; em "compartilhado" responda **não**, 
 
 **Declaração (cole no formulário):**
 
-> O RodaJunto é usado por grupos de motociclistas em viagem. Enquanto o usuário participa de uma expedição ou navega até um destino com instruções por voz, o app usa um serviço em primeiro plano do tipo "location" para continuar enviando a posição do piloto aos demais membros do grupo e dando os avisos de navegação, mesmo com a tela desligada ou o app minimizado. Fora disso (por exemplo, no modo "Só dirigir"), a localização para quando o app sai da tela; o serviço também é encerrado se o app for fechado ou se o piloto ficar parado por 15 minutos com o app minimizado. Isso permite que o grupo saiba onde cada integrante está durante a viagem e que um pedido de SOS mostre a posição correta. Uma notificação permanente ("RodaJunto ativo") fica visível durante todo o uso, e o serviço é encerrado quando o usuário sai da expedição.
+> O Convoyar é usado por grupos de motociclistas em viagem. Enquanto o usuário participa de uma expedição ou navega até um destino com instruções por voz, o app usa um serviço em primeiro plano do tipo "location" para continuar enviando a posição do piloto aos demais membros do grupo e dando os avisos de navegação, mesmo com a tela desligada ou o app minimizado. Fora disso (por exemplo, no modo "Só dirigir"), a localização para quando o app sai da tela; o serviço também é encerrado se o app for fechado ou se o piloto ficar parado por 15 minutos com o app minimizado. Isso permite que o grupo saiba onde cada integrante está durante a viagem e que um pedido de SOS mostre a posição correta. Uma notificação permanente ("Convoyar ativo") fica visível durante todo o uso, e o serviço é encerrado quando o usuário sai da expedição.
 
 **Roteiro do vídeo demonstrativo (30 a 60 segundos, gravação da tela):**
 1. Abrir o app e entrar numa expedição.
 2. Mostrar o mapa com outro piloto se movendo.
-3. Minimizar o app e mostrar a notificação "RodaJunto ativo".
+3. Minimizar o app e mostrar a notificação "Convoyar ativo".
 4. Bloquear a tela, desbloquear e mostrar que a posição continuou atualizando no outro aparelho.
 5. Sair da expedição e mostrar que a notificação desapareceu.
 
@@ -107,7 +107,7 @@ Publique o vídeo como "não listado" no YouTube e cole o link.
 
 ## 5. App Store: notas para o revisor
 
-> O RodaJunto é um app para grupos de motociclistas em viagem.
+> O Convoyar é um app para grupos de motociclistas em viagem.
 >
 > **Como testar:** abra o app em dois aparelhos (ou peça um código de teste: [CÓDIGO]). Aceite as autorizações. No primeiro aparelho, toque em "Criar e liderar"; no segundo, use o código exibido em "Entrar no comboio". Cada aparelho verá o outro no mapa.
 >

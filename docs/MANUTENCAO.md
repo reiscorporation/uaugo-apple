@@ -1,4 +1,4 @@
-# Guia de manutenção do RodaJunto
+# Guia de manutenção do Convoyar
 
 Passo a passo para quem vai mexer no código. Para entender a organização do
 app, leia antes [ARQUITETURA.md](ARQUITETURA.md).
@@ -11,7 +11,7 @@ app, leia antes [ARQUITETURA.md](ARQUITETURA.md).
 - **Histórico de versões:** o projeto usa Git (pasta `.git`). Cada backup
   registra uma "foto" do código; dá para ver e voltar a qualquer versão.
 - **Backup no Google Drive da HelpAITech:** rode `.\scripts\backup.ps1`. Ele
-  registra as mudanças e copia para `Meu Drive\HelpAITech\RodaJunto\backup`:
+  registra as mudanças e copia para `Meu Drive\HelpAITech\Convoyar\backup`:
   `comboio-historico.bundle` (todas as versões) e um `.zip` do código atual.
   **Restaurar:** `git clone comboio-historico.bundle comboio`.
 - As chaves (`config.env`, `config/dart_defines.json`, `functions/.env`) não
@@ -182,7 +182,7 @@ Siga o modelo de `functions/pois.js` (servidor) + `lib/services/poi_service.dart
 As rotinas automáticas (radares/PRF, limites, lombadas, limpeza) mandam
 e-mail para **helpaitech.ricardo@gmail.com** quando falham ou quando algo
 precisa de atenção (no máximo 1 e-mail por hora). Configuração:
-Google Cloud → Monitoring → Alertas → política **"RodaJunto - rotina com
+Google Cloud → Monitoring → Alertas → política **"Convoyar - rotina com
 problema"** (definição em `config/alerta-rotinas.json`; canal de e-mail
 "HelpAITech (e-mail)"). No código, `alerta("...")` em `functions/index.js`.
 

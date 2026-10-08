@@ -1,6 +1,6 @@
-# Arquitetura do RodaJunto (padrão TOGAF)
+# Arquitetura do Convoyar (padrão TOGAF)
 
-Este documento descreve a arquitetura do RodaJunto seguindo o **TOGAF**
+Este documento descreve a arquitetura do Convoyar seguindo o **TOGAF**
 (The Open Group Architecture Framework), organizado pelas fases do seu
 método, o **ADM** (Architecture Development Method). Ele é atualizado **a
 cada mudança no app** (ver [Fase H](#fase-h--gestão-de-mudanças-da-arquitetura)).
@@ -10,7 +10,7 @@ Para compilar, testar, publicar e fazer mudanças comuns, veja
 
 | Item | Valor |
 |---|---|
-| Sistema | RodaJunto — navegação e viagens em grupo de moto e carro |
+| Sistema | Convoyar — navegação e viagens em grupo de moto e carro |
 | Responsável | Ricardo Reis — HelpAITech (helpaitech.ricardo@gmail.com) |
 | Versão do documento | 2.0 (2026-10-06) |
 | Projeto Firebase | `helpaitechcomboio` (região `southamerica-east1`) |
@@ -72,7 +72,7 @@ versão web, mapas offline do Google (proibido pelos termos), base pública de
 crimes (não existe).
 
 **Restrições.** Orçamento pequeno (plano Blaze pago por uso); desenvolvedor
-pessoa física. Nome do app: **RodaJunto** (antes "Comboio"); o identificador interno `helpaitech.comboio`, o projeto Firebase e os nomes das chaves continuam com "comboio" (não aparecem para o usuário e não podem mudar depois de publicar).
+pessoa física. Nome do app: **Convoyar** (antes "RodaJunto" e "Comboio"); o identificador interno `helpaitech.comboio`, o projeto Firebase e os nomes das chaves continuam com "comboio" (não aparecem para o usuário e não podem mudar depois de publicar).
 
 ---
 
@@ -379,8 +379,8 @@ Testes de segurança: `tests/rules/rules.test.js` (regras do Firestore) e
 | ✅ Exigir App Check (funções: `ENFORCE_APP_CHECK=true`; Firestore e Storage no console) | Tokens de depuração dos aparelhos de teste registrados | ✅ Feito |
 | Ativar o login com Google no console do Firebase | — | Pendente (responsável) |
 | Contas nas lojas (Google Play, Apple Developer) | Definição do nome | Pendente (responsável) |
-| Nome do app: RodaJunto (trocado em 2026-10-07) | — | ✅ Feito |
-| Registro da marca RodaJunto no INPI | Responsável | Pendente |
+| Nome do app: Convoyar (trocado em 2026-10-07) | — | ✅ Feito |
+| Registro da marca Convoyar no INPI | Responsável | Pendente |
 | Backup no Google Drive da HelpAITech | Google Drive para computador | Pendente (responsável) |
 
 **Transição:** códigos antigos de 6 caracteres continuam aceitos; só os novos
@@ -406,6 +406,7 @@ Antes de publicar qualquer mudança:
 
 | Data | Versão | Mudança | Seções afetadas |
 |---|---|---|---|
+| 2026-10-07 | 2.11 | App renomeado para **Convoyar** (antes RodaJunto e Comboio): nome exibido, textos, Termos v1.2 (novo aceite), Política v1.6, páginas públicas. A palavra de ativação dos comandos de voz continua "roda junto" até a definição do nome da assistente. | B, C2 |
 | 2026-10-07 | 2.10 | **Fim da navegação no destino**: ao chegar (regra pela rota), a navegação termina sozinha. Sozinho: salva a viagem, desliga o GPS e mostra "Você chegou" (fecha em 20 s). Expedição: para a narração e continua no comboio. Simulação: a moto para. | B, C2 |
 | 2026-10-07 | 2.9 | **Bateria em segundo plano**: GPS (e o serviço com notificação fixa) só continua com o app minimizado em **expedição** ou **navegação até um destino**; em "Só dirigir" e na simulação ele para ao sair do app. Desliga sozinho após 15 min parado em segundo plano. O serviço de localização para ao fechar o app pela lista de recentes (`stopWithTask`). | C2, D |
 | 2026-10-07 | 2.8 | Alerta **Lombada** (comunidade + `roda junto lombada`). **Chegada medida pela rota** (`hasArrived`/`distanceToStop` em `logic/navigation.dart`): 80 m de estrada (máx. 400 m em linha reta); fora da rota, 120 m em linha reta. Antes: 300 m em linha reta, que na cidade avisava "você chegou" faltando 1 km. | C2 |

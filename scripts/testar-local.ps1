@@ -1,5 +1,5 @@
 <#
-  RodaJunto - testa o app no emulador do Android usando o Firebase Emulator
+  Convoyar - testa o app no emulador do Android usando o Firebase Emulator
   Suite (banco, login, funções e arquivos rodando no seu computador).
   Não usa a nuvem e não gera custo. O mapa fica vazio sem a chave do Maps
   e os pushes aparecem só no log dos emuladores ("[push simulado]").

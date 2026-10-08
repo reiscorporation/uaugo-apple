@@ -99,7 +99,7 @@ class ComboioApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'RodaJunto',
+      title: 'Convoyar',
       debugShowCheckedModeBanner: false,
       // Calendário, relógio e botões do sistema em português.
       locale: const Locale('pt', 'BR'),

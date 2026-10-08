@@ -538,7 +538,7 @@ class SettingsScreen extends StatelessWidget {
           section('Sobre'),
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('Sobre o RodaJunto'),
+            title: const Text('Sobre o Convoyar'),
             subtitle: const Text('Desenvolvido por HelpAITech · créditos'),
             onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const AboutScreen())),

@@ -1,5 +1,5 @@
 <#
-  RodaJunto - configura o Google Cloud e o Firebase pela linha de comando:
+  Convoyar - configura o Google Cloud e o Firebase pela linha de comando:
   ativa APIs, cria o banco, cria as chaves do Maps restritas, liga o TTL
   dos alertas e publica regras e funções.
 

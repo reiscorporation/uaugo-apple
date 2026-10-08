@@ -1,4 +1,4 @@
-# Funções compartilhadas pelos scripts do RodaJunto (Windows, Mac e Linux com PowerShell 7).
+# Funções compartilhadas pelos scripts do Convoyar (Windows, Mac e Linux com PowerShell 7).
 # 'Continue' porque ferramentas como gcloud escrevem progresso no stderr;
 # as falhas são verificadas por $LASTEXITCODE e 'throw'.
 $ErrorActionPreference = 'Continue'
@@ -80,7 +80,7 @@ function Invoke-AplicarConfig($cfg) {
            "        <intent><action android:name=`"android.intent.action.DIAL`"/><data android:scheme=`"tel`"/></intent>`n    </queries>"
       $t = ([regex]'\s*</queries>').Replace($t, "`n" + $q, 1)
     }
-    $t = $t -replace 'android:label="comboio"', 'android:label="RodaJunto"'
+    $t = $t -replace 'android:label="comboio"', 'android:label="Convoyar"'
     $t -replace '(android:name="com\.google\.android\.geo\.API_KEY"\s*android:value=")[^"]*(")', ('${1}' + $androidKey + '${2}')
   }
   Write-Ok 'Permissões e chave do Maps no AndroidManifest'

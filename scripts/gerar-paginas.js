@@ -58,7 +58,7 @@ const page = (title, body) => `<!doctype html>
 <nav><a href="/termos">Termos de Uso</a><a href="/privacidade">Privacidade</a><a href="/excluir-dados">Excluir dados</a></nav>
 <main>
 ${body}
-<footer>RodaJunto — Ricardo Reis / HelpAITech · <a href="mailto:helpaitech.ricardo@gmail.com">helpaitech.ricardo@gmail.com</a></footer>
+<footer>Convoyar — Ricardo Reis / HelpAITech · <a href="mailto:helpaitech.ricardo@gmail.com">helpaitech.ricardo@gmail.com</a></footer>
 </main>
 </body>
 </html>
@@ -68,13 +68,13 @@ const read = (f) => fs.readFileSync(path.join(root, "assets", "legal", f), "utf8
 const termos = read("termos_de_uso.md");
 const privacidade = read("politica_de_privacidade.md");
 
-fs.writeFileSync(path.join(out, "termos.html"), page("Termos de Uso — RodaJunto", md(termos)));
-fs.writeFileSync(path.join(out, "privacidade.html"), page("Política de Privacidade — RodaJunto", md(privacidade)));
+fs.writeFileSync(path.join(out, "termos.html"), page("Termos de Uso — Convoyar", md(termos)));
+fs.writeFileSync(path.join(out, "privacidade.html"), page("Política de Privacidade — Convoyar", md(privacidade)));
 
 // "Como excluir seus dados": seção 9 da Política + o que é apagado.
 const secao9 = (privacidade.split(/^## 9\. .*$/m)[1] || "").split(/^## /m)[0].trim();
-fs.writeFileSync(path.join(out, "excluir-dados.html"), page("Excluir seus dados — RodaJunto", md(
-  `# Como excluir sua conta e seus dados do RodaJunto\n\n${secao9}\n\n` +
+fs.writeFileSync(path.join(out, "excluir-dados.html"), page("Excluir seus dados — Convoyar", md(
+  `# Como excluir sua conta e seus dados do Convoyar\n\n${secao9}\n\n` +
   "## O que é apagado\n\n" +
   "- Conta (login), autorizações e registro do aceite dos Termos.\n" +
   "- Participação em expedições (nome, veículo, foto e posições) e pedidos de SOS.\n" +
@@ -84,8 +84,8 @@ fs.writeFileSync(path.join(out, "excluir-dados.html"), page("Excluir seus dados 
   "- Alertas da comunidade que você reportou ficam até vencer (de 1 hora a 7 dias), **sem identificar você**.\n\n" +
   "Pedidos por e-mail são atendidos em até **15 dias**.")));
 
-fs.writeFileSync(path.join(out, "index.html"), page("RodaJunto", md(
-  "# RodaJunto\n\nNavegação e viagens em grupo de moto e de carro.\n\n" +
+fs.writeFileSync(path.join(out, "index.html"), page("Convoyar", md(
+  "# Convoyar\n\nNavegação e viagens em grupo de moto e de carro.\n\n" +
   "- **Termos de Uso:** /termos\n- **Política de Privacidade:** /privacidade\n- **Excluir seus dados:** /excluir-dados"))
   .replace(/(\/(termos|privacidade|excluir-dados))<\/li>/g, '<a href="$1">$1</a></li>'));
 

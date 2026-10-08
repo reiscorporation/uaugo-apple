@@ -1,4 +1,4 @@
-# 🏍️🚗 RodaJunto — viagens em grupo, de moto ou de carro
+# 🏍️🚗 Convoyar — viagens em grupo, de moto ou de carro
 
 App Flutter (iPhone + Android) com Google Maps e Firebase.
 Desenvolvido por **Ricardo Reis / HelpAITech**.

@@ -176,7 +176,7 @@ class _ClubScreenState extends State<ClubScreen> {
         if (!mounted) return;
         final d = inv.expiresAt;
         final msg = 'Convite para entrar no clube $_clubName no app '
-            'RodaJunto: ${inv.display}\n(vale para UMA pessoa, até '
+            'Convoyar: ${inv.display}\n(vale para UMA pessoa, até '
             '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')})';
         await showDialog<void>(
           context: context,

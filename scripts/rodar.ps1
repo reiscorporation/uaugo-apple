@@ -1,5 +1,5 @@
 <#
-  RodaJunto - instala e abre o app no celular conectado (ou emulador).
+  Convoyar - instala e abre o app no celular conectado (ou emulador).
     .\scripts\rodar.ps1
     .\scripts\rodar.ps1 -d ID_DO_APARELHO     (veja os IDs com: flutter devices)
 #>

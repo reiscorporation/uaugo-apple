@@ -10,7 +10,7 @@
     <!-- Comandos de voz (opcional, Configurações → Acessibilidade). Reconhecimento offline. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
-        android:label="RodaJunto"
+        android:label="Convoyar"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <!-- GPS em segundo plano: o serviço para quando o app é fechado pela lista de

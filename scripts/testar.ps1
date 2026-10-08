@@ -1,5 +1,5 @@
 <#
-  RodaJunto - roda os testes automáticos.
+  Convoyar - roda os testes automáticos.
     .\scripts\testar.ps1           # testes do app + regras de segurança
     .\scripts\testar.ps1 -SoApp    # só os testes do app (não precisa de Java)
 #>
