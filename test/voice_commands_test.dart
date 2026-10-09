@@ -13,36 +13,49 @@ String vosk(String text, [double conf = 1]) => jsonEncode({
     });
 
 void main() {
-  group('Comandos de voz', () {
-    test('"roda junto radar" marca radar', () {
-      final c = parseVoiceResult(vosk('roda junto radar'));
+  group('Comandos de voz (UauGo)', () {
+    test('"UauGo, radar" (reconhecido como "uau go radar") marca radar', () {
+      final c = parseVoiceResult(vosk('uau go radar'));
       expect(c, isA<ReportCommand>());
       expect((c as ReportCommand).type, HazardType.radar);
     });
 
     test('todos os alertas da lista são reconhecidos', () {
       voiceAlertWords.forEach((word, type) {
-        final c = parseVoiceResult(vosk('roda junto $word'));
+        final c = parseVoiceResult(vosk('uau go $word'));
         expect((c as ReportCommand).type, type, reason: word);
       });
     });
 
     test('cancelar', () {
-      expect(parseVoiceResult(vosk('roda junto cancelar')), isA<CancelCommand>());
+      expect(parseVoiceResult(vosk('uau go cancelar')), isA<CancelCommand>());
     });
 
-    test('sem a palavra de ativação não faz nada', () {
-      expect(parseVoiceResult(vosk('radar')), isNull);
-      expect(parseVoiceResult(vosk('junto polícia roda área')), isNull);
+    test('[unk] no começo (silêncio antes de falar) é ignorado', () {
+      final c = parseVoiceResult(vosk('[unk] uau go lombada'));
+      expect((c as ReportCommand).type, HazardType.bump);
     });
 
-    test('pedaço de conversa ([unk]) é ignorado', () {
-      expect(parseVoiceResult(vosk('radar [unk] de de [unk]')), isNull);
+    test('exclamações com "uau" não disparam nada', () {
+      for (final t in [
+        'uau radar', // sem o "go"
+        'uau [unk]', // "uau, que paisagem linda"
+        'uau que [unk]',
+        'uau olha [unk]',
+        'uau go [unk]',
+        'radar',
+      ]) {
+        expect(parseVoiceResult(vosk(t)), isNull, reason: t);
+      }
+    });
+
+    test('pedaço de conversa ([unk] no meio) é ignorado', () {
+      expect(parseVoiceResult(vosk('uau go [unk] radar')), isNull);
       expect(parseVoiceResult(vosk('')), isNull);
     });
 
     test('confiança baixa é ignorada', () {
-      expect(parseVoiceResult(vosk('roda junto radar', 0.4)), isNull);
+      expect(parseVoiceResult(vosk('uau go radar', 0.4)), isNull);
     });
 
     test('sim/não exigem confiança alta', () {
@@ -52,10 +65,10 @@ void main() {
       expect(parseVoiceResult(vosk('não', 0.74)), isNull);
     });
 
-    test('a gramática tem todas as frases e o [unk]', () {
+    test('a gramática tem os comandos, as exclamações e o [unk]', () {
       final g = (jsonDecode(voiceGrammar()) as List).cast<String>();
-      expect(g, containsAll(['roda junto radar', 'roda junto área de risco',
-          'roda junto cancelar', 'sim', 'não', '[unk]']));
+      expect(g, containsAll(['uau go radar', 'uau go área de risco',
+          'uau go cancelar', 'uau [unk]', 'sim', 'não', '[unk]']));
     });
 
     test('JSON inválido não quebra', () {

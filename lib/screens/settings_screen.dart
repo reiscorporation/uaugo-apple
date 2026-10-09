@@ -538,7 +538,7 @@ class SettingsScreen extends StatelessWidget {
           section('Sobre'),
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('Sobre o Convoyar'),
+            title: const Text('Sobre o UauGo'),
             subtitle: const Text('Desenvolvido por HelpAITech · créditos'),
             onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const AboutScreen())),
@@ -625,8 +625,8 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
           Padding(
             padding: const EdgeInsets.fromLTRB(72, 0, 16, 8),
             child: Text(
-              'Diga "roda junto" e o alerta: $words.\n'
-              'Exemplo: "roda junto radar". Para desfazer: "roda junto cancelar". '
+              'Diga "$voiceWakeDisplay" e o alerta: $words.\n'
+              'Exemplo: "$voiceWakeDisplay, radar". Para desfazer: "$voiceWakeDisplay, cancelar". '
               'Quando o app perguntar "ainda está lá?", responda "sim" ou "não".\n'
               'Funciona com o mapa aberto na tela (use "Manter a tela ligada").',
               style: theme.textTheme.bodySmall,

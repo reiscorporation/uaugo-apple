@@ -225,7 +225,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final _hazardSvc = HazardService.instance;
   final _voice = VoiceService.instance;
   final _voiceCmd = VoiceCommandService.instance;
-  // Último alerta marcado por voz (para "roda junto cancelar").
+  // Último alerta marcado por voz (para "UauGo, cancelar").
   ({HazardType type, double lat, double lng, DateTime at})? _lastVoiceReport;
 
   // ---- Paradas do roteiro já anunciadas por voz
@@ -1301,7 +1301,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Comando de voz reconhecido (mãos livres, para quem está de luva):
-  /// "roda junto radar" marca o alerta, "roda junto cancelar" desfaz o último
+  /// "UauGo, radar" marca o alerta, "UauGo, cancelar" desfaz o último
   /// marcado por voz e "sim"/"não" respondem à pergunta "ainda está lá?".
   Future<void> _onVoiceCommand(VoiceCommand cmd) async {
     if (!mounted) return;

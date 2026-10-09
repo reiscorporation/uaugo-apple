@@ -2,7 +2,7 @@
 // voice_commands.dart — Frases dos comandos de voz (regras puras)
 //
 // O que faz: A lista FECHADA de frases que o reconhecimento aceita
-//   ("roda junto radar", "sim", "não"...) e a conversão do resultado do Vosk
+//   ("UauGo, radar", "sim", "não"...) e a conversão do resultado do Vosk
 //   em comando. Frases fora da lista viram "[unk]" e são ignoradas, assim
 //   conversa e barulho do motor não disparam nada.
 // Quem usa: VoiceCommandService.
@@ -15,8 +15,12 @@ import 'dart:convert';
 
 import '../models/hazard.dart';
 
-/// Palavra de ativação: todo comando começa com ela ("roda junto radar").
-const voiceWakeWord = 'roda junto';
+/// Palavra de ativação: o nome do app, "UauGo" ("UauGo, radar"). O modelo
+/// de voz não conhece "uaugo" inteiro, então ele é reconhecido como duas
+/// palavras que conhece: "uau" + "go". [voiceWakeDisplay] é como aparece
+/// na tela.
+const voiceWakeWord = 'uau go';
+const voiceWakeDisplay = 'UauGo';
 
 /// Palavra falada -> tipo de alerta.
 const voiceAlertWords = <String, HazardType>{
@@ -38,10 +42,17 @@ const voiceAlertWords = <String, HazardType>{
 const voiceMinConfidence = 0.6;
 const voiceMinConfidenceYesNo = 0.85;
 
-/// Lista de frases para o reconhecedor (formato JSON do Vosk).
+/// Lista de frases para o reconhecedor (formato JSON do Vosk). As frases com
+/// "[unk]" dão um caminho para exclamações ("uau, que paisagem linda"):
+/// sem elas, o motor forçava o resto da frase num comando ("uau neblina").
+/// Testado com voz sintética + ruído de motor: nenhum disparo falso.
 String voiceGrammar() => jsonEncode([
       for (final w in voiceAlertWords.keys) '$voiceWakeWord $w',
       '$voiceWakeWord cancelar',
+      '$voiceWakeWord [unk]',
+      'uau [unk]',
+      'uau que [unk]',
+      'uau olha [unk]',
       'sim',
       'não',
       '[unk]',
@@ -52,13 +63,13 @@ sealed class VoiceCommand {
   const VoiceCommand();
 }
 
-/// "Roda junto radar": marcar um alerta.
+/// "UauGo, radar": marcar um alerta.
 class ReportCommand extends VoiceCommand {
   final HazardType type;
   const ReportCommand(this.type);
 }
 
-/// "Roda junto cancelar": desfaz o último alerta marcado por voz.
+/// "UauGo, cancelar": desfaz o último alerta marcado por voz.
 class CancelCommand extends VoiceCommand {
   const CancelCommand();
 }
@@ -78,14 +89,20 @@ VoiceCommand? parseVoiceResult(String json) {
   } catch (_) {
     return null;
   }
-  final text = ((r['text'] as String?) ?? '').trim();
+  final words = [
+    for (final w in (r['result'] as List?) ?? const [])
+      (
+        word: ((w as Map)['word'] as String?) ?? '',
+        conf: (w['conf'] as num?)?.toDouble() ?? 0.0,
+      ),
+  ];
+  // Ignora o "[unk]" ANTES do comando (silêncio/respiração no começo).
+  while (words.isNotEmpty && words.first.word == '[unk]') {
+    words.removeAt(0);
+  }
+  final text = words.map((w) => w.word).join(' ').trim();
   if (text.isEmpty || text.contains('[unk]')) return null;
-  final words = (r['result'] as List?) ?? const [];
-  final conf = words.isEmpty
-      ? 0.0
-      : words
-          .map((w) => ((w as Map)['conf'] as num?)?.toDouble() ?? 0)
-          .reduce((a, b) => a < b ? a : b);
+  final conf = words.map((w) => w.conf).reduce((a, b) => a < b ? a : b);
 
   if (text == 'sim' || text == 'não') {
     return conf >= voiceMinConfidenceYesNo ? AnswerCommand(text == 'sim') : null;

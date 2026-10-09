@@ -56,7 +56,7 @@ class LocationService {
         intervalDuration: Duration(seconds: saving ? 2 : 1),
         foregroundNotificationConfig: background
             ? ForegroundNotificationConfig(
-                notificationTitle: 'Convoyar ativo',
+                notificationTitle: 'UauGo ativo',
                 notificationText: notificationText,
                 enableWakeLock: true,
               )

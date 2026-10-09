@@ -1,8 +1,8 @@
-# Política de Privacidade do Convoyar
+# Política de Privacidade do UauGo
 
-Versão 1.6, de 07/10/2026 (o app passou a se chamar Convoyar; antes, "RodaJunto" e "Comboio").
+Versão 1.7, de 08/10/2026 (o app passou a se chamar UauGo; nomes anteriores: "Convoyar", "RodaJunto" e "Comboio").
 
-Esta Política explica quais dados pessoais o aplicativo **Convoyar** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
+Esta Política explica quais dados pessoais o aplicativo **UauGo** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
 ## 1. Quem é o responsável
 
@@ -21,7 +21,7 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 
 **Localização (GPS)**
 - **Navegando sozinho ou em "Só dirigir":** a localização é usada **apenas no celular** (rota, avisos, velocímetro). Ela **não é enviada ao nosso servidor**. Para calcular a rota e buscar lugares, os pontos necessários (origem, destino, paradas e o texto da busca) passam pelo nosso servidor, que os repassa ao Google **sem guardá-los**; para a previsão do tempo, os pontos à frente são enviados ao Open-Meteo.
-- **Em uma expedição:** sua posição, velocidade e horário são enviados aos **participantes da expedição** (no máximo 1 vez por minuto) enquanto ela estiver aberta, inclusive com o App minimizado (notificação fixa "Convoyar ativo"). Base legal: consentimento (art. 7º, I), dado na tela de autorizações e ao entrar na expedição.
+- **Em uma expedição:** sua posição, velocidade e horário são enviados aos **participantes da expedição** (no máximo 1 vez por minuto) enquanto ela estiver aberta, inclusive com o App minimizado (notificação fixa "UauGo ativo"). Base legal: consentimento (art. 7º, I), dado na tela de autorizações e ao entrar na expedição.
 - **SOS:** sua posição é enviada aos participantes da expedição.
 - **Alerta reportado:** a posição do alerta e o identificador de quem reportou ficam visíveis aos usuários durante a validade do alerta.
 
@@ -34,7 +34,7 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 - **Telefone:** fica **só no seu celular** e é enviado apenas quando você pede ajuda ou avisa alguém e marca essa opção.
 
 **Comandos de voz (opcional, desligado por padrão)**
-- Se você ligar em Configurações → Acessibilidade, o App usa o **microfone** com o mapa aberto para reconhecer comandos como "roda junto radar" e as respostas "sim"/"não". O reconhecimento é feito **no próprio celular** (sem internet): **o áudio não é gravado, não é guardado e não sai do aparelho**. Só os comandos reconhecidos viram ações (por exemplo, um alerta). Você pode desligar a qualquer momento. Base legal: consentimento (art. 7º, I).
+- Se você ligar em Configurações → Acessibilidade, o App usa o **microfone** com o mapa aberto para reconhecer comandos como "UauGo, radar" e as respostas "sim"/"não". O reconhecimento é feito **no próprio celular** (sem internet): **o áudio não é gravado, não é guardado e não sai do aparelho**. Só os comandos reconhecidos viram ações (por exemplo, um alerta). Você pode desligar a qualquer momento. Base legal: consentimento (art. 7º, I).
 
 **Notificações**
 - Token de notificações do celular (Firebase Cloud Messaging). Finalidade: avisar SOS e paradas do grupo e mensagens do clube.

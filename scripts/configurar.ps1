@@ -1,5 +1,5 @@
 <#
-  Convoyar - monta o projeto e aplica todas as configurações.
+  UauGo - monta o projeto e aplica todas as configurações.
 
     .\scripts\configurar.ps1            # uso normal
     .\scripts\configurar.ps1 -CI        # usado pelo GitHub Actions

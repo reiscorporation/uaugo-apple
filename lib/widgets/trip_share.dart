@@ -90,7 +90,7 @@ Future<Uint8List> buildShareImage(TripRecord t, Uint8List? mapPng) async {
     text(stats[i].$2, x, mapH + 228, 26,
         color: Colors.white70, maxW: (w - 120) / 4 - 10);
   }
-  text('Convoyar · HelpAITech', 60, h - 60, 24, color: Colors.white54);
+  text('UauGo · HelpAITech', 60, h - 60, 24, color: Colors.white54);
 
   final pic = rec.endRecording();
   final out = await pic.toImage(w.toInt(), h.toInt());
@@ -108,7 +108,7 @@ String buildGpx(TripRecord t) {
       .replaceAll('>', '&gt;');
   final b = StringBuffer()
     ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
-    ..writeln('<gpx version="1.1" creator="Convoyar" '
+    ..writeln('<gpx version="1.1" creator="UauGo" '
         'xmlns="http://www.topografix.com/GPX/1/1">')
     ..writeln('  <metadata><name>${esc(t.title)}</name>'
         '<time>${t.startedAt.toUtc().toIso8601String()}</time></metadata>')
@@ -139,9 +139,9 @@ Future<void> shareTrip(BuildContext context, TripRecord t,
   final gpxFile = File('${dir.path}/$name.gpx');
   await gpxFile.writeAsString(buildGpx(t), flush: true);
   try {
-    await Gal.putImage(imgFile.path, album: 'Convoyar');
+    await Gal.putImage(imgFile.path, album: 'UauGo');
     messenger.showSnackBar(const SnackBar(
-        content: Text('Imagem salva na galeria (álbum Convoyar)')));
+        content: Text('Imagem salva na galeria (álbum UauGo)')));
   } catch (e) {
     messenger.showSnackBar(
         SnackBar(content: Text('Não foi possível salvar na galeria: $e')));
@@ -152,6 +152,6 @@ Future<void> shareTrip(BuildContext context, TripRecord t,
       XFile(gpxFile.path, mimeType: 'application/gpx+xml'),
     ],
     text: '${t.title} · ${formatDistance(t.distanceM.round())} percorridos '
-        'com o Convoyar',
+        'com o UauGo',
   ));
 }

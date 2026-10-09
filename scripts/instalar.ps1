@@ -1,5 +1,5 @@
 <#
-  Convoyar - instala as ferramentas de desenvolvimento no Windows 10/11.
+  UauGo - instala as ferramentas de desenvolvimento no Windows 10/11.
 
   Como rodar (PowerShell, na pasta do projeto):
     Set-ExecutionPolicy -Scope Process Bypass

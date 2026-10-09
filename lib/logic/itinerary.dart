@@ -263,6 +263,6 @@ String buildShareText({
   }
   b
     ..writeln()
-    ..writeln('👉 Para entrar no comboio, abra o app *Convoyar* e use o código *$code*');
+    ..writeln('👉 Para entrar no comboio, abra o app *UauGo* e use o código *$code*');
   return b.toString().trimRight();
 }

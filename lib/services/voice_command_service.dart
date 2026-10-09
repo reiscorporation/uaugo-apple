@@ -1,8 +1,8 @@
 // ============================================================================
 // voice_command_service.dart — Comandos de voz (acessibilidade, OPCIONAL)
 //
-// O que faz: Mãos livres para quem está de luva: "roda junto radar",
-//   "roda junto polícia"... marcam o alerta; "sim"/"não" respondem à pergunta
+// O que faz: Mãos livres para quem está de luva: "UauGo, radar",
+//   "UauGo, polícia"... marcam o alerta; "sim"/"não" respondem à pergunta
 //   "ainda está lá?". O reconhecimento é OFFLINE, no próprio celular (Vosk,
 //   android/.../VoiceCommands.kt): o áudio não sai do aparelho.
 //   - Desligado por padrão: o piloto liga em Configurações → Acessibilidade.

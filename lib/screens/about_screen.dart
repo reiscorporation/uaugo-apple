@@ -40,7 +40,7 @@ class AboutScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Text('Convoyar',
+          Text('UauGo',
               textAlign: TextAlign.center,
               style: theme.textTheme.headlineSmall
                   ?.copyWith(fontWeight: FontWeight.bold)),
@@ -85,7 +85,7 @@ class AboutScreen extends StatelessWidget {
                         color: Colors.black,
                         fontSize: 18,
                         fontWeight: FontWeight.bold)),
-                const Text('Fundador da HelpAITech · proprietário do Convoyar',
+                const Text('Fundador da HelpAITech · proprietário do UauGo',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         color: Colors.black87, fontWeight: FontWeight.w600)),
@@ -111,7 +111,7 @@ class AboutScreen extends StatelessWidget {
               'Polícia Rodoviária Federal (lista oficial, Res. CONTRAN 798/20); '
                   'traçado das rodovias: DNIT/SNV'),
           credit('Alertas da comunidade',
-              'Reportados pelos próprios pilotos do Convoyar'),
+              'Reportados pelos próprios pilotos do UauGo'),
         ]),
       ),
     );

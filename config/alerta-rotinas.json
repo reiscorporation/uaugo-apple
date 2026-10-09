@@ -1,7 +1,7 @@
 {
-  "displayName": "Convoyar - rotina com problema",
+  "displayName": "UauGo - rotina com problema",
   "documentation": {
-    "content": "Uma rotina automática do Convoyar (radares/PRF, limites de velocidade, lombadas ou limpeza) falhou ou precisa de atenção. Veja a mensagem no log (Cloud Logging) e o docs/MANUTENCAO.md, seção 'Alertas das rotinas'.",
+    "content": "Uma rotina automática do UauGo (radares/PRF, limites de velocidade, lombadas ou limpeza) falhou ou precisa de atenção. Veja a mensagem no log (Cloud Logging) e o docs/MANUTENCAO.md, seção 'Alertas das rotinas'.",
     "mimeType": "text/markdown"
   },
   "combiner": "OR",

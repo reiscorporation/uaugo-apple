@@ -1,5 +1,5 @@
 <#
-  Convoyar - simula uma viagem no emulador Android, enviando posições de GPS.
+  UauGo - simula uma viagem no emulador Android, enviando posições de GPS.
   Use para testar movimento no mapa, alertas por proximidade e aviso de
   passagem do motoclube sem sair de casa.
 

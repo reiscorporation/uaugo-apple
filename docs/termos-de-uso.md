@@ -1,12 +1,12 @@
-# Termos de Uso do Convoyar
+# Termos de Uso do UauGo
 
-Versão 1.2, de 07/10/2026 (o app passou a se chamar Convoyar; antes, "RodaJunto" e "Comboio").
+Versão 1.3, de 08/10/2026 (o app passou a se chamar UauGo; nomes anteriores: "Convoyar", "RodaJunto" e "Comboio").
 
-Estes Termos regulam o uso do aplicativo **Convoyar** ("App"), desenvolvido e mantido por **Ricardo Reis**, pessoa física, sob a marca **HelpAITech** ("nós"). Ao tocar em "Li e aceito", você ("Usuário") declara que leu, entendeu e concorda com estes Termos e com a Política de Privacidade. Se não concordar, não use o App.
+Estes Termos regulam o uso do aplicativo **UauGo** ("App"), desenvolvido e mantido por **Ricardo Reis**, pessoa física, sob a marca **HelpAITech** ("nós"). Ao tocar em "Li e aceito", você ("Usuário") declara que leu, entendeu e concorda com estes Termos e com a Política de Privacidade. Se não concordar, não use o App.
 
 ## 1. O que é o App
 
-O Convoyar é uma ferramenta de **apoio** a viagens de moto e de carro, sozinho ou em grupo. Ele oferece navegação, rotas, alertas de radares, limites de velocidade, lombadas, postos policiais, pedágios, previsão de chuva, alertas reportados por outros usuários, compartilhamento de localização com o grupo, botão de SOS para o grupo e histórico de viagens.
+O UauGo é uma ferramenta de **apoio** a viagens de moto e de carro, sozinho ou em grupo. Ele oferece navegação, rotas, alertas de radares, limites de velocidade, lombadas, postos policiais, pedágios, previsão de chuva, alertas reportados por outros usuários, compartilhamento de localização com o grupo, botão de SOS para o grupo e histórico de viagens.
 
 ## 2. Quem pode usar
 
@@ -81,7 +81,7 @@ Você concorda em nos indenizar por prejuízos causados a nós ou a terceiros pe
 
 ## 13. Propriedade intelectual
 
-O App, seu código, a marca Convoyar, os logotipos e o conteúdo próprio pertencem a Ricardo Reis / HelpAITech. Dados de terceiros pertencem aos seus titulares e são usados conforme as licenças indicadas na tela "Sobre" (por exemplo, OpenStreetMap, licença ODbL).
+O App, seu código, a marca UauGo, os logotipos e o conteúdo próprio pertencem a Ricardo Reis / HelpAITech. Dados de terceiros pertencem aos seus titulares e são usados conforme as licenças indicadas na tela "Sobre" (por exemplo, OpenStreetMap, licença ODbL).
 
 ## 14. Privacidade
 
