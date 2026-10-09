@@ -367,6 +367,9 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: _nameCtrl,
+                // Tocar fora fecha o teclado: assim ele não volta sozinho ao sair do
+                // mapa (isso derrubava o app: o mapa sendo fechado mudava de tamanho).
+                onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                 textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(
                   labelText: 'Seu nome de piloto',
@@ -410,6 +413,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   TextField(
                     controller: _expNameCtrl,
+                    // Tocar fora fecha o teclado: assim ele não volta sozinho ao sair do
+                    // mapa (isso derrubava o app: o mapa sendo fechado mudava de tamanho).
+                    onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                     decoration: const InputDecoration(
                       labelText: 'Nome (ex: Serra do Rio do Rastro)',
                       border: OutlineInputBorder(),
@@ -429,6 +435,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   TextField(
                     controller: _codeCtrl,
+                    // Tocar fora fecha o teclado: assim ele não volta sozinho ao sair do
+                    // mapa (isso derrubava o app: o mapa sendo fechado mudava de tamanho).
+                    onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(
                       labelText: 'Código do convite',

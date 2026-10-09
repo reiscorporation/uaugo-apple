@@ -2656,6 +2656,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     const white = TextStyle(color: Colors.white);
     return Scaffold(
+      // O mapa não muda de tamanho com o teclado: um redimensionamento durante
+      // o fechamento da tela derrubava o app (defeito do Flutter com o mapa).
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

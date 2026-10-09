@@ -420,6 +420,7 @@ class _PlanScreenState extends State<PlanScreen> {
   Widget build(BuildContext context) {
     final schedule = buildSchedule(_plan, _stops);
     return Scaffold(
+      resizeToAvoidBottomInset: false, // mapa não redimensiona com o teclado (evita travamento)
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Roteiro'),

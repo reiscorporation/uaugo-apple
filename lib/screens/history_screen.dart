@@ -192,6 +192,7 @@ class _TripDetail extends StatelessWidget {
         );
 
     return Scaffold(
+      resizeToAvoidBottomInset: false, // mapa não redimensiona com o teclado (evita travamento)
       appBar: AppBar(
         title: Text(trip.title, overflow: TextOverflow.ellipsis),
         actions: [
