@@ -17,6 +17,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'firebase_options.dart';
@@ -74,6 +75,15 @@ const usarEmulador = bool.fromEnvironment('USE_EMULATOR');
 /// Inicia o app: Firebase, App Check, configurações, notificações.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Barras do sistema claras sobre o azul-marinho (relógio, bateria e
+  // botões de navegação legíveis).
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+    systemNavigationBarColor: Color(0xFF0F1B2D),
+    systemNavigationBarIconBrightness: Brightness.light,
+  ));
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   if (usarEmulador) {
@@ -149,6 +159,7 @@ class ComboioApp extends StatelessWidget {
         useMaterial3: true,
         colorScheme: appColorScheme,
         scaffoldBackgroundColor: appColorScheme.surface,
+        appBarTheme: const AppBarTheme(systemOverlayStyle: SystemUiOverlayStyle.light),
       ),
       home: const StartupGate(),
     );
