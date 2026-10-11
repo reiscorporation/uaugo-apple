@@ -47,7 +47,7 @@ dark = (234, 241, 250)  # texto claro sobre o marinho
 muted = (169, 187, 209)
 d.text((450, 120), "UauGo", font=title, fill=dark)
 d.text((455, 292), "Em grupo ou sozinho,", font=sub, fill=muted)
-d.text((455, 340), "qualquer estrada é UauGo.", font=sub, fill=muted)
+d.text((455, 340), "qualquer caminho é UauGo.", font=sub, fill=muted)
 d.rounded_rectangle([458, 268, 578, 276], radius=4, fill=(255, 122, 26))  # traço laranja
 g.save(os.path.join(OUT, "destaque-1024x500.png"))
 print("ok:", os.listdir(OUT))

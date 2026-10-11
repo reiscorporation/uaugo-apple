@@ -7,4 +7,4 @@
 // ============================================================================
 
 /// Slogan do app.
-const appSlogan = 'Em grupo ou sozinho, qualquer estrada é UauGo.';
+const appSlogan = 'Em grupo ou sozinho, qualquer caminho é UauGo.';

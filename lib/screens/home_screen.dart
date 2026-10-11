@@ -320,7 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           builder: (_) => const SettingsScreen())),
                 ),
               ]),
-              // Marca sobre o mapa-múndi pontilhado: "em qualquer estrada".
+              // Marca sobre o mapa-múndi pontilhado: "qualquer caminho".
               // (scripts/gerar-mapa-pontilhado.py e scripts/gerar-icone.py)
               SizedBox(
                 height: 150,

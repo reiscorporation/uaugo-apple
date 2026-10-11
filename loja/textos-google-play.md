@@ -7,7 +7,7 @@ UauGo: viagem em grupo
 Viaje em grupo de moto ou carro: rota, radares, alertas, SOS e clube.
 
 ## Descrição completa (máx. 4000)
-Em grupo ou sozinho, qualquer estrada é UauGo.
+Em grupo ou sozinho, qualquer caminho é UauGo.
 
 O UauGo mostra no mapa, em tempo real, onde está cada pessoa do seu grupo, avisa radares e perigos na estrada e guia o caminho por voz, curva a curva.
 

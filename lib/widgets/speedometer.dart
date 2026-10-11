@@ -31,7 +31,7 @@ class Speedometer extends StatelessWidget {
     final (bg, fg) = switch (level) {
       SpeedLevel.over => (Colors.red.shade700, Colors.white),
       SpeedLevel.overEstimated => (Colors.amber.shade700, Colors.black),
-      SpeedLevel.normal => (const Color(0xEE1E1A16), Colors.white),
+      SpeedLevel.normal => (const Color(0xEE0F1B2D), Colors.white), // azul-marinho da marca
     };
     return GestureDetector(
       onTap: onTap,

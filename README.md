@@ -1,4 +1,4 @@
-# 🏍️🚗 UauGo — em grupo ou sozinho, qualquer estrada é UauGo
+# 🏍️🚗 UauGo — em grupo ou sozinho, qualquer caminho é UauGo
 
 App Flutter (iPhone + Android) com Google Maps e Firebase.
 Desenvolvido por **Ricardo Reis / HelpAITech**.
