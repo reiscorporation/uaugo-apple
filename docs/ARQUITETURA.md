@@ -384,6 +384,12 @@ Testes de segurança: `tests/rules/rules.test.js` (regras do Firestore) e
 | Registro da marca UauGo no INPI | Responsável | Pendente |
 | Backup no Google Drive da HelpAITech | Google Drive para computador | Pendente (responsável) |
 
+### Próximas versões (anotado para tratar)
+
+| Item | Detalhe | Onde mexer | Situação |
+|---|---|---|---|
+| Narração lê algarismos romanos letra por letra | "Av. Leão XIII" é falado "Leão X I I I"; o certo é "Leão Treze". Converter números romanos nos nomes de rua (XIII → treze, Pio X → Pio Décimo/Dez, D. Pedro II → Dom Pedro Segundo) antes de falar, sem confundir siglas comuns (ex.: "MG", "BR", "CIC"). | `cleanInstruction` em `lib/logic/navigation.dart` (+ teste em `test/navigation_test.dart`) | Pendente |
+
 **Transição:** códigos antigos de 6 caracteres continuam aceitos; só os novos
 têm 8. Versões antigas do app perdem o voto em alertas e a criação de
 expedição até serem atualizadas.
