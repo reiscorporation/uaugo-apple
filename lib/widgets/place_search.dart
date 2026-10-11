@@ -27,9 +27,13 @@ class PickedPlace {
 
 /// Tela de busca de lugar; devolve um PickedPlace ao fechar.
 class PlaceSearchPage extends StatefulWidget {
-  const PlaceSearchPage({super.key, required this.near, required this.title});
+  const PlaceSearchPage(
+      {super.key, required this.near, required this.title, this.initialText});
   final LatLng? near;
   final String title;
+
+  /// Texto já preenchido e buscado (endereço recebido de outro app).
+  final String? initialText;
 
   @override
   State<PlaceSearchPage> createState() => _PlaceSearchPageState();
@@ -43,6 +47,16 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
   List<PlaceSuggestion> _results = [];
   bool _loading = false;
   int _seq = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final t = widget.initialText;
+    if (t != null && t.trim().isNotEmpty) {
+      _ctrl.text = t;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _search(t));
+    }
+  }
 
   @override
   void dispose() {

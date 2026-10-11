@@ -13,6 +13,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../brand.dart';
+import '../logic/shared_place.dart';
+import '../services/shared_place_service.dart';
 import '../models/bike.dart';
 import '../models/expedition.dart' show StopType;
 import '../services/trip_service.dart';
@@ -58,6 +60,36 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadPrefs();
+    SharedPlaceService.instance.pending.addListener(_onShared);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onShared());
+  }
+
+  @override
+  void dispose() {
+    SharedPlaceService.instance.pending.removeListener(_onShared);
+    super.dispose();
+  }
+
+  /// Endereço recebido de outro app ("Abrir com UauGo" / "Compartilhar"):
+  /// vai direto para o "Para onde?" com o destino.
+  Future<void> _onShared() async {
+    if (!mounted || SharedPlaceService.instance.pending.value == null) return;
+    // Em outra tela (ex.: navegando): não interrompe o que está acontecendo.
+    if (!(ModalRoute.of(context)?.isCurrent ?? true) || _busy) {
+      SharedPlaceService.instance.take();
+      _snack('Endereço recebido. Volte à tela inicial e abra de novo.');
+      return;
+    }
+    final raw = SharedPlaceService.instance.take()!;
+    setState(() => _busy = true);
+    final place = await SharedPlaceService.instance.resolve(raw);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (place == null) {
+      _snack('Não consegui entender o endereço recebido');
+      return;
+    }
+    await _whereTo(shared: place);
   }
 
   /// Lê do celular o nome, o veículo, o clube e a última expedição.
@@ -216,7 +248,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// "Para onde?": navegação sozinho, como no Waze.
-  Future<void> _whereTo() async {
+  /// [shared]: destino recebido de outro app (pula a busca se tiver posição).
+  Future<void> _whereTo({SharedPlace? shared}) async {
     setState(() => _busy = true);
     final uid = await _prepareAlone();
     Position? me;
@@ -235,13 +268,17 @@ class _HomeScreenState extends State<HomeScreen> {
       _snack('Não foi possível obter sua posição pelo GPS');
       return;
     }
-    final picked = await Navigator.of(context).push<PickedPlace>(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => PlaceSearchPage(
-            near: LatLng(me!.latitude, me.longitude), title: 'Para onde'),
-      ),
-    );
+    final picked = shared != null && shared.hasCoords
+        ? PickedPlace(shared.label ?? 'Local recebido', '', shared.lat!, shared.lng!)
+        : await Navigator.of(context).push<PickedPlace>(
+            MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (_) => PlaceSearchPage(
+                  near: LatLng(me!.latitude, me.longitude),
+                  title: 'Para onde',
+                  initialText: shared?.query ?? shared?.label),
+            ),
+          );
     if (picked == null || !mounted) return;
     final res = await TripPreviewSheet.show(context,
         title: picked.name,
