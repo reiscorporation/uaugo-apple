@@ -9,6 +9,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../brand.dart';
+
 /// Sobre o app: autoria (HelpAITech) e créditos das fontes de dados.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -44,7 +46,7 @@ class AboutScreen extends StatelessWidget {
               textAlign: TextAlign.center,
               style: theme.textTheme.headlineSmall
                   ?.copyWith(fontWeight: FontWeight.bold)),
-          Text('Viagens em grupo, de moto ou de carro · versão $version',
+          Text('$appSlogan\nVersão $version',
               textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
           const SizedBox(height: 28),
 

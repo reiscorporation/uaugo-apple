@@ -12,6 +12,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../brand.dart';
 import '../models/bike.dart';
 import '../models/expedition.dart' show StopType;
 import '../services/trip_service.dart';
@@ -319,21 +320,28 @@ class _HomeScreenState extends State<HomeScreen> {
                           builder: (_) => const SettingsScreen())),
                 ),
               ]),
-              Center(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(22),
-                  child: Image.asset('assets/branding/comboio_logo.png',
-                      width: 96, height: 96),
-                ),
+              // Marca sobre o mapa-múndi pontilhado: "em qualquer estrada".
+              // (scripts/gerar-mapa-pontilhado.py e scripts/gerar-icone.py)
+              SizedBox(
+                height: 150,
+                child: Stack(alignment: Alignment.center, children: [
+                  Positioned.fill(
+                    child: Image.asset('assets/branding/mapa_pontilhado.png',
+                        fit: BoxFit.contain),
+                  ),
+                  Image.asset('assets/branding/uaugo_marca.png',
+                      width: 104, height: 104),
+                ]),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text('UauGo',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.headlineMedium
                       ?.copyWith(fontWeight: FontWeight.bold)),
-              Text('Viagens em grupo, de moto ou de carro',
+              Text(appSlogan,
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium),
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
               const SizedBox(height: 24),
               // Navegação sozinho (tipo Waze), sem precisar de expedição.
               Material(

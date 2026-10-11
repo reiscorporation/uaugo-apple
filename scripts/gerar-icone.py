@@ -8,6 +8,7 @@ Desenha em alta resolução e reduz (bordas suaves). Saída:
                                            (ícone adaptável do Android; o fundo é a cor
                                            adaptive_icon_background do pubspec)
   assets/branding/comboio_logo.png         512, cantos arredondados (logo dentro do app)
+  assets/branding/uaugo_marca.png          512, só a trilha e a seta (fundo transparente)
   assets/branding/uaugo_icone.svg          desenho-mestre (referência)
   loja/icone-512.png                       ícone da Google Play
 Depois: dart run flutter_launcher_icons
@@ -81,6 +82,8 @@ draw(1024).convert("RGB").save(os.path.join(brand, "comboio_icon_square.png"))
 # segura central (~60%).
 draw(1024, scale=0.60, background=False).save(os.path.join(brand, "comboio_icon_fg.png"))
 draw(512, radius=0.22).save(os.path.join(brand, "comboio_logo.png"))
+# Só a marca (trilha + seta), sem o quadrado: vai sobre o mapa-múndi da tela inicial.
+draw(512, background=False).save(os.path.join(brand, "uaugo_marca.png"))
 with open(os.path.join(brand, "uaugo_icone.svg"), "w", encoding="utf-8") as f:
     f.write(svg())
 os.makedirs(os.path.join(ROOT, "loja"), exist_ok=True)

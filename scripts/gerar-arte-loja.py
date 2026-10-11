@@ -27,6 +27,13 @@ top, bottom = (22, 37, 61), (12, 22, 38)  # azul-marinho da marca
 for y in range(H):
     t = y / (H - 1)
     d.line([(0, y), (W, y)], fill=tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(3)))
+# Mapa-múndi pontilhado ao fundo (o mesmo da tela inicial).
+mapa = Image.open(os.path.join(ROOT, "assets", "branding", "mapa_pontilhado.png")).convert("RGBA")
+mapa = mapa.resize((W, int(mapa.height * W / mapa.width)), Image.LANCZOS)
+g = g.convert("RGBA")
+g.alpha_composite(mapa, (0, (H - mapa.height) // 2))
+g = g.convert("RGB")
+d = ImageDraw.Draw(g)
 logo = icon.resize((340, 340), Image.LANCZOS)
 mask = Image.new("L", logo.size, 0)
 ImageDraw.Draw(mask).rounded_rectangle([0, 0, 339, 339], radius=70, fill=255)
@@ -39,8 +46,8 @@ sub = ImageFont.truetype(os.path.join(fonts, "segoeui.ttf"), 38)
 dark = (234, 241, 250)  # texto claro sobre o marinho
 muted = (169, 187, 209)
 d.text((450, 120), "UauGo", font=title, fill=dark)
-d.text((455, 292), "Viagens em grupo,", font=sub, fill=muted)
-d.text((455, 340), "de moto ou de carro", font=sub, fill=muted)
+d.text((455, 292), "Em grupo ou sozinho,", font=sub, fill=muted)
+d.text((455, 340), "qualquer estrada é UauGo.", font=sub, fill=muted)
 d.rounded_rectangle([458, 268, 578, 276], radius=4, fill=(255, 122, 26))  # traço laranja
 g.save(os.path.join(OUT, "destaque-1024x500.png"))
 print("ok:", os.listdir(OUT))
