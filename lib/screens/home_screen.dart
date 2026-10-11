@@ -254,6 +254,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final uid = await _prepareAlone();
     Position? me;
     if (uid != null) {
+      // Posição recente (até 2 min) serve de saída: não espera o GPS.
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null &&
+          DateTime.now().difference(last.timestamp).inMinutes < 2) {
+        me = last;
+      }
+    }
+    if (uid != null && me == null) {
       try {
         me = await Geolocator.getCurrentPosition(
             locationSettings:
