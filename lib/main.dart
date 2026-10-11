@@ -6,7 +6,7 @@
 //   escuro).
 // Quem usa: Primeira tela: StartupGate (autorizações no 1º uso, depois
 //   HomeScreen).
-// Onde mexer: Cores do app: seedColor em ComboioApp.
+// Onde mexer: Cores do app: appColorScheme (paleta da marca).
 // ============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -27,6 +27,45 @@ import 'services/app_settings.dart';
 import 'services/auth_service.dart';
 import 'services/user_service.dart';
 import 'services/notification_service.dart';
+
+/// Paleta da marca: azul-marinho (confiança, segurança, tecnologia) como base,
+/// laranja só no que chama ação (iniciar, alertas, a marca) e verde-água para
+/// "seguro". Vermelho fica reservado para SOS e perigo. O ícone usa as mesmas
+/// cores (scripts/gerar-icone.py).
+const appColorScheme = ColorScheme(
+  brightness: Brightness.dark,
+  primary: Color(0xFFFF7A1A), // laranja da marca
+  onPrimary: Color(0xFF1A0F05),
+  primaryContainer: Color(0xFF1E3350), // azul aço ("Para onde?")
+  onPrimaryContainer: Color(0xFFEAF1FA),
+  secondary: Color(0xFF2EC4A0), // verde-água "seguro"
+  onSecondary: Color(0xFF00261C),
+  secondaryContainer: Color(0xFF173B44),
+  onSecondaryContainer: Color(0xFFBFF2E3),
+  tertiary: Color(0xFFFFB074),
+  onTertiary: Color(0xFF3A1A00),
+  tertiaryContainer: Color(0xFF4A2A10),
+  onTertiaryContainer: Color(0xFFFFDCC2),
+  error: Color(0xFFFF5A5F),
+  onError: Color(0xFF3A0006),
+  errorContainer: Color(0xFF5C1418),
+  onErrorContainer: Color(0xFFFFDAD8),
+  surface: Color(0xFF0F1B2D), // azul-marinho
+  onSurface: Color(0xFFEAF1FA),
+  onSurfaceVariant: Color(0xFFA9BBD1),
+  surfaceContainerLowest: Color(0xFF0A1422),
+  surfaceContainerLow: Color(0xFF12203A),
+  surfaceContainer: Color(0xFF16253D),
+  surfaceContainerHigh: Color(0xFF1B2D47),
+  surfaceContainerHighest: Color(0xFF223756),
+  outline: Color(0xFF3A5578),
+  outlineVariant: Color(0xFF26405F),
+  inverseSurface: Color(0xFFEAF1FA),
+  onInverseSurface: Color(0xFF0F1B2D),
+  inversePrimary: Color(0xFFB34A00),
+  shadow: Color(0xFF000000),
+  scrim: Color(0xFF000000),
+);
 
 /// Ligado pelo scripts/testar-local.ps1: usa o Firebase Emulator Suite
 /// rodando no computador em vez da nuvem.
@@ -108,10 +147,8 @@ class ComboioApp extends StatelessWidget {
       navigatorKey: NotificationService.navigatorKey,
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.orange,
-          brightness: Brightness.dark,
-        ),
+        colorScheme: appColorScheme,
+        scaffoldBackgroundColor: appColorScheme.surface,
       ),
       home: const StartupGate(),
     );
