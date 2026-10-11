@@ -124,6 +124,15 @@ describe("Expedições", () => {
   it("foto da pasta de outro usuário é recusada", () =>
     assertFails(setDoc(doc(db("alice"), "expeditions/ABC123/members/alice"),
       { bike: { photoUrl: `${PHOTO}carol%2F1.jpg` } }, { merge: true })));
+  it("caminhão com eixos (pedágio) é aceito", () =>
+    assertSucceeds(setDoc(doc(db("alice"), "expeditions/ABC123/members/alice"),
+      { bike: { style: "truck", axles: 6 } }, { merge: true })));
+  it("carro com reboque é aceito; eixos inválidos são recusados", async () => {
+    await assertSucceeds(setDoc(doc(db("alice"), "expeditions/ABC123/members/alice"),
+      { bike: { style: "car", trailerAxles: 1 } }, { merge: true }));
+    await assertFails(setDoc(doc(db("alice"), "expeditions/ABC123/members/alice"),
+      { bike: { style: "truck", axles: 99 } }, { merge: true }));
+  });
   it("app não lê o uso das funções", () =>
     assertFails(getDoc(doc(db("alice"), "usage/alice"))));
 });

@@ -13,13 +13,17 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../logic/costs.dart';
+import '../logic/geo.dart' show decodePolyline;
 import '../logic/itinerary.dart';
 import '../logic/radars.dart' show distanceMeters;
+import '../logic/tolls.dart';
+import '../models/bike.dart';
 import '../models/expedition.dart' show StopType;
 import '../models/trip.dart';
 import 'place_search.dart';
 import '../services/app_settings.dart';
 import '../services/profile_service.dart';
+import '../services/toll_service.dart';
 import '../services/trip_service.dart';
 
 /// O que o piloto escolheu na prévia da viagem.
@@ -115,11 +119,28 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     _highways = s.avoidHighways;
     _calc();
     ProfileService.load().then((b) {
-      if (mounted) setState(() => _isCar = b.style.isCar);
+      if (!mounted) return;
+      setState(() => _bike = b);
+      _calcTolls();
     });
   }
 
-  bool _isCar = false;
+  BikeProfile _bike = const BikeProfile();
+
+  /// Pedágios da rota para o veículo (null enquanto calcula ou sem tabela).
+  TollEstimate? _tollCost;
+
+  /// Acha as praças da rota na tabela de pedágios e soma para o veículo.
+  Future<void> _calcTolls() async {
+    final t = _trip;
+    if (t == null) return;
+    final table = await TollService.instance.table();
+    if (table == null || !mounted || _trip != t) return;
+    final line = [
+      for (final p in decodePolyline(t.plan.polyline)) (p.latitude, p.longitude)
+    ];
+    setState(() => _tollCost = estimateTolls(table.onRoute(line), _bike));
+  }
 
   /// Calcula a rota com as opções escolhidas.
   Future<void> _calc() async {
@@ -133,8 +154,33 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     if (!mounted) return;
     setState(() {
       _trip = t;
+      _tollCost = null;
       _loading = false;
     });
+    _calcTolls();
+  }
+
+  /// Frases de pedágio da prévia.
+  List<String> _tollLines(Trip t) {
+    final e = _tollCost;
+    if (e != null && e.plazas > 0) return describeTolls(e, _bike, formatMoney);
+    if (!t.hasToll) return const [];
+    // O Google indica pedágio, mas a praça não está na tabela.
+    final noun = _bike.style.noun;
+    return [
+      '🛣️ Rota com pedágio. Os valores não foram fornecidos pelos órgãos responsáveis.',
+      _bike.style.isMoto
+          ? 'Na maioria das praças a moto paga metade do valor do carro.'
+          : '${noun[0].toUpperCase()}${noun.substring(1)} paga pedágio.',
+    ];
+  }
+
+  /// Combustível + pedágios, quando os dois são conhecidos.
+  double? _tripCost(Trip t) {
+    final f = AppSettings.instance.fuel.value;
+    final e = _tollCost;
+    if (!f.ready || e == null || !e.complete || e.total == 0) return null;
+    return fuelLiters(t.distanceM.toDouble(), f.kmPerLiter) * f.pricePerLiter + e.total;
   }
 
   @override
@@ -240,14 +286,12 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                       '⛽ ~${formatDecimal(l)} L de combustível · '
                       '${formatMoney(l * f.pricePerLiter)}');
                 }),
-              if (t.hasToll)
-                Text(
-                  _isCar
-                      ? '🛣️ Rota com pedágio'
-                      : '🛣️ Rota com pedágio: na maioria das praças a moto '
-                          'paga. O app avisa em cada praça.',
-                  style: TextStyle(color: Colors.amber.shade800),
-                ),
+              // Pedágios: valor para o veículo ou aviso de valor não fornecido.
+              for (final line in _tollLines(t))
+                Text(line, style: TextStyle(color: Colors.amber.shade800)),
+              if (_tripCost(t) case final cost?)
+                Text('💰 Custo estimado: ${formatMoney(cost)} (combustível + pedágios)',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
               if (AppSettings.instance.route.value.avoidRisk)
                 Text(
                   t.riskCount == 0

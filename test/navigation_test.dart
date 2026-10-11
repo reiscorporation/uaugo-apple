@@ -79,6 +79,18 @@ void main() {
       expect(said, contains('Vire à direita na SC 390'));
     });
 
+    test('com semáforo na esquina: "No semáforo, vire..." (antes e na hora)', () {
+      // Semáforo só na esquina da SC 390.
+      final nav = TurnByTurn(steps,
+          signalAt: (lat, lng) => (lat - -28.020).abs() < 0.0003);
+      final said = drive(nav, -28.000, -28.045);
+      expect(said, contains('No semáforo, vire à direita na SC 390'));
+      expect(said, contains(matches(RegExp(r'^Em .+, no semáforo, vire à direita na SC 390$'))));
+      // Sem semáforo na outra esquina; a saída ("Siga...") nunca ganha o aviso.
+      expect(said, contains('Vire à esquerda na Rua Y'));
+      expect(said.first, 'Siga na direção sul na BR 101');
+    });
+
     test('"Continue para" (troca de nome da rua) não é falado', () {
       final nav = TurnByTurn(steps);
       final said = drive(nav, -28.000, -28.045);

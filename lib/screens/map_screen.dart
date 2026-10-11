@@ -506,7 +506,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return null;
   }
 
-  /// Abre "Minha moto / Meu carro" e atualiza o ícone no mapa.
+  /// Abre "Meu veículo" e atualiza o ícone no mapa.
   Future<void> _editBike() async {
     final b = await Navigator.of(context).push<BikeProfile>(
         MaterialPageRoute(builder: (_) => const ProfileScreen()));
@@ -1539,7 +1539,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (sig != _navSig) {
       _navSig = sig;
       final steps = [for (final s in stops.skip(1)) ...s.steps];
-      _nav = steps.isEmpty ? null : TurnByTurn(steps);
+      _nav = steps.isEmpty
+          ? null
+          : TurnByTurn(steps, signalAt: PoiService.instance.signalNear);
       _navSynced = false;
     }
   }
@@ -2682,8 +2684,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               tooltip: 'Roteiro',
               onPressed: _openPlan),
           IconButton(
-              icon: const Icon(Icons.two_wheeler),
-              tooltip: 'Minha moto',
+              icon: Icon(_myBike.style.icon),
+              tooltip: 'Meu veículo',
               onPressed: _editBike),
           IconButton(
               icon: const Icon(Icons.share),
@@ -3095,7 +3097,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               tooltip: !_follow
                   ? 'Voltar a acompanhar'
                   : _view == _MapView.convoy
-                      ? (_showAll ? 'Mostrar só a minha moto' : 'Mostrar o grupo todo')
+                      ? (_showAll ? (_myBike.style.isCar ? 'Mostrar só o meu carro' : 'Mostrar só a minha moto') : 'Mostrar o grupo todo')
                       : 'Acompanhando',
               child: Icon(!_follow
                   ? Icons.my_location

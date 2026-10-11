@@ -1,5 +1,5 @@
 // ============================================================================
-// profile_screen.dart — "Minha moto / Meu carro"
+// profile_screen.dart — "Meu veículo"
 //
 // O que faz: Foto, marca, modelo, tipo (moto ou carro), cor do marcador e
 //   consumo (km/l e preço do litro) para estimar gastos.
@@ -18,7 +18,7 @@ import '../services/app_settings.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
 
-/// "Minha moto": foto, marca, modelo, estilo e cor do marcador.
+/// "Meu veículo": foto, marca, modelo, tipo, eixos/reboque e cor do marcador.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -116,7 +116,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-          title: Text(_bike.style.isCar ? 'Meu carro' : 'Minha moto')),
+          title: const Text('Meu veículo')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(padding: const EdgeInsets.all(20), children: [
@@ -175,7 +175,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Text('Marca', style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final b in _bike.style.isCar ? carBrands : bikeBrands)
+                for (final b in _bike.style.brands)
                   ChoiceChip(
                     label: Text(b),
                     selected: _bike.brand == b,
@@ -194,7 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('Tipo (moto ou carro; vira o ícone quando não há foto)',
+              Text('Tipo (vira o ícone quando não há foto e define o pedágio)',
                   style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               Wrap(spacing: 8, runSpacing: 8, children: [
@@ -207,6 +207,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         setState(() => _bike = _bike.copyWith(style: s)),
                   ),
               ]),
+              // Pedágio: pesados pagam pelo nº de eixos; carro, pelo reboque.
+              if (_bike.style.isHeavy) ...[
+                const SizedBox(height: 20),
+                Text('Eixos (contando o reboque, se houver)',
+                    style: theme.textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (var n = 2; n <= 9; n++)
+                    ChoiceChip(
+                      label: Text('$n'),
+                      selected: (_bike.axles ?? _bike.style.defaultAxles) == n,
+                      onSelected: (_) =>
+                          setState(() => _bike = _bike.copyWith(axles: n)),
+                    ),
+                ]),
+              ] else if (_bike.style.isCar) ...[
+                const SizedBox(height: 20),
+                Text('Reboque', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final (n, label) in const [(0, 'Sem reboque'), (1, '1 eixo'), (2, '2 eixos')])
+                    ChoiceChip(
+                      label: Text(label),
+                      selected: _bike.trailerAxles == n,
+                      onSelected: (_) =>
+                          setState(() => _bike = _bike.copyWith(trailerAxles: n)),
+                    ),
+                ]),
+              ],
               const SizedBox(height: 20),
               Text('Cor do marcador', style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),

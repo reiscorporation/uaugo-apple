@@ -199,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return c;
       });
 
-  /// Abre "Minha moto / Meu carro".
+  /// Abre "Meu veículo" (moto ou carro).
   Future<void> _editBike() async {
     final b = await Navigator.of(context).push<BikeProfile>(
         MaterialPageRoute(builder: (_) => const ProfileScreen()));
@@ -433,10 +433,10 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: _editBike,
-                icon: const Icon(Icons.two_wheeler),
+                icon: Icon(_bike.style.icon),
                 label: Text(_bike.isEmpty
-                    ? 'Configurar minha moto'
-                    : 'Minha moto: ${_bike.displayName.isEmpty ? 'com foto' : _bike.displayName}'),
+                    ? 'Configurar meu veículo'
+                    : 'Meu veículo: ${_bike.displayName.isEmpty ? 'com foto' : _bike.displayName}'),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(

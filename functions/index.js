@@ -34,6 +34,7 @@ const zlib = require("zlib");
 const { buildRadarData } = require("./radars");
 const { buildSpeedLimits } = require("./speedlimits");
 const { buildPois } = require("./pois");
+const { buildTolls, boothsFromPois } = require("./tolls");
 const maps = require("./maps");
 const clubs = require("./clubs");
 
@@ -435,8 +436,8 @@ exports.updateSpeedLimits = onSchedule(
 );
 
 /**
- * Todo dia: lombadas e postos policiais rodoviários (OpenStreetMap), por
- * estado. Atualiza os estados mais antigos até acabar o tempo; em uma
+ * Todo dia: postos policiais rodoviários, pedágios, lombadas e semáforos
+ * (OpenStreetMap), por estado. Atualiza os estados mais antigos até acabar o tempo; em uma
  * semana passa por todos. O app baixa só o estado onde está.
  */
 exports.updatePois = onSchedule(
@@ -454,8 +455,8 @@ exports.updatePois = onSchedule(
     const { ufs, changed } = await buildPois({
       previous,
       budgetMs: 1500000, // 25 min: dá para o Brasil todo numa execução
-      save: (uf, gz) =>
-        bucket.file(`public/pois/${uf}.json.gz`).save(gz, {
+      save: (folder, uf, gz) =>
+        bucket.file(`public/${folder}/${uf}.json.gz`).save(gz, {
           contentType: "application/octet-stream",
           resumable: false,
           metadata: { cacheControl: "no-cache" },
@@ -463,6 +464,52 @@ exports.updatePois = onSchedule(
     });
     await metaRef.set({ ufs, builtAt: new Date().toISOString() });
     console.log(`POIs: ${changed} estados atualizados`);
+  }
+);
+
+/**
+ * Todo dia 5: praças de pedágio com preço (custo da viagem). Praças do
+ * OpenStreetMap (arquivos de updatePois) + preço e regra da moto das
+ * rodovias federais (dados abertos da ANTT). Detalhes em tolls.js.
+ */
+exports.updateTolls = onSchedule(
+  {
+    schedule: "5 of month 06:00",
+    timeZone: "America/Sao_Paulo",
+    region,
+    memory: "1GiB",
+    timeoutSeconds: 900,
+  },
+  async () => {
+    const bucket = getStorage().bucket();
+    const ufs = Object.keys((await db.doc("meta/pois").get()).data()?.ufs || {});
+    const booths = [];
+    for (const uf of ufs) {
+      try {
+        const [buf] = await bucket.file(`public/pois/${uf}.json.gz`).download();
+        const json = JSON.parse(zlib.gunzipSync(buf).toString());
+        booths.push(...boothsFromPois(json.d || json));
+      } catch (e) {
+        console.log(`Pedágios: sem POIs de ${uf} (${e.message})`);
+      }
+    }
+    const data = await buildTolls({ booths, log: (m) => console.log(m) });
+    if (data.priced < 50) {
+      alerta(`Pedágios: só ${data.priced} praças com preço da ANTT; mantida a versão anterior.`);
+      return;
+    }
+    const gz = zlib.gzipSync(JSON.stringify(data), { level: 9 });
+    await bucket.file("public/pedagios.json.gz").save(gz, {
+      contentType: "application/octet-stream",
+      resumable: false,
+      metadata: { cacheControl: "no-cache" },
+    });
+    const version = Date.now();
+    await db.doc("meta/tolls").set({
+      version, builtAt: data.builtAt, month: data.month,
+      plazas: data.p.length, priced: data.priced, bytes: gz.length,
+    });
+    console.log(`Pedágios publicados: ${data.p.length} praças, ${gz.length} bytes`);
   }
 );
 

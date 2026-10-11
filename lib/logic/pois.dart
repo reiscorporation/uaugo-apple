@@ -1,5 +1,5 @@
 // ============================================================================
-// pois.dart — Lombadas, postos policiais e pedágios
+// pois.dart — Lombadas, postos policiais, pedágios e semáforos
 //
 // O que faz: Índice em grade de ~1 km dos pontos de um estado, para a consulta
 //   "o que tem perto" ser rápida (roda a cada leitura do GPS).
@@ -46,8 +46,20 @@ class PoiIndex {
   /// Chave da célula da grade (~1 km).
   static int _key(int la, int lo) => la * 100000 + lo;
 
-  /// [d] = [dLat, dLng, tipo, ...] em 1e-5 grau (diferenças acumuladas).
-  PoiIndex.fromCompact(List d, {int idBase = 0}) {
+  /// Semáforos, na mesma grade (só para a voz: "no semáforo, vire").
+  final Map<int, List<(double, double)>> _signals = {};
+
+  /// [d] = [dLat, dLng, tipo, ...] em 1e-5 grau (diferenças acumuladas);
+  /// [signals] = [dLat, dLng, ...] dos semáforos.
+  PoiIndex.fromCompact(List d, {int idBase = 0, List? signals}) {
+    var sLat = 0, sLng = 0;
+    for (var i = 0; signals != null && i + 1 < signals.length; i += 2) {
+      sLat += (signals[i] as num).toInt();
+      sLng += (signals[i + 1] as num).toInt();
+      _signals
+          .putIfAbsent(_key((sLat / 1000).floor(), (sLng / 1000).floor()), () => [])
+          .add((sLat / 1e5, sLng / 1e5));
+    }
     var lat = 0, lng = 0;
     for (var i = 0; i + 2 < d.length; i += 3) {
       lat += (d[i] as num).toInt();
@@ -59,6 +71,19 @@ class PoiIndex {
           .add(p);
       length++;
     }
+  }
+
+  /// Há semáforo a até [meters] (máx. ~1 km) de (lat, lng)?
+  bool signalNear(double lat, double lng, double meters) {
+    final la = (lat * 100).floor(), lo = (lng * 100).floor();
+    for (var i = -1; i <= 1; i++) {
+      for (var j = -1; j <= 1; j++) {
+        for (final (a, b) in _signals[_key(la + i, lo + j)] ?? const <(double, double)>[]) {
+          if (distanceMeters(lat, lng, a, b) <= meters) return true;
+        }
+      }
+    }
+    return false;
   }
 
   /// Pontos a até [meters] (máx. ~1 km) de (lat, lng).

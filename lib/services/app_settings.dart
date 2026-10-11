@@ -112,8 +112,11 @@ class AlertPrefs {
   /// Postos policiais rodoviários (PRF / polícia rodoviária estadual).
   final bool policePosts;
 
-  /// Lombadas e faixas elevadas.
+  /// Lombadas e faixas elevadas (opcional: os dados só são baixados se ligar).
   final AlertMode bumps;
+
+  /// "No semáforo, vire à direita" (opcional: baixa os semáforos se ligar).
+  final bool signals;
 
   /// "Velocidade reduzida para 60 em 300 metros".
   final bool reducedSpeed;
@@ -130,7 +133,8 @@ class AlertPrefs {
     this.policeMeters = 1000,
     this.policeRepeats = 1,
     this.policePosts = true,
-    this.bumps = AlertMode.visual,
+    this.bumps = AlertMode.off,
+    this.signals = false,
     this.reducedSpeed = true,
     this.halfway = false,
     this.rain = true,
@@ -144,6 +148,7 @@ class AlertPrefs {
     int? policeRepeats,
     bool? policePosts,
     AlertMode? bumps,
+    bool? signals,
     bool? reducedSpeed,
     bool? halfway,
     bool? rain,
@@ -155,6 +160,7 @@ class AlertPrefs {
         policeRepeats: policeRepeats ?? this.policeRepeats,
         policePosts: policePosts ?? this.policePosts,
         bumps: bumps ?? this.bumps,
+        signals: signals ?? this.signals,
         reducedSpeed: reducedSpeed ?? this.reducedSpeed,
         halfway: halfway ?? this.halfway,
         rain: rain ?? this.rain,
@@ -230,7 +236,8 @@ class AppSettings {
       policePosts: p.getBool('alertPolicePosts') ?? true,
       bumps: AlertMode.values.firstWhere(
           (m) => m.name == p.getString('alertBumps'),
-          orElse: () => AlertMode.visual),
+          orElse: () => AlertMode.off),
+      signals: p.getBool('alertSignals') ?? false,
       reducedSpeed: p.getBool('alertReducedSpeed') ?? true,
       halfway: p.getBool('alertHalfway') ?? false,
       rain: p.getBool('alertRain') ?? true,
@@ -247,6 +254,7 @@ class AppSettings {
     await p.setInt('alertPoliceRepeats', a.policeRepeats);
     await p.setBool('alertPolicePosts', a.policePosts);
     await p.setString('alertBumps', a.bumps.name);
+    await p.setBool('alertSignals', a.signals);
     await p.setBool('alertReducedSpeed', a.reducedSpeed);
     await p.setBool('alertHalfway', a.halfway);
     await p.setBool('alertRain', a.rain);

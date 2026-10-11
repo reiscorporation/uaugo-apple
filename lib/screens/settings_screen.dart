@@ -465,14 +465,32 @@ class SettingsScreen extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.speed),
                 title: const Text('Lombadas e faixas elevadas'),
-                subtitle: Wrap(spacing: 6, children: [
-                  for (final m in AlertMode.values)
-                    ChoiceChip(
-                      label: Text(m.label),
-                      selected: a.bumps == m,
-                      onSelected: (_) => s.setAlerts(a.copyWith(bumps: m)),
-                    ),
-                ]),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(spacing: 6, children: [
+                      for (final m in AlertMode.values)
+                        ChoiceChip(
+                          label: Text(m.label),
+                          selected: a.bumps == m,
+                          onSelected: (_) => s.setAlerts(a.copyWith(bumps: m)),
+                        ),
+                    ]),
+                    const Text(
+                        'Opcional: as lombadas do estado só são baixadas se '
+                        'você ligar o aviso.',
+                        style: TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.traffic),
+                title: const Text('Semáforo nas curvas'),
+                subtitle: const Text(
+                    'A voz diz "No semáforo, vire à direita". Opcional: os '
+                    'semáforos do estado só são baixados se você ligar.'),
+                value: a.signals,
+                onChanged: (v) => s.setAlerts(a.copyWith(signals: v)),
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.trending_down),

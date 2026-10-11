@@ -89,7 +89,7 @@ class TripExpensesCard extends StatelessWidget {
                   const Text(
                       'Registre abastecimentos, pedágios e outros gastos. Para '
                       'a estimativa de combustível, preencha o consumo em '
-                      '"Minha moto / Meu carro".',
+                      '"Meu veículo".',
                       style: TextStyle(fontSize: 12)),
               ],
             ),

@@ -40,6 +40,9 @@ class NavStep {
   /// "Continue para Rua X" é só troca de nome da rua: não precisa falar.
   bool get isSilent => maneuver.isEmpty && text.startsWith('Continue');
 
+  /// Conversão numa esquina (onde "no semáforo" ajuda a achar a rua).
+  bool get isTurn => maneuver.startsWith('turn-');
+
   /// Saída de rodovia / rampa (ganha um aviso a mais, antecipado).
   bool get isExit =>
       maneuver.startsWith('ramp') ||
@@ -156,9 +159,18 @@ double _dist(double lat1, double lng1, double lat2, double lng2) {
 /// 1) aviso antecipado (~30 s antes, no mínimo 800 m);
 /// 2) aviso na hora (~8 s antes, no mínimo 100 m).
 class TurnByTurn {
-  TurnByTurn(this.steps);
+  TurnByTurn(this.steps, {this.signalAt});
 
   final List<NavStep> steps;
+
+  /// Há semáforo neste ponto? (PoiService: semáforos do OpenStreetMap.)
+  /// Com semáforo na esquina, a voz diz "No semáforo, vire à direita...".
+  final bool Function(double lat, double lng)? signalAt;
+
+  /// Frase da manobra (com "no semáforo", quando há um na esquina).
+  String _say(NavStep s) => s.isTurn && (signalAt?.call(s.lat, s.lng) ?? false)
+      ? 'No semáforo, ${_lowerFirst(s.text)}'
+      : s.text;
   int _next = 0;
   bool _farSaid = false;
   bool _nearSaid = false;
@@ -255,7 +267,7 @@ class TurnByTurn {
     if (!_nearDone.contains(j) && d <= nearAt) {
       _nearDone.add(j);
       _farDone.add(j);
-      return s.text;
+      return _say(s);
     }
     // Saída em rodovia (acima de ~55 km/h): aviso extra a 2 km.
     if (s.isExit &&
@@ -263,11 +275,11 @@ class TurnByTurn {
         d <= 2000 + jump &&
         d > farAt + 300 &&
         _earlyDone.add(j)) {
-      return 'Em ${spokenDistance(d)}, ${_lowerFirst(s.text)}';
+      return 'Em ${spokenDistance(d)}, ${_lowerFirst(_say(s))}';
     }
     if (!_farDone.contains(j) && d <= farAt && d > nearAt) {
       _farDone.add(j);
-      return 'Em ${spokenDistance(d)}, ${_lowerFirst(s.text)}';
+      return 'Em ${spokenDistance(d)}, ${_lowerFirst(_say(s))}';
     }
     return null;
   }
@@ -291,7 +303,7 @@ class TurnByTurn {
         // saída de uma parada): fala agora.
         final sayNow = passed && d < 30 && !_nearSaid && !s.isSilent;
         _jump(_next + 1);
-        if (sayNow) return s.text;
+        if (sayNow) return _say(s);
         continue;
       }
       if (s.isSilent) {
@@ -305,11 +317,11 @@ class TurnByTurn {
       if (!_nearSaid && d <= nearAt) {
         _nearSaid = true;
         _farSaid = true;
-        return s.text;
+        return _say(s);
       }
       if (!_farSaid && d <= farAt && d > nearAt) {
         _farSaid = true;
-        return 'Em ${spokenDistance(d)}, ${_lowerFirst(s.text)}';
+        return 'Em ${spokenDistance(d)}, ${_lowerFirst(_say(s))}';
       }
       return null;
     }

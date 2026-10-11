@@ -31,9 +31,12 @@ service cloud.firestore {
     }
     function validBike(b) {
       return b is map
-        && b.keys().hasOnly(['brand', 'model', 'style', 'color', 'photoUrl'])
+        && b.keys().hasOnly(['brand', 'model', 'style', 'color', 'photoUrl', 'axles', 'trailerAxles'])
         && optStr(b, 'brand', 40) && optStr(b, 'model', 60) && optStr(b, 'style', 20)
         && (!('color' in b) || b.color is int)
+        // Eixos (ônibus/caminhão) e reboque: usados no cálculo do pedágio.
+        && (!('axles' in b) || (b.axles is int && b.axles >= 2 && b.axles <= 20))
+        && (!('trailerAxles' in b) || (b.trailerAxles is int && b.trailerAxles >= 0 && b.trailerAxles <= 2))
         && (!('photoUrl' in b) || validPhoto(b.photoUrl));
     }
 
