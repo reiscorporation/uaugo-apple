@@ -11,13 +11,36 @@
  *                 traffic? }  ->  a resposta da Directions API
  * - places:     { action: "autocomplete", input, sessionToken, lat?, lng? }
  *               { action: "details", placeId, sessionToken }
+ *               { action: "find", category, cheap?, openNow?, lat, lng,
+ *                 polyline? }  ->  lugares de um tipo perto ou NO CAMINHO
+ *                 ("UauGo, procurar posto"); limite próprio (LIMITS.find).
  */
 
 const { HttpsError } = require("firebase-functions/v2/https");
 const { getFirestore } = require("firebase-admin/firestore");
 
 /** Limites por usuário por dia (protegem a conta de abuso). */
-const LIMITS = { directions: 300, places: 1500 };
+const LIMITS = { directions: 300, places: 1500, find: 10 };
+
+/**
+ * Categorias de "procurar" (a mesma lista do app, lib/logic/find_places.dart):
+ * texto da busca e tipo do Google (filtra só esse tipo, se houver).
+ */
+const FIND = {
+  fuel: { q: "posto de combustível", type: "gas_station" },
+  food: { q: "restaurante", type: "restaurant" },
+  snack: { q: "lanchonete", type: null },
+  cafe: { q: "café", type: "cafe" },
+  bakery: { q: "padaria", type: "bakery" },
+  lodging: { q: "hotel pousada", type: "lodging" },
+  mechanic: { q: "oficina mecânica", type: "car_repair" },
+  tire: { q: "borracharia", type: null },
+  pharmacy: { q: "farmácia", type: "pharmacy" },
+  hospital: { q: "hospital", type: "hospital" },
+  atm: { q: "caixa eletrônico", type: "atm" },
+  market: { q: "supermercado", type: "supermarket" },
+};
+const POLYLINE = /^[\x3f-\x7e]{2,100000}$/; // caracteres de polilinha codificada
 
 const COORD = /^-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?$/;
 const key = () => process.env.MAPS_SERVER_KEY || "";
@@ -78,6 +101,7 @@ async function places(req) {
   const uid = requireUser(req);
   const { action, input, sessionToken, lat, lng, placeId } = req.data || {};
   const session = typeof sessionToken === "string" ? sessionToken.slice(0, 64) : undefined;
+  if (action === "find") return find(uid, req.data || {});
   await countUse(uid, "places");
 
   if (action === "autocomplete") {
@@ -124,4 +148,73 @@ async function places(req) {
   throw new HttpsError("invalid-argument", "Ação inválida.");
 }
 
-module.exports = { directions, places };
+/**
+ * "Procurar posto/restaurante...": Text Search do Google. Com a rota
+ * ([polyline]), busca AO LONGO dela (o Google prioriza o menor desvio);
+ * sem rota, perto do piloto, do mais próximo ao mais longe.
+ */
+async function find(uid, d) {
+  const cat = FIND[d.category];
+  const { lat, lng, polyline } = d;
+  if (!cat || typeof lat !== "number" || typeof lng !== "number" ||
+      Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    throw new HttpsError("invalid-argument", "Busca inválida.");
+  }
+  const along = typeof polyline === "string" && POLYLINE.test(polyline);
+  await countUse(uid, "find");
+
+  const search = async (priceLevels) => {
+    const body = {
+      textQuery: cat.q, languageCode: "pt-BR", regionCode: "BR", maxResultCount: 8,
+    };
+    if (cat.type) {
+      body.includedType = cat.type;
+      body.strictTypeFiltering = true;
+    }
+    if (d.openNow === true) body.openNow = true;
+    if (priceLevels) body.priceLevels = priceLevels;
+    if (along) {
+      body.searchAlongRouteParameters = { polyline: { encodedPolyline: polyline } };
+    } else {
+      body.locationBias = {
+        circle: { center: { latitude: lat, longitude: lng }, radius: 15000.0 },
+      };
+      body.rankPreference = "DISTANCE";
+    }
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-Goog-Api-Key": key(),
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress," +
+          "places.location,places.priceLevel,places.rating," +
+          "places.currentOpeningHours.openNow",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return [];
+    return (await res.json()).places || [];
+  };
+
+  // "Barato": primeiro só os baratos; se não houver, os de preço moderado.
+  let list = await search(d.cheap === true ? ["PRICE_LEVEL_INEXPENSIVE"] : null);
+  if (!list.length && d.cheap === true) {
+    list = await search(["PRICE_LEVEL_INEXPENSIVE", "PRICE_LEVEL_MODERATE"]);
+  }
+  return {
+    places: list.filter((p) => p.location).map((p) => ({
+      id: p.id,
+      name: p.displayName?.text || cat.q,
+      address: p.formattedAddress || "",
+      lat: p.location.latitude,
+      lng: p.location.longitude,
+      price: p.priceLevel || null,
+      rating: p.rating || null,
+      open: p.currentOpeningHours?.openNow ?? null,
+    })),
+    along,
+  };
+}
+
+module.exports = { directions, places, FIND };

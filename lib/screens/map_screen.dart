@@ -22,6 +22,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../logic/voice_commands.dart';
+import '../logic/find_places.dart';
+import '../services/places_service.dart';
 import '../services/shared_place_service.dart';
 import '../logic/geo.dart';
 import '../models/bike.dart';
@@ -1418,11 +1420,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         }
       case GoToCommand():
         await _voiceGoTo();
+      case FindCommand():
+        await _voiceFind(cmd);
       case AnswerCommand(:final yes):
         // Resposta à pergunta "Trocar a rota?" (destino falado).
         final confirm = _voiceConfirmCtx;
         if (confirm != null && confirm.mounted) {
           Navigator.of(confirm).pop(yes);
+          return;
+        }
+        // Resposta a "Adicionar como parada?" (procurar posto...).
+        if (_found.isNotEmpty) {
+          yes ? _addFoundStop(_found[_foundIdx]) : _nextFound();
           return;
         }
         final h = _askHazard ??
@@ -2858,6 +2867,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               )
             else
               _nextTurnCard(),
+            // "UauGo, procurar posto": até 3 opções, a perguntada em destaque.
+            if (_found.isNotEmpty) _foundCard(),
             // "UauGo, ir para": ouvindo o destino (e o que já entendeu).
             ValueListenableBuilder<bool>(
               valueListenable: _voiceCmd.destListening,
@@ -3259,6 +3270,137 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     ));
   }
 
+  // ---- "UauGo, procurar posto": lugares no caminho
+
+  /// Resultados oferecidos agora (até 3) e qual está sendo perguntado.
+  List<FoundPlace> _found = [];
+  int _foundIdx = 0;
+
+  /// Procura o lugar: navegando, ao longo da rota e só o que está à frente;
+  /// sem rota, perto. Fala o mais próximo e pergunta se inclui como parada.
+  Future<void> _voiceFind(FindCommand c) async {
+    final cat = c.category;
+    if (cat == null) {
+      _voice.reply('Diga, por exemplo: $voiceWakeDisplay, procurar posto.');
+      return;
+    }
+    if (_sim != null) {
+      _voice.reply('Na simulação a busca de lugares fica desligada.');
+      return;
+    }
+    final p = _me;
+    if (p == null) {
+      _voice.reply('Ainda sem a sua posição pelo GPS.');
+      return;
+    }
+    final what = '${cat.spoken}${c.cheap ? ' barato' : ''}';
+    _lastFindSpoken = cat.spoken;
+    _voice.reply('Procurando $what.');
+    final trip = _trip, w = _walker, pr = _proj;
+    final onRoute = _navigating && trip != null && w != null && pr != null &&
+        pr.offset < 250 && trip.plan.polyline.isNotEmpty;
+    final r = await PlacesService().find(cat,
+        cheap: c.cheap,
+        lat: p.latitude,
+        lng: p.longitude,
+        polyline: onRoute ? trip.plan.polyline : null);
+    if (!mounted) return;
+    if (r.limit) {
+      _voice.reply('Você já fez as 10 buscas de hoje. Tente amanhã.');
+      return;
+    }
+    final ranked = rankFound(r.places,
+        alongOf: onRoute
+            ? (la, lo) {
+                final q = w.project(la, lo);
+                return (along: q.along, offset: q.offset);
+              }
+            : null,
+        riderAlong: onRoute ? pr.along : null,
+        distanceTo: (la, lo) =>
+            distanceMeters(p.latitude, p.longitude, la, lo));
+    if (ranked.isEmpty) {
+      _voice.reply(
+          'Não encontrei $what ${onRoute ? 'à frente na rota' : 'por perto'}.');
+      return;
+    }
+    setState(() {
+      _found = ranked.take(3).toList();
+      _foundIdx = 0;
+    });
+    _offerFound();
+  }
+
+  /// Fala a opção atual e pergunta se inclui como parada.
+  void _offerFound() {
+    final f = _found[_foundIdx];
+    _voice.reply('${f.name}, a ${spokenDistance(f.meters)}'
+        '${f.onRoute ? ', no caminho' : ''}. '
+        '${_isExpedition ? 'No comboio, combine a parada com o líder.' : 'Adicionar como parada? Diga sim ou não.'}');
+  }
+
+  /// "Não": oferece a próxima opção (ou encerra).
+  void _nextFound() {
+    if (_foundIdx + 1 >= _found.length) {
+      setState(() => _found = []);
+      _voice.reply('Sem mais opções.');
+      return;
+    }
+    setState(() => _foundIdx++);
+    _offerFound();
+  }
+
+  /// "Sim" (ou toque): navegando, inclui o lugar como próxima parada (o
+  /// destino continua o mesmo); sem rota, abre a rota até ele.
+  Future<void> _addFoundStop(FoundPlace f) async {
+    setState(() => _found = []);
+    if (_isExpedition) {
+      _voice.reply('No comboio, combine a parada com o líder.');
+      return;
+    }
+    final trip = _trip, p = _me;
+    if (trip == null || _arrivedAtDestination || !_navigating || p == null) {
+      // Sem rota: a tela inicial abre a prévia da rota até o lugar.
+      await _voice.stop();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      SharedPlaceService.instance
+        ..fromVoice = true
+        ..pending.value = 'geo:${f.lat},${f.lng}?q=${f.lat},${f.lng}'
+            '(${Uri.encodeComponent(f.name)})';
+      return;
+    }
+    var next = 1;
+    while (next < trip.stops.length - 1 &&
+        _stopArrived.contains(trip.stops[next].id)) {
+      next++;
+    }
+    final cat = FindCategory.values.firstWhere(
+        (c) => c.spoken == _lastFindSpoken,
+        orElse: () => FindCategory.fuel);
+    final nt = await TripService.build(
+      title: trip.title,
+      points: [
+        TripPoint('Sua posição', p.latitude, p.longitude, type: StopType.meet),
+        TripPoint(f.name, f.lat, f.lng, type: cat.stopType),
+        for (final s in trip.stops.skip(next))
+          TripPoint(s.name, s.lat, s.lng, type: s.type),
+      ],
+      avoidTolls: trip.plan.avoidTolls,
+      avoidHighways: trip.plan.avoidHighways,
+    );
+    if (!mounted) return;
+    if (nt == null) {
+      _voice.reply('Não consegui incluir a parada. Confira a internet.');
+      return;
+    }
+    _applyTrip(nt);
+    _voice.reply('Parada incluída: ${f.name}.');
+  }
+
+  /// Categoria da última busca (tipo da parada ao incluir).
+  String? _lastFindSpoken;
+
   /// Diálogo "Trocar a rota?" aberto (aceita "sim"/"não" por voz).
   BuildContext? _voiceConfirmCtx;
 
@@ -3309,6 +3451,54 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     SharedPlaceService.instance
       ..fromVoice = true
       ..pending.value = text;
+  }
+
+  /// Opções encontradas ("procurar posto"): nome, distância e "Adicionar".
+  Widget _foundCard() {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: scheme.surfaceContainerHigh,
+        elevation: 6,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 4, 8),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              Expanded(
+                child: Text('Encontrados ${_isExpedition ? '' : '(toque para incluir)'}',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Fechar',
+                onPressed: () => setState(() => _found = []),
+              ),
+            ]),
+            for (var i = 0; i < _found.length; i++)
+              ListTile(
+                dense: true,
+                selected: i == _foundIdx,
+                contentPadding: EdgeInsets.zero,
+                title: Text(_found[i].name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text([
+                  formatDistance(_found[i].meters.round()),
+                  if (_found[i].onRoute) 'no caminho',
+                  if (_found[i].price == 'PRICE_LEVEL_INEXPENSIVE') 'barato',
+                  if (_found[i].open == true) 'aberto',
+                ].join(' · ')),
+                trailing: _isExpedition
+                    ? null
+                    : FilledButton.tonal(
+                        onPressed: () => _addFoundStop(_found[i]),
+                        child: const Text('Incluir')),
+              ),
+          ]),
+        ),
+      ),
+    );
   }
 
   /// Rota em andamento: sair da tela pede confirmação.

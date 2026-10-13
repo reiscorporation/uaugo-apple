@@ -14,6 +14,8 @@ import 'dart:math';
 
 import 'package:cloud_functions/cloud_functions.dart';
 
+import '../logic/find_places.dart';
+
 /// Sugestão da busca (ainda sem coordenadas).
 class PlaceSuggestion {
   final String placeId;
@@ -90,6 +92,48 @@ class PlacesService {
           .toList();
     } catch (_) {
       return const [];
+    }
+  }
+
+  /// "UauGo, procurar posto": lugares da [category] no caminho ([polyline],
+  /// a rota codificada) ou perto de (lat, lng). [limit] = já usou as buscas
+  /// do dia (10 por usuário, functions/maps.js).
+  Future<({List<FoundPlace> places, bool limit})> find(
+    FindCategory category, {
+    bool cheap = false,
+    required double lat,
+    required double lng,
+    String? polyline,
+  }) async {
+    try {
+      final d = await _call({
+        'action': 'find',
+        'category': category.name,
+        'cheap': cheap,
+        'lat': lat,
+        'lng': lng,
+        if (polyline != null && polyline.isNotEmpty) 'polyline': polyline,
+      });
+      final list = (d['places'] as List?) ?? const [];
+      return (
+        places: [
+          for (final p in list.whereType<Map>())
+            FoundPlace(
+              name: (p['name'] ?? '') as String,
+              address: (p['address'] ?? '') as String,
+              lat: (p['lat'] as num).toDouble(),
+              lng: (p['lng'] as num).toDouble(),
+              price: p['price'] as String?,
+              open: p['open'] as bool?,
+              meters: 0,
+            ),
+        ],
+        limit: false,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      return (places: const <FoundPlace>[], limit: e.code == 'resource-exhausted');
+    } catch (_) {
+      return (places: const <FoundPlace>[], limit: false);
     }
   }
 

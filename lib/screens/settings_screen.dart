@@ -661,6 +661,10 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
               'Diga "$voiceWakeDisplay" e o alerta: $words.\n'
               'Exemplo: "$voiceWakeDisplay, radar". Para desfazer: "$voiceWakeDisplay, cancelar". '
               'Quando o app perguntar "ainda está lá?", responda "sim" ou "não".\n'
+              'Para achar algo no caminho: "$voiceWakeDisplay, procurar posto" '
+              '(também restaurante, restaurante barato, lanche, café, padaria, '
+              'pousada, hotel, oficina, pneu, farmácia, hospital, banco, '
+              'mercado). Até 10 buscas por dia.\n'
               'Funciona com o mapa aberto na tela (use "Manter a tela ligada").',
               style: theme.textTheme.bodySmall,
             ),

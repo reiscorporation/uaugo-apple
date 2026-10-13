@@ -14,6 +14,7 @@
 import 'dart:convert';
 
 import '../models/hazard.dart';
+import 'find_places.dart';
 
 /// Palavra de ativação: o nome do app, "UauGo" ("UauGo, radar"). O modelo
 /// de voz não conhece "uaugo" inteiro, então ele é reconhecido como duas
@@ -53,6 +54,14 @@ String voiceGrammar() => jsonEncode([
       // reconhecimento do Google (opção "Pesquisa de trajeto por voz").
       '$voiceWakeWord ir para',
       '$voiceWakeWord ir para [unk]',
+      // "UauGo, procurar posto" / "... restaurante barato".
+      for (final v in findVerbs) ...[
+        for (final e in findWords.entries) ...[
+          '$voiceWakeWord $v ${e.key}',
+          if (e.value.hasPrice) '$voiceWakeWord $v ${e.key} barato',
+        ],
+        '$voiceWakeWord $v [unk]',
+      ],
       '$voiceWakeWord [unk]',
       'uau [unk]',
       'uau que [unk]',
@@ -82,6 +91,14 @@ class CancelCommand extends VoiceCommand {
 /// ouvido em seguida pelo reconhecimento do Google).
 class GoToCommand extends VoiceCommand {
   const GoToCommand();
+}
+
+/// "UauGo, procurar posto": achar um lugar desse tipo no caminho (ou perto).
+/// [category] null = pediu algo fora da lista (o app explica como pedir).
+class FindCommand extends VoiceCommand {
+  final FindCategory? category;
+  final bool cheap;
+  const FindCommand(this.category, {this.cheap = false});
 }
 
 /// "Sim" / "não": resposta à pergunta "ainda está lá?".
@@ -119,6 +136,15 @@ VoiceCommand? parseVoiceResult(String json) {
       words.take(goTo.length).every((w) => w.conf >= voiceMinConfidence)) {
     return const GoToCommand();
   }
+  // "UauGo, procurar <algo fora da lista>": avisa como pedir.
+  if (words.length >= 3 &&
+      words[0].word == 'uau' &&
+      words[1].word == 'go' &&
+      findVerbs.contains(words[2].word) &&
+      words.take(3).every((w) => w.conf >= voiceMinConfidence) &&
+      words.skip(3).any((w) => w.word == '[unk]')) {
+    return const FindCommand(null);
+  }
   final text = words.map((w) => w.word).join(' ').trim();
   if (text.isEmpty || text.contains('[unk]')) return null;
   final conf = words.map((w) => w.conf).reduce((a, b) => a < b ? a : b);
@@ -131,6 +157,14 @@ VoiceCommand? parseVoiceResult(String json) {
   }
   final what = text.substring(voiceWakeWord.length + 1);
   if (what == 'cancelar') return const CancelCommand();
+  for (final v in findVerbs) {
+    if (!what.startsWith('$v ')) continue;
+    var rest = what.substring(v.length + 1);
+    final cheap = rest.endsWith(' barato');
+    if (cheap) rest = rest.substring(0, rest.length - ' barato'.length);
+    final cat = findWords[rest];
+    return cat == null ? null : FindCommand(cat, cheap: cheap && cat.hasPrice);
+  }
   final type = voiceAlertWords[what];
   return type == null ? null : ReportCommand(type);
 }
