@@ -301,10 +301,23 @@ class SettingsScreen extends StatelessWidget {
               secondary: const Icon(Icons.brightness_high),
               title: const Text('Manter a tela ligada no mapa'),
               subtitle: const Text(
-                  'A tela não apaga enquanto o mapa ou a navegação estiverem '
-                  'abertos. Use com o carregador da moto.'),
+                  'A tela não apaga enquanto o mapa estiver aberto. Navegando, '
+                  'ela fica sempre ligada. Use com o carregador da moto.'),
               value: on,
               onChanged: s.setKeepScreenOn,
+            ),
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: s.backgroundShare,
+            builder: (_, on, __) => SwitchListTile(
+              secondary: const Icon(Icons.share_location),
+              title: const Text('Compartilhar posição em segundo plano'),
+              subtitle: const Text(
+                  'Só no comboio: o grupo continua vendo você com o app fora '
+                  'da tela (GPS econômico, a cada 15 s). Desligado, o GPS para '
+                  'ao sair do app. Ligar aumenta o consumo de bateria.'),
+              value: on,
+              onChanged: s.setBackgroundShare,
             ),
           ),
           ValueListenableBuilder<bool>(
@@ -405,7 +418,8 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: const Text(
                     'Chegada com o trânsito atual. Navegando sozinho, avisa '
                     'trânsito intenso e troca para uma rota mais rápida (consulta '
-                    'o Google a cada 5 min; cada consulta custa mais).'),
+                    'a cada 5 min, só com rota traçada). Aumenta o consumo de '
+                    'dados e de bateria.'),
                 value: r.liveTraffic,
                 onChanged: (v) => s.setRoute(r.copyWith(liveTraffic: v)),
               ),
@@ -504,8 +518,9 @@ class SettingsScreen extends StatelessWidget {
                 secondary: const Icon(Icons.umbrella),
                 title: const Text('Chuva à frente'),
                 subtitle: const Text(
-                    'Confere a previsão a cada 5 min e avisa chuva a partir '
-                    'de 2 km à frente (Open-Meteo)'),
+                    'Com rota traçada, confere a previsão a cada 5 min e avisa '
+                    'chuva a partir de 2 km à frente (Open-Meteo). Aumenta o '
+                    'consumo de dados e de bateria.'),
                 value: a.rain,
                 onChanged: (v) => s.setAlerts(a.copyWith(rain: v)),
               ),

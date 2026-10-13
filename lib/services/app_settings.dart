@@ -137,7 +137,7 @@ class AlertPrefs {
     this.signals = false,
     this.reducedSpeed = true,
     this.halfway = false,
-    this.rain = true,
+    this.rain = false,
   });
 
   /// Cópia com algumas opções trocadas.
@@ -175,6 +175,10 @@ class AppSettings {
   /// Manter a tela ligada enquanto o mapa estiver aberto.
   final keepScreenOn = ValueNotifier<bool>(true);
 
+  /// Comboio: continuar enviando a posição ao grupo com o app fora da tela
+  /// (GPS econômico, a cada 15 s). Desligado = o GPS para ao sair do app.
+  final backgroundShare = ValueNotifier<bool>(false);
+
   /// Camada de trânsito do Google no mapa (vias em verde/laranja/vermelho).
   final showTraffic = ValueNotifier<bool>(true);
 
@@ -206,6 +210,7 @@ class AppSettings {
     _loaded = true;
     final p = await SharedPreferences.getInstance();
     keepScreenOn.value = p.getBool('keepScreenOn') ?? true;
+    backgroundShare.value = p.getBool('backgroundShare') ?? false;
     showTraffic.value = p.getBool('showTraffic') ?? true;
     mapTheme.value = MapTheme.values.firstWhere(
         (m) => m.name == p.getString('mapTheme'),
@@ -240,7 +245,7 @@ class AppSettings {
       signals: p.getBool('alertSignals') ?? false,
       reducedSpeed: p.getBool('alertReducedSpeed') ?? true,
       halfway: p.getBool('alertHalfway') ?? false,
-      rain: p.getBool('alertRain') ?? true,
+      rain: p.getBool('alertRain') ?? false,
     );
   }
 
@@ -276,6 +281,12 @@ class AppSettings {
   Future<void> setShowTraffic(bool v) async {
     showTraffic.value = v;
     (await SharedPreferences.getInstance()).setBool('showTraffic', v);
+  }
+
+  /// Liga/desliga o envio da posição ao comboio com o app fora da tela.
+  Future<void> setBackgroundShare(bool v) async {
+    backgroundShare.value = v;
+    (await SharedPreferences.getInstance()).setBool('backgroundShare', v);
   }
 
   /// Liga/desliga a tela sempre acesa no mapa.

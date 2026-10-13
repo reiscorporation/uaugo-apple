@@ -41,7 +41,7 @@ O UauGo mostra no mapa, em tempo real, onde está cada pessoa do seu grupo, avis
 🔒 PRIVACIDADE E BATERIA
 • Histórico das viagens fica só no seu celular
 • Você escolhe o que autoriza e pode excluir todos os seus dados pelo app
-• O GPS em segundo plano só fica ligado durante uma expedição ou navegação
+• O GPS para quando você sai do app. Só no comboio, e se você ligar a opção, a posição continua sendo enviada ao grupo em modo econômico
 
 Importante: não manuseie o celular enquanto pilota ou dirige. Pare em local seguro. Em emergência, ligue 192 (SAMU), 193 (Bombeiros) ou 191 (PRF).
 

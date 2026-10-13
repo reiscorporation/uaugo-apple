@@ -105,30 +105,35 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool _saving = false; // economia de bateria ligada agora
   bool _inBackground = false; // tela apagada / app minimizado
 
-  /// GPS em segundo plano (app minimizado ou tela apagada) só quando é útil:
-  /// numa expedição (o grupo precisa da sua posição) ou navegando até um
-  /// destino ("Para onde?"). Em "Só dirigir" e na simulação, o GPS para ao
-  /// sair do app e volta ao abrir de novo: assim o app não gasta bateria
-  /// esquecido em segundo plano.
+  /// GPS com o app fora da tela (minimizado ou tela apagada) só no comboio
+  /// e com a opção "Compartilhar posição em segundo plano" ligada (o grupo
+  /// continua vendo o piloto). Fora disso — navegando sozinho, "Só dirigir",
+  /// simulação ou opção desligada — o GPS para ao sair do app e volta ao
+  /// abrir: o app não gasta bateria esquecido. Navegando, a tela fica
+  /// sempre ligada (_applyWakelock), então a navegação não depende disso.
   bool get _keepGpsInBackground =>
       _sim == null &&
-      (_isExpedition || (_trip != null && !_arrivedAtDestination));
+      _isExpedition &&
+      AppSettings.instance.backgroundShare.value;
+
+  /// O GPS atual é o econômico de segundo plano (com notificação fixa)?
+  bool _bgGps = false;
 
   /// Parado há tanto tempo em segundo plano = o piloto esqueceu o app aberto:
   /// o GPS desliga (volta sozinho ao abrir o app).
   static const _idleBackgroundLimit = Duration(minutes: 15);
   DateTime? _idleSince;
 
-  /// (Re)inicia o GPS no modo atual (normal ou econômico).
-  void _startGps() {
+  /// (Re)inicia o GPS: na tela (1 s, ou 2 s na economia) ou, com
+  /// [background], o econômico de segundo plano (15 s, notificação fixa).
+  void _startGps({bool background = false}) {
     _gpsSub?.cancel();
     _idleSince = null;
+    _bgGps = background;
     _gpsSub = LocationService.track(
       saving: _saving,
-      background: _keepGpsInBackground,
-      notificationText: _isExpedition
-          ? 'Compartilhando sua localização com o grupo'
-          : 'Navegação ativa. Abra o app e encerre para parar.',
+      background: background,
+      notificationText: 'Compartilhando sua localização com o comboio',
     ).listen(_onPosition, onError: (e) => _snack('GPS: $e'));
   }
 
@@ -136,6 +141,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _stopGps() {
     _gpsSub?.cancel();
     _gpsSub = null;
+    _bgGps = false;
   }
 
   /// Em segundo plano: desliga o GPS se o piloto está parado há muito tempo.
@@ -160,30 +166,70 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final s = BatteryService.instance.saving.value;
     if (s == _saving || !mounted) return;
     setState(() => _saving = s);
-    if (_sim == null) _startGps();
+    if (_sim == null && !_inBackground) _startGps();
     if (s) _snack('🔋 Economia de bateria ligada');
   }
 
-  /// Com o app minimizado ou a tela apagada, os avisos e a gravação
-  /// continuam, mas o mapa não é redesenhado (economiza bateria).
+  /// App fora da tela (minimizado ou tela apagada): para tudo que gasta
+  /// bateria — GPS (salvo no comboio com a opção ligada, aí econômico),
+  /// relógios (chuva, trânsito, bateria, gravação) e escutas do Firestore.
+  /// Volta tudo ao abrir o app.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasBackground = _inBackground;
     _inBackground = state != AppLifecycleState.resumed;
     // Comandos de voz só com o app na tela (o Android não deixa ouvir o
     // microfone em segundo plano sem um serviço próprio).
     _inBackground ? _voiceCmd.stop() : _voiceCmd.start();
-    // GPS: para ao sair do app quando não é preciso (veja
-    // _keepGpsInBackground) e volta ao abrir de novo.
-    final left = state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden;
-    if (left && !_keepGpsInBackground) _stopGps();
-    if (state == AppLifecycleState.resumed && _sim == null && _gpsSub == null) {
-      _startGps();
+    if (_sim == null) {
+      // O serviço de segundo plano tem de começar com o app ainda visível
+      // ("inactive"): o Android não deixa iniciá-lo depois de sair.
+      if (state == AppLifecycleState.inactive && _keepGpsInBackground && !_bgGps) {
+        _startGps(background: true);
+      }
+      final left = state == AppLifecycleState.paused ||
+          state == AppLifecycleState.hidden;
+      if (left && !_keepGpsInBackground) _stopGps();
+      // De volta à tela: GPS normal, sem notificação fixa.
+      if (state == AppLifecycleState.resumed && (_gpsSub == null || _bgGps)) {
+        _startGps();
+      }
     }
-    if (!_inBackground) {
+    if (_inBackground && !wasBackground) _pauseWork();
+    if (!_inBackground && wasBackground) {
+      _resumeWork();
       final p = _me;
       if (mounted) setState(() {});
       if (p != null) _updateCamera(p, force: true);
+    }
+  }
+
+  /// Saiu da tela: para relógios e escutas do Firestore (e guarda a viagem).
+  void _pauseWork() {
+    _ticker?.cancel();
+    _rainTimer?.cancel();
+    _trafficTimer?.cancel();
+    _autosave?.cancel();
+    _saveRecord();
+    BatteryService.instance.stop();
+    for (final s in _fireSubs) {
+      s.cancel();
+    }
+    _fireSubs.clear();
+    _hazardSub?.cancel();
+    _hazardSub = null;
+    _hazardCell = null;
+  }
+
+  /// Voltou à tela: religa relógios e escutas.
+  void _resumeWork() {
+    _listenExpedition();
+    _startTimers();
+    BatteryService.instance.start();
+    if (_recorder != null) {
+      _autosave?.cancel();
+      _autosave =
+          Timer.periodic(const Duration(minutes: 2), (_) => _saveRecord());
     }
   }
 
@@ -204,6 +250,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   final _svc = ExpeditionService.instance;
   final List<StreamSubscription> _subs = [];
+
+  /// Escutas do Firestore da expedição (param com o app fora da tela).
+  final List<StreamSubscription> _fireSubs = [];
   GoogleMapController? _map;
   Timer? _ticker;
 
@@ -327,25 +376,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     if (_isExpedition) {
-      _subs
-        ..add(_svc.watchExpedition(_code).listen((e) {
-          if (e != null) {
-            _hadExpedition = true;
-          } else if (_hadExpedition) {
-            _onExpeditionEnded(); // o líder encerrou para todos
-            return;
-          }
-          setState(() => _exp = e);
-          _updateRoute();
-          _maybeUpgradeRoute();
-        }))
-        ..add(_svc.members(_code).listen((m) => setState(() => _members = m)))
-        ..add(_svc.stops(_code).listen((s) {
-          _onStops(s);
-          _stopsLoaded = true;
-          _maybeUpgradeRoute();
-        }))
-        ..add(_svc.activeAlerts(_code).listen(_onAlerts));
+      _listenExpedition();
     } else {
       _trip = widget.trip;
       if (_trip != null) _onStops(_trip!.stops);
@@ -389,10 +420,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     BatteryService.instance.start();
     WidgetsBinding.instance.addObserver(this);
-    // Atualiza os textos "há X min" periodicamente.
-    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
-    });
+    _startTimers();
     _loadHazardIcons();
     _voice.init();
     // Comandos de voz (opcional, Configurações → Acessibilidade).
@@ -403,18 +431,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _speedSvc.loadSettings();
     // "Minhas viagens": grava o caminho e as estatísticas no celular.
     _startRecording();
-    // Chuva à frente: a cada 5 min (a 1ª em 20 s, com o GPS já estável).
-    _rainTimer = Timer.periodic(const Duration(minutes: 5), (_) => _checkRain());
-    Future.delayed(const Duration(seconds: 20), _checkRain);
-    // Tela sempre ligada no mapa (opção em Configurações → Tela).
+    // Tela: sempre ligada navegando; no resto, pela opção (Configurações → Tela).
     _applyWakelock();
     AppSettings.instance.keepScreenOn.addListener(_applyWakelock);
-    // Navegando sozinho: confere o trânsito a cada 5 min (a 1ª em 30 s).
-    if (!_isExpedition && !widget.simulate && _trip != null) {
-      _trafficTimer =
-          Timer.periodic(const Duration(minutes: 5), (_) => _checkTraffic());
-      Future.delayed(const Duration(seconds: 30), _checkTraffic);
-    }
     if (_isExpedition) {
       SharedPreferences.getInstance().then((prefs) {
         if (prefs.getString('mapView') == _MapView.solo.name && mounted) {
@@ -527,7 +546,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    for (final s in _subs) {
+    for (final s in [..._subs, ..._fireSubs]) {
       s.cancel();
     }
     _voiceCmd.stop();
@@ -554,10 +573,56 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// Liga/desliga a tela sempre acesa conforme a configuração.
-  void _applyWakelock() => AppSettings.instance.keepScreenOn.value
-      ? WakelockPlus.enable()
-      : WakelockPlus.disable();
+  /// Escuta a expedição no Firestore: dados, membros, paradas e SOS.
+  void _listenExpedition() {
+    if (!_isExpedition || _fireSubs.isNotEmpty) return;
+    _fireSubs
+      ..add(_svc.watchExpedition(_code).listen((e) {
+        if (e != null) {
+          _hadExpedition = true;
+        } else if (_hadExpedition) {
+          _onExpeditionEnded(); // o líder encerrou para todos
+          return;
+        }
+        setState(() => _exp = e);
+        _updateRoute();
+        _maybeUpgradeRoute();
+      }))
+      ..add(_svc.members(_code).listen((m) => setState(() => _members = m)))
+      ..add(_svc.stops(_code).listen((s) {
+        _onStops(s);
+        _stopsLoaded = true;
+        _maybeUpgradeRoute();
+      }))
+      ..add(_svc.activeAlerts(_code).listen(_onAlerts));
+  }
+
+  /// Relógios da tela: textos "há X min", chuva e trânsito (só com o app
+  /// na tela; param em _pauseWork).
+  void _startTimers() {
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+    // Chuva à frente (opção): a cada 5 min (a 1ª em 20 s, com o GPS estável).
+    _rainTimer?.cancel();
+    _rainTimer = Timer.periodic(const Duration(minutes: 5), (_) => _checkRain());
+    Future.delayed(const Duration(seconds: 20), _checkRain);
+    // Navegando sozinho (opção de trânsito): a cada 5 min (a 1ª em 30 s).
+    _trafficTimer?.cancel();
+    if (!_isExpedition && !widget.simulate && _trip != null) {
+      _trafficTimer =
+          Timer.periodic(const Duration(minutes: 5), (_) => _checkTraffic());
+      Future.delayed(const Duration(seconds: 30), _checkTraffic);
+    }
+  }
+
+  /// Tela sempre ligada navegando (a navegação não roda com o app fora da
+  /// tela) ou na simulação; no resto, conforme a configuração.
+  void _applyWakelock() =>
+      AppSettings.instance.keepScreenOn.value || _navigating || _sim != null
+          ? WakelockPlus.enable()
+          : WakelockPlus.disable();
 
   // ------------------------------------------------------------ eventos
 
@@ -599,6 +664,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _lastSentPos = p;
       _svc.updateLocation(_code, widget.uid, p);
     }
+    if (_inBackground) return; // fora da tela: só a posição para o comboio
     _watchHazardsAround(p);
     _checkHazardProximity(p);
     _updateRadarsAround(p);
@@ -970,7 +1036,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Chuva à frente (a pelo menos 2 km), conferida a cada 5 min.
   Future<void> _checkRain() async {
     final p = _me;
-    if (!mounted || p == null || !AppSettings.instance.alerts.value.rain) {
+    // Só com a opção ligada e com rota traçada.
+    if (!mounted || p == null || !AppSettings.instance.alerts.value.rain ||
+        _walker == null || _inBackground) {
       return;
     }
     if (_speedMs < 3 && _sim == null) return; // parado: nada "à frente"
@@ -3154,6 +3222,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     setState(() {
       _navigating = true;
+      _applyWakelock();
       _view = _MapView.solo;
       _follow = true;
       _navSynced = false;
@@ -3177,6 +3246,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _arrivedAtDestination = true;
     setState(() {
       _navigating = false;
+      _applyWakelock();
       _offRoute = false;
     });
     final sim = _sim;
@@ -3259,6 +3329,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (_isExpedition) {
       setState(() {
         _navigating = false;
+        _applyWakelock();
         _view = _MapView.convoy;
       });
       final p = _me;

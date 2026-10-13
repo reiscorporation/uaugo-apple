@@ -75,7 +75,7 @@ Tipos de dados (marque como **coletado**; em "compartilhado" responda **não**, 
 
 **Declaração (cole no formulário):**
 
-> O UauGo é usado por grupos de motociclistas em viagem. Enquanto o usuário participa de uma expedição ou navega até um destino com instruções por voz, o app usa um serviço em primeiro plano do tipo "location" para continuar enviando a posição do piloto aos demais membros do grupo e dando os avisos de navegação, mesmo com a tela desligada ou o app minimizado. Fora disso (por exemplo, no modo "Só dirigir"), a localização para quando o app sai da tela; o serviço também é encerrado se o app for fechado ou se o piloto ficar parado por 15 minutos com o app minimizado. Isso permite que o grupo saiba onde cada integrante está durante a viagem e que um pedido de SOS mostre a posição correta. Uma notificação permanente ("UauGo ativo") fica visível durante todo o uso, e o serviço é encerrado quando o usuário sai da expedição.
+> O UauGo é usado por grupos de motociclistas em viagem. Somente quando o usuário participa de uma expedição (comboio) e liga a opção "Compartilhar posição em segundo plano" (desligada por padrão), o app usa um serviço em primeiro plano do tipo "location" para continuar enviando a posição do piloto aos demais membros do grupo com a tela desligada ou o app minimizado, em modo econômico (uma leitura a cada 15 segundos). Em todos os outros casos (navegação sozinho, modo "Só dirigir", opção desligada), a localização para quando o app sai da tela. O serviço também é encerrado se o app for fechado, se o piloto ficar parado por 15 minutos com o app minimizado ou quando ele sai da expedição. Isso permite que o grupo saiba onde cada integrante está durante a viagem e que um pedido de SOS mostre a posição correta. Uma notificação permanente ("UauGo ativo") fica visível enquanto o serviço estiver ativo.
 
 **Roteiro do vídeo demonstrativo (30 a 60 segundos, gravação da tela):**
 1. Abrir o app e entrar numa expedição.
@@ -111,7 +111,7 @@ Publique o vídeo como "não listado" no YouTube e cole o link.
 >
 > **Como testar:** abra o app em dois aparelhos (ou peça um código de teste: [CÓDIGO]). Aceite as autorizações. No primeiro aparelho, toque em "Criar e liderar"; no segundo, use o código exibido em "Entrar no comboio". Cada aparelho verá o outro no mapa.
 >
-> **Localização em segundo plano:** durante uma expedição, a posição continua sendo compartilhada com o grupo com o app minimizado, para que os pilotos saibam onde cada um está enquanto pilotam e para que o SOS mostre a posição correta. O indicador de localização do iOS fica visível, e a coleta termina quando o usuário sai da expedição.
+> **Localização em segundo plano:** durante uma expedição, e só se o usuário ligar a opção "Compartilhar posição em segundo plano", a posição continua sendo compartilhada com o grupo com o app minimizado, para que os pilotos saibam onde cada um está enquanto pilotam e para que o SOS mostre a posição correta. O indicador de localização do iOS fica visível, e a coleta termina quando o usuário sai da expedição.
 >
 > **Conta:** navegar sozinho não exige cadastro; expedições, alertas e clube exigem entrar com Apple, Google ou e-mail. [Informe aqui um e-mail e senha de teste.] A exclusão de dados está em Privacidade e autorizações > Excluir todos os meus dados.
 >

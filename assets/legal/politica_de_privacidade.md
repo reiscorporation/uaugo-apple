@@ -1,6 +1,6 @@
 # Política de Privacidade do UauGo
 
-Versão 1.7, de 08/10/2026 (o app passou a se chamar UauGo; nomes anteriores: "Convoyar", "RodaJunto" e "Comboio").
+Versão 1.8, de 13/10/2026 (a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano"; versão 1.7: o app passou a se chamar UauGo; nomes anteriores: "Convoyar", "RodaJunto" e "Comboio").
 
 Esta Política explica quais dados pessoais o aplicativo **UauGo** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
@@ -21,7 +21,7 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 
 **Localização (GPS)**
 - **Navegando sozinho ou em "Só dirigir":** a localização é usada **apenas no celular** (rota, avisos, velocímetro). Ela **não é enviada ao nosso servidor**. Para calcular a rota e buscar lugares, os pontos necessários (origem, destino, paradas e o texto da busca) passam pelo nosso servidor, que os repassa ao Google **sem guardá-los**; para a previsão do tempo, os pontos à frente são enviados ao Open-Meteo.
-- **Em uma expedição:** sua posição, velocidade e horário são enviados aos **participantes da expedição** (no máximo 1 vez por minuto) enquanto ela estiver aberta, inclusive com o App minimizado (notificação fixa "UauGo ativo"). Base legal: consentimento (art. 7º, I), dado na tela de autorizações e ao entrar na expedição.
+- **Em uma expedição:** sua posição, velocidade e horário são enviados aos **participantes da expedição** (no máximo 1 vez por minuto) enquanto ela estiver aberta no App. Com o App minimizado ou a tela apagada, a posição só continua sendo enviada se você ligar a opção **"Compartilhar posição em segundo plano"** (Configurações → Tela; vem desligada), e então aparece a notificação fixa "UauGo ativo". Fora de uma expedição, sua posição não é enviada ao grupo nem guardada no servidor. Base legal: consentimento (art. 7º, I), dado na tela de autorizações e ao entrar na expedição.
 - **SOS:** sua posição é enviada aos participantes da expedição.
 - **Alerta reportado:** a posição do alerta e o identificador de quem reportou ficam visíveis aos usuários durante a validade do alerta.
 

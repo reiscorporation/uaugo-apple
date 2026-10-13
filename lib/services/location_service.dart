@@ -2,7 +2,8 @@
 // location_service.dart — GPS
 //
 // O que faz: Permissão e leitura contínua da posição (1 por segundo, ou 2 s na
-//   economia de bateria), continuando com o app minimizado.
+//   economia de bateria). Com o app fora da tela, só no comboio com a opção
+//   "Compartilhar posição em segundo plano": GPS econômico (a cada 15 s).
 // Quem usa: MapScreen, Home.
 // Onde mexer: Precisão e intervalo: track().
 // ============================================================================
@@ -37,28 +38,32 @@ class LocationService {
   /// [saving] (economia de bateria): precisão alta (em vez da máxima) e uma
   /// leitura a cada 2 s. O GPS é o maior consumo depois da tela.
   ///
-  /// [background]: continuar com o app minimizado (só em expedição ou
-  /// navegação até um destino). Sem isso, não há serviço nem notificação
-  /// fixa: o GPS para quando o app sai da tela. O serviço também para se o
-  /// app for fechado pela lista de recentes (AndroidManifest: stopWithTask).
+  /// [background]: modo para o app fora da tela (só no comboio, com a opção
+  /// ligada): serviço com notificação fixa, mas econômico — precisão alta
+  /// (não a máxima), uma leitura a cada 15 s e sem manter o processador
+  /// acordado (wake lock). Sem isso, não há serviço: o GPS para quando o app
+  /// sai da tela. O serviço também para se o app for fechado pela lista de
+  /// recentes (AndroidManifest: stopWithTask).
   static Stream<Position> track({
     bool saving = false,
     bool background = false,
     String notificationText = 'Navegação ativa',
   }) {
-    final accuracy =
-        saving ? LocationAccuracy.high : LocationAccuracy.bestForNavigation;
+    final accuracy = saving || background
+        ? LocationAccuracy.high
+        : LocationAccuracy.bestForNavigation;
+    final interval = Duration(seconds: background ? 15 : (saving ? 2 : 1));
     final LocationSettings settings;
     if (defaultTargetPlatform == TargetPlatform.android) {
       settings = AndroidSettings(
         accuracy: accuracy,
         distanceFilter: 0,
-        intervalDuration: Duration(seconds: saving ? 2 : 1),
+        intervalDuration: interval,
         foregroundNotificationConfig: background
             ? ForegroundNotificationConfig(
                 notificationTitle: 'UauGo ativo',
                 notificationText: notificationText,
-                enableWakeLock: true,
+                enableWakeLock: false,
               )
             : null,
       );
@@ -66,7 +71,7 @@ class LocationService {
       settings = AppleSettings(
         accuracy: accuracy,
         activityType: ActivityType.automotiveNavigation,
-        distanceFilter: 0,
+        distanceFilter: background ? 20 : 0,
         pauseLocationUpdatesAutomatically: !background,
         showBackgroundLocationIndicator: background,
         allowBackgroundLocationUpdates: background,
