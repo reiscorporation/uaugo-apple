@@ -2725,7 +2725,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     const white = TextStyle(color: Colors.white);
-    return Scaffold(
+    // Navegando: o "voltar" pergunta antes de encerrar a rota.
+    return PopScope(
+      canPop: !_confirmExit,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _askExitNavigation();
+      },
+      child: Scaffold(
       // O mapa não muda de tamanho com o teclado: um redimensionamento durante
       // o fechamento da tela derrubava o app (defeito do Flutter com o mapa).
       resizeToAvoidBottomInset: false,
@@ -3206,7 +3212,38 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
       ]))),
       ]),
+    ));
+  }
+
+  /// Rota em andamento: sair da tela pede confirmação.
+  bool get _confirmExit =>
+      _navigating && _sim == null && !_arrivedAtDestination;
+
+  /// "Voltar" durante a navegação: pergunta se quer mesmo sair (a rota é
+  /// encerrada). Na expedição, sair do mapa não tira do comboio.
+  Future<void> _askExitNavigation() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sair da navegação?'),
+        content: Text(_isExpedition
+            ? 'A navegação até o destino será encerrada. Você continua no '
+                'comboio e pode voltar ao mapa pela tela inicial.'
+            : 'A rota até o destino será encerrada.'),
+        actions: [
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Continuar navegando')),
+          TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sair')),
+        ],
+      ),
     );
+    if (ok != true || !mounted) return;
+    await _voice.stop();
+    if (mounted) Navigator.of(context).pop();
   }
 
   // ------------------------------------------------------------ navegação
