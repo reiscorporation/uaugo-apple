@@ -149,9 +149,10 @@ class VoiceCommandService {
     destHeard.value = '';
     destListening.value = true;
     try {
-      return await _method.invokeMethod<String>('listenDestination', {
+      final text = await _method.invokeMethod<String>('listenDestination', {
         'language': 'pt-BR',
       });
+      return text == null ? null : cleanDestination(text);
     } catch (e) {
       debugPrint('Pesquisa por voz: $e');
       return null;

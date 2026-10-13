@@ -39,6 +39,16 @@ void main() {
       expect(voiceGrammar(), contains('uau go ir para'));
     });
 
+    test('destino falado: tira as palavras de comando do começo', () {
+      expect(cleanDestination('ir para São João da Boa Vista'), 'São João da Boa Vista');
+      expect(cleanDestination('Ir pra Curitiba'), 'Curitiba');
+      expect(cleanDestination('me leva para o Mercado Público'), 'Mercado Público');
+      expect(cleanDestination('quero ir para a Praia Mole'), 'Praia Mole');
+      expect(cleanDestination('rota para Urubici'), 'Urubici');
+      expect(cleanDestination('Posto Shell em Urubici'), 'Posto Shell em Urubici');
+      expect(cleanDestination('para'), 'para'); // nada além do comando: mantém
+    });
+
     test('[unk] no começo (silêncio antes de falar) é ignorado', () {
       final c = parseVoiceResult(vosk('[unk] uau go lombada'));
       expect((c as ReportCommand).type, HazardType.bump);

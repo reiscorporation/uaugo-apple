@@ -134,3 +134,20 @@ VoiceCommand? parseVoiceResult(String json) {
   final type = voiceAlertWords[what];
   return type == null ? null : ReportCommand(type);
 }
+
+/// Tira do começo do destino falado as palavras de comando que muita gente
+/// repete depois do bipe ("ir para São João da Boa Vista" -> "São João da
+/// Boa Vista"), para a busca de lugares receber só o lugar.
+String cleanDestination(String spoken) {
+  var t = spoken.trim();
+  final lead = RegExp(
+      r'^(uau ?go[,]?\s+)?((eu )?(quero|queria|vamos|vou|preciso)( ir)?\s+)?'
+      r'((me )?(leva|levar|leve)\s+)?'
+      r'((ir|navegar|rota|traçar rota|trajeto|caminho)\s+)?'
+      r'(para o|para a|para|pro|pra|até o|até a|até|ao|à)\s+',
+      caseSensitive: false);
+  final m = lead.firstMatch(t);
+  if (m != null && m.end < t.length) t = t.substring(m.end).trim();
+  return t;
+}
+
