@@ -75,6 +75,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// vai direto para o "Para onde?" com o destino.
   Future<void> _onShared() async {
     if (!mounted || SharedPlaceService.instance.pending.value == null) return;
+    final byVoice = SharedPlaceService.instance.fromVoice;
+    SharedPlaceService.instance.fromVoice = false;
     // Em outra tela (ex.: navegando): não interrompe o que está acontecendo.
     if (!(ModalRoute.of(context)?.isCurrent ?? true) || _busy) {
       SharedPlaceService.instance.take();
@@ -90,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _snack('Não consegui entender o endereço recebido');
       return;
     }
-    await _whereTo(shared: place);
+    await _whereTo(shared: place, byVoice: byVoice);
   }
 
   /// Lê do celular o nome, o veículo, o clube e a última expedição.
@@ -250,7 +252,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// "Para onde?": navegação sozinho, como no Waze.
   /// [shared]: destino recebido de outro app (pula a busca se tiver posição).
-  Future<void> _whereTo({SharedPlace? shared}) async {
+  /// [byVoice]: destino falado — vai direto ao melhor resultado da busca.
+  Future<void> _whereTo({SharedPlace? shared, bool byVoice = false}) async {
     setState(() => _busy = true);
     final uid = await _prepareAlone();
     Position? me;
@@ -277,12 +280,17 @@ class _HomeScreenState extends State<HomeScreen> {
       _snack('Não foi possível obter sua posição pelo GPS');
       return;
     }
-    // Texto recebido (endereço ou destino falado) com um só resultado na
-    // busca: vai direto para a rota; com vários, mostra as opções.
+    // Texto recebido: com um só resultado na busca vai direto para a rota;
+    // com vários, mostra as opções. Destino falado: pega o melhor resultado
+    // (quem está pilotando não toca na lista); se não for o lugar certo,
+    // "Trocar" na prévia.
     final single = shared != null && !shared.hasCoords && shared.query != null
-        ? await _singleMatch(shared.query!, me)
+        ? await _matchFor(shared.query!, me, best: byVoice)
         : null;
     if (!mounted) return;
+    if (byVoice && single == null) {
+      _snack('Não encontrei "${shared?.query}". Escolha na lista.');
+    }
     final picked = shared != null && shared.hasCoords
         ? PickedPlace(shared.label ?? 'Local recebido', '', shared.lat!, shared.lng!)
         : single ?? await Navigator.of(context).push<PickedPlace>(
@@ -314,11 +322,12 @@ class _HomeScreenState extends State<HomeScreen> {
     ));
   }
 
-  /// O texto [q] tem um único lugar na busca? Devolve esse lugar.
-  Future<PickedPlace?> _singleMatch(String q, Position me) async {
+  /// Lugar da busca por [q]: o único resultado ou, com [best], o primeiro
+  /// (o mais relevante e próximo). Null se não houver.
+  Future<PickedPlace?> _matchFor(String q, Position me, {bool best = false}) async {
     final places = PlacesService();
     final r = await places.search(q, nearLat: me.latitude, nearLng: me.longitude);
-    if (r.length != 1) return null;
+    if (r.isEmpty || (r.length > 1 && !best)) return null;
     final d = await places.details(r.first);
     return d == null ? null : PickedPlace(d.name, d.address, d.lat, d.lng);
   }

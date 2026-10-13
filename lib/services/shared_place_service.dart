@@ -25,6 +25,10 @@ class SharedPlaceService {
   /// Texto recebido e ainda não usado (a tela inicial escuta).
   final pending = ValueNotifier<String?>(null);
 
+  /// O texto pendente é um destino falado ("UauGo, ir para"): a tela inicial
+  /// escolhe sozinha o melhor resultado, sem pedir toque.
+  bool fromVoice = false;
+
   /// Liga o canal e pega o que abriu o app, se for o caso.
   Future<void> init() async {
     _channel.setMethodCallHandler((call) async {

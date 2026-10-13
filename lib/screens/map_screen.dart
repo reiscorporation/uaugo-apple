@@ -3306,7 +3306,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     Navigator.of(context).pop();
     // A tela inicial pesquisa o destino (como um endereço recebido).
-    SharedPlaceService.instance.pending.value = text;
+    SharedPlaceService.instance
+      ..fromVoice = true
+      ..pending.value = text;
   }
 
   /// Rota em andamento: sair da tela pede confirmação.
