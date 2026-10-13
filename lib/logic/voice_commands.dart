@@ -2,8 +2,8 @@
 // voice_commands.dart — Frases dos comandos de voz (regras puras)
 //
 // O que faz: A lista FECHADA de frases que o reconhecimento aceita
-//   ("UauGo, radar", "sim", "não"...) e a conversão do resultado do Vosk
-//   em comando. Frases fora da lista viram "[unk]" e são ignoradas, assim
+//   ("UauGo, radar", "UauGo, ir para", "sim", "não"...) e a conversão do
+//   resultado do Vosk em comando. Frases fora da lista viram "[unk]" e são ignoradas, assim
 //   conversa e barulho do motor não disparam nada.
 // Quem usa: VoiceCommandService.
 // Onde mexer: Para um comando novo, inclua em [voiceAlertWords] (a palavra
@@ -49,6 +49,10 @@ const voiceMinConfidenceYesNo = 0.85;
 String voiceGrammar() => jsonEncode([
       for (final w in voiceAlertWords.keys) '$voiceWakeWord $w',
       '$voiceWakeWord cancelar',
+      // "UauGo, ir para ...": o destino (frase livre) vem depois, pelo
+      // reconhecimento do Google (opção "Pesquisa de trajeto por voz").
+      '$voiceWakeWord ir para',
+      '$voiceWakeWord ir para [unk]',
       '$voiceWakeWord [unk]',
       'uau [unk]',
       'uau que [unk]',
@@ -72,6 +76,12 @@ class ReportCommand extends VoiceCommand {
 /// "UauGo, cancelar": desfaz o último alerta marcado por voz.
 class CancelCommand extends VoiceCommand {
   const CancelCommand();
+}
+
+/// "UauGo, ir para": pesquisar um destino falando (o nome do lugar é
+/// ouvido em seguida pelo reconhecimento do Google).
+class GoToCommand extends VoiceCommand {
+  const GoToCommand();
 }
 
 /// "Sim" / "não": resposta à pergunta "ainda está lá?".
@@ -99,6 +109,15 @@ VoiceCommand? parseVoiceResult(String json) {
   // Ignora o "[unk]" ANTES do comando (silêncio/respiração no começo).
   while (words.isNotEmpty && words.first.word == '[unk]') {
     words.removeAt(0);
+  }
+  // "UauGo, ir para" (com ou sem o destino logo depois, que o Vosk não
+  // conhece e marca como [unk]): só as 4 palavras do comando contam.
+  const goTo = ['uau', 'go', 'ir', 'para'];
+  if (words.length >= goTo.length &&
+      [for (var i = 0; i < goTo.length; i++) words[i].word].join(' ') ==
+          goTo.join(' ') &&
+      words.take(goTo.length).every((w) => w.conf >= voiceMinConfidence)) {
+    return const GoToCommand();
   }
   final text = words.map((w) => w.word).join(' ').trim();
   if (text.isEmpty || text.contains('[unk]')) return null;

@@ -10,6 +10,9 @@
 //     (public/voz/) uma única vez.
 //   - Ouve só com o mapa aberto, e pausa enquanto o app está falando.
 //   - Por enquanto só no Android (no iPhone a opção não aparece).
+//   - "UauGo, ir para" (opção à parte, desligada): o destino é ouvido pelo
+//     reconhecimento do Google (precisa de internet; o áudio dessa frase
+//     vai para o Google).
 // Quem usa: MapScreen (comandos), SettingsScreen (ligar/desligar).
 // Onde mexer: Frases aceitas: lib/logic/voice_commands.dart.
 // ============================================================================
@@ -39,12 +42,16 @@ class VoiceCommandService {
   static const _modelName = 'vosk-model-small-pt-0.3';
   static const _modelPath = 'public/voz/$_modelName.zip';
   static const _kEnabled = 'voiceCommands';
+  static const _kRoute = 'voiceRoute';
 
   /// Disponível neste aparelho? (por enquanto, só Android)
   static bool get supported => !kIsWeb && Platform.isAndroid;
 
   /// Ligado pelo piloto (fica salvo no celular).
   final enabled = ValueNotifier<bool>(false);
+
+  /// "Pesquisa de trajeto por voz" (opcional, usa internet e o Google).
+  final routeByVoice = ValueNotifier<bool>(false);
   final status = ValueNotifier<VoiceCmdStatus>(VoiceCmdStatus.off);
 
   /// Progresso do download do modelo (0 a 1).
@@ -64,6 +71,7 @@ class VoiceCommandService {
     if (!supported) return;
     final p = await SharedPreferences.getInstance();
     enabled.value = p.getBool(_kEnabled) ?? false;
+    routeByVoice.value = p.getBool(_kRoute) ?? false;
     if (enabled.value && await _modelReady()) status.value = VoiceCmdStatus.ready;
   }
 
@@ -110,6 +118,31 @@ class VoiceCommandService {
     enabled.value = false;
     status.value = VoiceCmdStatus.off;
     (await SharedPreferences.getInstance()).setBool(_kEnabled, false);
+  }
+
+  /// Liga/desliga a pesquisa de trajeto por voz.
+  Future<void> setRouteByVoice(bool v) async {
+    routeByVoice.value = v;
+    (await SharedPreferences.getInstance()).setBool(_kRoute, v);
+  }
+
+  /// Ouve o destino com o reconhecimento de voz do Google (frase livre;
+  /// precisa de internet). O Vosk solta o microfone durante a escuta e volta
+  /// depois. Devolve o texto falado, ou null se nada foi entendido.
+  Future<String?> recognizeDestination() async {
+    final wasListening = _listening;
+    await stop();
+    try {
+      return await _method.invokeMethod<String>('recognize', {
+        'prompt': 'Para onde?',
+        'language': 'pt-BR',
+      });
+    } catch (e) {
+      debugPrint('Pesquisa por voz: $e');
+      return null;
+    } finally {
+      if (wasListening) await start();
+    }
   }
 
   /// Começa a ouvir (chamado pelo MapScreen ao abrir / voltar ao app).

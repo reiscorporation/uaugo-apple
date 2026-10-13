@@ -1,6 +1,6 @@
 # Política de Privacidade do UauGo
 
-Versão 1.8, de 13/10/2026 (a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano"; versão 1.7: o app passou a se chamar UauGo; nomes anteriores: "Convoyar", "RodaJunto" e "Comboio").
+Versão 1.9, de 13/10/2026 (pesquisa de trajeto por voz, opcional; versão 1.8: a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano"; versão 1.7: o app passou a se chamar UauGo; nomes anteriores: "Convoyar", "RodaJunto" e "Comboio").
 
 Esta Política explica quais dados pessoais o aplicativo **UauGo** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
@@ -35,6 +35,7 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 
 **Comandos de voz (opcional, desligado por padrão)**
 - Se você ligar em Configurações → Acessibilidade, o App usa o **microfone** com o mapa aberto para reconhecer comandos como "UauGo, radar" e as respostas "sim"/"não". O reconhecimento é feito **no próprio celular** (sem internet): **o áudio não é gravado, não é guardado e não sai do aparelho**. Só os comandos reconhecidos viram ações (por exemplo, um alerta). Você pode desligar a qualquer momento. Base legal: consentimento (art. 7º, I).
+- **Pesquisa de trajeto por voz (opcional, desligada):** se você ligar, ao dizer "UauGo, ir para" o App abre o **reconhecimento de voz do Google** para ouvir o destino. Só o áudio dessa frase é enviado ao **Google**, que o transforma em texto (sujeito à política de privacidade do Google); o App usa o texto apenas para pesquisar o lugar e não guarda o áudio. Precisa de internet. Base legal: consentimento (art. 7º, I).
 
 **Notificações**
 - Token de notificações do celular (Firebase Cloud Messaging). Finalidade: avisar SOS e paradas do grupo e mensagens do clube.

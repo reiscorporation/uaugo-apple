@@ -13,6 +13,8 @@ package helpaitech.comboio
 
 import android.Manifest
 import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
@@ -36,6 +38,7 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
 
     companion object {
         const val MIC_REQUEST = 4711
+        const val RECOGNIZE_REQUEST = 4712
         private const val SAMPLE_RATE = 16000f
     }
 
@@ -46,6 +49,7 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
     private var modelDir: String? = null
     private var service: SpeechService? = null
     private var micResult: MethodChannel.Result? = null
+    private var recognizeResult: MethodChannel.Result? = null
 
     init {
         MethodChannel(messenger, "rodajunto/voice").setMethodCallHandler(this)
@@ -80,6 +84,11 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
                 stop()
                 result.success(true)
             }
+            "recognize" -> recognize(
+                call.argument<String>("prompt") ?: "",
+                call.argument<String>("language") ?: "pt-BR",
+                result,
+            )
             else -> result.notImplemented()
         }
     }
@@ -156,4 +165,31 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
     // ---- EventChannel
     override fun onListen(arguments: Any?, sink: EventChannel.EventSink?) { events = sink }
     override fun onCancel(arguments: Any?) { events = null }
+
+    // "UauGo, ir para": destino falado (frase livre) pelo reconhecimento do
+    // Google, na janela do próprio Android. Precisa de internet.
+    private fun recognize(prompt: String, language: String, result: MethodChannel.Result) {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, prompt)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+        if (intent.resolveActivity(activity.packageManager) == null) {
+            result.error("recognize", "Reconhecimento de voz indisponível", null)
+            return
+        }
+        recognizeResult?.success(null)
+        recognizeResult = result
+        activity.startActivityForResult(intent, RECOGNIZE_REQUEST)
+    }
+
+    /// Resposta da janela de reconhecimento (MainActivity.onActivityResult).
+    fun onRecognized(resultCode: Int, data: Intent?) {
+        val text = if (resultCode == Activity.RESULT_OK) {
+            data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        } else null
+        recognizeResult?.success(text)
+        recognizeResult = null
+    }
 }

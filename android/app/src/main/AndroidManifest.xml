@@ -97,5 +97,7 @@
         <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="https"/></intent>
         <intent><action android:name="android.intent.action.DIAL"/><data android:scheme="tel"/></intent>
         <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>
+        <!-- "UauGo, ir para": reconhecimento de voz do Google (frase livre). -->
+        <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH"/></intent>
     </queries>
 </manifest>

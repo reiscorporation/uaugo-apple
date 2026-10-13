@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../brand.dart';
 import '../logic/shared_place.dart';
+import '../services/places_service.dart';
 import '../services/shared_place_service.dart';
 import '../models/bike.dart';
 import '../models/expedition.dart' show StopType;
@@ -276,9 +277,15 @@ class _HomeScreenState extends State<HomeScreen> {
       _snack('Não foi possível obter sua posição pelo GPS');
       return;
     }
+    // Texto recebido (endereço ou destino falado) com um só resultado na
+    // busca: vai direto para a rota; com vários, mostra as opções.
+    final single = shared != null && !shared.hasCoords && shared.query != null
+        ? await _singleMatch(shared.query!, me)
+        : null;
+    if (!mounted) return;
     final picked = shared != null && shared.hasCoords
         ? PickedPlace(shared.label ?? 'Local recebido', '', shared.lat!, shared.lng!)
-        : await Navigator.of(context).push<PickedPlace>(
+        : single ?? await Navigator.of(context).push<PickedPlace>(
             MaterialPageRoute(
               fullscreenDialog: true,
               builder: (_) => PlaceSearchPage(
@@ -305,6 +312,15 @@ class _HomeScreenState extends State<HomeScreen> {
         simulate: res.$1 == TripAction.simulate,
       ),
     ));
+  }
+
+  /// O texto [q] tem um único lugar na busca? Devolve esse lugar.
+  Future<PickedPlace?> _singleMatch(String q, Position me) async {
+    final places = PlacesService();
+    final r = await places.search(q, nearLat: me.latitude, nearLng: me.longitude);
+    if (r.length != 1) return null;
+    final d = await places.details(r.first);
+    return d == null ? null : PickedPlace(d.name, d.address, d.lat, d.lng);
   }
 
   /// Histórico de viagens (guardado só no celular).

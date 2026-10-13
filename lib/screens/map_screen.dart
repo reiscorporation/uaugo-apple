@@ -22,6 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../logic/voice_commands.dart';
+import '../services/shared_place_service.dart';
 import '../logic/geo.dart';
 import '../models/bike.dart';
 import '../models/expedition.dart';
@@ -1414,7 +1415,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           _lastVoiceReport = null;
           _voice.reply('Alerta de ${mine.type.spoken} cancelado.');
         }
+      case GoToCommand():
+        await _voiceGoTo();
       case AnswerCommand(:final yes):
+        // Resposta à pergunta "Trocar a rota?" (destino falado).
+        final confirm = _voiceConfirmCtx;
+        if (confirm != null && confirm.mounted) {
+          Navigator.of(confirm).pop(yes);
+          return;
+        }
         final h = _askHazard ??
             (_shownHazard != null &&
                     _shownHazard!.createdBy != widget.uid &&
@@ -3213,6 +3222,56 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ]))),
       ]),
     ));
+  }
+
+  /// Diálogo "Trocar a rota?" aberto (aceita "sim"/"não" por voz).
+  BuildContext? _voiceConfirmCtx;
+
+  /// "UauGo, ir para": ouve o destino (Google) e leva ao "Para onde?" da
+  /// tela inicial já pesquisando. Navegando, pergunta antes de trocar a rota.
+  Future<void> _voiceGoTo() async {
+    if (_isExpedition) {
+      _voice.reply('No comboio, o destino segue o roteiro do grupo.');
+      return;
+    }
+    if (!_voiceCmd.routeByVoice.value) {
+      _voice.reply('Ligue a pesquisa de trajeto por voz nas configurações.');
+      return;
+    }
+    final text = (await _voiceCmd.recognizeDestination())?.trim();
+    if (!mounted) return;
+    if (text == null || text.isEmpty) {
+      _voice.reply('Não entendi o destino.');
+      return;
+    }
+    if (_confirmExit) {
+      _voice.reply('Trocar a rota para $text? Diga sim ou não.');
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          _voiceConfirmCtx = ctx;
+          return AlertDialog(
+            title: const Text('Trocar a rota?'),
+            content: Text('Novo destino: "$text".\nA rota atual será encerrada.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Não')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Sim, trocar')),
+            ],
+          );
+        },
+      );
+      _voiceConfirmCtx = null;
+      if (ok != true || !mounted) return;
+    }
+    await _voice.stop();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    // A tela inicial pesquisa o destino (como um endereço recebido).
+    SharedPlaceService.instance.pending.value = text;
   }
 
   /// Rota em andamento: sair da tela pede confirmação.

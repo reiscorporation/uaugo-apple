@@ -31,6 +31,14 @@ void main() {
       expect(parseVoiceResult(vosk('uau go cancelar')), isA<CancelCommand>());
     });
 
+    test('"UauGo, ir para" (com ou sem o destino logo depois)', () {
+      expect(parseVoiceResult(vosk('uau go ir para')), isA<GoToCommand>());
+      expect(parseVoiceResult(vosk('uau go ir para [unk]')), isA<GoToCommand>());
+      expect(parseVoiceResult(vosk('[unk] uau go ir para')), isA<GoToCommand>());
+      expect(parseVoiceResult(vosk('uau go ir para', 0.4)), isNull);
+      expect(voiceGrammar(), contains('uau go ir para'));
+    });
+
     test('[unk] no começo (silêncio antes de falar) é ignorado', () {
       final c = parseVoiceResult(vosk('[unk] uau go lombada'));
       expect((c as ReportCommand).type, HazardType.bump);
