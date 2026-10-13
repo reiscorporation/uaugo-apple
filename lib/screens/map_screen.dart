@@ -550,6 +550,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     for (final s in [..._subs, ..._fireSubs]) {
       s.cancel();
     }
+    _voiceCmd.cancelDestination();
     _voiceCmd.stop();
     _gpsSub?.cancel();
     BatteryService.instance.saving.removeListener(_onSavingChanged);
@@ -2857,6 +2858,40 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               )
             else
               _nextTurnCard(),
+            // "UauGo, ir para": ouvindo o destino (e o que já entendeu).
+            ValueListenableBuilder<bool>(
+              valueListenable: _voiceCmd.destListening,
+              builder: (_, listening, __) => !listening
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Material(
+                        color: Theme.of(context).colorScheme.primary,
+                        elevation: 6,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: ValueListenableBuilder<String>(
+                            valueListenable: _voiceCmd.destHeard,
+                            builder: (_, heard, __) => Row(children: [
+                              const Icon(Icons.mic, color: Colors.white),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                    heard.isEmpty
+                                        ? 'Ouvindo destino… fale agora'
+                                        : '“$heard”',
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold)),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
             if (_trafficBanner != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),

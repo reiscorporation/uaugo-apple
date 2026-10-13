@@ -672,9 +672,10 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
               secondary: const Icon(Icons.record_voice_over),
               title: const Text('Pesquisa de trajeto por voz'),
               subtitle: Text(
-                  'Diga "$voiceWakeDisplay, ir para" e fale o destino. Usa o '
-                  'reconhecimento de voz do Google: precisa de internet, gasta '
-                  'dados e o áudio dessa frase vai para o Google.'),
+                  'Diga "$voiceWakeDisplay, ir para", espere o bipe e fale o '
+                  'destino. Usa o reconhecimento do próprio celular quando ele '
+                  'oferece; senão, o do Google (precisa de internet e o áudio '
+                  'dessa frase vai para o Google).'),
               value: route,
               onChanged: _svc.setRouteByVoice,
             ),

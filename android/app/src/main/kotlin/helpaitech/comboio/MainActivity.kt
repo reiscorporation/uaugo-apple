@@ -33,15 +33,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // Destino falado ("UauGo, ir para"): resposta da janela do Google.
-    @Deprecated("Usado pelo reconhecimento de voz do Android")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == VoiceCommands.RECOGNIZE_REQUEST) {
-            voice?.onRecognized(resultCode, data)
-        }
-    }
-
     override fun onDestroy() {
         voice?.shutdown()
         super.onDestroy()

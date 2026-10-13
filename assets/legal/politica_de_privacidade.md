@@ -35,7 +35,7 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 
 **Comandos de voz (opcional, desligado por padrão)**
 - Se você ligar em Configurações → Acessibilidade, o App usa o **microfone** com o mapa aberto para reconhecer comandos como "UauGo, radar" e as respostas "sim"/"não". O reconhecimento é feito **no próprio celular** (sem internet): **o áudio não é gravado, não é guardado e não sai do aparelho**. Só os comandos reconhecidos viram ações (por exemplo, um alerta). Você pode desligar a qualquer momento. Base legal: consentimento (art. 7º, I).
-- **Pesquisa de trajeto por voz (opcional, desligada):** se você ligar, ao dizer "UauGo, ir para" o App abre o **reconhecimento de voz do Google** para ouvir o destino. Só o áudio dessa frase é enviado ao **Google**, que o transforma em texto (sujeito à política de privacidade do Google); o App usa o texto apenas para pesquisar o lugar e não guarda o áudio. Precisa de internet. Base legal: consentimento (art. 7º, I).
+- **Pesquisa de trajeto por voz (opcional, desligada):** se você ligar, ao dizer "UauGo, ir para" o App ouve o destino com o **reconhecimento de voz do Android**. Quando o celular oferece reconhecimento no próprio aparelho, o áudio **não sai do celular**; se não oferecer, o áudio dessa frase é enviado ao **Google**, que o transforma em texto (sujeito à política de privacidade do Google). O App usa o texto apenas para pesquisar o lugar e não guarda o áudio. Base legal: consentimento (art. 7º, I).
 
 **Notificações**
 - Token de notificações do celular (Firebase Cloud Messaging). Finalidade: avisar SOS e paradas do grupo e mensagens do clube.

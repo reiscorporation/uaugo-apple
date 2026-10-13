@@ -10,9 +10,11 @@
 //     (public/voz/) uma única vez.
 //   - Ouve só com o mapa aberto, e pausa enquanto o app está falando.
 //   - Por enquanto só no Android (no iPhone a opção não aparece).
-//   - "UauGo, ir para" (opção à parte, desligada): o destino é ouvido pelo
-//     reconhecimento do Google (precisa de internet; o áudio dessa frase
-//     vai para o Google).
+//   - "UauGo, ir para" (opção à parte, desligada): logo depois de um bipe,
+//     o destino é ouvido pelo reconhecimento do próprio Android, dentro do
+//     app — no aparelho quando ele oferece (sem internet, o áudio não sai
+//     do celular), senão o do Google (internet; o áudio dessa frase vai para
+//     o Google).
 // Quem usa: MapScreen (comandos), SettingsScreen (ligar/desligar).
 // Onde mexer: Frases aceitas: lib/logic/voice_commands.dart.
 // ============================================================================
@@ -50,8 +52,14 @@ class VoiceCommandService {
   /// Ligado pelo piloto (fica salvo no celular).
   final enabled = ValueNotifier<bool>(false);
 
-  /// "Pesquisa de trajeto por voz" (opcional, usa internet e o Google).
+  /// "Pesquisa de trajeto por voz" (opcional).
   final routeByVoice = ValueNotifier<bool>(false);
+
+  /// Ouvindo o destino agora (o mapa mostra "Ouvindo destino…").
+  final destListening = ValueNotifier<bool>(false);
+
+  /// O que já foi entendido do destino (texto parcial, enquanto fala).
+  final destHeard = ValueNotifier<String>('');
   final status = ValueNotifier<VoiceCmdStatus>(VoiceCmdStatus.off);
 
   /// Progresso do download do modelo (0 a 1).
@@ -126,23 +134,38 @@ class VoiceCommandService {
     (await SharedPreferences.getInstance()).setBool(_kRoute, v);
   }
 
-  /// Ouve o destino com o reconhecimento de voz do Google (frase livre;
-  /// precisa de internet). O Vosk solta o microfone durante a escuta e volta
-  /// depois. Devolve o texto falado, ou null se nada foi entendido.
+  /// Ouve o destino (frase livre) logo após um bipe, dentro do app. O Vosk
+  /// solta o microfone durante a escuta e volta depois. Devolve o texto
+  /// falado, ou null se nada foi entendido.
   Future<String?> recognizeDestination() async {
     final wasListening = _listening;
     await stop();
+    _method.setMethodCallHandler((call) async {
+      if (call.method == 'destPartial') destHeard.value = call.arguments as String;
+      if (call.method == 'destListening') {
+        debugPrint('Destino por voz: ouvindo (${call.arguments})');
+      }
+    });
+    destHeard.value = '';
+    destListening.value = true;
     try {
-      return await _method.invokeMethod<String>('recognize', {
-        'prompt': 'Para onde?',
+      return await _method.invokeMethod<String>('listenDestination', {
         'language': 'pt-BR',
       });
     } catch (e) {
       debugPrint('Pesquisa por voz: $e');
       return null;
     } finally {
+      destListening.value = false;
       if (wasListening) await start();
     }
+  }
+
+  /// Cancela a escuta do destino (ex.: o piloto saiu do mapa).
+  Future<void> cancelDestination() async {
+    try {
+      await _method.invokeMethod('cancelDestination');
+    } catch (_) {}
   }
 
   /// Começa a ouvir (chamado pelo MapScreen ao abrir / voltar ao app).
