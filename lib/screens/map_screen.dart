@@ -1422,6 +1422,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         await _voiceGoTo();
       case FindCommand():
         await _voiceFind(cmd);
+      case WakeCommand():
+        break; // tratado no VoiceCommandService (bipe e espera o comando)
       case AnswerCommand(:final yes):
         // Resposta à pergunta "Trocar a rota?" (destino falado).
         final confirm = _voiceConfirmCtx;
@@ -2890,7 +2892,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                               Expanded(
                                 child: Text(
                                     heard.isEmpty
-                                        ? 'Ouvindo destino… fale agora'
+                                        ? _voiceCmd.destPrompt.value
                                         : '“$heard”',
                                     style: const TextStyle(
                                         color: Colors.white,
@@ -3279,10 +3281,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Procura o lugar: navegando, ao longo da rota e só o que está à frente;
   /// sem rota, perto. Fala o mais próximo e pergunta se inclui como parada.
   Future<void> _voiceFind(FindCommand c) async {
-    final cat = c.category;
+    var cat = c.category;
+    String? text;
     if (cat == null) {
-      _voice.reply('Diga, por exemplo: $voiceWakeDisplay, procurar posto.');
-      return;
+      // Fora da lista ("procurar pizzaria"...): ouve o pedido livre.
+      final said = await _voiceCmd.listenFree('O que você procura? Fale agora');
+      if (!mounted) return;
+      if (said == null || said.trim().isEmpty) {
+        _voice.reply('Não entendi. Diga, por exemplo: $voiceWakeDisplay, procurar posto.');
+        return;
+      }
+      text = cleanFindQuery(said);
+      cat = findWords[text.toLowerCase()];
+      if (cat != null) text = null;
     }
     if (_sim != null) {
       _voice.reply('Na simulação a busca de lugares fica desligada.');
@@ -3293,13 +3304,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _voice.reply('Ainda sem a sua posição pelo GPS.');
       return;
     }
-    final what = '${cat.spoken}${c.cheap ? ' barato' : ''}';
-    _lastFindSpoken = cat.spoken;
+    final what = '${cat?.spoken ?? text}${c.cheap ? ' barato' : ''}';
+    _lastFindSpoken = cat?.spoken;
     _voice.reply('Procurando $what.');
     final trip = _trip, w = _walker, pr = _proj;
     final onRoute = _navigating && trip != null && w != null && pr != null &&
         pr.offset < 250 && trip.plan.polyline.isNotEmpty;
     final r = await PlacesService().find(cat,
+        text: text,
         cheap: c.cheap,
         lat: p.latitude,
         lng: p.longitude,
@@ -3375,14 +3387,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _stopArrived.contains(trip.stops[next].id)) {
       next++;
     }
-    final cat = FindCategory.values.firstWhere(
-        (c) => c.spoken == _lastFindSpoken,
-        orElse: () => FindCategory.fuel);
+    final stopType = FindCategory.values
+            .where((c) => c.spoken == _lastFindSpoken)
+            .firstOrNull
+            ?.stopType ??
+        StopType.waypoint;
     final nt = await TripService.build(
       title: trip.title,
       points: [
         TripPoint('Sua posição', p.latitude, p.longitude, type: StopType.meet),
-        TripPoint(f.name, f.lat, f.lng, type: cat.stopType),
+        TripPoint(f.name, f.lat, f.lng, type: stopType),
         for (final s in trip.stops.skip(next))
           TripPoint(s.name, s.lat, s.lng, type: s.type),
       ],

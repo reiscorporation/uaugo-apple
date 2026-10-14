@@ -43,25 +43,40 @@ const voiceAlertWords = <String, HazardType>{
 const voiceMinConfidence = 0.6;
 const voiceMinConfidenceYesNo = 0.85;
 
+/// Os comandos, sem a palavra de ativação ("radar", "procurar posto"...).
+List<String> _commandPhrases() => [
+      for (final w in voiceAlertWords.keys) w,
+      'cancelar',
+      // "ir para ...": o destino (frase livre) é ouvido depois do bipe
+      // (opção "Pesquisa de trajeto por voz").
+      'ir para',
+      'ir para [unk]',
+      // "procurar posto" / "... restaurante barato" / "procurar" + outra coisa.
+      for (final v in findVerbs) ...[
+        for (final e in findWords.entries) ...[
+          '$v ${e.key}',
+          if (e.value.hasPrice) '$v ${e.key} barato',
+        ],
+        v,
+        '$v [unk]',
+      ],
+      // Depois de "UauGo" + pausa: só a categoria ("restaurante").
+      for (final e in findWords.entries) ...[
+        e.key,
+        if (e.value.hasPrice) '${e.key} barato',
+      ],
+    ];
+
 /// Lista de frases para o reconhecedor (formato JSON do Vosk). As frases com
 /// "[unk]" dão um caminho para exclamações ("uau, que paisagem linda"):
 /// sem elas, o motor forçava o resto da frase num comando ("uau neblina").
+/// O Vosk separa a frase numa pausa: "UauGo" ... "procurar posto" chegam
+/// separados. Por isso os comandos também valem SEM a palavra de ativação,
+/// mas só nos segundos depois de um "UauGo" sozinho (VoiceCommandService).
 /// Testado com voz sintética + ruído de motor: nenhum disparo falso.
 String voiceGrammar() => jsonEncode([
-      for (final w in voiceAlertWords.keys) '$voiceWakeWord $w',
-      '$voiceWakeWord cancelar',
-      // "UauGo, ir para ...": o destino (frase livre) vem depois, pelo
-      // reconhecimento do Google (opção "Pesquisa de trajeto por voz").
-      '$voiceWakeWord ir para',
-      '$voiceWakeWord ir para [unk]',
-      // "UauGo, procurar posto" / "... restaurante barato".
-      for (final v in findVerbs) ...[
-        for (final e in findWords.entries) ...[
-          '$voiceWakeWord $v ${e.key}',
-          if (e.value.hasPrice) '$voiceWakeWord $v ${e.key} barato',
-        ],
-        '$voiceWakeWord $v [unk]',
-      ],
+      voiceWakeWord,
+      for (final c in _commandPhrases()) ...['$voiceWakeWord $c', c],
       '$voiceWakeWord [unk]',
       'uau [unk]',
       'uau que [unk]',
@@ -101,6 +116,16 @@ class FindCommand extends VoiceCommand {
   const FindCommand(this.category, {this.cheap = false});
 }
 
+/// "UauGo" sozinho (ou "UauGo, procurar"): o app bipa e espera o comando
+/// por alguns segundos ([find]: já sabe que é uma busca).
+class WakeCommand extends VoiceCommand {
+  final bool find;
+  const WakeCommand({this.find = false});
+}
+
+/// Depois de um "UauGo" sozinho: o que veio é o resto do comando.
+enum VoiceContext { wake, find }
+
 /// "Sim" / "não": resposta à pergunta "ainda está lá?".
 class AnswerCommand extends VoiceCommand {
   final bool yes;
@@ -108,8 +133,9 @@ class AnswerCommand extends VoiceCommand {
 }
 
 /// Converte o resultado do Vosk (`{"text": ..., "result": [{"conf": ...}]}`)
-/// em comando, ou null se não for um comando claro.
-VoiceCommand? parseVoiceResult(String json) {
+/// em comando, ou null se não for um comando claro. Com [context] (logo
+/// depois de um "UauGo" sozinho), a frase vale sem a palavra de ativação.
+VoiceCommand? parseVoiceResult(String json, {VoiceContext? context}) {
   final Map<String, dynamic> r;
   try {
     r = jsonDecode(json) as Map<String, dynamic>;
@@ -124,8 +150,32 @@ VoiceCommand? parseVoiceResult(String json) {
       ),
   ];
   // Ignora o "[unk]" ANTES do comando (silêncio/respiração no começo).
+  final hadUnk = words.any((w) => w.word == '[unk]');
   while (words.isNotEmpty && words.first.word == '[unk]') {
     words.removeAt(0);
+  }
+  // Depois de "UauGo, procurar" + pausa, uma palavra fora da lista: pergunta.
+  if (words.isEmpty) {
+    return context == VoiceContext.find && hadUnk ? const FindCommand(null) : null;
+  }
+  final sure = words.every((w) => w.conf >= voiceMinConfidence);
+  final plain = words.map((w) => w.word).join(' ');
+  // "UauGo" sozinho / "UauGo, procurar" (pausa no meio da frase).
+  if (sure && plain == voiceWakeWord) return const WakeCommand();
+  if (sure && findVerbs.any((v) => plain == '$voiceWakeWord $v')) {
+    return const WakeCommand(find: true);
+  }
+  final isWake = words.length >= 2 && words[0].word == 'uau' && words[1].word == 'go';
+  if (context != null && !isWake && plain != 'sim' && plain != 'não') {
+    // Logo depois do "UauGo": completa a frase ("restaurante" ->
+    // "uau go procurar restaurante"; "radar" -> "uau go radar").
+    final verb = context == VoiceContext.find ||
+            findWords.containsKey(plain.replaceAll(' barato', ''))
+        ? (findVerbs.contains(words.first.word) ? <String>[] : ['procurar'])
+        : <String>[];
+    words.insertAll(0, [
+      for (final w in ['uau', 'go', ...verb]) (word: w, conf: 1.0),
+    ]);
   }
   // "UauGo, ir para" (com ou sem o destino logo depois, que o Vosk não
   // conhece e marca como [unk]): só as 4 palavras do comando contam.

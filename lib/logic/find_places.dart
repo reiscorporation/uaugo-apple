@@ -27,7 +27,15 @@ enum FindCategory {
   pharmacy('farmácia', StopType.waypoint),
   hospital('hospital', StopType.waypoint),
   atm('caixa eletrônico', StopType.waypoint),
-  market('supermercado', StopType.waypoint);
+  market('supermercado', StopType.waypoint),
+  pizza('pizzaria', StopType.food),
+  bbq('churrascaria', StopType.food),
+  burger('hamburgueria', StopType.food),
+  icecream('sorveteria', StopType.rest),
+  acai('açaí', StopType.rest),
+  bar('bar', StopType.rest),
+  parking('estacionamento', StopType.waypoint),
+  carwash('lava-rápido', StopType.waypoint);
 
   const FindCategory(this.spoken, this.stopType);
 
@@ -38,7 +46,15 @@ enum FindCategory {
   final StopType stopType;
 
   /// Categorias em que "barato" faz sentido.
-  bool get hasPrice => this == food || this == snack || this == lodging || this == cafe;
+  bool get hasPrice =>
+      this == food ||
+      this == snack ||
+      this == lodging ||
+      this == cafe ||
+      this == pizza ||
+      this == bbq ||
+      this == burger ||
+      this == bar;
 }
 
 /// Palavra falada -> categoria ("UauGo, procurar <palavra>").
@@ -65,7 +81,30 @@ const findWords = <String, FindCategory>{
   'caixa eletrônico': FindCategory.atm,
   'mercado': FindCategory.market,
   'supermercado': FindCategory.market,
+  'pizza': FindCategory.pizza,
+  'pizzaria': FindCategory.pizza,
+  'churrascaria': FindCategory.bbq,
+  'churrasco': FindCategory.bbq,
+  'hamburguer': FindCategory.burger,
+  'sorvete': FindCategory.icecream,
+  'sorveteria': FindCategory.icecream,
+  'açaí': FindCategory.acai,
+  'bar': FindCategory.bar,
+  'estacionamento': FindCategory.parking,
+  'lavagem': FindCategory.carwash,
 };
+
+/// Tira do começo do pedido livre ("o que você procura?") as palavras que
+/// não ajudam a busca: "procurar uma pizzaria" -> "pizzaria".
+String cleanFindQuery(String spoken) {
+  final m = RegExp(
+          r'^((uau ?go|procurar|procura|encontrar|achar|quero|preciso de|tem)\s+)*'
+          r'((um|uma|o|a|algum|alguma)\s+)?',
+          caseSensitive: false)
+      .firstMatch(spoken.trim());
+  final t = spoken.trim().substring(m?.end ?? 0).trim();
+  return t.isEmpty ? spoken.trim() : t;
+}
 
 /// Verbos aceitos antes da categoria ("procurar posto", "procura posto").
 const findVerbs = ['procurar', 'procura'];

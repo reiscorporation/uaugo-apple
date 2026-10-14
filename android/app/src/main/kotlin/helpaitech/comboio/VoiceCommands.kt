@@ -95,6 +95,10 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
             }
             "listenDestination" -> listenDestination(
                 call.argument<String>("language") ?: "pt-BR", result)
+            "beep" -> {
+                beep()
+                result.success(true)
+            }
             "cancelDestination" -> {
                 finishDestination(null)
                 result.success(true)

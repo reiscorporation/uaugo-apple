@@ -12,7 +12,8 @@
  * - places:     { action: "autocomplete", input, sessionToken, lat?, lng? }
  *               { action: "details", placeId, sessionToken }
  *               { action: "find", category, cheap?, openNow?, lat, lng,
- *                 polyline? }  ->  lugares de um tipo perto ou NO CAMINHO
+ *                 polyline?, text? }  ->  lugares de um tipo perto ou NO
+ *                 CAMINHO; category "text" = o que o piloto falou ("pizzaria")
  *                 ("UauGo, procurar posto"); limite próprio (LIMITS.find).
  */
 
@@ -39,6 +40,14 @@ const FIND = {
   hospital: { q: "hospital", type: "hospital" },
   atm: { q: "caixa eletrônico", type: "atm" },
   market: { q: "supermercado", type: "supermarket" },
+  pizza: { q: "pizzaria", type: "pizza_restaurant" },
+  bbq: { q: "churrascaria", type: null },
+  burger: { q: "hamburgueria", type: "hamburger_restaurant" },
+  icecream: { q: "sorveteria", type: "ice_cream_shop" },
+  acai: { q: "açaí", type: null },
+  bar: { q: "bar", type: "bar" },
+  parking: { q: "estacionamento", type: "parking" },
+  carwash: { q: "lava-rápido", type: "car_wash" },
 };
 const POLYLINE = /^[\x3f-\x7e]{2,100000}$/; // caracteres de polilinha codificada
 
@@ -154,7 +163,10 @@ async function places(req) {
  * sem rota, perto do piloto, do mais próximo ao mais longe.
  */
 async function find(uid, d) {
-  const cat = FIND[d.category];
+  // "text": pedido livre falado ("loja de moto"); só o texto, sem tipo.
+  const free = d.category === "text" && typeof d.text === "string" &&
+    d.text.trim().length >= 2 && d.text.length <= 80;
+  const cat = free ? { q: d.text.trim(), type: null } : FIND[d.category];
   const { lat, lng, polyline } = d;
   if (!cat || typeof lat !== "number" || typeof lng !== "number" ||
       Math.abs(lat) > 90 || Math.abs(lng) > 180) {

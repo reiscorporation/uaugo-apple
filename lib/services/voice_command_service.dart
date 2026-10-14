@@ -72,6 +72,11 @@ class VoiceCommandService {
 
   StreamSubscription? _results;
   bool _listening = false;
+
+  /// "UauGo" sozinho: os próximos segundos valem como o resto do comando.
+  VoiceContext? _wakeCtx;
+  DateTime _wakeUntil = DateTime(2000);
+  static const _wakeWindow = Duration(seconds: 6);
   DateTime _quietUntil = DateTime(2000);
 
   /// Lê se o piloto ligou a função.
@@ -134,10 +139,39 @@ class VoiceCommandService {
     (await SharedPreferences.getInstance()).setBool(_kRoute, v);
   }
 
+  /// O que a faixa do mapa diz enquanto ouve a frase livre.
+  final destPrompt = ValueNotifier<String>('Ouvindo destino… fale agora');
+
+  /// Ouve uma frase livre (destino ou "o que você procura?") logo após um
+  /// bipe, dentro do app. O Vosk solta o microfone durante a escuta e volta
+  /// depois. Devolve o texto falado, ou null se nada foi entendido.
+  Future<String?> listenFree(String prompt) async {
+    destPrompt.value = prompt;
+    final wasListening = _listening;
+    await stop();
+    _method.setMethodCallHandler((call) async {
+      if (call.method == 'destPartial') destHeard.value = call.arguments as String;
+    });
+    destHeard.value = '';
+    destListening.value = true;
+    try {
+      return await _method.invokeMethod<String>('listenDestination', {
+        'language': 'pt-BR',
+      });
+    } catch (e) {
+      debugPrint('Frase livre por voz: $e');
+      return null;
+    } finally {
+      destListening.value = false;
+      if (wasListening) await start();
+    }
+  }
+
   /// Ouve o destino (frase livre) logo após um bipe, dentro do app. O Vosk
   /// solta o microfone durante a escuta e volta depois. Devolve o texto
   /// falado, ou null se nada foi entendido.
   Future<String?> recognizeDestination() async {
+    destPrompt.value = 'Ouvindo destino… fale agora';
     final wasListening = _listening;
     await stop();
     _method.setMethodCallHandler((call) async {
@@ -216,8 +250,19 @@ class VoiceCommandService {
         DateTime.now().isBefore(_quietUntil)) {
       return;
     }
-    final cmd = parseVoiceResult(json);
+    final ctx = DateTime.now().isBefore(_wakeUntil) ? _wakeCtx : null;
+    final cmd = parseVoiceResult(json, context: ctx);
     if (kDebugMode) debugPrint('Voz ouviu: $json -> ${cmd?.runtimeType}');
-    if (cmd != null) _commands.add(cmd);
+    if (cmd is WakeCommand) {
+      // Bipe: "pode falar o comando".
+      _wakeCtx = cmd.find ? VoiceContext.find : VoiceContext.wake;
+      _wakeUntil = DateTime.now().add(_wakeWindow);
+      _method.invokeMethod('beep').catchError((_) => null);
+      return;
+    }
+    if (cmd != null) {
+      _wakeUntil = DateTime(2000);
+      _commands.add(cmd);
+    }
   }
 }

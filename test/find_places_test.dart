@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' as io;
 
 import 'package:comboio/logic/find_places.dart';
 import 'package:comboio/logic/voice_commands.dart';
@@ -57,5 +58,36 @@ void main() {
     final r = rankFound([place('b', 2), place('a', 1)],
         distanceTo: (lat, _) => lat * 1000);
     expect(r.map((f) => f.name), ['a', 'b']);
+  });
+
+  test('"UauGo" + pausa: bipa e o comando seguinte vale sem a palavra de ativação', () {
+    expect(parseVoiceResult(vosk('uau go')), isA<WakeCommand>());
+    expect((parseVoiceResult(vosk('uau go procurar')) as WakeCommand).find, isTrue);
+    const w = VoiceContext.wake;
+    final r = parseVoiceResult(vosk('restaurante'), context: w) as FindCommand;
+    expect(r.category, FindCategory.food);
+    final b = parseVoiceResult(vosk('pizzaria barato'), context: w) as FindCommand;
+    expect(b.category, FindCategory.pizza);
+    expect(b.cheap, isTrue);
+    expect(parseVoiceResult(vosk('procurar posto'), context: w), isA<FindCommand>());
+    expect(parseVoiceResult(vosk('ir para'), context: w), isA<GoToCommand>());
+    expect(parseVoiceResult(vosk('radar'), context: w), isA<ReportCommand>());
+    // Sem o "UauGo" antes, a mesma palavra não faz nada.
+    expect(parseVoiceResult(vosk('restaurante')), isNull);
+    expect(parseVoiceResult(vosk('radar')), isNull);
+    // "UauGo, procurar" + algo fora da lista: pergunta o que procura.
+    final f = parseVoiceResult(vosk('[unk]'), context: VoiceContext.find) as FindCommand;
+    expect(f.category, isNull);
+    // "sim"/"não" continuam respostas.
+    expect(parseVoiceResult(vosk('sim'), context: w), isA<AnswerCommand>());
+  });
+
+  test('pedido livre: tira "procurar uma" do começo', () {
+    expect(cleanFindQuery('procurar uma pizzaria'), 'pizzaria');
+    expect(cleanFindQuery('loja de moto'), 'loja de moto');
+  });
+
+  test('gramática completa para conferir no modelo de voz', () {
+    io.File('build/voice_grammar.json').writeAsStringSync(voiceGrammar());
   });
 }
