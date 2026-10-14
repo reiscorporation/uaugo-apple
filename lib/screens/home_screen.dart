@@ -304,6 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
           );
     if (picked == null || !mounted) return;
     final res = await TripPreviewSheet.show(context,
+        autoStart: byVoice,
         title: picked.name,
         points: [
           TripPoint('Sua posição', me.latitude, me.longitude,

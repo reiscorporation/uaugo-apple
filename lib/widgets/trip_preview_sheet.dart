@@ -9,6 +9,8 @@
 // Quem usa: Home ("Para onde?").
 // ============================================================================
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -24,6 +26,7 @@ import 'place_search.dart';
 import '../services/app_settings.dart';
 import '../services/profile_service.dart';
 import '../services/toll_service.dart';
+import '../services/voice_service.dart';
 import '../services/trip_service.dart';
 
 /// O que o piloto escolheu na prévia da viagem.
@@ -32,18 +35,28 @@ enum TripAction { start, simulate }
 /// Prévia da navegação sozinho: distância, tempo, opções e os botões
 /// "Simular" e "Iniciar". Recalcula ao mudar as opções.
 class TripPreviewSheet extends StatefulWidget {
-  const TripPreviewSheet({super.key, required this.title, required this.points});
+  const TripPreviewSheet(
+      {super.key,
+      required this.title,
+      required this.points,
+      this.autoStart = false});
 
   final String title;
   final List<TripPoint> points;
+  final bool autoStart;
 
   /// Mostra a prévia e devolve (ação, viagem) ou null se cancelar.
+  /// [autoStart] (destino escolhido por voz): calculada a rota, fala o
+  /// destino e o tempo e inicia sozinha em 5 s (dá para cancelar).
   static Future<(TripAction, Trip)?> show(BuildContext context,
-          {required String title, required List<TripPoint> points}) =>
+          {required String title,
+          required List<TripPoint> points,
+          bool autoStart = false}) =>
       showModalBottomSheet<(TripAction, Trip)>(
         context: context,
         isScrollControlled: true,
-        builder: (_) => TripPreviewSheet(title: title, points: points),
+        builder: (_) => TripPreviewSheet(
+            title: title, points: points, autoStart: autoStart),
       );
 
   @override
@@ -66,6 +79,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
 
   /// Troca o ponto de saída (busca um lugar por nome ou volta ao GPS).
   Future<void> _changeOrigin() async {
+    _cancelAuto();
     final here = widget.points.first;
     final picked = await Navigator.of(context).push<PickedPlace>(
       MaterialPageRoute(
@@ -90,6 +104,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
 
   /// Adiciona uma parada no caminho (fica antes do destino). Até 10 paradas.
   Future<void> _addStop() async {
+    _cancelAuto();
     final ref = _points[_points.length - 2]; // busca perto do último ponto
     final picked = await Navigator.of(context).push<PickedPlace>(
       MaterialPageRoute(
@@ -106,6 +121,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
 
   /// Remove a parada [i] (1 = primeira parada depois da saída).
   void _removeStop(int i) {
+    _cancelAuto();
     setState(() => _points.removeAt(i));
     _calc();
   }
@@ -142,8 +158,47 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     setState(() => _tollCost = estimateTolls(table.onRoute(line), _bike));
   }
 
+  // ---- Início automático (destino por voz)
+  late bool _autoArmed = widget.autoStart;
+  int? _countdown;
+  Timer? _autoTimer;
+
+  /// Rota pronta: fala o destino e conta 5 s para iniciar.
+  void _startCountdown(Trip t) {
+    final min = (t.durationS / 60).round();
+    VoiceService.instance.reply('Rota para ${widget.title}: '
+        '${min < 60 ? '$min minutos' : '${min ~/ 60} horas e ${min % 60} minutos'}. '
+        'Iniciando.');
+    setState(() => _countdown = 5);
+    _autoTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return timer.cancel();
+      final c = (_countdown ?? 1) - 1;
+      if (c <= 0) {
+        timer.cancel();
+        Navigator.pop(context, (TripAction.start, t));
+      } else {
+        setState(() => _countdown = c);
+      }
+    });
+  }
+
+  /// O piloto mexeu na prévia (ou tocou em "Cancelar"): não inicia sozinho.
+  void _cancelAuto() {
+    _autoArmed = false;
+    _autoTimer?.cancel();
+    if (_countdown != null && mounted) setState(() => _countdown = null);
+  }
+
+  @override
+  void dispose() {
+    _autoTimer?.cancel();
+    super.dispose();
+  }
+
   /// Calcula a rota com as opções escolhidas.
   Future<void> _calc() async {
+    // Recalcular (opção trocada) depois de armado = o piloto mexeu: cancela.
+    if (_countdown != null) _cancelAuto();
     setState(() => _loading = true);
     final t = await TripService.build(
       title: widget.title,
@@ -158,6 +213,10 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
       _loading = false;
     });
     _calcTolls();
+    if (_autoArmed && t != null) {
+      _autoArmed = false;
+      _startCountdown(t);
+    }
   }
 
   /// Frases de pedágio da prévia.
@@ -342,6 +401,22 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
             ]),
             const SizedBox(height: 12),
             Row(children: [
+              if (_countdown != null) ...[
+                Expanded(
+                  flex: 2,
+                  child: Row(children: [
+                    const Icon(Icons.timer_outlined),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text('Iniciando em $_countdown s…',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    TextButton(
+                        onPressed: _cancelAuto, child: const Text('Cancelar')),
+                  ]),
+                ),
+                const SizedBox(width: 8),
+              ] else
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: t == null

@@ -217,6 +217,7 @@ class VoiceCommandService {
       return;
     }
     final cmd = parseVoiceResult(json);
+    if (kDebugMode) debugPrint('Voz ouviu: $json -> ${cmd?.runtimeType}');
     if (cmd != null) _commands.add(cmd);
   }
 }
