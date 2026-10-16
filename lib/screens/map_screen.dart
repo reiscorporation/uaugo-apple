@@ -23,6 +23,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../logic/voice_commands.dart';
 import '../logic/find_places.dart';
+import '../logic/costs.dart' show formatMoney;
+import '../logic/tolls.dart';
+import '../services/toll_service.dart';
 import '../services/places_service.dart';
 import '../services/shared_place_service.dart';
 import '../logic/geo.dart';
@@ -447,6 +450,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     ProfileService.load().then((b) {
       if (mounted) setState(() => _myBike = b);
     });
+    // Tabela de pedágios (valor e regra da moto por praça, para a voz).
+    TollService.instance.table().then((t) => _tollTable = t);
     UserService.loadClubId().then((id) {
       if (mounted) setState(() => _clubId = id);
     });
@@ -990,6 +995,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   final Map<int, int> _poiSpoken = {}; // ponto -> avisos já feitos
   bool _halfwaySaid = false;
+  TollTable? _tollTable;
   Timer? _rainTimer;
   DateTime _lastRainAlert = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -1034,19 +1040,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final next = nextAlert(d, done, thresholds);
       if (next == null) continue;
       _poiSpoken[poi.id] = next;
-      // Pedágio: de moto, diz se a moto paga (ou é isenta, quando a base
-      // informa). De carro, só avisa a praça.
-      final moto = !_myBike.style.isCar;
-      final tollNote = !moto
+      // Pedágio: quanto o veículo paga, pela tabela (ANTT por praça); moto
+      // sem informação = "não informado" (nunca afirma que paga).
+      final tollNote = !toll
           ? ''
-          : poi.kind == PoiKind.tollMotoFree
-              ? 'moto isenta'
-              : 'moto paga pedágio';
+          : tollPlazaNote(
+              _tollTable == null
+                  ? null
+                  : nearestPlaza(_tollTable!, poi.lat, poi.lng),
+              _myBike,
+              formatMoney,
+              osmMotoFree: poi.kind == PoiKind.tollMotoFree);
       final speech = bump
           ? 'Lombada a ${spokenDistance(d)}'
           : toll
               ? 'Praça de pedágio a ${spokenDistance(d)}'
-                  '${tollNote.isEmpty ? '' : '. Atenção: $tollNote'}'
+                  '${tollNote.isEmpty ? '' : '. $tollNote'}'
               : 'Posto policial a ${spokenDistance(d)}';
       if (done > 0) {
         if (_voice.alertsOn.value) _voice.alert(speech);

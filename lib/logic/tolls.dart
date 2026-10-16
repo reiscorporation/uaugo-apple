@@ -219,3 +219,40 @@ String _assumedNote(TollEstimate e) => e.motoAssumed == 1
 
 String _times(double f) =>
     f == f.roundToDouble() ? '${f.toInt()}×' : '${f.toString().replaceAll('.', ',')}×';
+
+/// Praça da tabela a até [maxMeters] do ponto (a cabine do aviso falado).
+TollPlaza? nearestPlaza(TollTable table, double lat, double lng,
+    {double maxMeters = 400}) {
+  TollPlaza? best;
+  var bestD = maxMeters;
+  for (final p in table.plazas) {
+    for (final (a, b) in p.pts) {
+      final d = distanceMeters(lat, lng, a, b);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+  }
+  return best;
+}
+
+/// Complemento do aviso falado da praça ("Praça de pedágio a 1 km. ..."):
+/// quanto o veículo paga, quando se sabe. Para moto, nunca afirma que paga
+/// sem informação: [osmMotoFree] = o mapa aberto diz que a moto é isenta.
+String tollPlazaNote(TollPlaza? plaza, BikeProfile bike,
+    String Function(double) money, {bool osmMotoFree = false}) {
+  final car = plaza?.car;
+  if (bike.style.isMoto) {
+    final rule = plaza?.moto ?? (osmMotoFree ? 0.0 : null);
+    if (rule == 0) return 'Moto isenta';
+    if (rule == null) return 'Valor para moto não informado';
+    return car != null
+        ? 'Moto paga ${money(_round(car * rule))}'
+        : 'Moto paga metade do valor do carro';
+  }
+  if (car == null) return '';
+  final noun = bike.style.noun;
+  return '${noun[0].toUpperCase()}${noun.substring(1)} paga '
+      '${money(_round(car * (bike.tollFactor ?? 1)))}';
+}

@@ -77,4 +77,18 @@ void main() {
     expect(p.pts.length, 2);
     expect(p.car, 5.7);
   });
+
+  test('aviso falado da praça: valor para o veículo; moto sem informação = "não informado"', () {
+    const moto = BikeProfile(style: BikeStyle.naked);
+    const car = BikeProfile(style: BikeStyle.car);
+    expect(tollPlazaNote(a, moto, money), 'Moto paga R\$ 5,00'); // carro 10, moto 0,5
+    expect(tollPlazaNote(b, moto, money), 'Moto isenta');
+    expect(tollPlazaNote(c, moto, money), 'Valor para moto não informado');
+    expect(tollPlazaNote(null, moto, money, osmMotoFree: true), 'Moto isenta');
+    expect(tollPlazaNote(a, car, money), 'Seu carro paga R\$ 10,00');
+    expect(tollPlazaNote(c, car, money), '');
+    final t = const TollTable([a, b, c], '12/2025');
+    expect(nearestPlaza(t, -25.8001, -49.0), a);
+    expect(nearestPlaza(t, -10, -40), isNull);
+  });
 }
