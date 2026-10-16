@@ -793,11 +793,53 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Radares à frente: na pista e no sentido do piloto, nas distâncias
   /// configuradas, sempre falando a velocidade; e trechos da PRF.
+  // ---- Pílula do radar ao lado do velocímetro ("📸 80 em 450 m"), como a
+  // da velocidade reduzida: conta a distância até passar pelo radar.
+  FixedRadar? _activeRadar;
+  int? _activeRadarKmh;
+  double? _activeRadarLast; // última distância (sem rota: detectar que passou)
+  ({String emoji, int? kmh, int m})? _radarPill;
+
+  /// Atualiza a distância até o radar avisado (e some ao passar por ele).
+  void _updateRadarPill(Position p) {
+    final r = _activeRadar;
+    if (r == null) return;
+    final w = _walker, pr = _proj;
+    final onRoute = w != null && pr != null && pr.offset < 60 &&
+        (_navigating || _sim != null) && !_offRoute;
+    final straight = distanceMeters(p.latitude, p.longitude, r.lat, r.lng);
+    double? d;
+    if (onRoute) {
+      d = radarAheadOnRoute(r,
+          project: w.project, riderAlong: pr.along, range: 5000, maxOffset: 40);
+    } else {
+      final last = _activeRadarLast;
+      // Sem rota: passou quando, já perto, a distância volta a crescer.
+      final passed = last != null && last < 80 && straight > last + 15;
+      d = passed || straight > 3000 ? null : straight;
+    }
+    _activeRadarLast = straight;
+    if (d == null) {
+      _activeRadar = null;
+      if (_radarPill != null) setState(() => _radarPill = null);
+      return;
+    }
+    final m = (d / 10).round() * 10;
+    final emoji = switch (r.kind) {
+      RadarKind.fixed => '📸',
+      RadarKind.section => '⏱️',
+      RadarKind.redLight => '🚦',
+    };
+    final pill = (emoji: emoji, kmh: _activeRadarKmh, m: m);
+    if (pill != _radarPill) setState(() => _radarPill = pill);
+  }
+
   void _checkRadars(Position p) {
     final banner = _radarBanner;
     if (banner != null && banner.passed(p)) {
       setState(() => _radarBanner = null);
     }
+    _updateRadarPill(p);
 
     // No máximo um aviso de radar a cada 6 s (evita "radar a 900 metros"
     // repetido quando há vários radares perto).
@@ -860,6 +902,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ? null
           : _speedSvc.lookup(r.lat, r.lng, _bearing, _speedMs)?.kmh;
       final kmh = r.limit > 0 ? r.limit : roadKmh;
+      // Pílula ao lado do velocímetro com a distância até este radar.
+      if (first || _activeRadar == null) {
+        _activeRadar = r;
+        _activeRadarKmh = kmh != null && kmh > 0 ? kmh : null;
+        _activeRadarLast = null;
+        _updateRadarPill(p);
+      }
       if (!first) {
         // Repetição: só a voz (a faixa na tela continua aberta).
         if (_voice.alertsOn.value) {
@@ -3115,6 +3164,25 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 child: const Icon(Icons.remove, size: 28),
               ),
               const SizedBox(height: 12),
+              // Radar à frente: distância até ele (some ao passar).
+              if (_radarPill case final r?)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.indigo, width: 3),
+                  ),
+                  child: Text(
+                      '${r.emoji} ${r.kmh ?? ''}${r.kmh != null ? ' ' : ''}em ${r.m} m',
+                      textScaler: TextScaler.noScaling,
+                      style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16)),
+                ),
               // Velocidade reduzida à frente.
               if (_reducedAhead case (final lim, final m))
                 Container(
