@@ -10,6 +10,7 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../logic/geo.dart';
@@ -17,8 +18,10 @@ import '../logic/itinerary.dart';
 import '../models/expedition.dart' show StopType;
 import '../models/trip_record.dart';
 import '../services/history_service.dart';
+import '../services/location_service.dart';
 import '../services/trip_service.dart';
 import '../widgets/trip_expenses.dart';
+import '../widgets/trip_preview_sheet.dart';
 import '../widgets/trip_share.dart';
 import 'map_screen.dart';
 
@@ -137,6 +140,53 @@ class _TripDetail extends StatelessWidget {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) =>
           MapScreen(uid: uid, userName: userName, trip: t, simulate: true),
+    ));
+  }
+
+  /// "Fazer esta rota de novo": sai de onde o piloto está e passa pelas
+  /// mesmas paradas até o mesmo destino ([destinationOnly]: direto ao
+  /// destino). Abre a prévia (Iniciar / Simular).
+  Future<void> _redo(BuildContext context, {bool destinationOnly = false}) async {
+    final stops = trip.stops;
+    if (stops.isEmpty) return;
+    if (!await LocationService.ensurePermission()) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Ative o GPS e permita o acesso à localização')));
+      }
+      return;
+    }
+    Position? me = await Geolocator.getLastKnownPosition();
+    if (me == null || DateTime.now().difference(me.timestamp).inMinutes >= 2) {
+      try {
+        me = await Geolocator.getCurrentPosition(
+            locationSettings:
+                const LocationSettings(timeLimit: Duration(seconds: 10)));
+      } catch (_) {}
+    }
+    if (!context.mounted) return;
+    if (me == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Não foi possível obter sua posição pelo GPS')));
+      return;
+    }
+    StopType typeOf(String t) =>
+        StopType.values.firstWhere((x) => x.name == t, orElse: () => StopType.waypoint);
+    final dest = stops.last;
+    final res = await TripPreviewSheet.show(context, title: trip.title, points: [
+      TripPoint('Sua posição', me.latitude, me.longitude, type: StopType.meet),
+      if (!destinationOnly)
+        for (final s in stops.sublist(1, stops.length - 1))
+          TripPoint(s.name, s.lat, s.lng, type: typeOf(s.type)),
+      TripPoint(dest.name, dest.lat, dest.lng, type: StopType.destination),
+    ]);
+    if (res == null || !context.mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => MapScreen(
+          uid: uid,
+          userName: userName,
+          trip: res.$2,
+          simulate: res.$1 == TripAction.simulate),
     ));
   }
 
@@ -294,14 +344,36 @@ class _TripDetail extends StatelessWidget {
               if (trip.stops.length >= 2)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _simulate(context),
-                      icon: const Icon(Icons.play_circle_outline),
-                      label: const Text('Simular este trajeto de novo'),
+                  child: Column(children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => _redo(context),
+                        icon: const Icon(Icons.replay),
+                        label: Text(trip.stops.length > 2
+                            ? 'Fazer esta rota de novo (com as paradas)'
+                            : 'Fazer esta rota de novo'),
+                      ),
                     ),
-                  ),
+                    if (trip.stops.length > 2)
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _redo(context, destinationOnly: true),
+                          icon: const Icon(Icons.flag),
+                          label: Text('Ir só ao destino: ${trip.stops.last.name}',
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                      ),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _simulate(context),
+                        icon: const Icon(Icons.play_circle_outline),
+                        label: const Text('Simular este trajeto de novo'),
+                      ),
+                    ),
+                  ]),
                 ),
             ]),
           ),
