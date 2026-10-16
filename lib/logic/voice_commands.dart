@@ -51,6 +51,10 @@ List<String> _commandPhrases() => [
       // (opção "Pesquisa de trajeto por voz").
       'ir para',
       'ir para [unk]',
+      // Locais salvos: "UauGo, ir para casa" / "... para o trabalho".
+      'ir para casa',
+      'ir para o trabalho',
+      'ir para trabalho',
       // "procurar posto" / "... restaurante barato" / "procurar" + outra coisa.
       for (final v in findVerbs) ...[
         for (final e in findWords.entries) ...[
@@ -105,7 +109,9 @@ class CancelCommand extends VoiceCommand {
 /// "UauGo, ir para": pesquisar um destino falando (o nome do lugar é
 /// ouvido em seguida pelo reconhecimento do Google).
 class GoToCommand extends VoiceCommand {
-  const GoToCommand();
+  /// Local salvo pedido ("casa", "trabalho"); null = ouvir o destino.
+  final String? saved;
+  const GoToCommand({this.saved});
 }
 
 /// "UauGo, procurar posto": achar um lugar desse tipo no caminho (ou perto).
@@ -184,6 +190,11 @@ VoiceCommand? parseVoiceResult(String json, {VoiceContext? context}) {
       [for (var i = 0; i < goTo.length; i++) words[i].word].join(' ') ==
           goTo.join(' ') &&
       words.take(goTo.length).every((w) => w.conf >= voiceMinConfidence)) {
+    final rest = words.skip(goTo.length).map((w) => w.word).join(' ');
+    if (rest == 'casa') return const GoToCommand(saved: 'casa');
+    if (rest == 'trabalho' || rest == 'o trabalho') {
+      return const GoToCommand(saved: 'trabalho');
+    }
     return const GoToCommand();
   }
   // "UauGo, procurar <algo fora da lista>": avisa como pedir.

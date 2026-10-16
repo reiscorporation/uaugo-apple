@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../brand.dart';
 import '../logic/shared_place.dart';
 import '../services/places_service.dart';
+import '../services/saved_places_service.dart';
 import '../services/shared_place_service.dart';
 import '../models/bike.dart';
 import '../models/expedition.dart' show StopType;
@@ -61,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadPrefs();
+    SavedPlacesService.instance.load();
     SharedPlaceService.instance.pending.addListener(_onShared);
     WidgetsBinding.instance.addPostFrameCallback((_) => _onShared());
   }
@@ -323,6 +325,115 @@ class _HomeScreenState extends State<HomeScreen> {
     ));
   }
 
+  // ---- Locais salvos (Casa, Trabalho e outros; só no celular)
+
+  /// Atalhos abaixo do "Para onde?". Toque: rota; toque longo: trocar/remover.
+  Widget _savedPlacesRow() => ValueListenableBuilder<List<SavedPlace>>(
+        valueListenable: SavedPlacesService.instance.places,
+        builder: (_, list, __) => Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Wrap(spacing: 8, runSpacing: 4, children: [
+            _savedChip(savedHome, 'Casa', Icons.home),
+            _savedChip(savedWork, 'Trabalho', Icons.work),
+            for (final p in list)
+              if (p.key != savedHome && p.key != savedWork)
+                _savedChip(p.key, p.name, Icons.star),
+            ActionChip(
+              avatar: const Icon(Icons.add, size: 18),
+              label: const Text('Salvar local'),
+              onPressed: _addSavedPlace,
+            ),
+          ]),
+        ),
+      );
+
+  Widget _savedChip(String key, String name, IconData icon) {
+    final p = SavedPlacesService.instance.get(key);
+    return GestureDetector(
+      onLongPress: p == null ? null : () => _editSavedPlace(p),
+      child: ActionChip(
+        avatar: Icon(icon, size: 18),
+        label: Text(p == null ? '$name (definir)' : name),
+        onPressed: () => p == null
+            ? _pickSavedPlace(key, name)
+            : _whereTo(shared: SharedPlace(lat: p.lat, lng: p.lng, label: p.name)),
+      ),
+    );
+  }
+
+  /// Escolhe o endereço do local [key] e salva.
+  Future<void> _pickSavedPlace(String key, String name) async {
+    final last = await Geolocator.getLastKnownPosition();
+    if (!mounted) return;
+    final picked = await Navigator.of(context).push<PickedPlace>(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => PlaceSearchPage(
+          near: last == null ? null : LatLng(last.latitude, last.longitude),
+          title: name),
+    ));
+    if (picked == null || !mounted) return;
+    await SavedPlacesService.instance.save(SavedPlace(key, name,
+        picked.address.isEmpty ? picked.name : picked.address, picked.lat, picked.lng));
+    _snack(key == savedHome || key == savedWork
+        ? '$name salvo. Toque no atalho ou diga "UauGo, ir para ${key == savedHome ? 'casa' : 'o trabalho'}".'
+        : '$name salvo.');
+  }
+
+  /// "Salvar local": pede o nome e o endereço.
+  Future<void> _addSavedPlace() async {
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nome do local'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(hintText: 'Ex.: Casa da mãe, Oficina'),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text),
+              child: const Text('Escolher endereço')),
+        ],
+      ),
+    );
+    final n = name?.trim() ?? '';
+    if (n.isEmpty || !mounted) return;
+    await _pickSavedPlace('p${DateTime.now().millisecondsSinceEpoch}', n);
+  }
+
+  /// Toque longo num atalho: trocar o endereço ou remover.
+  Future<void> _editSavedPlace(SavedPlace p) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(p.address),
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit_location_alt),
+            title: const Text('Trocar endereço'),
+            onTap: () => Navigator.pop(ctx, 'edit'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline),
+            title: const Text('Remover'),
+            onTap: () => Navigator.pop(ctx, 'remove'),
+          ),
+        ]),
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 'edit') await _pickSavedPlace(p.key, p.name);
+    if (choice == 'remove') await SavedPlacesService.instance.remove(p.key);
+  }
+
   /// Lugar da busca por [q]: o único resultado ou, com [best], o primeiro
   /// (o mais relevante e próximo). Null se não houver.
   Future<PickedPlace?> _matchFor(String q, Position me, {bool best = false}) async {
@@ -435,6 +546,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+              _savedPlacesRow(),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(

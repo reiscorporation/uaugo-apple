@@ -27,6 +27,7 @@ import '../logic/costs.dart' show formatMoney;
 import '../logic/tolls.dart';
 import '../services/toll_service.dart';
 import '../services/places_service.dart';
+import '../services/saved_places_service.dart';
 import '../services/shared_place_service.dart';
 import '../logic/geo.dart';
 import '../models/bike.dart';
@@ -1476,8 +1477,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           _lastVoiceReport = null;
           _voice.reply('Alerta de ${mine.type.spoken} cancelado.');
         }
-      case GoToCommand():
-        await _voiceGoTo();
+      case GoToCommand(:final saved):
+        await _voiceGoTo(saved: saved);
       case FindCommand():
         await _voiceFind(cmd);
       case WakeCommand():
@@ -3497,9 +3498,29 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// "UauGo, ir para": ouve o destino (Google) e leva ao "Para onde?" da
   /// tela inicial já pesquisando. Navegando, pergunta antes de trocar a rota.
-  Future<void> _voiceGoTo() async {
+  Future<void> _voiceGoTo({String? saved}) async {
     if (_isExpedition) {
       _voice.reply('No comboio, o destino segue o roteiro do grupo.');
+      return;
+    }
+    // "UauGo, ir para casa": local salvo (não precisa da pesquisa por voz).
+    if (saved != null) {
+      await SavedPlacesService.instance.load();
+      final p = SavedPlacesService.instance.get(saved);
+      if (!mounted) return;
+      if (p == null) {
+        _voice.reply('Você ainda não salvou ${saved == savedHome ? 'casa' : 'o trabalho'}. '
+            'Salve na tela inicial.');
+        return;
+      }
+      if (_confirmExit && !await _confirmNewRoute(p.name)) return;
+      await _voice.stop();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      SharedPlaceService.instance
+        ..fromVoice = true
+        ..pending.value = 'geo:${p.lat},${p.lng}?q=${p.lat},${p.lng}'
+            '(${Uri.encodeComponent(p.name)})';
       return;
     }
     if (!_voiceCmd.routeByVoice.value) {
@@ -3512,7 +3533,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _voice.reply('Não entendi o destino.');
       return;
     }
-    if (_confirmExit) {
+    if (_confirmExit && !await _confirmNewRoute(text)) return;
+    await _voice.stop();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    // A tela inicial pesquisa o destino (como um endereço recebido).
+    SharedPlaceService.instance
+      ..fromVoice = true
+      ..pending.value = text;
+  }
+
+  /// "Trocar a rota para X?" (aceita "sim"/"não" por voz).
+  Future<bool> _confirmNewRoute(String text) async {
+    {
       _voice.reply('Trocar a rota para $text? Diga sim ou não.');
       final ok = await showDialog<bool>(
         context: context,
@@ -3533,15 +3566,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         },
       );
       _voiceConfirmCtx = null;
-      if (ok != true || !mounted) return;
+      return ok == true && mounted;
     }
-    await _voice.stop();
-    if (!mounted) return;
-    Navigator.of(context).pop();
-    // A tela inicial pesquisa o destino (como um endereço recebido).
-    SharedPlaceService.instance
-      ..fromVoice = true
-      ..pending.value = text;
   }
 
   /// Opções encontradas ("procurar posto"): nome, distância e "Adicionar".

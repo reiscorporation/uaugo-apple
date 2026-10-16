@@ -39,6 +39,14 @@ void main() {
       expect(voiceGrammar(), contains('uau go ir para'));
     });
 
+    test('"UauGo, ir para casa" / "... para o trabalho": local salvo', () {
+      expect((parseVoiceResult(vosk('uau go ir para casa')) as GoToCommand).saved, 'casa');
+      expect((parseVoiceResult(vosk('uau go ir para o trabalho')) as GoToCommand).saved,
+          'trabalho');
+      expect((parseVoiceResult(vosk('uau go ir para')) as GoToCommand).saved, isNull);
+      expect(voiceGrammar(), contains('uau go ir para casa'));
+    });
+
     test('destino falado: tira as palavras de comando do começo', () {
       expect(cleanDestination('ir para São João da Boa Vista'), 'São João da Boa Vista');
       expect(cleanDestination('Ir pra Curitiba'), 'Curitiba');
