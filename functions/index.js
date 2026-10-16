@@ -12,7 +12,7 @@
  * - deleteMyData ............. exclusão de dados (LGPD)
  * - directions, places ....... rotas e busca de lugares (chave do Google só aqui;
  *                              functions/maps.js, limite diário por usuário)
- * - updateRadars ............. radares e trechos da PRF (seg. e qui.)
+ * - updateRadars ............. radares e trechos da PRF (todo dia; publica só se mudou)
  * - updateSpeedLimits ........ limites de velocidade por estado (segunda)
  * - updatePois ............... lombadas, postos e pedágios (todo dia)
  * - cleanup .................. limpeza diária (expedições paradas etc.)
@@ -344,14 +344,14 @@ exports.deleteMyData = onCall(callOpts, async (req) => {
 // ===================== Radares =====================
 
 /**
- * Toda segunda e quinta: monta o arquivo de radares (fixos do Brasil +
+ * Todo dia: monta o arquivo de radares (fixos do Brasil +
  * trechos de radar portátil da PRF) e publica em public/radares.json.gz.
  * O app confere a versão em meta/radars (1 leitura) e só baixa se mudou.
  * Também pode ser rodada na hora pelo Cloud Scheduler ("Forçar execução").
  */
 exports.updateRadars = onSchedule(
   {
-    schedule: "every monday,thursday 05:00",
+    schedule: "every day 05:00",
     timeZone: "America/Sao_Paulo",
     region,
     memory: "1GiB",
@@ -385,6 +385,16 @@ exports.updateRadars = onSchedule(
       alerta(`PRF: a lista "${data.prf.label}" venceu em ${data.prf.validTo} e não há lista nova na página.`);
     }
 
+    // Só publica se o conteúdo mudou: o app baixa de novo a cada versão nova
+    // (~0,5 MB), e a lista costuma ficar igual de um dia para o outro.
+    const { builtAt, ...content } = data;
+    const hash = require("crypto").createHash("sha256")
+      .update(JSON.stringify(content)).digest("hex").slice(0, 16);
+    const prevMeta = (await db.doc("meta/radars").get()).data() || {};
+    if (prevMeta.hash === hash) {
+      console.log("Radares sem mudança; nada publicado");
+      return;
+    }
     const gz = zlib.gzipSync(JSON.stringify(data), { level: 9 });
     const version = Date.now();
     await file.save(gz, {
@@ -394,6 +404,7 @@ exports.updateRadars = onSchedule(
     });
     await db.doc("meta/radars").set({
       version,
+      hash,
       builtAt: data.builtAt,
       radars: data.radars.length,
       prfStretches: data.prf ? data.prf.stretches.length : 0,

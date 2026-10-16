@@ -295,7 +295,7 @@ voz, avisos e gravação continuam.
 |---|---|---|
 | `directions` | Chamada pelo app | Rotas (Directions API) com a chave do servidor. Login obrigatório; 300/dia por usuário. Arquivo: `maps.js`. |
 | `places` | Chamada pelo app | Busca e detalhe de lugares (Places API New). Login obrigatório; 1500/dia. `maps.js`. |
-| `updateRadars` | Segunda e quinta 05:00 | Radares (Pardal) + trechos da PRF → `public/radares.json.gz`. `radars.js`. |
+| `updateRadars` | Todo dia 05:00 (publica só se mudou) | Radares (Pardal) + trechos da PRF → `public/radares.json.gz`. `radars.js`. |
 | `updateSpeedLimits` | Segunda 05:30 | Limites por estado → `public/limites/UF.json.gz`. `speedlimits.js`. |
 | `updatePois` | Todo dia 04:10 | Postos e pedágios (OSM) → `public/pois/UF.json.gz` (sempre baixado); lombadas → `public/lombadas/UF.json.gz` e semáforos → `public/semaforos/UF.json.gz` (opcionais: o app só baixa com o aviso ligado). `pois.js`. |
 | `updateTolls` | Dia 5, 06:00 | Praças de pedágio (cabines do OSM) + preço do carro e regra da moto das federais (dados abertos da ANTT: receita ÷ veículos equivalentes) → `public/pedagios.json.gz`, `meta/tolls`. `tolls.js`. |

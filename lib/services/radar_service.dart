@@ -20,7 +20,7 @@ import '../logic/radars.dart';
 
 /// Radares fixos do Brasil + trechos de radar portátil da PRF.
 ///
-/// O arquivo (~0,5 MB) é gerado 2x por semana pela Cloud Function
+/// O arquivo (~0,5 MB) é conferido todo dia pela Cloud Function
 /// `updateRadars`. O app guarda uma cópia no celular e só baixa de novo
 /// quando a versão em meta/radars muda: funciona sem sinal na estrada.
 class RadarService {
