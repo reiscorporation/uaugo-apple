@@ -1689,7 +1689,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final steps = [for (final s in stops.skip(1)) ...s.steps];
       _nav = steps.isEmpty
           ? null
-          : TurnByTurn(steps, signalAt: PoiService.instance.signalNear);
+          : TurnByTurn(steps,
+              // Semáforos do mapa aberto e os marcados pela comunidade.
+              signalAt: (la, lo) =>
+                  PoiService.instance.signalNear(la, lo) ||
+                  _hazards.any((h) =>
+                      h.type == HazardType.signal &&
+                      distanceMeters(la, lo, h.lat, h.lng) < 35));
       _navSynced = false;
     }
   }

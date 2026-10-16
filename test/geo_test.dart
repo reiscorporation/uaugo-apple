@@ -67,4 +67,16 @@ void main() {
       expect(HazardService.cellKey(la, lo), '-236_-467');
     });
   });
+
+  test('alerta fixo: sai com 3 "não está mais" (5 se Gold)', () {
+    bool rm(int d, {bool gold = false}) => shouldRemoveHazard(
+        confirmations: 3, dismissals: d, permanent: true, gold: gold);
+    expect(rm(1), isFalse); // seria o 2º voto
+    expect(rm(2), isTrue); // 3º
+    expect(rm(3, gold: true), isFalse); // 4º
+    expect(rm(4, gold: true), isTrue); // 5º
+    // O autor sempre pode tirar o próprio alerta.
+    expect(shouldRemoveHazard(confirmations: 9, dismissals: 0, permanent: true,
+        gold: true, force: true), isTrue);
+  });
 }

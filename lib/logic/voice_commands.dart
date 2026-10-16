@@ -36,6 +36,8 @@ const voiceAlertWords = <String, HazardType>{
   'pipa': HazardType.kite,
   'perigo': HazardType.danger,
   'área de risco': HazardType.risk,
+  'radar fixo': HazardType.fixedRadar,
+  'semáforo': HazardType.signal,
 };
 
 /// Confiança mínima (0 a 1) para aceitar. "Sim"/"não" exigem mais, porque

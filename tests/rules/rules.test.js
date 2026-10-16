@@ -262,4 +262,62 @@ describe("Alertas públicos", () => {
     assertFails(vote(anon("dave"), "dave", true, up())));
   it("ninguém apaga alertas pelo app", () =>
     assertFails(deleteDoc(doc(db("alice"), "hazards/h1"))));
+
+  // ---- Alertas fixos (lombada, radar fixo, semáforo) e usuário Gold
+  const far = () => Timestamp.fromDate(new Date(Date.UTC(2100, 0, 1)));
+  const setDocAdmin = (p, data) => env.withSecurityRulesDisabled((c) =>
+    setDoc(doc(c.firestore(), p), data));
+  const fixedH1 = (extra = {}) => setDocAdmin("hazards/h1", {
+    type: "bump", lat: -21, lng: -47, cell: "-210_-470", createdBy: "alice",
+    confirmations: 3, dismissals: 0, expiresAt: far(), permanent: true, ...extra,
+  });
+
+  it("aceita radar fixo e semáforo", async () => {
+    await assertSucceeds(setDoc(doc(db("bob"), "hazards/h9"), novo({ type: "fixedRadar" })));
+    await assertSucceeds(setDoc(doc(db("bob"), "hazards/h10"), novo({ type: "signal" })));
+  });
+  it("Gold cria lombada já fixa; comum não", async () => {
+    await setDocAdmin("gold/bob", { since: inHours(0) });
+    const fixed = { type: "bump", permanent: true, gold: true, expiresAt: far() };
+    await assertSucceeds(setDoc(doc(db("bob"), "hazards/g1"), novo(fixed)));
+    await assertFails(setDoc(doc(db("carol"), "hazards/g2"),
+      novo({ ...fixed, createdBy: "carol" })));
+  });
+  it("Gold não deixa fixo o que muda (buraco)", async () => {
+    await setDocAdmin("gold/bob", { since: inHours(0) });
+    await assertFails(setDoc(doc(db("bob"), "hazards/g3"),
+      novo({ type: "pothole", permanent: true, gold: true, expiresAt: far() })));
+  });
+  it("ninguém se declara Gold pelo app", async () => {
+    await assertFails(setDoc(doc(db("bob"), "gold/bob"), { since: inHours(0) }));
+    await assertFails(setDoc(doc(db("bob"), "hazards/g4"), novo({ gold: true })));
+  });
+  it("lombada fica fixa na 3ª confirmação, não antes", async () => {
+    await setDocAdmin("hazards/h1", {
+      type: "bump", lat: -21, lng: -47, cell: "-210_-470", createdBy: "alice",
+      confirmations: 1, dismissals: 0, expiresAt: inHours(1),
+    });
+    const fix = { confirmations: increment(1), permanent: true, expiresAt: far() };
+    await assertFails(vote(db("bob"), "bob", true, fix)); // seria a 2ª
+    await assertSucceeds(vote(db("bob"), "bob", true, up())); // 2ª, normal
+    await assertSucceeds(vote(db("carol"), "carol", true, fix)); // 3ª: fixa
+  });
+  it("confirmar alerta fixo não mexe no prazo", async () => {
+    await fixedH1();
+    await assertFails(vote(db("bob"), "bob", true, up()));
+    await assertSucceeds(vote(db("bob"), "bob", true,
+      { confirmations: increment(1), lastConfirmedAt: serverTimestamp() }));
+  });
+  it("alerta fixo comum sai com 3 'não está mais'", async () => {
+    await fixedH1({ dismissals: 1 });
+    await assertFails(vote(db("bob"), "bob", false, removeVote())); // seria o 2º
+    await fixedH1({ dismissals: 2 });
+    await assertSucceeds(vote(db("carol"), "carol", false, removeVote())); // 3º
+  });
+  it("alerta fixo Gold só sai com 5", async () => {
+    await fixedH1({ dismissals: 3, gold: true });
+    await assertFails(vote(db("bob"), "bob", false, removeVote())); // seria o 4º
+    await fixedH1({ dismissals: 4, gold: true });
+    await assertSucceeds(vote(db("carol"), "carol", false, removeVote())); // 5º
+  });
 });

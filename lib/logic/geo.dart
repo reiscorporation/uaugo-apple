@@ -51,10 +51,26 @@ bool shouldRemoveHazard({
   required int confirmations,
   required int dismissals,
   bool force = false,
+  bool permanent = false,
+  bool gold = false,
 }) {
   final votes = dismissals + 1;
-  return force || votes >= 2 || votes > confirmations;
+  if (force) return true;
+  // Fixo no mapa: só sai com 3 "não está mais" (5 se foi um usuário Gold).
+  if (permanent) return votes >= (gold ? goldRemoveVotes : permanentRemoveVotes);
+  return votes >= 2 || votes > confirmations;
 }
+
+/// Confirmações para um alerta de tipo permanente (lombada, radar fixo,
+/// semáforo) ficar fixo no mapa.
+const permanentAfterConfirmations = 3;
+
+/// "Não está mais" necessários para tirar um alerta fixo (comum / Gold).
+const permanentRemoveVotes = 3;
+const goldRemoveVotes = 5;
+
+/// Prazo de um alerta fixo (o TTL do Firestore só apaga o que venceu).
+final permanentExpiry = DateTime.utc(2100);
 
 /// Decodifica a polyline do Google (formato "encoded polyline").
 List<LatLng> decodePolyline(String encoded) {

@@ -107,14 +107,22 @@ void main() {
       expect(HazardType.radar.lifetime, const Duration(hours: 4));
     });
 
-    test('radar e área de risco avisam a 1 km; os demais a 500 m', () {
-      const longe = [HazardType.radar, HazardType.risk];
+    test('radares e área de risco a 1 km; semáforo a 300 m; os demais a 500 m', () {
+      const longe = [HazardType.radar, HazardType.risk, HazardType.fixedRadar];
       for (final t in longe) {
         expect(t.alertMeters, 1000, reason: t.name);
       }
-      for (final t in HazardType.values.where((t) => !longe.contains(t))) {
+      expect(HazardType.signal.alertMeters, 300);
+      for (final t in HazardType.values
+          .where((t) => !longe.contains(t) && t != HazardType.signal)) {
         expect(t.alertMeters, 500, reason: t.name);
       }
+    });
+
+    test('só lombada, radar fixo e semáforo podem ficar fixos', () {
+      expect(
+          HazardType.values.where((t) => t.canBePermanent).toSet(),
+          {HazardType.bump, HazardType.fixedRadar, HazardType.signal});
     });
   });
 }

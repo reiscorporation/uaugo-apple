@@ -110,6 +110,12 @@ service cloud.firestore {
     match /usage/{uid} {
       allow read, write: if false;
     }
+
+    // Usuários Gold: cada um só confere o próprio; ninguém grava pelo app.
+    match /gold/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
     match /clubActivations/{code} {
       allow read, write: if false;
     }
@@ -172,6 +178,16 @@ service cloud.firestore {
         && request.resource.data.expiresAt <= request.time + duration.value(8, 'd');
     }
 
+    // Usuário Gold: gold/{uid}, gravado só pelo responsável (script/admin).
+    function isGold() {
+      return exists(/databases/$(database)/documents/gold/$(request.auth.uid));
+    }
+
+    // Tipos que ficam fixos no mapa (lombada, radar fixo, semáforo).
+    function permanentTypes() {
+      return ['bump', 'fixedRadar', 'signal'];
+    }
+
     match /hazards/{hazardId} {
       function voteRef() {
         return /databases/$(database)/documents/hazards/$(hazardId)/votes/$(request.auth.uid);
@@ -185,11 +201,21 @@ service cloud.firestore {
         return !exists(voteRef()) && existsAfter(voteRef())
           && (
             // "Ainda está lá": +1 confirmação e renova o prazo (não vale o autor).
+            // Lombada/radar fixo/semáforo na 3ª confirmação fica fixo; o que já
+            // é fixo só conta o voto (sem mexer no prazo).
             (getAfter(voteRef()).data.up == true
               && r.createdBy != request.auth.uid
-              && keys.hasOnly(['confirmations', 'expiresAt', 'lastConfirmedAt'])
+              && keys.hasOnly(['confirmations', 'expiresAt', 'lastConfirmedAt', 'permanent'])
               && d.confirmations == r.confirmations + 1
-              && validExpiry())
+              && (
+                (!('expiresAt' in keys) && !('permanent' in keys)
+                  && r.get('permanent', false) == true)
+                || (!('permanent' in keys) && r.get('permanent', false) != true
+                  && validExpiry())
+                || ('permanent' in keys && d.permanent == true
+                  && r.type in permanentTypes() && d.confirmations >= 3
+                  && d.expiresAt is timestamp && d.expiresAt > request.time)
+              ))
             ||
             // "Não está mais": +1 descarte; some do mapa (prazo = agora) com 2
             // descartes, com mais descartes que confirmações, ou pelo autor.
@@ -199,23 +225,36 @@ service cloud.firestore {
               && (!('expiresAt' in keys)
                   || (d.expiresAt == request.time
                       && (r.createdBy == request.auth.uid
-                          || d.dismissals >= 2
-                          || d.dismissals > r.confirmations))))
+                          || (r.get('permanent', false) == true
+                              ? d.dismissals >= (r.get('gold', false) == true ? 5 : 3)
+                              : (d.dismissals >= 2 || d.dismissals > r.confirmations))))))
           );
       }
 
       // Ler: todos (inclusive a conta anônima, que navega sozinha).
       allow read: if signedIn();
       allow create: if hasAccount()
-        && request.resource.data.keys().hasOnly(['type', 'lat', 'lng', 'cell', 'createdBy', 'createdAt', 'expiresAt', 'confirmations', 'dismissals'])
+        && request.resource.data.keys().hasOnly(['type', 'lat', 'lng', 'cell', 'createdBy', 'createdAt', 'expiresAt', 'confirmations', 'dismissals', 'permanent', 'gold'])
         && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.type in ['police','radar','pothole','bump','danger','oil','animal','accident','fog','kite','risk']
+        && request.resource.data.type in ['police','radar','pothole','bump','danger','oil','animal','accident','fog','kite','risk','fixedRadar','signal']
         && isLat(request.resource.data.lat)
         && isLng(request.resource.data.lng)
         && str(request.resource.data.cell, 20)
         && request.resource.data.confirmations == 1
         && request.resource.data.dismissals == 0
-        && validExpiry();
+        && (
+          // Normal: com prazo.
+          (request.resource.data.get('permanent', false) == false
+            && request.resource.data.get('gold', false) == false
+            && validExpiry())
+          // Usuário Gold marcando tipo permanente: já nasce fixo.
+          || (request.resource.data.permanent == true
+            && request.resource.data.gold == true
+            && isGold()
+            && request.resource.data.type in permanentTypes()
+            && request.resource.data.expiresAt is timestamp
+            && request.resource.data.expiresAt > request.time)
+        );
       allow update: if hasAccount() && validVote();
       allow delete: if false;
 

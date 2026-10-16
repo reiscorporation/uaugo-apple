@@ -80,10 +80,28 @@ class HazardService {
     }
   }
 
+  /// Usuário Gold? (gold/{uid}, gravado só pelo responsável; o app só lê
+  /// o próprio). Guardado na memória depois da 1ª leitura.
+  Future<bool> isGold(String uid) async {
+    final c = _gold;
+    if (c != null && c.$1 == uid) return c.$2;
+    try {
+      final d = await FirebaseFirestore.instance.doc('gold/$uid').get();
+      _gold = (uid, d.exists);
+      return d.exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  (String, bool)? _gold;
+
   /// Grava o alerta. O Future termina quando o servidor confirma (sem
-  /// internet, o Firestore guarda e envia quando a conexão voltar).
-  Future<void> report(HazardType type, double lat, double lng, String uid) {
+  /// internet, o Firestore guarda e envia quando a conexão voltar). Usuário
+  /// Gold marcando lombada/radar fixo/semáforo: já nasce fixo no mapa.
+  Future<void> report(HazardType type, double lat, double lng, String uid) async {
     final (la, lo) = cellOf(lat, lng);
+    final fixed = type.canBePermanent && await isGold(uid);
     return _col.doc().set({
       'type': type.name,
       'lat': lat,
@@ -91,9 +109,11 @@ class HazardService {
       'cell': cellKey(la, lo),
       'createdBy': uid,
       'createdAt': FieldValue.serverTimestamp(),
-      'expiresAt': Timestamp.fromDate(DateTime.now().add(type.lifetime)),
+      'expiresAt': Timestamp.fromDate(
+          fixed ? permanentExpiry : DateTime.now().add(type.lifetime)),
       'confirmations': 1,
       'dismissals': 0,
+      if (fixed) ...{'permanent': true, 'gold': true},
     });
   }
 
@@ -113,18 +133,32 @@ class HazardService {
     batch.commit().catchError((_) {}); // já votou: o servidor recusa
   }
 
-  /// "Ainda está lá": renova o prazo do alerta.
-  void confirm(Hazard h) => _vote(h, true, {
-        'confirmations': FieldValue.increment(1),
-        'lastConfirmedAt': FieldValue.serverTimestamp(),
+  /// "Ainda está lá": renova o prazo do alerta. Lombada/radar fixo/semáforo
+  /// na 3ª confirmação fica fixo no mapa; o que já é fixo só conta o voto.
+  void confirm(Hazard h) {
+    final becomesFixed = !h.permanent &&
+        h.type.canBePermanent &&
+        h.confirmations + 1 >= permanentAfterConfirmations;
+    _vote(h, true, {
+      'confirmations': FieldValue.increment(1),
+      'lastConfirmedAt': FieldValue.serverTimestamp(),
+      if (becomesFixed) ...{
+        'permanent': true,
+        'expiresAt': Timestamp.fromDate(permanentExpiry),
+      } else if (!h.permanent)
         'expiresAt': Timestamp.fromDate(DateTime.now().add(h.type.lifetime)),
-      });
+    });
+  }
 
   /// "Não está mais": com 2 votos (ou mais votos contra do que a favor),
   /// o alerta some do mapa. [force]: o autor removendo o próprio alerta.
   void dismiss(Hazard h, {bool force = false}) {
     final remove = shouldRemoveHazard(
-        confirmations: h.confirmations, dismissals: h.dismissals, force: force);
+        confirmations: h.confirmations,
+        dismissals: h.dismissals,
+        force: force,
+        permanent: h.permanent,
+        gold: h.gold);
     _vote(h, false, {
       'dismissals': FieldValue.increment(1),
       // Hora do servidor: as regras só aceitam "agora" para remover.

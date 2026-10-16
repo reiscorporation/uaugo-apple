@@ -37,7 +37,17 @@ enum HazardType {
       'área de pipas, cuidado com linha com cerol'),
   // Fica 7 dias: é a base da opção de rota "Evitar locais de risco".
   risk('Área de risco / assalto', '🚨', Color(0xFFB71C1C), Duration(days: 7),
-      1000, 'área de risco, com relatos de assalto');
+      1000, 'área de risco, com relatos de assalto'),
+  // Radar fixo e semáforo que faltam no mapa: viram permanentes (veja
+  // canBePermanent).
+  fixedRadar('Radar fixo', '📸', Color(0xFF5E35B1), Duration(days: 7), 1000,
+      'radar fixo'),
+  signal('Semáforo', '🚦', Color(0xFF2E7D32), Duration(days: 7), 300,
+      'semáforo');
+
+  /// Tipos que não mudam (lombada, radar fixo, semáforo): ficam FIXOS no mapa
+  /// na 3ª confirmação, ou já ao serem marcados por um usuário Gold.
+  bool get canBePermanent => this == bump || this == fixedRadar || this == signal;
 
   const HazardType(this.label, this.emoji, this.color, this.lifetime,
       this.alertMeters, this.spoken);
@@ -74,6 +84,10 @@ class Hazard {
   final int confirmations;
   final int dismissals;
 
+  /// Fixo no mapa (não expira); [gold] = marcado por usuário Gold.
+  final bool permanent;
+  final bool gold;
+
   Hazard({
     required this.id,
     required this.type,
@@ -85,6 +99,8 @@ class Hazard {
     this.lastConfirmedAt,
     this.confirmations = 1,
     this.dismissals = 0,
+    this.permanent = false,
+    this.gold = false,
   });
 
   bool get isActive => expiresAt.isAfter(DateTime.now());
@@ -111,6 +127,8 @@ class Hazard {
       expiresAt: exp.toDate(),
       confirmations: (d['confirmations'] as num?)?.toInt() ?? 1,
       dismissals: (d['dismissals'] as num?)?.toInt() ?? 0,
+      permanent: d['permanent'] == true,
+      gold: d['gold'] == true,
     );
   }
 }
