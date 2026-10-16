@@ -167,4 +167,21 @@ void main() {
       expect(slow.any((s) => s.startsWith('Em ')), isFalse);
     });
   });
+
+  test('números romanos nos nomes de rua são falados por extenso', () {
+    expect(spokenRomanNumerals('Vire à direita na Avenida Leão XIII'),
+        'Vire à direita na Avenida Leão Treze');
+    expect(spokenRomanNumerals('Siga pela Rua Dom Pedro II'),
+        'Siga pela Rua Dom Pedro Segundo');
+    expect(spokenRomanNumerals('Praça Pio X'), 'Praça Pio Décimo');
+    expect(spokenRomanNumerals('Avenida João XXIII'), 'Avenida João Vinte e três');
+    expect(spokenRomanNumerals('Rua XV de novembro'), 'Rua Quinze de novembro');
+    expect(spokenRomanNumerals('Rua VII de setembro'), 'Rua Sete de setembro');
+    // Siglas e números normais ficam como estão.
+    expect(spokenRomanNumerals('Pegue a BR 101 em direção a MG'),
+        'Pegue a BR 101 em direção a MG');
+    expect(spokenRomanNumerals('Rua CIC Norte'), 'Rua CIC Norte');
+    expect(cleanInstruction('Vire à <b>esquerda</b> na <b>Av. Leão XIII</b>'),
+        'Vire à esquerda na Avenida Leão Treze');
+  });
 }

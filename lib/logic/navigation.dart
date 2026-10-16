@@ -108,9 +108,71 @@ String cleanInstruction(String html) {
       (m) => '${m[1]} ${m[2]} ${m[3]!.toLowerCase()}');
   t = t.replaceAllMapped(
       RegExp(r'\b([A-Z]{2,3})-(\d{2,3})\b'), (m) => '${m[1]} ${m[2]}');
+  t = spokenRomanNumerals(t);
   return _tidyExit(
       t.replaceAll(RegExp(r'\s+'), ' ').replaceAll(' .', '.').trim());
 }
+
+const _units = [
+  '', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove',
+  'dez', 'onze', 'doze', 'treze', 'catorze', 'quinze', 'dezesseis',
+  'dezessete', 'dezoito', 'dezenove',
+];
+const _tens = ['', '', 'vinte', 'trinta', 'quarenta'];
+const _ordinalsWords = [
+  '', 'primeiro', 'segundo', 'terceiro', 'quarto', 'quinto', 'sexto',
+  'sétimo', 'oitavo', 'nono', 'décimo',
+];
+const _months = 'janeiro|fevereiro|março|abril|maio|junho|julho|agosto|'
+    'setembro|outubro|novembro|dezembro';
+
+/// Número romano (I a XLIX) -> valor; null se não for romano válido.
+int? _roman(String s) {
+  const v = {'I': 1, 'V': 5, 'X': 10, 'L': 50};
+  var total = 0;
+  for (var i = 0; i < s.length; i++) {
+    final c = v[s[i]]!;
+    final n = i + 1 < s.length ? v[s[i + 1]]! : 0;
+    total += c < n ? -c : c;
+  }
+  // Só a forma canônica (evita "IIII", "VX"...).
+  String back(int n) {
+    const t = ['', 'X', 'XX', 'XXX', 'XL'];
+    const u = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
+    return t[n ~/ 10] + u[n % 10];
+  }
+  return total > 0 && total < 50 && back(total) == s ? total : null;
+}
+
+String _cardinal(int n) => n < 20
+    ? _units[n]
+    : n % 10 == 0
+        ? _tens[n ~/ 10]
+        : '${_tens[n ~/ 10]} e ${_units[n % 10]}';
+
+/// "Avenida Leão XIII" -> "Avenida Leão Treze"; "Dom Pedro II" -> "Dom Pedro
+/// Segundo"; "Rua XV de Novembro" -> "Rua Quinze de Novembro". A voz do
+/// celular lê romanos letra por letra. Nomes próprios: ordinal até 10,
+/// cardinal acima; datas ("de novembro"): cardinal. Siglas (BR, MG) ficam.
+String spokenRomanNumerals(String text) => text.replaceAllMapped(
+        RegExp(r'(\S+)? ?\b([IVXL]{1,6})\b(?=( de (' + _months + r'))?)',
+            caseSensitive: true),
+        (m) {
+      final word = m[2]!;
+      final n = _roman(word);
+      final prev = m[1];
+      if (n == null) return m[0]!;
+      final date = m[3] != null;
+      // Só depois de um nome (palavra com maiúscula) ou antes de "de <mês>".
+      final afterName = prev != null &&
+          prev.isNotEmpty &&
+          prev[0].toUpperCase() == prev[0] &&
+          prev[0].toLowerCase() != prev[0];
+      if (!date && !afterName) return m[0]!;
+      final spoken = date || n > 10 ? _cardinal(n) : _ordinalsWords[n];
+      final cap = spoken[0].toUpperCase() + spoken.substring(1);
+      return prev == null ? cap : '$prev $cap';
+    });
 
 /// Saídas de rodovia: número em destaque e no máximo 2 destinos.
 /// "Pegue a saída 210 para a BR 101 em direção a 210"
