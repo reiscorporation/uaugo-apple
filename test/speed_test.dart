@@ -39,6 +39,18 @@ void main() {
       expect(idx.lookup(-28.30000, -48.70005, heading: 2, speed: 20)?.kmh, 60);
     });
 
+    test('placa diferente só troca na 2ª leitura seguida', () {
+      final t = LimitTracker();
+      final t0 = DateTime(2026, 10, 16, 10);
+      t.update(const RoadLimit(110, false), t0);
+      // Um ponto solto de 60 (saída): não troca.
+      expect(t.update(const RoadLimit(60, false), t0)?.kmh, 110);
+      expect(t.update(const RoadLimit(110, false), t0)?.kmh, 110);
+      // 80 duas vezes seguidas: troca.
+      expect(t.update(const RoadLimit(80, false), t0)?.kmh, 110);
+      expect(t.update(const RoadLimit(80, false), t0)?.kmh, 80);
+    });
+
     test('mantém o último limite por um trecho curto sem dados', () {
       final t = LimitTracker();
       final t0 = DateTime(2026, 10, 3, 10);
@@ -82,6 +94,18 @@ void main() {
       test('com rota: só pontos em cima da rota', () {
         double offset(double la, double lo) => (lo - -49.0).abs() * 98000;
         expect(idx.lookup(lat, lng, speed: 10, routeOffset: offset)?.kmh, 100);
+      });
+
+      test('com rota sem ponto da rota por perto: nada (nunca a marginal)', () {
+        // Rota passando 300 m a oeste: nenhum ponto da pista nem da marginal
+        // está nela.
+        double far(double la, double lo) => 300;
+        expect(idx.lookup(lat, lng, speed: 10, routeOffset: far), isNull);
+      });
+
+      test('andando: sem ponto na linha da direção, não pega a paralela', () {
+        // Indo para o leste (atravessando): nenhum ponto na linha da direção.
+        expect(idx.lookup(lat, lng, heading: 90, speed: 20), isNull);
       });
     });
   });

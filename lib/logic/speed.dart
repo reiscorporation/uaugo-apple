@@ -145,7 +145,11 @@ class SpeedLimitIndex {
         }
       }
     }
-    final p = bestOnPath >= 0 ? bestOnPath : best;
+    // Com rota ou andando numa direção: SÓ a via do piloto. O mais próximo
+    // de qualquer via (saída, marginal, paralela) fica só para parado.
+    final p = bestOnPath >= 0
+        ? bestOnPath
+        : (routeOffset != null || useHeading ? -1 : best);
     return p < 0 ? null : RoadLimit(_lim[p], _est[p] == 1);
   }
 }
@@ -154,15 +158,22 @@ class SpeedLimitIndex {
 /// pontes), para o velocímetro não piscar.
 class LimitTracker {
   RoadLimit? _current;
+  RoadLimit? _pending;
   DateTime? _seenAt;
 
   RoadLimit? get current => _current;
 
-  /// Novo resultado da busca: troca na hora se achou; se não achou, mantém
-  /// o anterior por até 15 s (cruzamentos e pontes sem dado).
+  /// Novo resultado da busca. Um limite DIFERENTE só vale depois de aparecer
+  /// em duas leituras seguidas (um ponto solto de uma saída não troca a
+  /// placa); sem dado, mantém o anterior por até 15 s (cruzamentos e pontes).
   RoadLimit? update(RoadLimit? found, DateTime now) {
     if (found != null) {
-      _current = found;
+      if (_current == null || found == _current || found == _pending) {
+        _current = found;
+        _pending = null;
+      } else {
+        _pending = found;
+      }
       _seenAt = now;
     } else if (_seenAt != null &&
         now.difference(_seenAt!) > const Duration(seconds: 15)) {
