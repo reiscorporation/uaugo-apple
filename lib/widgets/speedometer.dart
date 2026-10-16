@@ -49,18 +49,28 @@ class Speedometer extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               boxShadow: const [BoxShadow(blurRadius: 8, color: Colors.black54)],
             ),
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(
-                kmh == null ? '--' : kmh!.round().toString(),
-                style: TextStyle(
-                    color: fg,
-                    fontSize: 40,
-                    height: 1,
-                    fontWeight: FontWeight.w900,
-                    fontFeatures: const [FontFeature.tabularFigures()]),
-              ),
-              Text('km/h', style: TextStyle(color: fg.withAlpha(200))),
-            ]),
+            // Tamanho fixo (sem a escala de fonte do celular): o velocímetro
+            // tem tamanho fixo e a fonte grande fazia o número estourar.
+            padding: const EdgeInsets.all(6),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(
+                  kmh == null ? '--' : kmh!.round().toString(),
+                  maxLines: 1,
+                  textScaler: TextScaler.noScaling,
+                  style: TextStyle(
+                      color: fg,
+                      fontSize: 40,
+                      height: 1,
+                      fontWeight: FontWeight.w900,
+                      fontFeatures: const [FontFeature.tabularFigures()]),
+                ),
+                Text('km/h',
+                    textScaler: TextScaler.noScaling,
+                    style: TextStyle(color: fg.withAlpha(200))),
+              ]),
+            ),
           ),
           if (limit != null)
             Positioned(
@@ -81,12 +91,21 @@ class Speedometer extends StatelessWidget {
                         color: limit!.estimated ? Colors.grey : Colors.red,
                         width: 5),
                   ),
-                  child: Text(
-                    limit!.estimated ? '~${limit!.kmh}' : '${limit!.kmh}',
-                    style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w900,
-                        fontSize: limit!.estimated ? 12 : 15),
+                  // "110" sempre numa linha, do tamanho da placa (a fonte
+                  // grande do celular quebrava o número e cortava o "0").
+                  padding: const EdgeInsets.all(2),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      limit!.estimated ? '~${limit!.kmh}' : '${limit!.kmh}',
+                      maxLines: 1,
+                      softWrap: false,
+                      textScaler: TextScaler.noScaling,
+                      style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w900,
+                          fontSize: limit!.estimated ? 12 : 15),
+                    ),
                   ),
                 ),
               ),
