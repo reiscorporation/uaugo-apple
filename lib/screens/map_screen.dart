@@ -28,6 +28,7 @@ import '../logic/tolls.dart';
 import '../services/toll_service.dart';
 import '../services/places_service.dart';
 import '../services/car_service.dart';
+import '../widgets/place_search.dart';
 import '../services/saved_places_service.dart';
 import '../services/shared_place_service.dart';
 import '../logic/geo.dart';
@@ -3139,7 +3140,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             final p = _me;
             if (p != null) _updateCamera(p, force: true);
           },
-          onLongPress: _isExpedition ? _addStopAt : null,
+          onLongPress: _isExpedition
+              ? _addStopAt
+              : (_canAddSoloStop ? _addSoloStopAt : null),
         ),
         ),
 
@@ -3552,6 +3555,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
             ),
             const SizedBox(height: 12),
+            if (_canAddSoloStop) ...[
+              FloatingActionButton.small(
+                heroTag: 'addStop',
+                tooltip: 'Adicionar parada (ou segure no mapa)',
+                onPressed: _addSoloStopBySearch,
+                child: const Icon(Icons.add_location_alt),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (_watchesGroup) ...[
               FloatingActionButton.small(
                 heroTag: 'groupGrid',
@@ -3755,21 +3767,31 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             '(${Uri.encodeComponent(f.name)})';
       return;
     }
-    var next = 1;
-    while (next < trip.stops.length - 1 &&
-        _stopArrived.contains(trip.stops[next].id)) {
-      next++;
-    }
     final stopType = FindCategory.values
             .where((c) => c.spoken == _lastFindSpoken)
             .firstOrNull
             ?.stopType ??
         StopType.waypoint;
+    await _insertSoloStop(f.name, f.lat, f.lng, stopType);
+  }
+
+  /// Navegando sozinho: inclui a parada como a PRÓXIMA do caminho (antes do
+  /// destino) e recalcula a rota a partir de onde o piloto está.
+  Future<void> _insertSoloStop(
+      String name, double lat, double lng, StopType type) async {
+    final trip = _trip, p = _me;
+    if (trip == null || p == null) return;
+    var next = 1;
+    while (next < trip.stops.length - 1 &&
+        _stopArrived.contains(trip.stops[next].id)) {
+      next++;
+    }
+    setState(() => _rerouting = true);
     final nt = await TripService.build(
       title: trip.title,
       points: [
         TripPoint('Sua posição', p.latitude, p.longitude, type: StopType.meet),
-        TripPoint(f.name, f.lat, f.lng, type: stopType),
+        TripPoint(name, lat, lng, type: type),
         for (final s in trip.stops.skip(next))
           TripPoint(s.name, s.lat, s.lng, type: s.type),
       ],
@@ -3777,12 +3799,57 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       avoidHighways: trip.plan.avoidHighways,
     );
     if (!mounted) return;
+    setState(() => _rerouting = false);
     if (nt == null) {
       _voice.reply('Não consegui incluir a parada. Confira a internet.');
       return;
     }
     _applyTrip(nt);
-    _voice.reply('Parada incluída: ${f.name}.');
+    _voice.reply('Parada incluída: $name.');
+  }
+
+  /// Rota normal em andamento (sozinho): dá para incluir paradas.
+  bool get _canAddSoloStop =>
+      !_isExpedition && _sim == null && _navigating && _trip != null &&
+      !_arrivedAtDestination;
+
+  /// Botão "Adicionar parada": busca o lugar por nome (perto do piloto).
+  Future<void> _addSoloStopBySearch() async {
+    final p = _me;
+    final picked = await Navigator.of(context).push<PickedPlace>(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => PlaceSearchPage(
+          near: p == null ? null : LatLng(p.latitude, p.longitude),
+          title: 'Parada no caminho'),
+    ));
+    if (picked == null || !mounted) return;
+    await _insertSoloStop(picked.name, picked.lat, picked.lng, StopType.waypoint);
+  }
+
+  /// Segurou no mapa (rota normal): parada naquele ponto.
+  Future<void> _addSoloStopAt(LatLng pos) async {
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Parada aqui'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(hintText: 'Nome (ex.: posto, almoço)'),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim().isEmpty ? 'Parada' : ctrl.text),
+              child: const Text('Incluir na rota')),
+        ],
+      ),
+    );
+    if (name == null || !mounted) return;
+    await _insertSoloStop(name.trim(), pos.latitude, pos.longitude, StopType.waypoint);
   }
 
   /// Categoria da última busca (tipo da parada ao incluir).
