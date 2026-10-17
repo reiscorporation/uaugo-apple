@@ -3041,6 +3041,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     const white = TextStyle(color: Colors.white);
+    // Celular deitado: faixas só na metade esquerda e colunas de botões que
+    // se ajustam à altura menor. Em pé, nada muda.
+    final screen = MediaQuery.of(context).size;
+    final landscape = screen.width > screen.height;
     // Navegando: o "voltar" pergunta antes de encerrar a rota.
     return PopScope(
       canPop: !_confirmExit,
@@ -3134,8 +3138,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Faixas no topo: SOS do grupo + alerta de perigo próximo
         Positioned(
           top: 8,
-          left: 8,
-          right: 8,
+          // Deitado: no meio, entre a coluna do velocímetro e a dos botões.
+          left: landscape ? 140 : 8,
+          right: landscape ? 120 : 8,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             if (_rerouting)
               Padding(
@@ -3345,10 +3350,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (_sim != null)
           Positioned(left: 8, right: 8, bottom: 16, child: _simControls()),
 
-        // Recentralizar (aparece ao arrastar o mapa) + Iniciar / encerrar
+        // Recentralizar (aparece ao arrastar o mapa) + Iniciar / encerrar.
+        // Deitado: à esquerda, para não tapar o marcador do piloto no centro.
         Positioned(
-          left: 0,
-          right: 0,
+          left: landscape ? 210 : 0,
+          right: landscape ? null : 0,
           bottom: _sim != null ? 196 : 96,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             if (!_follow && _me != null)
@@ -3375,8 +3381,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Velocímetro (toque para configurar os alertas de velocidade)
         Positioned(
           left: 12,
-          bottom: _sim != null ? 196 : 136,
-          child: Column(
+          top: landscape ? 8 : null,
+          bottom: _sim != null ? 196 : (landscape ? 120 : 136),
+          child: _landscapeFit(landscape, Alignment.bottomLeft, Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -3461,7 +3468,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 },
               ),
             ],
-          ),
+          )),
         ),
 
         // Capitão/ferrolhos: grade com os apelidos (⚠️ = fora do trajeto).
@@ -3475,8 +3482,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Modo de visualização: Comboio (de cima) x Solo (primeira pessoa)
         if (_sim == null)
         Positioned(
-          left: 0,
-          right: 0,
+          left: landscape ? 210 : 0,
+          right: landscape ? null : 0,
           bottom: 28,
           child: Center(
             child: FloatingActionButton.extended(
@@ -3510,8 +3517,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Botões
         Positioned(
           right: 16,
+          top: landscape ? 8 : null,
           bottom: _sim != null ? 196 : 24,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
+          child: _landscapeFit(landscape, Alignment.bottomRight, Column(mainAxisSize: MainAxisSize.min, children: [
             if (_clubId != null) ...[
               FloatingActionButton(
                 heroTag: 'club',
@@ -3602,7 +3610,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
             ),
             ],
-          ]),
+          ])),
         ),
       ]))),
       ]),
@@ -3934,6 +3942,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ),
     );
   }
+
+  /// Deitado: a coluna encolhe para caber na altura (em pé, sem mudança).
+  Widget _landscapeFit(bool landscape, Alignment alignment, Widget child) =>
+      landscape
+          ? FittedBox(fit: BoxFit.scaleDown, alignment: alignment, child: child)
+          : child;
 
   /// Rota em andamento: sair da tela pede confirmação.
   bool get _confirmExit =>
