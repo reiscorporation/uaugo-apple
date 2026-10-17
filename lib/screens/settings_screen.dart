@@ -694,7 +694,7 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
               'Para achar algo no caminho: "$voiceWakeDisplay, procurar posto" '
               '(também restaurante, restaurante barato, lanche, café, padaria, '
               'pousada, hotel, oficina, pneu, farmácia, hospital, banco, '
-              'mercado). Até 10 buscas por dia.\n'
+              'mercado).\n'
               'Funciona com o mapa aberto na tela (use "Manter a tela ligada").',
               style: theme.textTheme.bodySmall,
             ),

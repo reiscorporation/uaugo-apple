@@ -97,7 +97,7 @@ class PlacesService {
 
   /// "UauGo, procurar posto": lugares da [category] no caminho ([polyline],
   /// a rota codificada) ou perto de (lat, lng). [limit] = já usou as buscas
-  /// do dia (10 por usuário, functions/maps.js).
+  /// do dia (teto contra abuso, functions/maps.js).
   /// Sem [category], busca o [text] falado ("loja de moto").
   Future<({List<FoundPlace> places, bool limit})> find(
     FindCategory? category, {

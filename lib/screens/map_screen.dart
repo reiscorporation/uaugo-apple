@@ -3655,7 +3655,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         polyline: onRoute ? trip.plan.polyline : null);
     if (!mounted) return;
     if (r.limit) {
-      _voice.reply('Você já fez as 10 buscas de hoje. Tente amanhã.');
+      _voice.reply('Limite de buscas de hoje atingido. Tente amanhã.');
       return;
     }
     final ranked = rankFound(r.places,

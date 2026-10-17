@@ -20,8 +20,12 @@
 const { HttpsError } = require("firebase-functions/v2/https");
 const { getFirestore } = require("firebase-admin/firestore");
 
-/** Limites por usuário por dia (protegem a conta de abuso). */
-const LIMITS = { directions: 300, places: 1500, find: 10 };
+/**
+ * Tetos por usuário por dia. Não são limite de uso (decisão de 2026-10-15:
+ * sem limite para quem usa de verdade); só protegem a conta do Google de
+ * robô ou de um defeito que consulte sem parar.
+ */
+const LIMITS = { directions: 1000, places: 3000, find: 200 };
 
 /**
  * Categorias de "procurar" (a mesma lista do app, lib/logic/find_places.dart):
