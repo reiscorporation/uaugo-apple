@@ -604,7 +604,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           _onExpeditionEnded(); // o líder encerrou para todos
           return;
         }
+        final oldCaptain = _exp?.captainId;
         setState(() => _exp = e);
+        if (e != null && oldCaptain != null && oldCaptain != e.captainId) {
+          _onCaptainChanged(e.captainId);
+        }
         _updateRoute();
         _maybeUpgradeRoute();
       }))
@@ -2021,10 +2025,50 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _voice.narrate('Você voltou para a rota da expedição');
   }
 
-  /// Escolhe o capitão e os ferrolhos (só o líder).
+  /// Trocou o capitão: avisa todo mundo (e por voz quem virou capitão).
+  void _onCaptainChanged(String uid) {
+    if (uid == widget.uid) {
+      _voice.narrate('Agora você é o capitão da expedição');
+      _snack('Agora você é o capitão: o seu desvio recalcula a rota de todos.');
+      return;
+    }
+    final name = _members.where((m) => m.uid == uid).firstOrNull?.name ?? 'Outro piloto';
+    _snack('$name agora é o capitão da expedição.');
+  }
+
+  /// O capitão passa a capitania para outro membro.
+  Future<void> _passCaptain(Member m) async {
+    final exp = _exp;
+    if (exp == null || !_isCaptain || m.uid == widget.uid) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Passar a capitania para ${m.name}?'),
+        content: const Text('Você deixa de ser o capitão. O desvio do novo capitão '
+            'é que passa a recalcular a rota de todos.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Passar')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await _svc.setRoles(_code, m.uid, [...exp.sweepers]..remove(m.uid));
+    } catch (e) {
+      _snack('Não foi possível salvar: $e');
+    }
+  }
+
+  /// Escolhe o capitão e os ferrolhos (o líder); o capitão só passa a
+  /// capitania.
   Future<void> _editRoles(Member m) async {
     final exp = _exp;
-    if (exp == null || !_isLeader) return;
+    if (exp == null) return;
+    if (!_isLeader) {
+      await _passCaptain(m);
+      return;
+    }
     final sweeper = exp.sweepers.contains(m.uid);
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -2635,10 +2679,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ].join(' · '),
                   overflow: TextOverflow.ellipsis,
                 ),
-                trailing: _isLeader
+                trailing: _isLeader || (_isCaptain && m.uid != widget.uid)
                     ? IconButton(
                         icon: const Icon(Icons.manage_accounts),
-                        tooltip: 'Capitão / ferrolho',
+                        tooltip: _isLeader ? 'Capitão / ferrolho' : 'Passar a capitania',
                         onPressed: () {
                           Navigator.pop(ctx);
                           _editRoles(m);
@@ -3079,7 +3123,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         ? 'Simulação: ${_trip?.title ?? ''}'
                         : (_trip?.title ?? 'Navegação'),
                 overflow: TextOverflow.ellipsis),
-            Text(_isExpedition ? 'Código: $_code' : _etaText(),
+            Text(_isExpedition ? _expeditionSubtitle() : _etaText(),
                 style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
@@ -4397,6 +4441,24 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final eta = DateTime.now().add(
         Duration(seconds: (left / (_etaSpeed ?? trip.averageSpeed)).round()));
     return 'Chegada ${formatTime(eta)} · faltam $km';
+  }
+
+  /// Expedição: navegando, chegada e quanto falta pela rota do grupo (mesmo
+  /// numa rota própria para voltar a ela), e o código; parado, só o código.
+  String _expeditionSubtitle() {
+    final w = _expWalker ?? _walker, p = _me;
+    if (!_navigating || w == null || _arrivedAtDestination) return 'Código: $_code';
+    final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
+    // Velocidade: a do trânsito conferido ou a média planejada do roteiro.
+    var dist = 0, dur = 0;
+    for (final s in _stops) {
+      dist += s.legDistanceM;
+      dur += s.legDurationS;
+    }
+    final speed = _etaSpeed ?? (dur > 0 ? dist / dur : 16.7);
+    final eta = DateTime.now().add(Duration(seconds: (left / speed).round()));
+    return 'Chegada ${formatTime(eta)} · faltam ${formatDistance(left.round())}'
+        ' · código $_code';
   }
 
   /// Próxima manobra no topo da tela (como no Waze/Google Maps).

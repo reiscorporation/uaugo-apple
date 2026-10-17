@@ -51,8 +51,9 @@ service cloud.firestore {
         && request.resource.data.leaderId == request.auth.uid
         && request.resource.data.keys().hasOnly(['name', 'leaderId', 'createdAt', 'plan'])
         && str(request.resource.data.name, 60);
-      // Líder: tudo (inclusive capitão e até 3 ferrolhos). Capitão: só a
-      // rota (recalculada quando ele sai do trajeto).
+      // Líder: tudo (inclusive capitão e até 3 ferrolhos). Capitão: a rota
+      // (recalculada quando ele sai do trajeto) e passar a capitania para
+      // outro membro (que deixa de ser ferrolho, se era).
       allow update: if hasAccount() && (
         (resource.data.leaderId == request.auth.uid
           && request.resource.data.leaderId == resource.data.leaderId
@@ -62,7 +63,12 @@ service cloud.firestore {
               || (request.resource.data.sweepers is list
                   && request.resource.data.sweepers.size() <= 3)))
         || (resource.data.get('captainId', '') == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['plan']))
+          && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['plan'])
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['captainId', 'sweepers'])
+              && str(request.resource.data.captainId, 128)
+              && exists(/databases/$(database)/documents/expeditions/$(code)/members/$(request.resource.data.captainId))
+              && request.resource.data.get('sweepers', []) ==
+                  resource.data.get('sweepers', []).removeAll([request.resource.data.captainId]))))
       );
       allow delete: if hasAccount() && resource.data.leaderId == request.auth.uid;
 

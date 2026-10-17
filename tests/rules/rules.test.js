@@ -155,10 +155,25 @@ describe("Expedição: capitão e ferrolhos", () => {
       { name: "Posto", lat: 1, lng: 1, order: 1, steps: [] }));
     await assertSucceeds(updateDoc(exp("carol"), { plan: { polyline: "novo" } }));
     await assertFails(updateDoc(exp("carol"), { name: "Outro nome" }));
-    await assertFails(updateDoc(exp("carol"), { captainId: "bob" }));
     await assertSucceeds(updateDoc(doc(db("carol"), "expeditions/ABC123/stops/s1"),
       { steps: [], legDistanceM: 100, legDurationS: 10 }));
     await assertFails(updateDoc(doc(db("carol"), "expeditions/ABC123/stops/s1"), { name: "X" }));
+  });
+  it("capitão passa a capitania só para um membro (e não mexe nos ferrolhos)", async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      const f = c.firestore();
+      await setDoc(doc(f, "expeditions/ABC123"),
+        { name: "Serra", leaderId: "alice", captainId: "carol", sweepers: ["bob", "dave"], plan: { polyline: "" } });
+      await setDoc(doc(f, "expeditions/ABC123/members/bob"), { name: "Bob" });
+    });
+    // Estranho (não é membro): recusado.
+    await assertFails(updateDoc(exp("carol"), { captainId: "zed", sweepers: ["bob", "dave"] }));
+    // Mexer em outro ferrolho junto: recusado.
+    await assertFails(updateDoc(exp("carol"), { captainId: "bob", sweepers: [] }));
+    // Passa para o Bob (que deixa de ser ferrolho).
+    await assertSucceeds(updateDoc(exp("carol"), { captainId: "bob", sweepers: ["dave"] }));
+    // Depois disso a Carol não manda mais.
+    await assertFails(updateDoc(exp("carol"), { captainId: "carol", sweepers: ["dave"] }));
   });
 });
 

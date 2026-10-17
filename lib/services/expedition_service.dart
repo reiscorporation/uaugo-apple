@@ -221,7 +221,8 @@ class ExpeditionService {
   Future<void> savePlan(String code, TripPlan plan) =>
       _exp(code).update({'plan': plan.toMap()});
 
-  /// Papéis (só o líder): capitão e até 3 ferrolhos.
+  /// Papéis: o líder define capitão e até 3 ferrolhos; o capitão só passa a
+  /// capitania (o novo capitão sai dos ferrolhos).
   Future<void> setRoles(String code, String captainId, List<String> sweepers) =>
       _exp(code).update({
         'captainId': captainId,
