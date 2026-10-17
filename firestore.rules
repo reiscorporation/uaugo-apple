@@ -51,9 +51,19 @@ service cloud.firestore {
         && request.resource.data.leaderId == request.auth.uid
         && request.resource.data.keys().hasOnly(['name', 'leaderId', 'createdAt', 'plan'])
         && str(request.resource.data.name, 60);
-      allow update: if hasAccount() && resource.data.leaderId == request.auth.uid
-        && request.resource.data.leaderId == resource.data.leaderId
-        && str(request.resource.data.name, 60);
+      // Líder: tudo (inclusive capitão e até 3 ferrolhos). Capitão: só a
+      // rota (recalculada quando ele sai do trajeto).
+      allow update: if hasAccount() && (
+        (resource.data.leaderId == request.auth.uid
+          && request.resource.data.leaderId == resource.data.leaderId
+          && str(request.resource.data.name, 60)
+          && (!('captainId' in request.resource.data) || str(request.resource.data.captainId, 128))
+          && (!('sweepers' in request.resource.data)
+              || (request.resource.data.sweepers is list
+                  && request.resource.data.sweepers.size() <= 3)))
+        || (resource.data.get('captainId', '') == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['plan']))
+      );
       allow delete: if hasAccount() && resource.data.leaderId == request.auth.uid;
 
       match /members/{uid} {
@@ -75,11 +85,16 @@ service cloud.firestore {
         allow delete: if signedIn() && request.auth.uid == uid;
       }
 
-      // Roteiro: todos os membros veem; só o líder altera.
+      // Roteiro: todos os membros veem; o líder altera. O capitão só
+      // atualiza os trechos (manobras) quando recalcula a rota.
       match /stops/{stopId} {
         allow read: if hasAccount() && isMember(code);
         allow write: if hasAccount()
           && get(/databases/$(database)/documents/expeditions/$(code)).data.leaderId == request.auth.uid;
+        allow update: if hasAccount()
+          && get(/databases/$(database)/documents/expeditions/$(code)).data.get('captainId', '') == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['legDistanceM', 'legDurationS', 'steps']);
       }
 
       // SOS: o membro aciona em nome próprio; qualquer membro pode marcar

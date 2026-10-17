@@ -137,6 +137,31 @@ describe("Expedições", () => {
     assertFails(getDoc(doc(db("alice"), "usage/alice"))));
 });
 
+describe("Expedição: capitão e ferrolhos", () => {
+  const exp = (u) => doc(db(u), "expeditions/ABC123");
+  it("líder define capitão e até 3 ferrolhos", async () => {
+    await assertSucceeds(updateDoc(exp("alice"), { captainId: "carol", sweepers: ["bob"] }));
+    await assertFails(updateDoc(exp("alice"),
+      { sweepers: ["a", "b", "c", "d"] }));
+  });
+  it("membro comum não define papéis nem a rota", async () => {
+    await assertFails(updateDoc(exp("carol"), { captainId: "carol" }));
+    await assertFails(updateDoc(exp("carol"), { plan: { polyline: "abc" } }));
+  });
+  it("capitão só altera a rota (e as manobras das paradas)", async () => {
+    await env.withSecurityRulesDisabled((c) => setDoc(doc(c.firestore(), "expeditions/ABC123"),
+      { name: "Serra", leaderId: "alice", captainId: "carol", plan: { polyline: "" } }));
+    await env.withSecurityRulesDisabled((c) => setDoc(doc(c.firestore(), "expeditions/ABC123/stops/s1"),
+      { name: "Posto", lat: 1, lng: 1, order: 1, steps: [] }));
+    await assertSucceeds(updateDoc(exp("carol"), { plan: { polyline: "novo" } }));
+    await assertFails(updateDoc(exp("carol"), { name: "Outro nome" }));
+    await assertFails(updateDoc(exp("carol"), { captainId: "bob" }));
+    await assertSucceeds(updateDoc(doc(db("carol"), "expeditions/ABC123/stops/s1"),
+      { steps: [], legDistanceM: 100, legDurationS: 10 }));
+    await assertFails(updateDoc(doc(db("carol"), "expeditions/ABC123/stops/s1"), { name: "X" }));
+  });
+});
+
 describe("Perfil privado (users)", () => {
   it("dono lê o próprio perfil", () =>
     assertSucceeds(getDoc(doc(db("alice"), "users/alice"))));

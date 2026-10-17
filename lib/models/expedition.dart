@@ -19,19 +19,31 @@ typedef Doc = DocumentSnapshot<Map<String, dynamic>>;
 DateTime? _date(dynamic v) => v is Timestamp ? v.toDate() : null;
 double? _num(dynamic v) => (v as num?)?.toDouble();
 
-/// Expedição: nome, código, líder e o plano (rota e opções).
+/// Expedição: nome, código, líder, papéis e o plano (rota e opções).
 class Expedition {
   final String code;
   final String name;
   final String leaderId;
   final TripPlan plan;
 
+  /// Capitão (puxa o comboio): só o desvio dele recalcula a rota de todos.
+  /// Sem capitão definido, é o líder.
+  final String captainId;
+
+  /// Ferrolhos (fecham o comboio): até 3. Veem quem saiu do trajeto.
+  final List<String> sweepers;
+
+  /// Máximo de ferrolhos.
+  static const maxSweepers = 3;
+
   Expedition({
     required this.code,
     required this.name,
     required this.leaderId,
     this.plan = const TripPlan(),
-  });
+    String? captainId,
+    this.sweepers = const [],
+  }) : captainId = captainId == null || captainId.isEmpty ? leaderId : captainId;
 
   factory Expedition.fromDoc(Doc doc) {
     final d = doc.data() ?? {};
@@ -40,6 +52,11 @@ class Expedition {
       name: d['name'] ?? 'Expedição',
       leaderId: d['leaderId'] ?? '',
       plan: TripPlan.fromMap(d['plan'] as Map<String, dynamic>?),
+      captainId: d['captainId'] as String?,
+      sweepers: [
+        for (final s in (d['sweepers'] as List? ?? const []))
+          if (s is String) s,
+      ],
     );
   }
 }

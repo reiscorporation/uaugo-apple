@@ -221,6 +221,46 @@ class ExpeditionService {
   Future<void> savePlan(String code, TripPlan plan) =>
       _exp(code).update({'plan': plan.toMap()});
 
+  /// Papéis (só o líder): capitão e até 3 ferrolhos.
+  Future<void> setRoles(String code, String captainId, List<String> sweepers) =>
+      _exp(code).update({
+        'captainId': captainId,
+        'sweepers': sweepers.take(Expedition.maxSweepers).toList(),
+      });
+
+  /// O CAPITÃO saiu da rota: a rota da expedição passa a sair da posição
+  /// dele e seguir pelas paradas que faltam ([remaining]); vale para todos.
+  /// As paradas já passadas ([passed]) perdem as manobras antigas.
+  Future<bool> rerouteFromCaptain(String code, TripPlan plan, double lat,
+      double lng, List<Stop> remaining, List<Stop> passed) async {
+    if (remaining.isEmpty) return false;
+    final r = await DirectionsService.detailedRoute(
+      [LatLng(lat, lng), ...remaining.map((s) => LatLng(s.lat, s.lng))],
+      avoidTolls: plan.avoidTolls,
+      avoidHighways: plan.avoidHighways,
+    );
+    if (r == null || r.legs.length != remaining.length) return false;
+    final batch = _db.batch();
+    for (final s in passed) {
+      batch.update(_exp(code).collection('stops').doc(s.id), {'steps': []});
+    }
+    for (var i = 0; i < remaining.length; i++) {
+      batch.update(_exp(code).collection('stops').doc(remaining[i].id), {
+        'legDistanceM': r.legs[i].distanceM,
+        'legDurationS': r.legs[i].durationS,
+        'steps': (i < r.legSteps.length ? r.legSteps[i] : const <NavStep>[])
+            .map((s) => s.toMap())
+            .toList(),
+      });
+    }
+    batch.update(_exp(code), {
+      'plan.polyline': r.polyline,
+      'plan.routeVersion': TripPlan.currentRouteVersion,
+    });
+    await batch.commit();
+    return true;
+  }
+
   /// Recalcula a rota pelas estradas e grava o traçado e os trechos, para
   /// que os pilotos não precisem chamar a API de rotas (economia).
   /// Retorna false se não foi possível calcular (sem chave/internet).

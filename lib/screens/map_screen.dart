@@ -1682,23 +1682,27 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _onStops(List<Stop> stops) {
     setState(() => _stops = stops);
     _updateRoute();
+    // Com rota própria (saiu do trajeto da expedição), a narração é a dela.
+    if (_personalTrip != null) return;
     // Manobras de todos os trechos, na ordem do roteiro.
     final sig = stops.map((s) => '${s.id}:${s.steps.length}').join(',');
     if (sig != _navSig) {
       _navSig = sig;
-      final steps = [for (final s in stops.skip(1)) ...s.steps];
-      _nav = steps.isEmpty
-          ? null
-          : TurnByTurn(steps,
-              // Semáforos do mapa aberto e os marcados pela comunidade.
-              signalAt: (la, lo) =>
-                  PoiService.instance.signalNear(la, lo) ||
-                  _hazards.any((h) =>
-                      h.type == HazardType.signal &&
-                      distanceMeters(la, lo, h.lat, h.lng) < 35));
+      _nav = _buildNav([for (final s in stops.skip(1)) ...s.steps]);
       _navSynced = false;
     }
   }
+
+  /// Narração curva a curva para estas manobras.
+  TurnByTurn? _buildNav(List<NavStep> steps) => steps.isEmpty
+      ? null
+      : TurnByTurn(steps,
+          // Semáforos do mapa aberto e os marcados pela comunidade.
+          signalAt: (la, lo) =>
+              PoiService.instance.signalNear(la, lo) ||
+              _hazards.any((h) =>
+                  h.type == HazardType.signal &&
+                  distanceMeters(la, lo, h.lat, h.lng) < 35));
 
   /// Narração das curvas: confere se saiu da rota (recalcula sozinho na
   /// navegação sozinho) e fala a próxima manobra na hora certa.
@@ -1730,6 +1734,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (_offRouteCount >= 3 && !_isExpedition && _trip != null) {
           // Navegando sozinho: recalcula como o Waze.
           _reroute(p);
+        } else if (_offRouteCount >= 3 && _isExpedition && _stops.length >= 2) {
+          // Expedição: capitão recalcula para todos; os outros, só para si.
+          _expeditionOffRoute(p);
         } else if (_offRouteCount == 3 && !_offRoute) {
           _offRoute = true;
           say('Você saiu da rota planejada');
@@ -1737,6 +1744,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         return;
       }
       _offRouteCount = 0;
+      _checkBackOnExpeditionRoute(p);
       if (_offRoute && d < 40) {
         _offRoute = false;
         nav.syncTo(p.latitude, p.longitude);
@@ -1883,7 +1891,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// A rota vem pronta do roteiro (calculada pelo líder ao planejar), então
   /// os pilotos não consultam a API de rotas. Sem rota, liga as paradas.
   void _updateRoute() {
-    final poly = _exp?.plan.polyline ?? _trip?.plan.polyline ?? '';
+    final expPoly = _exp?.plan.polyline ?? '';
+    if (expPoly != _expWalkerSig) {
+      _expWalkerSig = expPoly;
+      final pts = [for (final q in decodePolyline(expPoly)) (q.latitude, q.longitude)];
+      _expWalker = pts.length >= 2 ? RouteWalker(pts) : null;
+    }
+    final poly = _personalTrip?.plan.polyline ??
+        (expPoly.isNotEmpty ? expPoly : _trip?.plan.polyline ?? '');
     final sig = poly.isNotEmpty
         ? poly
         : _stops.map((s) => '${s.lat},${s.lng}').join(';');
@@ -1899,6 +1914,206 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   bool get _isLeader => _exp?.leaderId == widget.uid;
+
+  // ---- Capitão e ferrolhos (expedição)
+  bool get _isCaptain => _exp?.captainId == widget.uid;
+  bool get _isSweeper => _exp?.sweepers.contains(widget.uid) ?? false;
+
+  /// Capitão, ferrolhos e líder veem quem saiu do trajeto (grade e ⚠️).
+  bool get _watchesGroup => _isExpedition && (_isCaptain || _isSweeper || _isLeader);
+
+  /// Visão em grade (apelidos no canto) em vez das bolinhas no mapa.
+  bool _groupGrid = false;
+
+  /// Rota da EXPEDIÇÃO (a do grupo), mesmo quando o piloto está numa rota
+  /// própria para voltar a ela.
+  RouteWalker? _expWalker;
+  String _expWalkerSig = '';
+
+  /// Rota própria de quem saiu do trajeto (membro/ferrolho), até voltar.
+  Trip? _personalTrip;
+  int _backOnExpRoute = 0;
+
+  /// O piloto [m] está fora do trajeto da expedição (mais de 150 m)?
+  bool _memberOffRoute(Member m) {
+    final w = _expWalker;
+    if (w == null || !m.hasLocation || m.isStale) return false;
+    return w.project(m.lat!, m.lng!).offset > 150;
+  }
+
+  /// Saiu do trajeto da expedição (3 leituras fora). Capitão: a rota de
+  /// todos passa a sair dele. Membro/ferrolho: rota própria pelas mesmas
+  /// paradas até voltar ao trajeto.
+  Future<void> _expeditionOffRoute(Position p) async {
+    final exp = _exp;
+    if (exp == null || _rerouting) return;
+    if (DateTime.now().difference(_lastReroute) < const Duration(seconds: 20)) return;
+    _lastReroute = DateTime.now();
+    var next = 1;
+    while (next < _stops.length - 1 && _stopArrived.contains(_stops[next].id)) {
+      next++;
+    }
+    if (next >= _stops.length) return;
+    final remaining = _stops.sublist(next);
+    setState(() => _rerouting = true);
+    if (_isCaptain) {
+      _voice.narrate('Recalculando a rota da expedição');
+      final ok = await _svc.rerouteFromCaptain(_code, exp.plan, p.latitude,
+          p.longitude, remaining, _stops.sublist(1, next));
+      if (!mounted) return;
+      setState(() => _rerouting = false);
+      if (!ok) _lastReroute = DateTime.fromMillisecondsSinceEpoch(0);
+      return;
+    }
+    _voice.narrate('Você saiu da rota da expedição. Recalculando para você voltar.');
+    final nt = await TripService.build(
+      title: exp.name,
+      points: [
+        TripPoint('Sua posição', p.latitude, p.longitude, type: StopType.meet),
+        for (final s in remaining) TripPoint(s.name, s.lat, s.lng, type: s.type),
+      ],
+      avoidTolls: exp.plan.avoidTolls,
+      avoidHighways: exp.plan.avoidHighways,
+    );
+    if (!mounted) return;
+    setState(() => _rerouting = false);
+    if (nt == null) {
+      _lastReroute = DateTime.fromMillisecondsSinceEpoch(0);
+      return;
+    }
+    _personalTrip = nt;
+    _backOnExpRoute = 0;
+    _offRouteCount = 0;
+    _offRoute = false;
+    _routeSig = '';
+    _updateRoute();
+    _navSig = 'personal';
+    _nav = _buildNav([for (final s in nt.stops.skip(1)) ...s.steps]);
+    _navSynced = false;
+  }
+
+  /// Com rota própria: voltou ao trajeto da expedição (3 leituras a menos de
+  /// 40 m)? Então segue a rota do grupo de novo.
+  void _checkBackOnExpeditionRoute(Position p) {
+    final w = _expWalker;
+    if (_personalTrip == null || w == null) return;
+    final off = w.project(p.latitude, p.longitude).offset;
+    _backOnExpRoute = off < 40 ? _backOnExpRoute + 1 : 0;
+    if (_backOnExpRoute < 3) return;
+    _personalTrip = null;
+    _routeSig = '';
+    _navSig = '';
+    _onStops(_stops);
+    _voice.narrate('Você voltou para a rota da expedição');
+  }
+
+  /// Escolhe o capitão e os ferrolhos (só o líder).
+  Future<void> _editRoles(Member m) async {
+    final exp = _exp;
+    if (exp == null || !_isLeader) return;
+    final sweeper = exp.sweepers.contains(m.uid);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold))),
+          ListTile(
+            leading: const Icon(Icons.flag),
+            title: const Text('Tornar capitão'),
+            subtitle: const Text('Puxa o comboio: só o desvio dele recalcula a rota de todos'),
+            enabled: exp.captainId != m.uid,
+            onTap: () => Navigator.pop(ctx, 'captain'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.shield_moon),
+            title: Text(sweeper ? 'Deixar de ser ferrolho' : 'Tornar ferrolho'),
+            subtitle: Text(sweeper
+                ? 'Volta a ser membro'
+                : 'Fecha o comboio (até ${Expedition.maxSweepers})'),
+            enabled: sweeper || exp.sweepers.length < Expedition.maxSweepers,
+            onTap: () => Navigator.pop(ctx, 'sweeper'),
+          ),
+        ]),
+      ),
+    );
+    if (choice == null) return;
+    var captain = exp.captainId;
+    final sweepers = [...exp.sweepers];
+    if (choice == 'captain') {
+      captain = m.uid;
+      sweepers.remove(m.uid);
+    } else if (sweeper) {
+      sweepers.remove(m.uid);
+    } else {
+      sweepers.add(m.uid);
+      if (captain == m.uid) captain = exp.leaderId;
+    }
+    try {
+      await _svc.setRoles(_code, captain, sweepers);
+    } catch (e) {
+      _snack('Não foi possível salvar: $e');
+    }
+  }
+
+  /// Papel do piloto, para mostrar na lista ("Capitão", "Ferrolho").
+  String? _roleOf(String uid) {
+    final exp = _exp;
+    if (exp == null) return null;
+    if (exp.captainId == uid) return 'Capitão';
+    if (exp.sweepers.contains(uid)) return 'Ferrolho';
+    return null;
+  }
+
+  /// Grade com os apelidos (capitão/ferrolhos): ⚠️ em quem saiu do trajeto;
+  /// tocar mostra o piloto no mapa.
+  Widget _groupGridPanel() {
+    final others = [
+      for (final m in _members)
+        if (m.uid != widget.uid) m
+    ]..sort((a, b) => a.name.compareTo(b.name));
+    return Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHigh.withAlpha(235),
+      elevation: 6,
+      borderRadius: BorderRadius.circular(12),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+            maxWidth: 190, maxHeight: MediaQuery.of(context).size.height * 0.45),
+        child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(6), children: [
+          for (final m in others)
+            InkWell(
+              onTap: m.hasLocation
+                  ? () {
+                      setState(() => _follow = false);
+                      _focus(m.lat!, m.lng!);
+                    }
+                  : null,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                child: Row(children: [
+                  if (_memberOffRoute(m))
+                    const Icon(Icons.priority_high, color: Colors.amber, size: 20)
+                  else
+                    Icon(Icons.circle,
+                        size: 10,
+                        color: m.isStale ? Colors.grey : Color(m.bike.color)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(m.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: m.isStale ? Colors.grey : null)),
+                  ),
+                  Text(m.hasLocation && !m.isStale ? '${(m.speed * 3.6).round()}' : '—',
+                      style: const TextStyle(fontSize: 12)),
+                ]),
+              ),
+            ),
+        ]),
+      ),
+    );
+  }
 
   /// Abre o roteiro da expedição.
   Future<void> _openPlan() => Navigator.of(context).push(MaterialPageRoute(
@@ -2401,10 +2616,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 title: Text(
                   [
                     m.uid == widget.uid ? '${m.name} (você)' : m.name,
+                    if (_roleOf(m.uid) case final r?) r,
                     if (m.bike.displayName.isNotEmpty) m.bike.displayName,
                   ].join(' · '),
                   overflow: TextOverflow.ellipsis,
                 ),
+                trailing: _isLeader
+                    ? IconButton(
+                        icon: const Icon(Icons.manage_accounts),
+                        tooltip: 'Capitão / ferrolho',
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _editRoles(m);
+                        },
+                      )
+                    : (_watchesGroup && _memberOffRoute(m)
+                        ? const Icon(Icons.priority_high, color: Colors.amber)
+                        : null),
                 subtitle: Text(!m.hasLocation
                     ? 'Sem localização ainda'
                     : m.isStale
@@ -2736,6 +2964,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     for (final m in _members) {
       if (!m.hasLocation || m.uid == widget.uid) continue;
+      if (_groupGrid && _watchesGroup) continue; // visão em grade
       final icon = _bikeIcon(m.name, m.bike);
       markers.add(Marker(
         markerId: MarkerId('member_${m.uid}'),
@@ -3234,6 +3463,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ),
         ),
 
+        // Capitão/ferrolhos: grade com os apelidos (⚠️ = fora do trajeto).
+        if (_groupGrid && _watchesGroup)
+          Positioned(
+            left: 8,
+            top: MediaQuery.of(context).padding.top + 150,
+            child: _groupGridPanel(),
+          ),
+
         // Modo de visualização: Comboio (de cima) x Solo (primeira pessoa)
         if (_sim == null)
         Positioned(
@@ -3294,6 +3531,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
             ),
             const SizedBox(height: 12),
+            if (_watchesGroup) ...[
+              FloatingActionButton.small(
+                heroTag: 'groupGrid',
+                tooltip: _groupGrid ? 'Ver os pilotos no mapa' : 'Ver em grade (apelidos)',
+                onPressed: () => setState(() => _groupGrid = !_groupGrid),
+                child: Badge(
+                  isLabelVisible: _members.any(_memberOffRoute),
+                  backgroundColor: Colors.amber,
+                  label: Text('${_members.where(_memberOffRoute).length}',
+                      style: const TextStyle(color: Colors.black)),
+                  child: Icon(_groupGrid ? Icons.place : Icons.view_list),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (_isExpedition) ...[
               FloatingActionButton(
                 heroTag: 'group',
