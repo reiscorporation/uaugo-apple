@@ -25,7 +25,7 @@ const { getFirestore } = require("firebase-admin/firestore");
  * sem limite para quem usa de verdade); só protegem a conta do Google de
  * robô ou de um defeito que consulte sem parar.
  */
-const LIMITS = { directions: 1000, places: 3000, find: 200 };
+const LIMITS = { directions: 1000, places: 3000, find: 200, ai: 200 };
 
 /**
  * Categorias de "procurar" (a mesma lista do app, lib/logic/find_places.dart):
@@ -233,4 +233,4 @@ async function find(uid, d) {
   };
 }
 
-module.exports = { directions, places, FIND };
+module.exports = { directions, places, FIND, countUse, requireUser };

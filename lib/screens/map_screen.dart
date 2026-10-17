@@ -3627,6 +3627,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// sem rota, perto. Fala o mais próximo e pergunta se inclui como parada.
   Future<void> _voiceFind(FindCommand c) async {
     var cat = c.category;
+    var cheap = c.cheap;
     String? text;
     if (cat == null) {
       // Fora da lista ("procurar pizzaria"...): ouve o pedido livre.
@@ -3636,9 +3637,24 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _voice.reply('Não entendi. Diga, por exemplo: $voiceWakeDisplay, procurar posto.');
         return;
       }
-      text = cleanFindQuery(said);
-      cat = findWords[text.toLowerCase()];
-      if (cat != null) text = null;
+      // A IA (Gemini) entende o pedido; sem internet, usa o texto como está.
+      final ai = await PlacesService().interpret(said);
+      if (!mounted) return;
+      if (ai != null && ai.action == 'saved' && ai.saved.isNotEmpty) {
+        await _voiceGoTo(saved: ai.saved);
+        return;
+      }
+      if (ai != null && ai.action == 'goto' && ai.query.isNotEmpty) {
+        await _goToSpoken(ai.query);
+        return;
+      }
+      cat = FindCategory.values.where((f) => f.name == ai?.category).firstOrNull;
+      cheap = ai?.cheap ?? false;
+      if (cat == null) {
+        text = ai != null && ai.query.isNotEmpty ? ai.query : cleanFindQuery(said);
+        cat = findWords[text.toLowerCase()];
+        if (cat != null) text = null;
+      }
     }
     if (_sim != null) {
       _voice.reply('Na simulação a busca de lugares fica desligada.');
@@ -3649,7 +3665,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _voice.reply('Ainda sem a sua posição pelo GPS.');
       return;
     }
-    final what = '${cat?.spoken ?? text}${c.cheap ? ' barato' : ''}';
+    final what = '${cat?.spoken ?? text}${cheap ? ' barato' : ''}';
     _lastFindSpoken = cat?.spoken;
     _voice.reply('Procurando $what.');
     final trip = _trip, w = _walker, pr = _proj;
@@ -3657,7 +3673,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         pr.offset < 250 && trip.plan.polyline.isNotEmpty;
     final r = await PlacesService().find(cat,
         text: text,
-        cheap: c.cheap,
+        cheap: cheap,
         lat: p.latitude,
         lng: p.longitude,
         polyline: onRoute ? trip.plan.polyline : null);
@@ -3856,6 +3872,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     if (text == null || text.isEmpty) {
       _voice.reply('Não entendi o destino.');
+      return;
+    }
+    await _goToSpoken(text);
+  }
+
+  /// Vai ao destino falado: a tela inicial pesquisa e abre a rota (navegando,
+  /// pergunta antes de trocar).
+  Future<void> _goToSpoken(String text) async {
+    if (_isExpedition) {
+      _voice.reply('No comboio, o destino segue o roteiro do grupo.');
       return;
     }
     if (_confirmExit && !await _confirmNewRoute(text)) return;

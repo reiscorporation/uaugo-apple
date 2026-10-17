@@ -141,6 +141,9 @@ exports.endExpedition = onCall(callOpts, async (req) => {
 // Detalhes em maps.js. O app chama estas funções no lugar do Google direto.
 exports.directions = onCall(callOpts, maps.directions);
 exports.places = onCall(callOpts, maps.places);
+// IA (Gemini): entende pedidos falados livres ("restaurante bom e barato").
+const ai = require("./ai");
+exports.interpret = onCall(callOpts, (req) => ai.interpret(maps.requireUser(req), req.data, maps.countUse));
 
 // ===================== Clube =====================
 

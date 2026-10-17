@@ -140,6 +140,29 @@ class PlacesService {
     }
   }
 
+  /// IA (Gemini, pelo servidor, functions/ai.js): entende um pedido falado
+  /// livre ("restaurante bom e barato", "me leva pra casa"). Null se falhar
+  /// (sem internet): o app usa o texto como está.
+  Future<({String action, String category, String query, bool cheap, String saved})?>
+      interpret(String text) async {
+    try {
+      final res = await _fn
+          .httpsCallable('interpret',
+              options: HttpsCallableOptions(timeout: const Duration(seconds: 20)))
+          .call({'text': text});
+      final d = Map<String, dynamic>.from(res.data as Map);
+      return (
+        action: (d['action'] ?? 'find') as String,
+        category: (d['category'] ?? '') as String,
+        query: (d['query'] ?? '') as String,
+        cheap: d['cheap'] == true,
+        saved: (d['saved'] ?? '') as String,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Posição e nome do lugar escolhido (encerra a sessão de busca).
   Future<PlaceDetails?> details(PlaceSuggestion s) async {
     try {
