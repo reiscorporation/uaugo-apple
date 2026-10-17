@@ -20,6 +20,13 @@
  * - createClubInvite: { clubId } -> { code, expiresAt }
  * - joinClub:         { inviteCode, memberName, city?, bike? } -> { clubId, name }
  * - setClubAdmin:     { clubId, uid, admin: true|false } -> { ok }
+ *
+ * ADMINISTRAÇÃO UAUGO (platformAdmins/{uid}, gravado só por
+ * scripts/admin-plataforma.js): no app, sem precisar do computador:
+ * - adminCreateClub:      { name, uf?, city? } -> { clubId, name }
+ * - adminActivationCode:  { clubId?, note? } -> { code, clubName }
+ * - adminMemberInvite:    { clubId } -> { code, expiresAt, clubName }
+ * - adminListClubs:       {} -> { clubs: [{ id, name, uf, status, admins, members }] }
  */
 
 const { HttpsError } = require("firebase-functions/v2/https");
@@ -85,6 +92,90 @@ async function requireAdmin(clubId, uid) {
     throw new HttpsError("permission-denied", "Só os administradores do clube podem fazer isso.");
   }
   return snap.data();
+}
+
+/** Confere se [uid] é administrador da plataforma (HelpAITech). */
+async function requirePlatformAdmin(uid) {
+  const s = await getFirestore().doc(`platformAdmins/${uid}`).get();
+  if (!s.exists) {
+    throw new HttpsError("permission-denied", "Só a administração do UauGo pode fazer isso.");
+  }
+}
+
+/** Cadastra um clube na hora (fica reservado até ter administradores). */
+async function adminCreateClub(uid, data) {
+  await requirePlatformAdmin(uid);
+  const db = getFirestore();
+  const name = text(data?.name, 60, true, "o nome do clube");
+  const uf = text(data?.uf, 2, false).toUpperCase();
+  const city = text(data?.city, 80, false);
+  let id = randomCode(8);
+  while ((await db.doc(`clubs/${id}`).get()).exists) id = randomCode(8);
+  await db.doc(`clubs/${id}`).set({
+    name, uf, city, status: "reserved", admins: [],
+    origin: "cadastro no app (administração UauGo)",
+    createdBy: uid, createdAt: FieldValue.serverTimestamp(),
+  });
+  return { clubId: id, name };
+}
+
+/**
+ * Código de ATIVAÇÃO (vira administrador do clube [clubId]; sem clube, a
+ * pessoa cria um clube novo com o nome que escolher).
+ */
+async function adminActivationCode(uid, data) {
+  await requirePlatformAdmin(uid);
+  const db = getFirestore();
+  const clubId = normalize(data?.clubId);
+  let clubName = "";
+  if (clubId) {
+    const c = await db.doc(`clubs/${clubId}`).get();
+    if (!c.exists) throw new HttpsError("not-found", "Clube não encontrado.");
+    clubName = c.data().name || clubId;
+  }
+  let code = randomCode(12);
+  while ((await db.doc(`clubActivations/${code}`).get()).exists) code = randomCode(12);
+  await db.doc(`clubActivations/${code}`).set({
+    status: "available",
+    note: text(data?.note, 120, false) || "gerado no app",
+    createdBy: uid,
+    createdAt: FieldValue.serverTimestamp(),
+    ...(clubId ? { clubId } : {}),
+  });
+  return { code, clubName };
+}
+
+/** Convite de MEMBRO para qualquer clube (sem ser administrador dele). */
+async function adminMemberInvite(uid, data) {
+  await requirePlatformAdmin(uid);
+  const db = getFirestore();
+  const clubId = normalize(data?.clubId);
+  const c = clubId ? await db.doc(`clubs/${clubId}`).get() : null;
+  if (!c || !c.exists) throw new HttpsError("not-found", "Clube não encontrado.");
+  let code = randomCode(8);
+  while ((await db.doc(`clubInvites/${code}`).get()).exists) code = randomCode(8);
+  const expiresAt = Timestamp.fromMillis(Date.now() + INVITE_DAYS * 24 * 3600e3);
+  await db.doc(`clubInvites/${code}`).set({
+    clubId, createdBy: uid, createdAt: Timestamp.now(), expiresAt, usedBy: null,
+  });
+  return { code, expiresAt: expiresAt.toMillis(), clubName: c.data().name || clubId };
+}
+
+/** Todos os clubes, com quantos administradores e membros têm. */
+async function adminListClubs(uid) {
+  await requirePlatformAdmin(uid);
+  const db = getFirestore();
+  const snap = await db.collection("clubs").get();
+  const clubs = await Promise.all(snap.docs.map(async (d) => {
+    const c = d.data();
+    const members = (await d.ref.collection("members").count().get()).data().count;
+    return {
+      id: d.id, name: c.name || d.id, uf: c.uf || "", city: c.city || "",
+      status: c.status || "active", admins: adminsOf(c).length, members,
+    };
+  }));
+  clubs.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  return { clubs };
 }
 
 /**
@@ -249,4 +340,5 @@ async function setClubAdmin(uid, data) {
 
 module.exports = {
   createClub, createClubInvite, joinClub, setClubAdmin, adminsOf, normalize, randomCode, ALPHABET,
+  adminCreateClub, adminActivationCode, adminMemberInvite, adminListClubs,
 };

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convite de clube — UauGo</title>
+<style>
+  :root { --bg:#fff; --fg:#0f1b2d; --muted:#4a5d75; --accent:#d9560b; --line:#dbe3ee; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1b2d; --fg:#eaf1fa; --muted:#a9bbd1; --accent:#ff7a1a; --line:#26405f; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:1.6rem; line-height:1.3; } h2 { font-size:1.2rem; margin-top:2rem; }
+  a { color:var(--accent); } nav { border-bottom:1px solid var(--line); padding:12px 16px; text-align:center; }
+  nav a { margin:0 10px; text-decoration:none; font-weight:600; }
+  footer { color:var(--muted); font-size:.9rem; margin-top:3rem; border-top:1px solid var(--line); padding-top:12px; }
+</style>
+</head>
+<body>
+<nav><a href="/termos">Termos de Uso</a><a href="/privacidade">Privacidade</a><a href="/excluir-dados">Excluir dados</a></nav>
+<main>
+
+<h1>Convite de clube no UauGo</h1>
+<p>Seu código:</p>
+<p id="code" style="font-size:2rem;font-weight:900;letter-spacing:3px">—</p>
+<p id="how"></p>
+<p><a id="open" href="#" style="display:inline-block;padding:12px 18px;border-radius:24px;background:var(--accent);color:#fff;text-decoration:none;font-weight:700">Abrir no app UauGo</a></p>
+<p>Ainda não tem o app? <a href="https://play.google.com/store/apps/details?id=helpaitech.comboio">Baixe o UauGo na Google Play</a>, entre com sua conta e abra este link de novo (ou digite o código na tela Clube).</p>
+<script>
+  const c = (new URLSearchParams(location.search).get("c") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const ok = c.length === 8 || c.length === 12;
+  document.getElementById("code").textContent = ok
+    ? (c.length === 12 ? c.slice(0,4)+"-"+c.slice(4,8)+"-"+c.slice(8) : c.slice(0,4)+"-"+c.slice(4))
+    : "código inválido";
+  document.getElementById("how").textContent = c.length === 12
+    ? "Código de administrador do clube: no app, Clube → “Sou administrador do clube” → Ativar."
+    : "Convite de membro: no app, Clube → “Entrar no meu clube” → Entrar. Vale 7 dias e para uma pessoa.";
+  if (ok) document.getElementById("open").href = "uaugo://clube?c=" + c;
+</script>
+<footer>UauGo — Ricardo Reis / HelpAITech · <a href="mailto:helpaitech.ricardo@gmail.com">helpaitech.ricardo@gmail.com</a></footer>
+</main>
+</body>
+</html>

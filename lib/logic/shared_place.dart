@@ -10,6 +10,16 @@
 //   teste em test/shared_place_test.dart.
 // ============================================================================
 
+/// Código de clube num link do convite ("uaugo://clube?c=CODIGO" ou
+/// "https://helpaitechcomboio.web.app/clube?c=CODIGO"); null se não for.
+String? clubCodeFromLink(String raw) {
+  final m = RegExp(r'^(uaugo://clube|https://helpaitechcomboio\.web\.app/clube)\?c=([A-Za-z0-9-]{8,14})')
+      .firstMatch(raw.trim());
+  if (m == null) return null;
+  final code = m.group(2)!.toUpperCase().replaceAll('-', '');
+  return code.length == 8 || code.length == 12 ? code : null;
+}
+
 /// Lugar recebido: posição (se veio no link) e/ou texto para buscar.
 class SharedPlace {
   final double? lat;

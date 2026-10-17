@@ -18,7 +18,7 @@ const member = async (club, uid) => (await db.doc(`clubs/${club}/members/${uid}`
 const club = async (id) => (await db.doc(`clubs/${id}`).get()).data();
 
 test.beforeEach(async () => {
-  for (const c of ["clubActivations", "clubInvites", "clubs", "usage"]) {
+  for (const c of ["clubActivations", "clubInvites", "clubs", "usage", "platformAdmins"]) {
     await db.recursiveDelete(db.collection(c));
   }
   await db.doc("clubs/LOBOS123").set({ name: "Lobos da Estrada", status: "reserved", admins: [] });
@@ -99,4 +99,34 @@ test("muitas tentativas erradas bloqueiam no dia", async () => {
     await rejects(clubs.joinClub("chute", { inviteCode: "AAAA2222", memberName: "X" }), /inválido/);
   }
   await rejects(clubs.joinClub("chute", { inviteCode: "AAAA2222", memberName: "X" }), /Muitas tentativas/);
+});
+
+test("administração UauGo: só quem é administrador da plataforma", async () => {
+  await rejects(clubs.adminCreateClub("zé", { name: "Clube X" }), /administração do UauGo/);
+  await rejects(clubs.adminListClubs("zé"), /administração do UauGo/);
+});
+
+test("administração UauGo: cadastra clube, gera código de administrador e convite", async () => {
+  await db.doc("platformAdmins/ric").set({ email: "r@x.com" });
+  const { clubId, name } = await clubs.adminCreateClub("ric", { name: "Águias do Asfalto", uf: "sp" });
+  assert.strictEqual(name, "Águias do Asfalto");
+  assert.strictEqual((await club(clubId)).status, "reserved");
+  assert.strictEqual((await club(clubId)).uf, "SP");
+
+  // Código de administrador: o presidente ativa e vira administrador.
+  const act = await clubs.adminActivationCode("ric", { clubId, note: "presidente" });
+  assert.strictEqual(act.code.length, 12);
+  assert.strictEqual(act.clubName, "Águias do Asfalto");
+  await clubs.createClub("pres", { activationCode: act.code, memberName: "Presidente" });
+  assert.deepStrictEqual((await club(clubId)).admins, ["pres"]);
+
+  // Convite de membro direto (sem ser administrador do clube).
+  const inv = await clubs.adminMemberInvite("ric", { clubId });
+  assert.strictEqual(inv.code.length, 8);
+  await clubs.joinClub("m9", { inviteCode: inv.code, memberName: "Membro" });
+  assert.strictEqual((await member(clubId, "m9")).role, "member");
+
+  const { clubs: list } = await clubs.adminListClubs("ric");
+  const mine = list.find((c) => c.id === clubId);
+  assert.deepStrictEqual([mine.admins, mine.members], [1, 2]);
 });

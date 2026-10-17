@@ -80,6 +80,13 @@ class NearbyMember {
       );
 }
 
+/// Clube na Administração UauGo.
+class AdminClub {
+  final String id, name, uf, status;
+  final int admins, members;
+  const AdminClub(this.id, this.name, this.uf, this.status, this.admins, this.members);
+}
+
 /// Tipo de aviso para membros próximos: pedido de ajuda ou "estou
 /// passando pela sua cidade".
 enum ClubPurpose { help, passing }
@@ -125,6 +132,51 @@ class ClubService {
         Club(id: r['clubId'] as String, name: r['name'] as String, admins: [
           FirebaseAuth.instance.currentUser?.uid ?? '',
         ]);
+  }
+
+  // ---- Administração UauGo (platformAdmins/{uid}; functions/clubs.js)
+
+  /// É administrador da plataforma? (cada um só confere o próprio)
+  Future<bool> isPlatformAdmin() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    try {
+      return (await _db.doc('platformAdmins/$uid').get()).exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<AdminClub>> adminListClubs() async {
+    final r = await _call('adminListClubs', {});
+    return [
+      for (final c in (r['clubs'] as List? ?? const []).whereType<Map>())
+        AdminClub(
+          c['id'] as String,
+          (c['name'] ?? '') as String,
+          (c['uf'] ?? '') as String,
+          (c['status'] ?? 'active') as String,
+          (c['admins'] as num?)?.toInt() ?? 0,
+          (c['members'] as num?)?.toInt() ?? 0,
+        ),
+    ];
+  }
+
+  Future<({String clubId, String name})> adminCreateClub(String name, String uf) async {
+    final r = await _call('adminCreateClub', {'name': name, 'uf': uf});
+    return (clubId: r['clubId'] as String, name: r['name'] as String);
+  }
+
+  /// Código de administrador do clube (12 caracteres).
+  Future<({String code, String clubName})> adminActivationCode(String clubId) async {
+    final r = await _call('adminActivationCode', {'clubId': clubId, 'note': 'gerado no app'});
+    return (code: r['code'] as String, clubName: (r['clubName'] ?? '') as String);
+  }
+
+  /// Convite de membro (8 caracteres), para qualquer clube.
+  Future<({String code, String clubName})> adminMemberInvite(String clubId) async {
+    final r = await _call('adminMemberInvite', {'clubId': clubId});
+    return (code: r['code'] as String, clubName: (r['clubName'] ?? '') as String);
   }
 
   /// Um administrador gera um CONVITE de uso único (vale 7 dias e uma

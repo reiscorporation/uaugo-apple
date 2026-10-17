@@ -68,6 +68,13 @@
                 <data android:scheme="https" android:host="www.google.com"
                     android:pathPrefix="/maps"/>
             </intent-filter>
+            <!-- Convite de clube (QR code da Administração UauGo): uaugo://clube?c=… -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="uaugo" android:host="clube"/>
+            </intent-filter>
             <!-- Compartilhar → UauGo (texto com endereço ou link de mapa). -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>

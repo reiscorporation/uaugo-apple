@@ -86,6 +86,14 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     final raw = SharedPlaceService.instance.take()!;
+    // Link do convite de clube (QR code da Administração UauGo).
+    final club = clubCodeFromLink(raw);
+    if (club != null) {
+      await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ClubScreen(
+              userName: _nameCtrl.text.trim(), initialCode: club)));
+      return;
+    }
     setState(() => _busy = true);
     final place = await SharedPlaceService.instance.resolve(raw);
     if (!mounted) return;

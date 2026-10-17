@@ -73,4 +73,12 @@ void main() {
     expect(parseSharedPlace('https://youtube.com/watch?v=x'), isNull);
     expect(parseSharedPlace('oi'), isNull);
   });
+
+  test('link do convite de clube (QR code)', () {
+    expect(clubCodeFromLink('uaugo://clube?c=ABCD2345'), 'ABCD2345');
+    expect(clubCodeFromLink('https://helpaitechcomboio.web.app/clube?c=abcdefgh2345'),
+        'ABCDEFGH2345');
+    expect(clubCodeFromLink('uaugo://clube?c=XYZ'), isNull);
+    expect(clubCodeFromLink('geo:0,0?q=Curitiba'), isNull);
+  });
 }

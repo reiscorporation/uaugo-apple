@@ -26,8 +26,12 @@ import 'consent_screen.dart';
 /// Tela do clube: entrar com convite, ativar como administrador, convidar,
 /// gerenciar membros, sair.
 class ClubScreen extends StatefulWidget {
-  const ClubScreen({super.key, required this.userName});
+  const ClubScreen({super.key, required this.userName, this.initialCode});
   final String userName;
+
+  /// Código recebido pelo QR/link (8 = convite de membro; 12 = código de
+  /// administrador): já vem preenchido no campo certo.
+  final String? initialCode;
 
   @override
   State<ClubScreen> createState() => _ClubScreenState();
@@ -50,6 +54,8 @@ class _ClubScreenState extends State<ClubScreen> {
   @override
   void initState() {
     super.initState();
+    final c = widget.initialCode;
+    if (c != null) (c.length == 12 ? _activationCtrl : _codeCtrl).text = c;
     _load();
   }
 

@@ -150,6 +150,11 @@ exports.createClub = onCall(callOpts, (req) => clubs.createClub(accountUid(req),
 exports.createClubInvite = onCall(callOpts, (req) => clubs.createClubInvite(accountUid(req), req.data));
 exports.joinClub = onCall(callOpts, (req) => clubs.joinClub(accountUid(req), req.data));
 exports.setClubAdmin = onCall(callOpts, (req) => clubs.setClubAdmin(accountUid(req), req.data));
+// Administração UauGo (só platformAdmins/{uid}).
+exports.adminCreateClub = onCall(callOpts, (req) => clubs.adminCreateClub(accountUid(req), req.data));
+exports.adminActivationCode = onCall(callOpts, (req) => clubs.adminActivationCode(accountUid(req), req.data));
+exports.adminMemberInvite = onCall(callOpts, (req) => clubs.adminMemberInvite(accountUid(req), req.data));
+exports.adminListClubs = onCall(callOpts, (req) => clubs.adminListClubs(accountUid(req)));
 
 const CONSENT_FOR = { help: "receiveHelp", passing: "receivePassing" };
 const MAX_KM = 300;

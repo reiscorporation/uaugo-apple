@@ -19,6 +19,8 @@ import '../services/voice_command_service.dart';
 import '../services/voice_service.dart';
 import '../services/auth_service.dart';
 import 'about_screen.dart';
+import 'admin_screen.dart';
+import '../services/club_service.dart';
 import 'login_screen.dart';
 import 'terms_screen.dart';
 
@@ -568,6 +570,23 @@ class SettingsScreen extends StatelessWidget {
             section('Acessibilidade'),
             const _VoiceCommandsTile(),
           ],
+          // Só para a administração da plataforma (HelpAITech).
+          FutureBuilder<bool>(
+            future: ClubService.instance.isPlatformAdmin(),
+            builder: (_, snap) => snap.data != true
+                ? const SizedBox.shrink()
+                : Column(children: [
+                    section('Administração'),
+                    ListTile(
+                      leading: const Icon(Icons.admin_panel_settings),
+                      title: const Text('Administração UauGo'),
+                      subtitle: const Text(
+                          'Cadastrar clubes e gerar códigos e convites (QR code)'),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => const AdminScreen())),
+                    ),
+                  ]),
+          ),
           section('Sobre'),
           ListTile(
             leading: const Icon(Icons.info_outline),

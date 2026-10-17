@@ -89,4 +89,25 @@ fs.writeFileSync(path.join(out, "index.html"), page("UauGo", md(
   "- **Termos de Uso:** /termos\n- **Política de Privacidade:** /privacidade\n- **Excluir seus dados:** /excluir-dados"))
   .replace(/(\/(termos|privacidade|excluir-dados))<\/li>/g, '<a href="$1">$1</a></li>'));
 
-console.log("Páginas geradas em public/: index, termos, privacidade, excluir-dados");
+// Convite de clube (QR code da Administração UauGo): /clube?c=CODIGO.
+// Mostra o código e as instruções; quem já tem o app abre direto nele.
+fs.writeFileSync(path.join(out, "clube.html"), page("Convite de clube — UauGo", `
+<h1>Convite de clube no UauGo</h1>
+<p>Seu código:</p>
+<p id="code" style="font-size:2rem;font-weight:900;letter-spacing:3px">—</p>
+<p id="how"></p>
+<p><a id="open" href="#" style="display:inline-block;padding:12px 18px;border-radius:24px;background:var(--accent);color:#fff;text-decoration:none;font-weight:700">Abrir no app UauGo</a></p>
+<p>Ainda não tem o app? <a href="https://play.google.com/store/apps/details?id=helpaitech.comboio">Baixe o UauGo na Google Play</a>, entre com sua conta e abra este link de novo (ou digite o código na tela Clube).</p>
+<script>
+  const c = (new URLSearchParams(location.search).get("c") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const ok = c.length === 8 || c.length === 12;
+  document.getElementById("code").textContent = ok
+    ? (c.length === 12 ? c.slice(0,4)+"-"+c.slice(4,8)+"-"+c.slice(8) : c.slice(0,4)+"-"+c.slice(4))
+    : "código inválido";
+  document.getElementById("how").textContent = c.length === 12
+    ? "Código de administrador do clube: no app, Clube → “Sou administrador do clube” → Ativar."
+    : "Convite de membro: no app, Clube → “Entrar no meu clube” → Entrar. Vale 7 dias e para uma pessoa.";
+  if (ok) document.getElementById("open").href = "uaugo://clube?c=" + c;
+</script>`));
+
+console.log("Páginas geradas em public/: index, termos, privacidade, excluir-dados, clube");

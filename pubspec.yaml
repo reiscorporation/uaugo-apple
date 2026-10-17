@@ -32,6 +32,7 @@ dependencies:
   gal: ^2.3.3
   battery_plus: ^7.1.2
   package_info_plus: ^10.2.2
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

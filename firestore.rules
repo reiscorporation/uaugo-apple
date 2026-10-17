@@ -116,6 +116,12 @@ service cloud.firestore {
       allow read: if signedIn() && request.auth.uid == uid;
       allow write: if false;
     }
+
+    // Administração UauGo: cada um só confere o próprio; tudo pelas funções.
+    match /platformAdmins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
     match /clubActivations/{code} {
       allow read, write: if false;
     }
