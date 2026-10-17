@@ -2,7 +2,9 @@
 // weather_service.dart — Previsão de chuva
 //
 // O que faz: Consulta o Open-Meteo para vários pontos à frente de uma vez (sem
-//   chave). Grátis só para uso não comercial.
+//   chave), em 3 modelos de previsão; só avisa quando 2 concordam
+//   (rainConsensus). ATENÇÃO: o Open-Meteo é grátis só para uso não
+//   comercial; com o app monetizado, contratar o plano da API.
 // Quem usa: MapScreen._checkRain (a cada 5 min).
 // ============================================================================
 
@@ -25,6 +27,7 @@ class WeatherService {
       'current': 'precipitation,weather_code',
       'minutely_15': 'precipitation',
       'forecast_minutely_15': '2',
+      'models': rainModels.join(','),
       'timezone': 'auto',
     });
     try {
@@ -36,13 +39,16 @@ class WeatherService {
         for (final e in list)
           () {
             final cur = e['current'] as Map? ?? const {};
-            final next = (e['minutely_15']?['precipitation'] as List?) ?? const [];
             final code = (cur['weather_code'] as num?)?.toInt() ?? 0;
-            var mm = (cur['precipitation'] as num?)?.toDouble() ?? 0;
-            for (final v in next) {
-              if (v is num && v > mm) mm = v.toDouble();
-            }
-            return rainLevel(code, mm);
+            final m15 = e['minutely_15'] as Map? ?? const {};
+            // Maior chuva prevista por modelo nos próximos 15–30 min.
+            final byModel = [
+              for (final m in rainModels)
+                ((m15['precipitation_$m'] as List?) ?? const [])
+                    .whereType<num>()
+                    .fold<double>(0, (a, v) => v > a ? v.toDouble() : a),
+            ];
+            return rainConsensus(code, byModel);
           }(),
       ];
     } catch (_) {

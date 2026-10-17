@@ -37,4 +37,15 @@ void main() {
           'Chuva forte a aproximadamente 4 quilômetros à frente');
     });
   });
+
+  test('chuva: só avisa quando pelo menos 2 dos 3 modelos concordam', () {
+    // Só um modelo prevê chuva forte: não avisa.
+    expect(rainConsensus(80, [3.0, 0.0, 0.0]), RainLevel.none);
+    // Dois concordam (forte e moderada): avisa a moderada (a que concordam).
+    expect(rainConsensus(80, [3.0, 0.6, 0.0]), RainLevel.moderate);
+    // Os três com chuva fraca.
+    expect(rainConsensus(61, [0.2, 0.15, 0.3]), RainLevel.light);
+    // Trovoada (código 95) com 2 modelos: tempestade.
+    expect(rainConsensus(95, [0.0, 0.1, 0.0]), RainLevel.storm);
+  });
 }

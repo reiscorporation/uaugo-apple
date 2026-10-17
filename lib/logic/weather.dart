@@ -14,6 +14,23 @@ RainLevel rainLevel(int weatherCode, double mmPer15min) {
   return RainLevel.light;
 }
 
+/// Modelos de previsão consultados (Open-Meteo). Avisar só quando a
+/// maioria concorda corta os alarmes falsos de um modelo só.
+const rainModels = ['gfs_seamless', 'icon_seamless', 'ecmwf_ifs025'];
+
+/// Chuva em que pelo menos 2 modelos concordam ([mmPer15minByModel]: maior
+/// chuva prevista por modelo nos próximos 15–30 min). O nível é o do 2º mais
+/// forte: aquele em que dois modelos concordam.
+RainLevel rainConsensus(int weatherCode, List<double> mmPer15minByModel) {
+  final levels = [
+    for (final mm in mmPer15minByModel)
+      // O código do tempo (WMO) só decide a trovoada; a quantidade decide o resto.
+      rainLevel(weatherCode >= 95 ? weatherCode : 0, mm),
+  ]..sort((a, b) => b.index.compareTo(a.index));
+  if (levels.length < 2 || levels[1] == RainLevel.none) return RainLevel.none;
+  return levels[1];
+}
+
 /// Nome do nível para mostrar e falar.
 String rainWord(RainLevel l) => switch (l) {
       RainLevel.storm => 'Tempestade',
