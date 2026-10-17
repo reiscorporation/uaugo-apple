@@ -43,7 +43,11 @@ enum HazardType {
   fixedRadar('Radar fixo', '📸', Color(0xFF5E35B1), Duration(days: 7), 1000,
       'radar fixo'),
   signal('Semáforo', '🚦', Color(0xFF2E7D32), Duration(days: 7), 300,
-      'semáforo');
+      'semáforo'),
+  // Marcado sozinho quando um usuário (com a opção ligada) para no
+  // acostamento de rodovia; some quando ele volta a andar.
+  stoppedVehicle('Veículo parado', '🚗', Color(0xFFFF7043),
+      Duration(minutes: 30), 500, 'veículo parado no acostamento');
 
   /// Tipos que não mudam (lombada, radar fixo, semáforo): ficam FIXOS no mapa
   /// na 3ª confirmação, ou já ao serem marcados por um usuário Gold.

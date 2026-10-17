@@ -99,10 +99,11 @@ class HazardService {
   /// Grava o alerta. O Future termina quando o servidor confirma (sem
   /// internet, o Firestore guarda e envia quando a conexão voltar). Usuário
   /// Gold marcando lombada/radar fixo/semáforo: já nasce fixo no mapa.
-  Future<void> report(HazardType type, double lat, double lng, String uid) async {
+  Future<String> report(HazardType type, double lat, double lng, String uid) async {
     final (la, lo) = cellOf(lat, lng);
     final fixed = type.canBePermanent && await isGold(uid);
-    return _col.doc().set({
+    final ref = _col.doc();
+    await ref.set({
       'type': type.name,
       'lat': lat,
       'lng': lng,
@@ -115,6 +116,23 @@ class HazardService {
       'dismissals': 0,
       if (fixed) ...{'permanent': true, 'gold': true},
     });
+    return ref.id;
+  }
+
+  /// O autor tira o próprio alerta (ex.: voltou a andar depois de parado).
+  Future<void> removeMine(String id) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final batch = FirebaseFirestore.instance.batch()
+      ..set(_col.doc(id).collection('votes').doc(uid), {
+        'up': false,
+        'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 1))),
+      })
+      ..update(_col.doc(id), {
+        'dismissals': FieldValue.increment(1),
+        'expiresAt': FieldValue.serverTimestamp(),
+      });
+    await batch.commit().catchError((_) {});
   }
 
   /// Grava o voto e a contagem no mesmo lote. As regras do Firestore aceitam

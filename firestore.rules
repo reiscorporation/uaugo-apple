@@ -257,7 +257,7 @@ service cloud.firestore {
       allow create: if hasAccount()
         && request.resource.data.keys().hasOnly(['type', 'lat', 'lng', 'cell', 'createdBy', 'createdAt', 'expiresAt', 'confirmations', 'dismissals', 'permanent', 'gold'])
         && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.type in ['police','radar','pothole','bump','danger','oil','animal','accident','fog','kite','risk','fixedRadar','signal']
+        && request.resource.data.type in ['police','radar','pothole','bump','danger','oil','animal','accident','fog','kite','risk','fixedRadar','signal','stoppedVehicle']
         && isLat(request.resource.data.lat)
         && isLng(request.resource.data.lng)
         && str(request.resource.data.cell, 20)

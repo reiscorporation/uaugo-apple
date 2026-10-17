@@ -297,6 +297,9 @@ describe("Alertas públicos", () => {
     confirmations: 3, dismissals: 0, expiresAt: far(), permanent: true, ...extra,
   });
 
+  it("aceita veículo parado (alerta automático, 30 min)", () =>
+    assertSucceeds(setDoc(doc(db("bob"), "hazards/sv1"),
+      novo({ type: "stoppedVehicle", expiresAt: inHours(0.5) }))));
   it("aceita radar fixo e semáforo", async () => {
     await assertSucceeds(setDoc(doc(db("bob"), "hazards/h9"), novo({ type: "fixedRadar" })));
     await assertSucceeds(setDoc(doc(db("bob"), "hazards/h10"), novo({ type: "signal" })));

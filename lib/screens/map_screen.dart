@@ -675,6 +675,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _svc.updateLocation(_code, widget.uid, p);
     }
     if (_inBackground) return; // fora da tela: só a posição para o comboio
+    _checkStoppedOnShoulder(p);
     _watchHazardsAround(p);
     _checkHazardProximity(p);
     _updateRadarsAround(p);
@@ -3750,6 +3751,64 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Categoria da última busca (tipo da parada ao incluir).
   String? _lastFindSpoken;
+
+  // ---- Veículo parado no acostamento (opção; alerta para quem vem atrás)
+  DateTime? _stoppedSince;
+  DateTime _lastFastAt = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime? _movingSince;
+  String? _myStoppedAlert;
+
+  /// Parado mais de 2 min numa rodovia (via de 80+ km/h, vindo a mais de
+  /// 60 km/h, longe de semáforo): publica "veículo parado". Voltou a andar
+  /// (10 s): tira o alerta.
+  void _checkStoppedOnShoulder(Position p) {
+    if (_sim != null || !AppSettings.instance.alerts.value.shareStopped) return;
+    final now = DateTime.now();
+    final v = _speedMs;
+    if (v > 16.7) _lastFastAt = now;
+    if (v > 5) {
+      _stoppedSince = null;
+      _movingSince ??= now;
+      final id = _myStoppedAlert;
+      if (id != null && now.difference(_movingSince!) > const Duration(seconds: 10)) {
+        _myStoppedAlert = null;
+        if (id != 'pendente' && id != 'removido') _hazardSvc.removeMine(id);
+      }
+      return;
+    }
+    _movingSince = null;
+    if (v > 1.5) return;
+    _stoppedSince ??= now;
+    final highway = (_roadLimit?.kmh ?? 0) >= 80;
+    if (_myStoppedAlert != null ||
+        AuthService.isAnonymous ||
+        !highway ||
+        now.difference(_stoppedSince!) < const Duration(minutes: 2) ||
+        now.difference(_lastFastAt) > const Duration(minutes: 5) ||
+        PoiService.instance.signalNear(p.latitude, p.longitude, meters: 150)) {
+      return;
+    }
+    _myStoppedAlert = 'pendente';
+    _hazardSvc
+        .report(HazardType.stoppedVehicle, p.latitude, p.longitude, widget.uid)
+        .then((id) {
+      _myStoppedAlert = id;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Você está parado: quem vem atrás vê "veículo parado".'),
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: 'Não avisar',
+          onPressed: () {
+            _hazardSvc.removeMine(id);
+            _myStoppedAlert = 'removido'; // não marca de novo nesta parada
+          },
+        ),
+      ));
+    }).catchError((_) {
+      _myStoppedAlert = null;
+    });
+  }
 
   /// Diálogo "Trocar a rota?" aberto (aceita "sim"/"não" por voz).
   BuildContext? _voiceConfirmCtx;

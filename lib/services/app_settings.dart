@@ -127,6 +127,10 @@ class AlertPrefs {
   /// Chuva à frente (a pelo menos 2 km).
   final bool rain;
 
+  /// Avisar quem vem atrás quando eu parar no acostamento de rodovia
+  /// (publica a posição como alerta "veículo parado"). Opcional.
+  final bool shareStopped;
+
   const AlertPrefs({
     this.radarMeters = 1000,
     this.radarRepeats = 2,
@@ -138,6 +142,7 @@ class AlertPrefs {
     this.reducedSpeed = true,
     this.halfway = false,
     this.rain = false,
+    this.shareStopped = false,
   });
 
   /// Cópia com algumas opções trocadas.
@@ -152,6 +157,7 @@ class AlertPrefs {
     bool? reducedSpeed,
     bool? halfway,
     bool? rain,
+    bool? shareStopped,
   }) =>
       AlertPrefs(
         radarMeters: radarMeters ?? this.radarMeters,
@@ -164,6 +170,7 @@ class AlertPrefs {
         reducedSpeed: reducedSpeed ?? this.reducedSpeed,
         halfway: halfway ?? this.halfway,
         rain: rain ?? this.rain,
+        shareStopped: shareStopped ?? this.shareStopped,
       );
 }
 
@@ -246,6 +253,7 @@ class AppSettings {
       reducedSpeed: p.getBool('alertReducedSpeed') ?? true,
       halfway: p.getBool('alertHalfway') ?? false,
       rain: p.getBool('alertRain') ?? false,
+      shareStopped: p.getBool('alertShareStopped') ?? false,
     );
   }
 
@@ -263,6 +271,7 @@ class AppSettings {
     await p.setBool('alertReducedSpeed', a.reducedSpeed);
     await p.setBool('alertHalfway', a.halfway);
     await p.setBool('alertRain', a.rain);
+    await p.setBool('alertShareStopped', a.shareStopped);
   }
 
   /// Salva o tema do mapa (claro, escuro, automático).
