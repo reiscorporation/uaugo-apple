@@ -1685,7 +1685,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               child: TextButton(
                 onPressed: () {
                   _hazardSvc.dismiss(h, force: true);
-                  setState(() => _shownHazard = null);
+                  setState(() {
+                    _shownHazard = null;
+                    _hazards = [for (final x in _hazards) if (x.id != h.id) x];
+                  });
                 },
                 child: const Text('REMOVER MEU ALERTA', style: white),
               ),
@@ -2040,6 +2043,31 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _passCaptain(Member m) async {
     final exp = _exp;
     if (exp == null || !_isCaptain || m.uid == widget.uid) return;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold))),
+          if (m.hasLocation)
+            ListTile(
+              leading: const Icon(Icons.my_location),
+              title: const Text('Ver no mapa'),
+              onTap: () => Navigator.pop(ctx, 'map'),
+            ),
+          ListTile(
+            leading: const Icon(Icons.flag),
+            title: const Text('Passar a capitania'),
+            subtitle: const Text('O desvio dele passa a recalcular a rota de todos'),
+            onTap: () => Navigator.pop(ctx, 'captain'),
+          ),
+        ]),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'map') {
+      _focus(m.lat!, m.lng!);
+      return;
+    }
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -2075,6 +2103,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold))),
+          if (m.hasLocation)
+            ListTile(
+              leading: const Icon(Icons.my_location),
+              title: const Text('Ver no mapa'),
+              onTap: () => Navigator.pop(ctx, 'map'),
+            ),
           ListTile(
             leading: const Icon(Icons.flag),
             title: const Text('Tornar capitão'),
@@ -2095,6 +2129,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ),
     );
     if (choice == null) return;
+    if (choice == 'map') {
+      _focus(m.lat!, m.lng!);
+      return;
+    }
     var captain = exp.captainId;
     final sweepers = [...exp.sweepers];
     if (choice == 'captain') {
@@ -2659,6 +2697,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
           child: ListView(shrinkWrap: true, children: [
             _sheetTitle('Pilotos (${sorted.length})'),
+            if (_isLeader || _isCaptain)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Text(
+                    _isLeader
+                        ? 'Toque no piloto para escolher o capitão e os ferrolhos.'
+                        : 'Você é o capitão: toque num piloto para passar a capitania.',
+                    style: Theme.of(context).textTheme.bodySmall),
+              ),
             for (final m in sorted)
               ListTile(
                 leading: CircleAvatar(
@@ -2696,12 +2743,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     : m.isStale
                         ? 'Sem sinal · última posição ${_ago(m.updatedAt)}'
                         : '${(m.speed * 3.6).round()} km/h${_dist(m.lat!, m.lng!)}'),
-                onTap: m.hasLocation
+                onTap: _isLeader || (_isCaptain && m.uid != widget.uid)
                     ? () {
                         Navigator.pop(ctx);
-                        _focus(m.lat!, m.lng!);
+                        _editRoles(m);
                       }
-                    : null,
+                    : m.hasLocation
+                        ? () {
+                            Navigator.pop(ctx);
+                            _focus(m.lat!, m.lng!);
+                          }
+                        : null,
               ),
             _sheetTitle('Paradas (${_stops.length})'),
             if (_stops.isEmpty)

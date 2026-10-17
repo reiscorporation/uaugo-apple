@@ -27,6 +27,11 @@ class HazardService {
 
   final _col = FirebaseFirestore.instance.collection('hazards');
 
+  /// Alertas que este aparelho tirou do mapa. O prazo vira "agora" pela
+  /// hora do servidor; com o relógio do celular um pouco atrasado, o alerta
+  /// voltaria a aparecer até a próxima leitura (era preciso remover 2x).
+  final _removed = <String>{};
+
   static (int, int) cellOf(double lat, double lng) =>
       ((lat * 10).floor(), (lng * 10).floor());
 
@@ -43,7 +48,7 @@ class HazardService {
     return _col.where('cell', whereIn: keys).snapshots().map((s) => s.docs
         .map(Hazard.fromDoc)
         .whereType<Hazard>()
-        .where((h) => h.isActive)
+        .where((h) => h.isActive && !_removed.contains(h.id))
         .toList());
   }
 
@@ -123,6 +128,7 @@ class HazardService {
   Future<void> removeMine(String id) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+    _removed.add(id);
     final batch = FirebaseFirestore.instance.batch()
       ..set(_col.doc(id).collection('votes').doc(uid), {
         'up': false,
@@ -177,6 +183,7 @@ class HazardService {
         force: force,
         permanent: h.permanent,
         gold: h.gold);
+    if (remove) _removed.add(h.id);
     _vote(h, false, {
       'dismissals': FieldValue.increment(1),
       // Hora do servidor: as regras só aceitam "agora" para remover.

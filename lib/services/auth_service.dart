@@ -27,6 +27,30 @@ class AuthService {
   /// conta (e-mail) ao registro do aceite, sem mudar a data original.
   static Future<void> Function()? onLinked;
 
+  /// Trocou de uma conta de verdade para outra: recebe o token da conta
+  /// antiga (pego antes da troca) para levar os papéis nas expedições
+  /// (líder, capitão, ferrolho). Registrado em main.dart.
+  static Future<void> Function(String oldToken)? onSwitchedFrom;
+
+  /// Token da conta atual antes de trocar (null se anônima: ela não entra
+  /// em expedições).
+  static Future<(String, String)?> _beforeSwitch() async {
+    final u = _auth.currentUser;
+    if (u == null || u.isAnonymous) return null;
+    try {
+      final t = await u.getIdToken();
+      return t == null ? null : (u.uid, t);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Depois da troca: se o uid mudou, leva os papéis da conta antiga.
+  static Future<void> _afterSwitch((String, String)? before) async {
+    if (before == null || _auth.currentUser?.uid == before.$1) return;
+    await onSwitchedFrom?.call(before.$2);
+  }
+
   /// Garante um usuário (anônimo, se ainda não houver). Devolve o uid.
   static Future<String> ensureSignedIn() async {
     final user = _auth.currentUser ?? (await _auth.signInAnonymously()).user!;
@@ -74,8 +98,10 @@ class AuthService {
         await _refreshToken();
         await onLinked?.call();
       } else {
+        final before = await _beforeSwitch();
         await _auth.signInWithProvider(provider);
         await onAccountChanged?.call();
+        await _afterSwitch(before);
       }
     } on FirebaseAuthException catch (e) {
       // A conta Google/Apple já existe (ex.: usada em outro celular): entra
@@ -108,6 +134,7 @@ class AuthService {
         EmailAuthProvider.credential(email: email.trim(), password: password);
     final current = _auth.currentUser!;
     final wasAnonymous = current.isAnonymous;
+    final before = await _beforeSwitch();
     final u = wasAnonymous
         ? (await current.linkWithCredential(cred)).user!
         : (await _auth.createUserWithEmailAndPassword(
@@ -120,14 +147,17 @@ class AuthService {
       await onLinked?.call();
     } else {
       await onAccountChanged?.call();
+      await _afterSwitch(before);
     }
   }
 
   /// Entra numa conta de e-mail que já existe.
   static Future<void> signInWithEmail(String email, String password) async {
+    final before = await _beforeSwitch();
     await _auth.signInWithEmailAndPassword(
         email: email.trim(), password: password);
     await onAccountChanged?.call();
+    await _afterSwitch(before);
   }
 
   /// "Esqueci a senha": o Firebase envia o link para criar uma nova.

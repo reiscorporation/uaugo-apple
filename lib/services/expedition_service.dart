@@ -110,6 +110,17 @@ class ExpeditionService {
       .httpsCallable('endExpedition')
       .call({'code': code});
 
+  /// Trocou de conta: a Cloud Function leva liderança, capitania, ferrolho
+  /// e a vaga na lista de pilotos da conta antiga ([oldToken], pego antes da
+  /// troca) para a conta atual. Sem internet, fica como estava.
+  Future<void> transferRoles(String oldToken) async {
+    try {
+      await FirebaseFunctions.instanceFor(region: 'southamerica-east1')
+          .httpsCallable('transferExpeditionRoles')
+          .call({'oldToken': oldToken});
+    } catch (_) {}
+  }
+
   /// Expedição em tempo real (null quando o líder encerra).
   Stream<Expedition?> watchExpedition(String code) => _exp(code)
       .snapshots()

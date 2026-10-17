@@ -30,6 +30,7 @@ import 'services/user_service.dart';
 import 'services/notification_service.dart';
 import 'services/shared_place_service.dart';
 import 'services/car_service.dart';
+import 'services/expedition_service.dart';
 
 /// Paleta da marca: azul-marinho (confiança, segurança, tecnologia) como base,
 /// laranja só no que chama ação (iniciar, alertas, a marca) e verde-água para
@@ -111,6 +112,8 @@ Future<void> main() async {
   // Trocou de conta (entrou numa conta que já existia ou saiu): regrava o
   // aceite dos Termos e as autorizações no uid novo, como registro.
   AuthService.onLinked = TermsService.attachAccount;
+  // Trocou de conta: líder/capitão/ferrolho vão junto para a conta nova.
+  AuthService.onSwitchedFrom = ExpeditionService.instance.transferRoles;
   AuthService.onAccountChanged = () async {
     if (await TermsService.accepted()) {
       await TermsService.accept(

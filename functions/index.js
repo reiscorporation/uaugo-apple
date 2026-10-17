@@ -137,6 +137,62 @@ exports.endExpedition = onCall(callOpts, async (req) => {
   return { ok: true };
 });
 
+/**
+ * Trocou de conta no meio da expedição (ex.: entrou em outra conta): leva
+ * para a conta nova a liderança, a capitania, o posto de ferrolho e a
+ * posição na lista de pilotos. Prova de que a conta antiga é da mesma
+ * pessoa: o token dela, pego no aparelho ANTES da troca (vale 1 hora).
+ * { oldToken } -> { codes: [códigos transferidos] }
+ */
+exports.transferExpeditionRoles = onCall(callOpts, async (req) => {
+  const uid = accountUid(req);
+  const token = req.data?.oldToken;
+  if (typeof token !== "string" || token.length > 4096) {
+    throw new HttpsError("invalid-argument", "Token inválido.");
+  }
+  let old;
+  try {
+    old = await getAuth().verifyIdToken(token);
+  } catch (_) {
+    throw new HttpsError("permission-denied", "Não foi possível confirmar a conta anterior.");
+  }
+  const oldUid = old.uid;
+  if (oldUid === uid || old.firebase?.sign_in_provider === "anonymous") return { codes: [] };
+
+  const col = db.collection("expeditions");
+  const found = new Map();
+  for (const q of [
+    col.where("leaderId", "==", oldUid),
+    col.where("captainId", "==", oldUid),
+    col.where("sweepers", "array-contains", oldUid),
+  ]) {
+    for (const d of (await q.get()).docs) found.set(d.id, d.ref);
+  }
+  const codes = [];
+  for (const [code, ref] of found) {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return;
+      const e = snap.data();
+      const oldMember = await tx.get(ref.collection("members").doc(oldUid));
+      const changes = {};
+      if (e.leaderId === oldUid) changes.leaderId = uid;
+      if (e.captainId === oldUid) changes.captainId = uid;
+      if (Array.isArray(e.sweepers) && e.sweepers.includes(oldUid)) {
+        changes.sweepers = e.sweepers.map((s) => (s === oldUid ? uid : s))
+          .filter((s, i, a) => a.indexOf(s) === i && s !== (changes.captainId ?? e.captainId));
+      }
+      tx.update(ref, changes);
+      if (oldMember.exists) {
+        tx.set(ref.collection("members").doc(uid), oldMember.data(), { merge: true });
+        tx.delete(oldMember.ref);
+      }
+    });
+    codes.push(code);
+  }
+  return { codes };
+});
+
 // ===================== Rotas e lugares (chave fica no servidor) ===========
 // Detalhes em maps.js. O app chama estas funções no lugar do Google direto.
 exports.directions = onCall(callOpts, maps.directions);
