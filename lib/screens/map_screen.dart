@@ -27,6 +27,7 @@ import '../logic/costs.dart' show formatMoney;
 import '../logic/tolls.dart';
 import '../services/toll_service.dart';
 import '../services/places_service.dart';
+import '../services/car_service.dart';
 import '../services/saved_places_service.dart';
 import '../services/shared_place_service.dart';
 import '../logic/geo.dart';
@@ -120,8 +121,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// sempre ligada (_applyWakelock), então a navegação não depende disso.
   bool get _keepGpsInBackground =>
       _sim == null &&
-      _isExpedition &&
-      AppSettings.instance.backgroundShare.value;
+      ((_isExpedition && AppSettings.instance.backgroundShare.value) || _carMode);
+
+  /// Android Auto conectado e navegando: o celular costuma ficar bloqueado,
+  /// mas GPS, voz e avisos continuam (a tela é a do carro).
+  bool get _carMode =>
+      _sim == null && _navigating && CarService.instance.connected.value;
 
   /// O GPS atual é o econômico de segundo plano (com notificação fixa)?
   bool _bgGps = false;
@@ -140,6 +145,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _gpsSub = LocationService.track(
       saving: _saving,
       background: background,
+      economical: !_carMode,
       notificationText: 'Compartilhando sua localização com o comboio',
     ).listen(_onPosition, onError: (e) => _snack('GPS: $e'));
   }
@@ -432,6 +438,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _voice.init();
     // Comandos de voz (opcional, Configurações → Acessibilidade).
     _subs.add(_voiceCmd.commands.listen(_onVoiceCommand));
+    // Botões da tela do carro (Android Auto).
+    _subs.add(CarService.instance.actions.listen(_onCarAction));
     _voiceCmd.start();
     _radarSvc.index.addListener(_onRadarIndex);
     _radarSvc.init();
@@ -560,6 +568,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     _voiceCmd.cancelDestination();
     _voiceCmd.stop();
+    CarService.instance.clear();
     _gpsSub?.cancel();
     BatteryService.instance.saving.removeListener(_onSavingChanged);
     BatteryService.instance.stop();
@@ -674,7 +683,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _lastSentPos = p;
       _svc.updateLocation(_code, widget.uid, p);
     }
-    if (_inBackground) return; // fora da tela: só a posição para o comboio
+    _sendToCar(p);
+    // Fora da tela: só a posição para o comboio (no modo carro, segue tudo).
+    if (_inBackground && !_carMode) return;
     _checkStoppedOnShoulder(p);
     _watchHazardsAround(p);
     _checkHazardProximity(p);
@@ -1909,6 +1920,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ? decodePolyline(poly)
         : _stops.map((s) => LatLng(s.lat, s.lng)).toList());
     _routeRecs = [for (final q in _route) (q.latitude, q.longitude)];
+    CarService.instance.route(_routeRecs);
     _walker = _routeRecs.length >= 2 ? RouteWalker(_routeRecs) : null;
     // Rota nova: as manobras são reposicionadas nela na próxima leitura.
     _nav?.detachRoute();
@@ -3967,6 +3979,72 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  // ---- Modo carro (Android Auto)
+
+  /// Próxima manobra "de verdade" (pula "Continue para...") e a distância
+  /// até ela (pela rota, quando houver).
+  ({NavStep step, double meters})? _upcomingTurn(Position p) {
+    final nav = _nav;
+    if (nav == null || nav.finished) return null;
+    var i = nav.nextIndex;
+    while (i < nav.steps.length - 1 && nav.steps[i].isSilent) {
+      i++;
+    }
+    final s = nav.steps[i];
+    final ra = _riderAlong;
+    final d = (ra != null ? nav.routeDistanceTo(i, ra) : null) ??
+        distanceMeters(p.latitude, p.longitude, s.lat, s.lng);
+    return (step: s, meters: d);
+  }
+
+  /// Manda para a tela do carro a manobra, a chegada, o radar e a posição.
+  void _sendToCar(Position p) {
+    if (!CarService.instance.connected.value) return;
+    final turn = _navigating ? _upcomingTurn(p) : null;
+    final w = _walker;
+    final left = w == null ? 0.0 : w.remainingFrom(p.latitude, p.longitude);
+    final speed = _etaSpeed ?? _trip?.averageSpeed ?? 16.7;
+    final pill = _radarPill;
+    CarService.instance.update(
+      lat: p.latitude,
+      lng: p.longitude,
+      bearing: _bearing,
+      speedKmh: (_speedMs * 3.6).round(),
+      limitKmh: _roadLimit?.kmh ?? 0,
+      text: turn?.step.text,
+      maneuver: turn?.step.maneuver ?? '',
+      meters: turn?.meters ?? 0,
+      remainingM: left,
+      eta: DateTime.now().add(Duration(seconds: (left / speed).round())),
+      alert: pill == null
+          ? null
+          : '${pill.emoji} ${pill.kmh ?? ''}${pill.kmh != null ? ' ' : ''}em ${pill.m} m',
+    );
+  }
+
+  /// Botão da tela do carro.
+  Future<void> _onCarAction(String a) async {
+    if (!mounted) return;
+    switch (a) {
+      case 'radar':
+        await _reportHazard(HazardType.radar);
+      case 'hazard':
+        await _reportHazard(HazardType.danger);
+      case 'stop':
+        if (!_navigating) return;
+        await _voice.stop();
+        if (!mounted) return;
+        if (_isExpedition) {
+          setState(() {
+            _navigating = false;
+            _applyWakelock();
+          });
+        } else {
+          Navigator.of(context).pop();
+        }
+    }
   }
 
   /// Deitado: a coluna encolhe para caber na altura (em pé, sem mudança).

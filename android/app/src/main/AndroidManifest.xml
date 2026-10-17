@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Comandos de voz (opcional, Configurações → Acessibilidade). Reconhecimento offline. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Modo carro (Android Auto): telas de navegação e desenho do trajeto. -->
+    <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES"/>
+    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE"/>
     <application
         android:label="UauGo"
         android:name="${applicationName}"
@@ -84,6 +87,20 @@
             <!-- Os links acima são tratados pelo app, não como rotas do Flutter. -->
             <meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>
         </activity>
+        <!-- Modo carro (Android Auto): UauGoCarAppService.kt -->
+        <service
+            android:name=".UauGoCarAppService"
+            android:exported="true"
+            android:foregroundServiceType="location">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService"/>
+                <category android:name="androidx.car.app.category.NAVIGATION"/>
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc"/>
+        <meta-data android:name="androidx.car.app.minCarApiLevel" android:value="1"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

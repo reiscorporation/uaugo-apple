@@ -1,0 +1,111 @@
+// ============================================================================
+// CarBridge.kt — Ponte entre a navegação (Flutter) e a tela do carro
+//
+// O que faz: O celular continua sendo o "cérebro" (rota, alertas, voz). O
+//   Dart manda para cá, pelo canal "uaugo/car", a próxima manobra, a chegada,
+//   a rota e a posição; a tela do Android Auto (UauGoCarAppService.kt) lê
+//   daqui. Os botões do carro (radar, perigo, encerrar) voltam para o Dart.
+// Quem usa: MainActivity; lib/services/car_service.dart.
+// ============================================================================
+
+package helpaitech.comboio
+
+import android.os.Handler
+import android.os.Looper
+import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.MethodChannel
+
+/** Estado da navegação mostrado no carro (lido pela tela do Android Auto). */
+object CarState {
+    data class Nav(
+        val text: String,       // "Vire à direita na Rua X"
+        val maneuver: String,   // "turn-right", "roundabout-left"... ("" = seguir)
+        val meters: Double,     // até a manobra
+        val remainingM: Double, // até o destino
+        val etaMillis: Long,    // hora de chegada
+        val alert: String?,     // "📸 80 em 450 m"
+    )
+
+    @Volatile var nav: Nav? = null
+    @Volatile var route: List<DoubleArray> = emptyList() // [lat, lng]
+    @Volatile var lat = 0.0
+    @Volatile var lng = 0.0
+    @Volatile var bearing = 0.0
+    @Volatile var hasPosition = false
+    @Volatile var speedKmh = 0
+    @Volatile var limitKmh = 0
+
+    /** A tela do carro está aberta (o Dart mantém o GPS e a voz). */
+    @Volatile var connected = false
+
+    private val main = Handler(Looper.getMainLooper())
+    private val listeners = mutableSetOf<() -> Unit>()
+
+    /** Botão do carro -> Dart ("radar", "hazard", "stop"). */
+    var actionSink: ((String) -> Unit)? = null
+    var connectedSink: ((Boolean) -> Unit)? = null
+
+    fun listen(l: () -> Unit) = synchronized(listeners) { listeners.add(l) }
+    fun unlisten(l: () -> Unit) = synchronized(listeners) { listeners.remove(l) }
+
+    fun changed() = main.post {
+        val copy = synchronized(listeners) { listeners.toList() }
+        copy.forEach { it() }
+    }
+
+    fun updateConnected(on: Boolean) {
+        connected = on
+        main.post { connectedSink?.invoke(on) }
+    }
+}
+
+class CarBridge(messenger: BinaryMessenger) {
+    private val channel = MethodChannel(messenger, "uaugo/car")
+
+    init {
+        channel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "update" -> {
+                    val a = call.arguments as? Map<*, *>
+                    if (a != null) {
+                        CarState.lat = (a["lat"] as? Number)?.toDouble() ?: CarState.lat
+                        CarState.lng = (a["lng"] as? Number)?.toDouble() ?: CarState.lng
+                        CarState.bearing = (a["bearing"] as? Number)?.toDouble() ?: CarState.bearing
+                        CarState.speedKmh = (a["speedKmh"] as? Number)?.toInt() ?: 0
+                        CarState.limitKmh = (a["limitKmh"] as? Number)?.toInt() ?: 0
+                        CarState.hasPosition = true
+                        val text = a["text"] as? String
+                        CarState.nav = if (text == null) null else CarState.Nav(
+                            text = text,
+                            maneuver = a["maneuver"] as? String ?: "",
+                            meters = (a["meters"] as? Number)?.toDouble() ?: 0.0,
+                            remainingM = (a["remainingM"] as? Number)?.toDouble() ?: 0.0,
+                            etaMillis = (a["eta"] as? Number)?.toLong() ?: 0L,
+                            alert = a["alert"] as? String,
+                        )
+                        CarState.changed()
+                    }
+                    result.success(null)
+                }
+                "route" -> {
+                    val flat = (call.arguments as? List<*>)?.mapNotNull { (it as? Number)?.toDouble() }
+                        ?: emptyList()
+                    CarState.route = flat.chunked(2).filter { it.size == 2 }
+                        .map { doubleArrayOf(it[0], it[1]) }
+                    CarState.changed()
+                    result.success(null)
+                }
+                "clear" -> {
+                    CarState.nav = null
+                    CarState.route = emptyList()
+                    CarState.changed()
+                    result.success(null)
+                }
+                "connected" -> result.success(CarState.connected)
+                else -> result.notImplemented()
+            }
+        }
+        CarState.actionSink = { a -> channel.invokeMethod("action", a) }
+        CarState.connectedSink = { on -> channel.invokeMethod("connected", on) }
+    }
+}

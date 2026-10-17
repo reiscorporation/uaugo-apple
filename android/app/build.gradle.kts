@@ -73,4 +73,6 @@ flutter {
 dependencies {
     // Comandos de voz offline (opcional; o modelo é baixado só quando o piloto liga).
     implementation("com.alphacephei:vosk-android:0.3.75")
+    // Modo carro (Android Auto): UauGoCarAppService.kt.
+    implementation("androidx.car.app:app:1.4.0")
 }

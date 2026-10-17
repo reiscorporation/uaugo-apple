@@ -14,6 +14,8 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         voice = VoiceCommands(this, flutterEngine.dartExecutor.binaryMessenger)
         shared = SharedPlace(flutterEngine.dartExecutor.binaryMessenger)
+        // Modo carro (Android Auto): estado da navegação para a tela do carro.
+        CarBridge(flutterEngine.dartExecutor.binaryMessenger)
         shared?.handle(intent, initial = true)
     }
 

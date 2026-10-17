@@ -44,15 +44,21 @@ class LocationService {
   /// acordado (wake lock). Sem isso, não há serviço: o GPS para quando o app
   /// sai da tela. O serviço também para se o app for fechado pela lista de
   /// recentes (AndroidManifest: stopWithTask).
+  ///
+  /// [economical] (com [background]): GPS econômico (15 s). False = modo
+  /// carro (Android Auto): o celular fica bloqueado, mas a navegação segue
+  /// com a precisão normal.
   static Stream<Position> track({
     bool saving = false,
     bool background = false,
+    bool economical = true,
     String notificationText = 'Navegação ativa',
   }) {
-    final accuracy = saving || background
+    final eco = background && economical;
+    final accuracy = saving || eco
         ? LocationAccuracy.high
         : LocationAccuracy.bestForNavigation;
-    final interval = Duration(seconds: background ? 15 : (saving ? 2 : 1));
+    final interval = Duration(seconds: eco ? 15 : (saving ? 2 : 1));
     final LocationSettings settings;
     if (defaultTargetPlatform == TargetPlatform.android) {
       settings = AndroidSettings(
@@ -71,7 +77,7 @@ class LocationService {
       settings = AppleSettings(
         accuracy: accuracy,
         activityType: ActivityType.automotiveNavigation,
-        distanceFilter: background ? 20 : 0,
+        distanceFilter: eco ? 20 : 0,
         pauseLocationUpdatesAutomatically: !background,
         showBackgroundLocationIndicator: background,
         allowBackgroundLocationUpdates: background,
