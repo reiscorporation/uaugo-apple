@@ -3142,7 +3142,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           },
           onLongPress: _isExpedition
               ? _addStopAt
-              : (_canAddSoloStop ? _addSoloStopAt : null),
+              : (_canAddSoloStop
+                  ? _addSoloStopAt
+                  : (_canStartRoute ? _startRouteAt : null)),
         ),
         ),
 
@@ -3564,6 +3566,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
             ],
+            if (_canStartRoute) ...[
+              FloatingActionButton.small(
+                heroTag: 'newRoute',
+                tooltip: 'Traçar rota (ou segure no mapa)',
+                onPressed: _startRouteBySearch,
+                child: const Icon(Icons.directions),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (_watchesGroup) ...[
               FloatingActionButton.small(
                 heroTag: 'groupGrid',
@@ -3812,6 +3823,49 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool get _canAddSoloStop =>
       !_isExpedition && _sim == null && _navigating && _trip != null &&
       !_arrivedAtDestination;
+
+  /// "Só dirigir" (ou já chegou ao destino): dá para traçar uma rota.
+  bool get _canStartRoute =>
+      !_isExpedition && _sim == null && (_trip == null || _arrivedAtDestination);
+
+  /// Botão "Traçar rota": busca o destino e abre a prévia da rota.
+  Future<void> _startRouteBySearch() async {
+    final p = _me;
+    final picked = await Navigator.of(context).push<PickedPlace>(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => PlaceSearchPage(
+          near: p == null ? null : LatLng(p.latitude, p.longitude),
+          title: 'Para onde?'),
+    ));
+    if (picked == null || !mounted) return;
+    await _openRouteTo(picked.name, picked.lat, picked.lng);
+  }
+
+  /// Segurou no mapa ("Só dirigir"): rota até aquele ponto.
+  Future<void> _startRouteAt(LatLng pos) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Traçar rota até aqui?'),
+        content: const Text('Na prévia dá para incluir paradas antes de iniciar.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Traçar rota')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _openRouteTo('Ponto no mapa', pos.latitude, pos.longitude);
+  }
+
+  /// Sai do "Só dirigir" e a tela inicial abre a prévia da rota até o lugar.
+  Future<void> _openRouteTo(String name, double lat, double lng) async {
+    await _voice.stop();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    SharedPlaceService.instance.pending.value =
+        'geo:$lat,$lng?q=$lat,$lng(${Uri.encodeComponent(name)})';
+  }
 
   /// Botão "Adicionar parada": busca o lugar por nome (perto do piloto).
   Future<void> _addSoloStopBySearch() async {
