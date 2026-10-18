@@ -174,8 +174,12 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
       final left = await Navigator.of(context).push<bool>(MaterialPageRoute(
-        builder: (_) =>
-            MapScreen(code: code, uid: uid, userName: userName),
+        builder: (_) => MapScreen(
+            code: code,
+            uid: uid,
+            userName: userName,
+            // Veio do "Iniciar" do roteiro: já começa a navegação.
+            startNavigation: planFirst),
       ));
       if (left == true) await prefs.remove('lastCode');
       await _loadPrefs();

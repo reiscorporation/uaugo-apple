@@ -89,6 +89,7 @@ class MapScreen extends StatefulWidget {
     required this.userName,
     this.trip,
     this.simulate = false,
+    this.startNavigation = false,
   });
 
   final String? code;
@@ -96,6 +97,10 @@ class MapScreen extends StatefulWidget {
   final String userName;
   final Trip? trip;
   final bool simulate;
+
+  /// Expedição aberta pelo "Iniciar" do roteiro: liga a navegação assim
+  /// que a rota do grupo chegar.
+  final bool startNavigation;
 
   /// Azul da rota (o mesmo do Google Maps) e a borda escura em volta, para
   /// destacar sobre as vias coloridas da camada de trânsito.
@@ -1932,7 +1937,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _walker = _routeRecs.length >= 2 ? RouteWalker(_routeRecs) : null;
     // Rota nova: as manobras são reposicionadas nela na próxima leitura.
     _nav?.detachRoute();
+    if (widget.startNavigation && !_autoStarted && _isExpedition &&
+        _routeRecs.length >= 2 && !_navigating) {
+      _autoStarted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_navigating) _startNavigation();
+      });
+    }
   }
+
+  /// O "Iniciar" do roteiro já ligou a navegação (só uma vez).
+  bool _autoStarted = false;
 
   bool get _isLeader => _exp?.leaderId == widget.uid;
 
@@ -2212,8 +2227,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Abre o roteiro da expedição.
-  Future<void> _openPlan() => Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => PlanScreen(code: _code, uid: widget.uid)));
+  Future<void> _openPlan() async {
+    final start = await Navigator.of(context).push<bool>(MaterialPageRoute(
+        builder: (_) => PlanScreen(code: _code, uid: widget.uid)));
+    // "Iniciar" no roteiro: já liga a navegação (a rota nova chega pelo
+    // Firestore; espera um instante se ainda não chegou).
+    if (start != true || !mounted || _navigating) return;
+    for (var i = 0; i < 10 && _routeRecs.length < 2; i++) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+    }
+    if (_routeRecs.length >= 2) _startNavigation();
+  }
 
   /// SOS do grupo mudaram: avisa os novos (voz, vibração e janela).
   void _onAlerts(List<SosAlert> alerts) {

@@ -183,8 +183,8 @@ class _PlanScreenState extends State<PlanScreen> {
       _routing = true;
       _routeFailed = false;
     });
-    final ok =
-        await _svc.recalculateRoute(widget.code, plan ?? _plan, stops ?? _stops);
+    final ok = await _guard(() =>
+        _svc.recalculateRoute(widget.code, plan ?? _plan, stops ?? _stops));
     if (!mounted) return;
     setState(() {
       _routing = false;
@@ -197,21 +197,36 @@ class _PlanScreenState extends State<PlanScreen> {
   Future<void> _addPoint(String name, double lat, double lng,
       {String address = ''}) async {
     setState(() => _routing = true);
-    final ok = await _svc.addToItinerary(
-      code: widget.code,
-      uid: widget.uid,
-      plan: _plan,
-      current: _stops,
-      name: name,
-      lat: lat,
-      lng: lng,
-      address: address,
-    );
+    final ok = await _guard(() => _svc.addToItinerary(
+          code: widget.code,
+          uid: widget.uid,
+          plan: _plan,
+          current: _stops,
+          name: name,
+          lat: lat,
+          lng: lng,
+          address: address,
+        ));
     if (!mounted) return;
     setState(() {
       _routing = false;
       _routeFailed = !ok;
     });
+    if (!ok) {
+      _snack('Não foi possível salvar a parada. Confira a internet e tente de novo.');
+    }
+  }
+
+  /// Roda uma gravação do roteiro sem travar a tela: erro do servidor ou
+  /// demora (sem internet o Firestore espera para sempre) viram "false" e os
+  /// botões voltam a funcionar.
+  Future<bool> _guard(Future<bool> Function() op) async {
+    try {
+      return await op().timeout(const Duration(seconds: 25));
+    } catch (e) {
+      debugPrint('Roteiro: $e');
+      return false;
+    }
   }
 
   /// Busca um lugar por nome para adicionar como parada.
@@ -290,7 +305,10 @@ class _PlanScreenState extends State<PlanScreen> {
     final s = list.removeAt(oldIndex);
     list.insert(newIndex, s);
     setState(() => _stops = list);
-    await _svc.reorderStops(widget.code, list.map((x) => x.id).toList());
+    await _guard(() async {
+      await _svc.reorderStops(widget.code, list.map((x) => x.id).toList());
+      return true;
+    });
     await _recalc(list);
   }
 
@@ -298,8 +316,11 @@ class _PlanScreenState extends State<PlanScreen> {
   Future<void> _remove(Stop s) async {
     final list = [..._stops]..removeWhere((x) => x.id == s.id);
     setState(() => _stops = list);
-    await _svc.removeStop(widget.code, s.id);
-    await _svc.reorderStops(widget.code, list.map((x) => x.id).toList());
+    await _guard(() async {
+      await _svc.removeStop(widget.code, s.id);
+      await _svc.reorderStops(widget.code, list.map((x) => x.id).toList());
+      return true;
+    });
     await _recalc(list);
   }
 
@@ -439,17 +460,8 @@ class _PlanScreenState extends State<PlanScreen> {
               onPressed: _share),
         ],
       ),
-      floatingActionButton: _isLeader
-          ? FloatingActionButton.extended(
-              onPressed: _routing ? null : _openSearch,
-              icon: const Icon(Icons.add_location_alt),
-              label: Text(_stops.isEmpty
-                  ? 'Definir saída'
-                  : _stops.length == 1
-                      ? 'Definir destino'
-                      : 'Adicionar parada'),
-            )
-          : null,
+      // Barra fixa do líder, sempre acima dos botões do celular.
+      bottomNavigationBar: _isLeader ? _leaderBar() : null,
       body: Column(children: [
         SizedBox(
           height: MediaQuery.of(context).size.height * 0.34,
@@ -517,6 +529,61 @@ class _PlanScreenState extends State<PlanScreen> {
     );
   }
 
+  /// Roteiro pronto para sair (2 pontos e rota calculada).
+  bool get _ready => _stops.length >= 2 && _plan.polyline.isNotEmpty;
+
+  /// Barra do líder: adicionar ponto, salvar (volta) e iniciar a viagem.
+  Widget _leaderBar() => SafeArea(
+        top: false,
+        child: Material(
+          elevation: 8,
+          color: Theme.of(context).colorScheme.surfaceContainer,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Row(children: [
+              Expanded(
+                flex: 5,
+                child: FilledButton.tonalIcon(
+                  onPressed: _routing ? null : _openSearch,
+                  icon: const Icon(Icons.add_location_alt),
+                  label: Text(
+                      _stops.isEmpty
+                          ? 'Saída'
+                          : _stops.length == 1
+                              ? 'Destino'
+                              : 'Parada',
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 4,
+                child: OutlinedButton(
+                  onPressed: _routing
+                      ? null
+                      : () {
+                          _snack('Roteiro salvo: o grupo já vê as mudanças.');
+                          Navigator.of(context).pop(false);
+                        },
+                  child: const Text('Salvar'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 5,
+                child: FilledButton.icon(
+                  onPressed: _ready && !_routing
+                      ? () => Navigator.of(context).pop(true)
+                      : null,
+                  icon: const Icon(Icons.navigation),
+                  label: const Text('Iniciar'),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      );
+
   /// Lista das paradas com horários, separada por dia (o líder reordena).
   Widget _buildList(Schedule schedule) {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
@@ -534,7 +601,8 @@ class _PlanScreenState extends State<PlanScreen> {
       onHighways: (v) =>
           _savePlan(_plan.copyWith(avoidHighways: v), recalc: true),
       onRetry: () => _recalc(),
-      onStart: widget.showStartButton
+      // O líder usa a barra de baixo (Salvar / Iniciar).
+      onStart: widget.showStartButton && !_isLeader
           ? () => Navigator.of(context).pop(true)
           : null,
       // Simular: percorre o roteiro na tela, com narração e avisos.
@@ -556,9 +624,10 @@ class _PlanScreenState extends State<PlanScreen> {
 
     final items = schedule.stops;
     return ReorderableListView.builder(
-      // 96 = espaço do botão "Adicionar parada" + barra de navegação.
+      // A barra do líder fica fora da lista (bottomNavigationBar).
       padding: EdgeInsets.only(
-          bottom: 96 + MediaQuery.of(context).viewPadding.bottom),
+          bottom: 16 +
+              (_isLeader ? 0 : MediaQuery.of(context).viewPadding.bottom)),
       header: header,
       buildDefaultDragHandles: false,
       itemCount: items.length,
