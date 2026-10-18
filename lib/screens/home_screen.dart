@@ -55,6 +55,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final _codeCtrl = TextEditingController();
   bool _busy = false;
   String? _lastCode;
+
+  /// "Minhas expedições": as que ainda existem no servidor (código, nome).
+  List<(String, String)> _myExps = [];
   BikeProfile _bike = const BikeProfile();
   String? _clubName;
 
@@ -117,6 +120,31 @@ class _HomeScreenState extends State<HomeScreen> {
       _nameCtrl.text = prefs.getString('userName') ?? '';
       _lastCode = prefs.getString('lastCode');
     });
+    _loadMyExpeditions();
+  }
+
+  /// Confere no servidor quais expedições usadas ainda existem (até 10);
+  /// as encerradas saem da lista. Sem conta ou sem internet, fica vazia.
+  Future<void> _loadMyExpeditions() async {
+    if (AuthService.isAnonymous) {
+      if (mounted) setState(() => _myExps = []);
+      return;
+    }
+    final codes = (await UserService.loadExpeditionHistory()).take(10).toList();
+    final found = <(String, String)>[];
+    for (final c in codes) {
+      try {
+        final e = await _svc.find(c).timeout(const Duration(seconds: 8));
+        if (e != null) {
+          found.add((c, e.name));
+        } else {
+          // Encerrada: some da lista (a viagem fica em "Minhas viagens" se
+          // o piloto rodou algum trecho).
+          await UserService.removeExpeditionHistory(c);
+        }
+      } catch (_) {}
+    }
+    if (mounted) setState(() => _myExps = found);
   }
 
   /// Mostra uma mensagem rápida no rodapé.
@@ -181,7 +209,10 @@ class _HomeScreenState extends State<HomeScreen> {
             // Veio do "Iniciar" do roteiro: já começa a navegação.
             startNavigation: planFirst),
       ));
-      if (left == true) await prefs.remove('lastCode');
+      if (left == true) {
+        await prefs.remove('lastCode');
+        await UserService.removeExpeditionHistory(code);
+      }
       await _loadPrefs();
     } catch (e) {
       _snack('Erro: $e');
@@ -602,7 +633,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? 'Clube'
                     : 'Clube: $_clubName'),
               ),
-              if (_lastCode != null) ...[
+              if (_myExps.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                _Section(
+                  title: 'Minhas expedições',
+                  children: [
+                    for (final (code, name) in _myExps.take(5))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: FilledButton.tonalIcon(
+                          onPressed: () => _join(code),
+                          icon: const Icon(Icons.groups),
+                          label: Text('$name · $code',
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                      ),
+                  ],
+                ),
+              ] else if (_lastCode != null) ...[
                 const SizedBox(height: 16),
                 FilledButton.tonalIcon(
                   onPressed: () => _join(_lastCode),

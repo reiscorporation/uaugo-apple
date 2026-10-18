@@ -42,6 +42,20 @@ class UserService {
     await prefs.setStringList(_kHistory, list.take(50).toList());
   }
 
+  /// Códigos das expedições usadas neste aparelho (a mais recente primeiro).
+  static Future<List<String>> loadExpeditionHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_kHistory) ?? [];
+  }
+
+  /// Saiu da expedição: tira da lista "Minhas expedições" (o próprio membro
+  /// já foi apagado do servidor, então nada fica para a exclusão de dados).
+  static Future<void> removeExpeditionHistory(String code) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_kHistory) ?? [];
+    if (list.remove(code)) await prefs.setStringList(_kHistory, list);
+  }
+
   /// Exclui todos os dados do usuário no servidor e no aparelho
   /// (direito de eliminação, art. 18 da LGPD).
   static Future<void> deleteAllMyData() async {
