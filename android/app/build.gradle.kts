@@ -56,6 +56,8 @@ android {
         release {
             signingConfig = signingConfigs.findByName("upload")
                 ?: signingConfigs.getByName("debug")
+            // Regras extras do R8 (Firebase App Check, voz offline).
+            proguardFiles("proguard-rules.pro")
         }
     }
 }
