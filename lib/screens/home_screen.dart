@@ -590,13 +590,32 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               _savedPlacesRow(),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: _justDrive,
-                  icon: const Icon(Icons.speed),
-                  label: const Text('Só dirigir (radares e velocidade)'),
+              // "Só dirigir" em destaque: botão grande, logo abaixo da busca.
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: _justDrive,
+                style: FilledButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28)),
                 ),
+                child: const Row(children: [
+                  Icon(Icons.speed, size: 32),
+                  SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('DIRIGIR AGORA',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w800)),
+                        Text('radares e velocidade',
+                            style: TextStyle(fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                ]),
               ),
               const SizedBox(height: 16),
               TextField(

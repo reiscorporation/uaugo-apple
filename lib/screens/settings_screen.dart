@@ -517,21 +517,11 @@ class SettingsScreen extends StatelessWidget {
                 onChanged: (v) => s.setAlerts(a.copyWith(reducedSpeed: v)),
               ),
               SwitchListTile(
-                secondary: const Icon(Icons.car_crash),
-                title: const Text('Avisar quando eu parar no acostamento'),
-                subtitle: const Text(
-                    'Parado mais de 2 min numa rodovia, quem vem atrás vê '
-                    '"veículo parado" no mapa (sua posição, sem seu nome). '
-                    'Some quando você volta a andar.'),
-                value: a.shareStopped,
-                onChanged: (v) => s.setAlerts(a.copyWith(shareStopped: v)),
-              ),
-              SwitchListTile(
                 secondary: const Icon(Icons.umbrella),
                 title: const Text('Chuva à frente'),
                 subtitle: const Text(
-                    'Com rota traçada, confere a previsão a cada 5 min e avisa '
-                    'chuva a partir de 2 km à frente (Open-Meteo). Aumenta o '
+                    'Com rota traçada, confere a previsão a cada 5 min, a cada '
+                    '10 km pela rota (até 50 km à frente; Open-Meteo). Aumenta o '
                     'consumo de dados e de bateria.'),
                 value: a.rain,
                 onChanged: (v) => s.setAlerts(a.copyWith(rain: v)),

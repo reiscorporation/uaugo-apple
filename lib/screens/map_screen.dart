@@ -1118,7 +1118,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _showTrafficBanner('🏁 Metade do trajeto! Faltam $left');
   }
 
-  /// Chuva à frente (a pelo menos 2 km), conferida a cada 5 min.
+  /// Chuva à frente, a cada 10 km pela rota (até 50 km), conferida a cada
+  /// 5 min.
   Future<void> _checkRain() async {
     final p = _me;
     // Só com a opção ligada e com rota traçada.
@@ -1129,7 +1130,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (_speedMs < 3 && _sim == null) return; // parado: nada "à frente"
     final w = _walker, pr = _proj;
     final onRoute = w != null && pr != null && pr.offset < 250;
-    const dists = [0, 2000, 4000, 7000, 10000, 15000];
+    const dists = [0, 10000, 20000, 30000, 40000, 50000];
     final pts = <(double, double)>[];
     for (final d in dists) {
       if (onRoute) {
@@ -4040,7 +4041,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// 60 km/h, longe de semáforo): publica "veículo parado". Voltou a andar
   /// (10 s): tira o alerta.
   void _checkStoppedOnShoulder(Position p) {
-    if (_sim != null || !AppSettings.instance.alerts.value.shareStopped) return;
+    // Automático para todos (segurança de quem vem atrás); o alerta não
+    // mostra quem é. "Não avisar" no aviso tira na hora (ex.: parou num posto).
+    if (_sim != null) return;
     final now = DateTime.now();
     final v = _speedMs;
     if (v > 16.7) _lastFastAt = now;
