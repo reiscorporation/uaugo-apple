@@ -186,6 +186,10 @@ class AppSettings {
   /// (GPS econômico, a cada 15 s). Desligado = o GPS para ao sair do app.
   final backgroundShare = ValueNotifier<bool>(false);
 
+  /// Estatísticas anônimas de uso e relatório de erros (ligado por padrão;
+  /// o usuário pode recusar). Ver AnalyticsService.
+  final shareStats = ValueNotifier<bool>(true);
+
   /// Camada de trânsito do Google no mapa (vias em verde/laranja/vermelho).
   final showTraffic = ValueNotifier<bool>(true);
 
@@ -218,6 +222,7 @@ class AppSettings {
     final p = await SharedPreferences.getInstance();
     keepScreenOn.value = p.getBool('keepScreenOn') ?? true;
     backgroundShare.value = p.getBool('backgroundShare') ?? false;
+    shareStats.value = p.getBool('shareStats') ?? true;
     showTraffic.value = p.getBool('showTraffic') ?? true;
     mapTheme.value = MapTheme.values.firstWhere(
         (m) => m.name == p.getString('mapTheme'),
@@ -290,6 +295,12 @@ class AppSettings {
   Future<void> setShowTraffic(bool v) async {
     showTraffic.value = v;
     (await SharedPreferences.getInstance()).setBool('showTraffic', v);
+  }
+
+  /// Liga/desliga as estatísticas de uso e o relatório de erros.
+  Future<void> setShareStats(bool v) async {
+    shareStats.value = v;
+    (await SharedPreferences.getInstance()).setBool('shareStats', v);
   }
 
   /// Liga/desliga o envio da posição ao comboio com o app fora da tela.

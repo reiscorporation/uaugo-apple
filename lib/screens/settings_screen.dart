@@ -310,6 +310,19 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           ValueListenableBuilder<bool>(
+            valueListenable: s.shareStats,
+            builder: (_, on, __) => SwitchListTile(
+              secondary: const Icon(Icons.insights),
+              title: const Text('Compartilhar estatísticas de uso'),
+              subtitle: const Text(
+                  'Anônimas: quantas pessoas usam, quais recursos e os erros '
+                  'do app (modelo do celular e versão), para melhorar o UauGo. '
+                  'Sem localização exata, nome ou e-mail.'),
+              value: on,
+              onChanged: s.setShareStats,
+            ),
+          ),
+          ValueListenableBuilder<bool>(
             valueListenable: s.backgroundShare,
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.share_location),

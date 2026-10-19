@@ -29,6 +29,7 @@ import '../services/location_service.dart';
 import '../services/notification_service.dart';
 import '../services/profile_service.dart';
 import '../services/user_service.dart';
+import '../services/analytics_service.dart';
 import 'club_screen.dart';
 import 'consent_screen.dart';
 import 'map_screen.dart';
@@ -187,6 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await NotificationService.subscribe(code);
       _svc.updateBike(code, uid, await ProfileService.load());
       await UserService.addExpeditionHistory(code);
+      AnalyticsService.event(planFirst ? 'expedition_create' : 'expedition_join');
 
       if (!mounted) return;
       // Expedição nova: primeiro monta o roteiro; o mapa abre quando o
@@ -358,6 +360,8 @@ class _HomeScreenState extends State<HomeScreen> {
               type: StopType.destination),
         ]);
     if (res == null || !mounted) return;
+    AnalyticsService.event(
+        res.$1 == TripAction.simulate ? 'route_simulate' : 'route_start');
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => MapScreen(
         uid: uid,
@@ -500,6 +504,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Sem destino: só radares, perigos e velocímetro.
   Future<void> _justDrive() async {
+    AnalyticsService.event('just_drive');
     final uid = await _prepareAlone();
     if (uid == null || !mounted) return;
     await Navigator.of(context).push(MaterialPageRoute(

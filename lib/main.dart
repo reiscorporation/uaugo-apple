@@ -15,6 +15,9 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:ui' show PlatformDispatcher;
+
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -31,6 +34,7 @@ import 'services/notification_service.dart';
 import 'services/shared_place_service.dart';
 import 'services/car_service.dart';
 import 'services/expedition_service.dart';
+import 'services/analytics_service.dart';
 
 /// Paleta da marca: azul-marinho (confiança, segurança, tecnologia) como base,
 /// laranja só no que chama ação (iniciar, alertas, a marca) e verde-água para
@@ -108,6 +112,22 @@ Future<void> main() async {
   }
 
   await AppSettings.instance.load();
+  // Estatísticas anônimas e erros (o usuário pode desligar em Configurações).
+  await AnalyticsService.setEnabled(AppSettings.instance.shareStats.value);
+  AppSettings.instance.shareStats
+      .addListener(() => AnalyticsService.setEnabled(AppSettings.instance.shareStats.value));
+  if (!usarEmulador) {
+    FlutterError.onError = (d) {
+      FlutterError.presentError(d);
+      if (AppSettings.instance.shareStats.value && !kDebugMode) {
+        FirebaseCrashlytics.instance.recordFlutterFatalError(d);
+      }
+    };
+    PlatformDispatcher.instance.onError = (e, st) {
+      AnalyticsService.error(e, st, reason: 'erro não tratado');
+      return true;
+    };
+  }
   await VoiceCommandService.instance.load();
   // Trocou de conta (entrou numa conta que já existia ou saiu): regrava o
   // aceite dos Termos e as autorizações no uid novo, como registro.

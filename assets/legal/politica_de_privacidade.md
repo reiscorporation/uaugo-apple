@@ -1,6 +1,6 @@
 # Política de Privacidade do UauGo
 
-Versão 1.12, de 18/10/2026 (alerta "veículo parado no acostamento" passa a ser automático, sem identificar o usuário; versão 1.11: pedidos falados livres interpretados por IA; versão 1.10: alerta opcional "veículo parado no acostamento"; versão 1.9: pesquisa de trajeto por voz, opcional; versão 1.8: a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano"; versão 1.7: o app passou a se chamar UauGo; nomes anteriores: "Convoyar", "RodaJunto" e "Comboio").
+Versão 1.13, de 18/10/2026 (estatísticas anônimas de uso e relatório de erros, que podem ser desligados; versão 1.12: alerta "veículo parado no acostamento" passa a ser automático, sem identificar o usuário; versão 1.11: pedidos falados livres interpretados por IA; versão 1.10: alerta opcional "veículo parado no acostamento"; versão 1.9: pesquisa de trajeto por voz, opcional; versão 1.8: a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano"; versão 1.7: o app passou a se chamar UauGo; nomes anteriores: "Convoyar", "RodaJunto" e "Comboio").
 
 Esta Política explica quais dados pessoais o aplicativo **UauGo** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
@@ -39,6 +39,11 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 - **Pedidos falados livres (IA):** quando você pede por voz algo fora da lista de comandos (ex.: "um restaurante bom e barato"), o **texto** do pedido (não o áudio) é enviado ao **Gemini, do Google**, pelo servidor do App, só para entender o que procurar. Não é usado para outra finalidade e não é guardado pelo App.
 - **Pesquisa de trajeto por voz (opcional, desligada):** se você ligar, ao dizer "UauGo, ir para" o App ouve o destino com o **reconhecimento de voz do Android**. Quando o celular oferece reconhecimento no próprio aparelho, o áudio **não sai do celular**; se não oferecer, o áudio dessa frase é enviado ao **Google**, que o transforma em texto (sujeito à política de privacidade do Google). O App usa o texto apenas para pesquisar o lugar e não guarda o áudio. Base legal: consentimento (art. 7º, I).
 
+**Estatísticas de uso e relatório de erros (pode desligar)**
+- **Estatísticas anônimas de uso** (Google Analytics para Firebase): quantas pessoas usam o App por dia, semana e mês, por quanto tempo voltam a usar, quais recursos são usados (traçar rota, Só dirigir, criar ou entrar em expedição, marcar alerta, comando de voz), modelo do celular, versão do Android e do App, e região aproximada (cidade/estado, estimada pelo endereço de internet). **Não inclui** sua localização exata, nome, e-mail, trajetos nem o conteúdo das expedições, e **não coletamos o identificador de anúncios** nem usamos esses dados para publicidade.
+- **Relatório de erros** (Firebase Crashlytics): quando o App trava ou dá erro, envia o que aconteceu (a parte do programa que falhou), o modelo do celular e as versões, para corrigirmos.
+- Finalidade: entender o uso e melhorar o App. Base legal: legítimo interesse (art. 7º, IX). **Você pode desligar** a qualquer momento em Configurações → "Compartilhar estatísticas de uso".
+
 **Notificações**
 - Token de notificações do celular (Firebase Cloud Messaging). Finalidade: avisar SOS e paradas do grupo e mensagens do clube.
 
@@ -48,7 +53,7 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 ## 4. Com quem compartilhamos
 
 - **Outros usuários**, apenas o descrito acima (participantes da sua expedição, membros do seu clube e alertas públicos).
-- **Operadores (prestadores de serviço):** Google LLC (Firebase: banco de dados, arquivos, login, notificações e funções; Google Maps, Directions e Places) e Open-Meteo (previsão do tempo, só coordenadas, sem identificação).
+- **Operadores (prestadores de serviço):** Google LLC (Firebase: banco de dados, arquivos, login, notificações, funções, estatísticas de uso e relatório de erros; Google Maps, Directions e Places) e Open-Meteo (previsão do tempo, só coordenadas, sem identificação).
 - **Autoridades**, quando houver obrigação legal ou ordem judicial.
 - **Não vendemos** dados pessoais e não os usamos para publicidade.
 
@@ -63,6 +68,8 @@ O banco de dados, os arquivos e as funções do servidor ficam na região **São
 - **Avisos do clube:** **180 dias**.
 - **Convites do clube:** até vencerem (**7 dias**), e depois apagados automaticamente.
 - **Conta, autorizações e aceite dos Termos:** enquanto a conta existir.
+- **Estatísticas de uso:** os detalhes por evento, por **2 meses**; depois ficam só os totais (sem identificar ninguém).
+- **Relatórios de erro:** **90 dias**.
 - **Contagem diária de consultas de rotas e lugares** (só o número, para limitar abusos): substituída a cada dia.
 - **Dados no celular:** até você excluir ou desinstalar o App.
 

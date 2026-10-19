@@ -28,6 +28,7 @@ import '../logic/tolls.dart';
 import '../services/toll_service.dart';
 import '../services/places_service.dart';
 import '../services/car_service.dart';
+import '../services/analytics_service.dart';
 import '../widgets/place_search.dart';
 import '../services/saved_places_service.dart';
 import '../services/shared_place_service.dart';
@@ -1402,6 +1403,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Reporta um alerta na posição atual (ou confirma, se já existir um igual
   /// a menos de 150 m). Agradece por voz: quem está pilotando não lê a tela.
   Future<void> _reportHazard(HazardType t) async {
+    AnalyticsService.event('hazard_report', {'type': t.name});
     HapticFeedback.mediumImpact();
     try {
       final p = _me ?? await Geolocator.getCurrentPosition();
@@ -1459,6 +1461,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// marcado por voz e "sim"/"não" respondem à pergunta "ainda está lá?".
   Future<void> _onVoiceCommand(VoiceCommand cmd) async {
     if (!mounted) return;
+    AnalyticsService.event('voice_command', {'kind': cmd.runtimeType.toString()});
     switch (cmd) {
       case ReportCommand(:final type):
         if (_sim != null) {
@@ -4334,6 +4337,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// "Iniciar" na expedição: liga a narração, o painel de manobras e a
   /// primeira pessoa.
   void _startNavigation() {
+    AnalyticsService.event('expedition_start');
     if (_nav == null) {
       _snack(_isLeader
           ? 'Monte o roteiro primeiro (botão de rota no topo)'
