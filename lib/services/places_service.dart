@@ -174,8 +174,10 @@ class PlacesService {
       _session = _newSession(); // a sessão termina ao escolher um lugar
       final loc = d['location'] as Map<String, dynamic>?;
       if (loc == null) return null;
+      // O nome é o da sugestão (o servidor não pede o nome ao Google:
+      // fica mais barato).
       return PlaceDetails(
-        (d['displayName']?['text'] ?? s.title) as String,
+        s.title,
         (d['formattedAddress'] ?? s.subtitle) as String,
         (loc['latitude'] as num).toDouble(),
         (loc['longitude'] as num).toDouble(),

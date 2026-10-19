@@ -127,6 +127,45 @@ class DirectionsService {
     required bool avoidHighways,
     List<(double, double)> risks = const [],
   }) async {
+    final prefs0 = AppSettings.instance.route.value;
+    // Mesma rota pedida há pouco (ex.: abriu a prévia de novo): usa a
+    // guardada, sem nova consulta paga. Saída arredondada (~100 m).
+    final key = [
+      for (var i = 0; i < points.length; i++)
+        i == 0
+            ? '${points[i].latitude.toStringAsFixed(3)},${points[i].longitude.toStringAsFixed(3)}'
+            : _fmt(points[i]),
+      avoidTolls,
+      avoidHighways,
+      prefs0.avoidFerries,
+      prefs0.preference.name,
+      prefs0.liveTraffic,
+      risks.length,
+    ].join('|');
+    final hit = _cache[key];
+    final ttl = prefs0.liveTraffic
+        ? const Duration(minutes: 10)
+        : const Duration(minutes: 30);
+    if (hit != null && DateTime.now().difference(hit.$1) < ttl) return hit.$2;
+    final r = await _requestServer(points,
+        avoidTolls: avoidTolls, avoidHighways: avoidHighways, risks: risks);
+    if (r != null) {
+      _cache[key] = (DateTime.now(), r);
+      if (_cache.length > 30) _cache.remove(_cache.keys.first);
+    }
+    return r;
+  }
+
+  /// Rotas guardadas há pouco (chave -> hora e resultado).
+  static final _cache = <String, (DateTime, RouteResult)>{};
+
+  /// A consulta de fato (servidor -> Google Directions).
+  static Future<RouteResult?> _requestServer(
+    List<LatLng> points, {
+    required bool avoidTolls,
+    required bool avoidHighways,
+    List<(double, double)> risks = const [],
+  }) async {
     try {
       final prefs = AppSettings.instance.route.value;
       final mids = points.sublist(1, points.length - 1).map(_fmt).join('|');

@@ -14,6 +14,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../services/places_service.dart';
+import '../services/recent_places_service.dart';
 
 /// Busca de lugares por nome (como no Google Maps), com opção de usar a
 /// localização atual. Devolve um [PickedPlace] ao fechar.
@@ -48,9 +49,18 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
   bool _loading = false;
   int _seq = 0;
 
+  /// Destinos escolhidos antes (aparecem primeiro; escolher não consulta o
+  /// Google). E sugestões já buscadas nesta tela (apagar letras não repete
+  /// a consulta).
+  List<RecentPlace> _recents = [];
+  final _cache = <String, List<PlaceSuggestion>>{};
+
   @override
   void initState() {
     super.initState();
+    RecentPlacesService.instance.load().then((r) {
+      if (mounted) setState(() => _recents = r);
+    });
     final t = widget.initialText;
     if (t != null && t.trim().isNotEmpty) {
       _ctrl.text = t;
@@ -67,21 +77,35 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
   /// Texto mudou: agenda a busca.
   void _onChanged(String text) {
     _debounce?.cancel();
+    setState(() {}); // recentes filtram na hora, sem consulta
     // Espera parar de digitar para economizar buscas.
-    _debounce = Timer(const Duration(milliseconds: 350), () => _search(text));
+    _debounce = Timer(const Duration(milliseconds: 500), () => _search(text));
   }
 
   /// Consulta as sugestões ao Google.
   Future<void> _search(String text) async {
+    final key = text.trim().toLowerCase();
+    final cached = _cache[key];
+    if (cached != null) {
+      setState(() => _results = cached);
+      return;
+    }
     final seq = ++_seq;
     setState(() => _loading = true);
     final r = await _places.search(text,
         nearLat: widget.near?.latitude, nearLng: widget.near?.longitude);
     if (!mounted || seq != _seq) return;
+    if (r.isNotEmpty) _cache[key] = r;
     setState(() {
       _results = r;
       _loading = false;
     });
+  }
+
+  /// Escolheu um destino recente: fecha sem consultar o Google.
+  void _chooseRecent(RecentPlace p) {
+    RecentPlacesService.instance.add(p);
+    Navigator.pop(context, PickedPlace(p.name, p.address, p.lat, p.lng));
   }
 
   /// Escolheu uma sugestão: busca a posição e fecha a tela.
@@ -95,6 +119,8 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
           const SnackBar(content: Text('Não foi possível abrir este lugar')));
       return;
     }
+    RecentPlacesService.instance
+        .add(RecentPlace(d.name, d.address, d.lat, d.lng));
     Navigator.pop(context, PickedPlace(d.name, d.address, d.lat, d.lng));
   }
 
@@ -158,6 +184,14 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
                 ' Toque e segure no mapa para escolher o ponto.'),
           ),
         const Divider(height: 1),
+        for (final p in RecentPlacesService.matching(_recents, _ctrl.text)
+            .take(_ctrl.text.trim().isEmpty ? 8 : 3))
+          ListTile(
+            leading: const Icon(Icons.history),
+            title: Text(p.name),
+            subtitle: p.address.isEmpty ? null : Text(p.address),
+            onTap: _loading ? null : () => _chooseRecent(p),
+          ),
         for (final r in _results)
           ListTile(
             leading: const Icon(Icons.place_outlined),

@@ -147,15 +147,15 @@ async function places(req) {
     const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}?${q}`, {
       headers: {
         "X-Goog-Api-Key": key(),
-        "X-Goog-FieldMask": "displayName,formattedAddress,location",
+        // Só endereço e posição: faixa "Essentials" (mais barata). O nome
+        // do lugar o app já tem (é o texto da sugestão escolhida).
+        "X-Goog-FieldMask": "formattedAddress,location",
       },
       signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return {};
     const j = await res.json();
-    return {
-      displayName: j.displayName, formattedAddress: j.formattedAddress, location: j.location,
-    };
+    return { formattedAddress: j.formattedAddress, location: j.location };
   }
 
   throw new HttpsError("invalid-argument", "Ação inválida.");
