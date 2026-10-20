@@ -2286,7 +2286,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   // ------------------------------------------------------------ ações
 
-  /// Envia um SOS ao grupo (segurar o botão).
+  /// Envia um SOS aos pilotos da expedição (segurar o botão) e abre os
+  /// telefones de emergência.
   Future<void> _sendSos() async {
     HapticFeedback.heavyImpact();
     try {
@@ -2297,13 +2298,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         backgroundColor: Colors.red.shade700,
         duration: const Duration(seconds: 8),
-        content: const Text('🚨 SOS enviado ao grupo'),
+        content: const Text('🚨 SOS enviado aos pilotos da expedição'),
         action: SnackBarAction(
           label: 'CANCELAR',
           textColor: Colors.white,
           onPressed: () => _svc.resolveAlert(_code, id),
         ),
       ));
+      // Também os telefones de emergência e o envio da localização
+      // (WhatsApp), como fora da expedição.
+      _showEmergency();
     } catch (e) {
       _snack('Não foi possível obter sua posição: $e');
     }
