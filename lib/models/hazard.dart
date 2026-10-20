@@ -16,7 +16,7 @@ import 'package:flutter/material.dart';
 enum HazardType {
   police('Polícia', '🚓', Color(0xFF1E88E5), Duration(hours: 1), 500,
       'polícia na pista'),
-  radar('Radar móvel', '📷', Color(0xFF8E24AA), Duration(hours: 4), 1000,
+  radar('Radar móvel', '📷', Color(0xFFD32F2F), Duration(hours: 4), 1000,
       'radar móvel'),
   pothole('Buraco', '🕳️', Color(0xFF6D4C41), Duration(days: 7), 500,
       'buraco'),
@@ -40,7 +40,7 @@ enum HazardType {
       1000, 'área de risco, com relatos de assalto'),
   // Radar fixo e semáforo que faltam no mapa: viram permanentes (veja
   // canBePermanent).
-  fixedRadar('Radar fixo', '📸', Color(0xFF5E35B1), Duration(days: 7), 1000,
+  fixedRadar('Radar fixo', '📸', Color(0xFFD32F2F), Duration(days: 7), 1000,
       'radar fixo'),
   signal('Semáforo', '🚦', Color(0xFF2E7D32), Duration(days: 7), 300,
       'semáforo'),

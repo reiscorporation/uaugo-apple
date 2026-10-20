@@ -3060,8 +3060,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             polylineId: PolylineId('prf_${s.id}'),
             points: [for (final (la, lo) in s.points) LatLng(la, lo)],
             width: 8,
-            // Roxo tracejado: não confunde com o azul da rota.
-            color: Colors.purple.withAlpha(120),
+            // Vermelho transparente (todo radar é vermelho); tracejado, não
+            // confunde com a rota.
+            color: Colors.red.withAlpha(110),
             patterns: [PatternItem.dash(24), PatternItem.gap(10)],
             consumeTapEvents: true,
             onTap: () => _snack(
