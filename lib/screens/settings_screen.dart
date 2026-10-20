@@ -225,7 +225,7 @@ class _AlertPicker extends StatelessWidget {
   final int repeats;
   final void Function(int meters, int repeats) onChanged;
 
-  static const _distances = [300, 500, 800, 1000, 1500, 2000];
+  static const _distances = [300, 500, 750, 1000, 1500, 2000];
 
   @override
   Widget build(BuildContext context) {

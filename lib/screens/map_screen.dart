@@ -49,7 +49,7 @@ import '../widgets/club_nearby_sheet.dart';
 import '../widgets/bike_marker.dart';
 import '../widgets/emoji_marker.dart';
 import '../widgets/speedometer.dart';
-import '../logic/itinerary.dart' show formatDistance, formatTime;
+import '../logic/itinerary.dart' show formatDistance, formatDuration, formatTime;
 import '../logic/navigation.dart';
 import '../logic/radars.dart';
 import '../logic/pois.dart';
@@ -784,9 +784,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Prepara os ícones dos radares no mapa.
   Future<void> _loadRadarIcons() async {
-    _radarIcons[RadarKind.fixed] = await emojiMarker('📸', Colors.indigo);
-    _radarIcons[RadarKind.section] = await emojiMarker('⏱️', Colors.indigo);
-    _radarIcons[RadarKind.redLight] = await emojiMarker('🚦', Colors.indigo);
+    // Vermelho: chama atenção (o azul se confundia com a estrada).
+    final radarRed = Colors.red.shade700;
+    _radarIcons[RadarKind.fixed] = await emojiMarker('📸', radarRed);
+    _radarIcons[RadarKind.section] = await emojiMarker('⏱️', radarRed);
+    _radarIcons[RadarKind.redLight] = await emojiMarker('🚦', radarRed);
     if (mounted) setState(() {});
   }
 
@@ -4522,9 +4524,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final km = formatDistance(left.round());
     if (widget.simulate) return 'Faltam $km';
     // Com o trânsito conferido, usa a velocidade efetiva de agora.
-    final eta = DateTime.now().add(
-        Duration(seconds: (left / (_etaSpeed ?? trip.averageSpeed)).round()));
-    return 'Chegada ${formatTime(eta)} · faltam $km';
+    final secs = (left / (_etaSpeed ?? trip.averageSpeed)).round();
+    final eta = DateTime.now().add(Duration(seconds: secs));
+    return 'Chegada ${formatTime(eta)} · ${formatDuration(secs)} · $km';
   }
 
   /// Expedição: navegando, chegada e quanto falta pela rota do grupo (mesmo
@@ -4540,9 +4542,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       dur += s.legDurationS;
     }
     final speed = _etaSpeed ?? (dur > 0 ? dist / dur : 16.7);
-    final eta = DateTime.now().add(Duration(seconds: (left / speed).round()));
-    return 'Chegada ${formatTime(eta)} · faltam ${formatDistance(left.round())}'
-        ' · código $_code';
+    final secs = (left / speed).round();
+    final eta = DateTime.now().add(Duration(seconds: secs));
+    return 'Chegada ${formatTime(eta)} · ${formatDuration(secs)} · '
+        '${formatDistance(left.round())} · código $_code';
   }
 
   /// Próxima manobra no topo da tela (como no Waze/Google Maps).

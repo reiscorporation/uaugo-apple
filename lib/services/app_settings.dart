@@ -132,8 +132,8 @@ class AlertPrefs {
   final bool shareStopped;
 
   const AlertPrefs({
-    this.radarMeters = 1000,
-    this.radarRepeats = 2,
+    this.radarMeters = 750,
+    this.radarRepeats = 1,
     this.policeMeters = 1000,
     this.policeRepeats = 1,
     this.policePosts = true,
@@ -246,8 +246,8 @@ class AppSettings {
       avoidRisk: p.getBool('routeAvoidRisk') ?? false,
     );
     alerts.value = AlertPrefs(
-      radarMeters: p.getInt('alertRadarMeters') ?? 1000,
-      radarRepeats: p.getInt('alertRadarRepeats') ?? 2,
+      radarMeters: p.getInt('alertRadarMeters') ?? 750,
+      radarRepeats: p.getInt('alertRadarRepeats') ?? 1,
       policeMeters: p.getInt('alertPoliceMeters') ?? 1000,
       policeRepeats: p.getInt('alertPoliceRepeats') ?? 1,
       policePosts: p.getBool('alertPolicePosts') ?? true,

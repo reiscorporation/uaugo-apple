@@ -177,8 +177,11 @@ void main() {
     expect(radarSpeech(semLimite, 300),
         'Radar de avanço de sinal a 300 metros, velocidade não informada');
     final s = idx.stretchesAround(-28.27, -48.70).first;
+    // Frase clara (antes: "do quilômetro 90 ao quilômetro 30", confusa).
     expect(prfStretchSpeech(s, 1000),
-        'Atenção: trecho com fiscalização por radar portátil da P R F a 1 quilômetro, na BR 101, até o quilômetro 300');
-    expect(prfStretchSpeech(s, 20), startsWith('Você está em trecho'));
+        startsWith('Atenção: em 1 quilômetro começa trecho com radar móvel da polícia rodoviária na B R 101'));
+    expect(prfStretchSpeech(s, 1000), isNot(contains('até o quilômetro')));
+    expect(prfStretchSpeech(s, 20),
+        startsWith('Atenção: pode haver radar móvel da polícia rodoviária na B R 101'));
   });
 }

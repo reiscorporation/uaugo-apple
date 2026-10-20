@@ -23,6 +23,13 @@ class VoiceService {
 
   final _tts = FlutterTts();
   final _queue = <String>[];
+
+  /// Até quando cada frase da fila ainda vale (avisos com distância ficam
+  /// velhos rápido: a 80 km/h, 6 s são ~130 m).
+  final _expires = <String, DateTime>{};
+
+  /// Validade dos avisos falados ([alert]).
+  static const alertMaxAge = Duration(seconds: 6);
   bool _ready = false;
   bool _speaking = false;
 
@@ -79,7 +86,9 @@ class VoiceService {
 
   /// Fala um aviso (respeita o botão de avisos).
   void alert(String text, {bool urgent = false}) {
-    if (alertsOn.value) _say(text, urgent: urgent);
+    if (!alertsOn.value) return;
+    _expires[text] = DateTime.now().add(alertMaxAge);
+    _say(text, urgent: urgent);
   }
 
   /// Fala uma instrução do trajeto (respeita o botão de narração, a menos
@@ -147,6 +156,11 @@ class VoiceService {
     speaking.value = true;
     while (_queue.isNotEmpty) {
       final next = _queue.removeAt(0);
+      final exp = _expires.remove(next);
+      if (exp != null && DateTime.now().isAfter(exp)) {
+        debugPrint('Voz (descartada, ficou velha): $next');
+        continue;
+      }
       debugPrint('Voz: $next');
       try {
         await _tts.speak(next, focus: true);

@@ -269,14 +269,16 @@ String radarSpeech(FixedRadar r, double meters, {int? roadLimit}) {
   };
 }
 
-/// Quilômetro para falar: 12.0 -> "12", 12.5 -> "12,5".
-String _km(double km) =>
-    km == km.roundToDouble() ? km.toInt().toString() : km.toString().replaceAll('.', ',');
-
 /// Frase do trecho com radar portátil da PRF (entrando ou chegando).
 String prfStretchSpeech(PrfStretch s, double meters) {
-  final where = 'na BR ${int.parse(s.br)}, até o quilômetro ${_km(s.kmTo)}';
+  // Extensão do trecho (os dados da PRF trazem o km inicial e o final, em
+  // qualquer ordem): "nos próximos 60 quilômetros".
+  final len = (s.kmTo - s.kmFrom).abs().round();
+  final span = len >= 1
+      ? ' nos próximos ${spokenDistance(len * 1000.0)}'
+      : '';
+  final road = 'B R ${int.parse(s.br)}';
   return meters < 100
-      ? 'Você está em trecho com fiscalização por radar portátil da P R F, $where'
-      : 'Atenção: trecho com fiscalização por radar portátil da P R F a ${spokenDistance(meters)}, $where';
+      ? 'Atenção: pode haver radar móvel da polícia rodoviária na $road$span'
+      : 'Atenção: em ${spokenDistance(meters)} começa trecho com radar móvel da polícia rodoviária na $road$span';
 }
