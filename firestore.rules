@@ -118,6 +118,22 @@ service cloud.firestore {
           && request.resource.data.resolved == true;
         allow delete: if false;
       }
+
+      // Pedidos ao grupo ("Preciso abastecer"...): só os pilotos da
+      // expedição veem; cada um envia em nome próprio; apagados sozinhos
+      // (TTL em expiresAt, 1 hora).
+      match /requests/{reqId} {
+        allow read: if hasAccount() && isMember(code);
+        allow create: if hasAccount() && isMember(code)
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'kind', 'lat', 'lng', 'createdAt', 'expiresAt'])
+          && request.resource.data.uid == request.auth.uid
+          && str(request.resource.data.name, 60)
+          && request.resource.data.kind in ['fuel', 'restroom', 'rest', 'problem', 'behind']
+          && isLat(request.resource.data.lat) && isLng(request.resource.data.lng)
+          && request.resource.data.expiresAt is timestamp
+          && request.resource.data.expiresAt < request.time + duration.value(2, 'h');
+        allow update, delete: if false;
+      }
     }
 
     // ---------- Metadados gerados pelas Cloud Functions (ex.: versão dos radares)

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:comboio/logic/voice_commands.dart';
 import 'package:comboio/models/hazard.dart';
+import 'package:comboio/logic/group_requests.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Monta um resultado no formato do Vosk.
@@ -13,6 +14,19 @@ String vosk(String text, [double conf = 1]) => jsonEncode({
     });
 
 void main() {
+  test('pedidos ao grupo por voz', () {
+    String j(String t) =>
+        '{"text":"$t","result":[${t.split(' ').map((w) => '{"word":"$w","conf":0.95}').join(',')}]}';
+    final a = parseVoiceResult(j('uau go preciso abastecer'));
+    expect(a, isA<GroupRequestCommand>());
+    expect((a as GroupRequestCommand).request, GroupRequest.fuel);
+    final b = parseVoiceResult(j('banheiro'), context: VoiceContext.wake);
+    expect((b as GroupRequestCommand).request, GroupRequest.restroom);
+    expect(voiceGrammar(), contains('uau go fiquei para trás'));
+    expect(groupRequestSpeech('Ricardo', GroupRequest.fuel),
+        'Ricardo precisa abastecer');
+  });
+
   group('Comandos de voz (UauGo)', () {
     test('"UauGo, radar" (reconhecido como "uau go radar") marca radar', () {
       final c = parseVoiceResult(vosk('uau go radar'));

@@ -15,6 +15,7 @@ import 'dart:convert';
 
 import '../models/hazard.dart';
 import 'find_places.dart';
+import 'group_requests.dart';
 
 /// Palavra de ativação: o nome do app, "UauGo" ("UauGo, radar"). O modelo
 /// de voz não conhece "uaugo" inteiro, então ele é reconhecido como duas
@@ -49,6 +50,8 @@ const voiceMinConfidenceYesNo = 0.85;
 List<String> _commandPhrases() => [
       for (final w in voiceAlertWords.keys) w,
       'cancelar',
+      // Pedidos ao grupo (só na expedição): "UauGo, preciso abastecer".
+      for (final w in groupRequestWords.keys) w,
       // "ir para ...": o destino (frase livre) é ouvido depois do bipe
       // (opção "Pesquisa de trajeto por voz").
       'ir para',
@@ -101,6 +104,12 @@ sealed class VoiceCommand {
 class ReportCommand extends VoiceCommand {
   final HazardType type;
   const ReportCommand(this.type);
+}
+
+/// "UauGo, preciso abastecer": pedido só para os pilotos da expedição.
+class GroupRequestCommand extends VoiceCommand {
+  final GroupRequest request;
+  const GroupRequestCommand(this.request);
 }
 
 /// "UauGo, cancelar": desfaz o último alerta marcado por voz.
@@ -220,6 +229,8 @@ VoiceCommand? parseVoiceResult(String json, {VoiceContext? context}) {
   }
   final what = text.substring(voiceWakeWord.length + 1);
   if (what == 'cancelar') return const CancelCommand();
+  final req = groupRequestWords[what];
+  if (req != null) return GroupRequestCommand(req);
   for (final v in findVerbs) {
     if (!what.startsWith('$v ')) continue;
     var rest = what.substring(v.length + 1);

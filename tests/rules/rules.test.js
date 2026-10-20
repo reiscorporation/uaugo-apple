@@ -7,7 +7,7 @@ const {
   initializeTestEnvironment, assertSucceeds, assertFails,
 } = require("@firebase/rules-unit-testing");
 const {
-  doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, Timestamp,
+  doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, Timestamp, addDoc,
   writeBatch, increment, serverTimestamp,
 } = require("firebase/firestore");
 
@@ -174,6 +174,27 @@ describe("Expedição: capitão e ferrolhos", () => {
     await assertSucceeds(updateDoc(exp("carol"), { captainId: "bob", sweepers: ["dave"] }));
     // Depois disso a Carol não manda mais.
     await assertFails(updateDoc(exp("carol"), { captainId: "carol", sweepers: ["dave"] }));
+  });
+});
+
+describe("Pedidos ao grupo (expedição)", () => {
+  const req = (u, extra = {}) => addDoc(collection(db(u), "expeditions/ABC123/requests"), {
+    uid: u, name: "Piloto", kind: "fuel", lat: -27.5, lng: -48.5,
+    createdAt: serverTimestamp(), expiresAt: Timestamp.fromDate(new Date(Date.now() + 3600e3)),
+    ...extra,
+  });
+  it("membro envia pedido em nome próprio; outro membro lê", async () => {
+    await env.withSecurityRulesDisabled((c) =>
+      setDoc(doc(c.firestore(), "expeditions/ABC123/members/bob"), { name: "Bob" }));
+    await assertSucceeds(req("alice"));
+    await assertSucceeds(getDocs(collection(db("bob"), "expeditions/ABC123/requests")));
+  });
+  it("não-membro não envia nem lê; tipo inválido e em nome de outro são recusados", async () => {
+    await assertFails(req("zed"));
+    await assertFails(getDocs(collection(db("zed"), "expeditions/ABC123/requests")));
+    await assertFails(req("alice", { kind: "festa" }));
+    await assertFails(req("alice", { uid: "bob" }));
+    await assertFails(req("alice", { expiresAt: Timestamp.fromDate(new Date(Date.now() + 86400e3)) }));
   });
 });
 

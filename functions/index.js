@@ -103,6 +103,31 @@ exports.onSos = onDocumentCreated(
   }
 );
 
+// Pedidos ao grupo (mesmos nomes de lib/logic/group_requests.dart).
+const REQUESTS = {
+  fuel: ["⛽", "precisa abastecer"],
+  restroom: ["🚻", "pediu parada para banheiro"],
+  rest: ["☕", "precisa descansar"],
+  problem: ["🔧", "está com problema no veículo"],
+  behind: ["🐢", "ficou para trás. Esperem!"],
+};
+
+// Avisa o grupo de um pedido ("Ricardo precisa abastecer").
+exports.onRequest = onDocumentCreated(
+  { document: "expeditions/{code}/requests/{reqId}", region },
+  async (event) => {
+    const r = event.data?.data();
+    const k = r && REQUESTS[r.kind];
+    if (!k) return;
+    const who = (r.name || "Um piloto").toString().slice(0, 60);
+    await sendPush({
+      topic: `exp_${event.params.code}`,
+      notification: { title: `${k[0]} ${who} ${k[1]}`, body: "Pedido ao grupo" },
+      data: { type: "request", code: event.params.code, uid: r.uid || "" },
+    });
+  }
+);
+
 // Avisa o grupo quando uma nova parada é adicionada.
 exports.onStop = onDocumentCreated(
   { document: "expeditions/{code}/stops/{stopId}", region },

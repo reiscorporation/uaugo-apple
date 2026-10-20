@@ -17,6 +17,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../logic/itinerary.dart';
 import '../logic/navigation.dart';
 import '../models/bike.dart';
+import '../logic/group_requests.dart';
 import '../models/expedition.dart';
 import 'app_settings.dart';
 import 'directions_service.dart';
@@ -331,6 +332,44 @@ class ExpeditionService {
       'resolvedAt': FieldValue.serverTimestamp(),
     });
   }
+
+  /// Pedido ao grupo ("Preciso abastecer"...): só os pilotos da expedição
+  /// recebem (voz + notificação). Some sozinho em 1 hora.
+  void sendRequest(String code, String uid, String name, GroupRequest kind,
+      double lat, double lng) {
+    _exp(code).collection('requests').add({
+      'uid': uid,
+      'name': name,
+      'kind': kind.name,
+      'lat': lat,
+      'lng': lng,
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt':
+          Timestamp.fromDate(DateTime.now().add(const Duration(hours: 1))),
+    });
+  }
+
+  /// Pedidos dos últimos 30 min, em tempo real (mais novo primeiro).
+  Stream<List<({String id, String uid, String name, GroupRequest kind, DateTime at})>>
+      requests(String code) => _exp(code)
+          .collection('requests')
+          .where('createdAt',
+              isGreaterThan: Timestamp.fromDate(
+                  DateTime.now().subtract(const Duration(minutes: 30))))
+          .snapshots()
+          .map((s) => [
+                for (final d in s.docs)
+                  if (GroupRequest.fromName(d.data()['kind'] as String?)
+                      case final k?)
+                    (
+                      id: d.id,
+                      uid: (d.data()['uid'] ?? '') as String,
+                      name: (d.data()['name'] ?? '') as String,
+                      kind: k,
+                      at: (d.data()['createdAt'] as Timestamp?)?.toDate() ??
+                          DateTime.now(),
+                    ),
+              ]..sort((a, b) => b.at.compareTo(a.at)));
 
   /// SOS ativos do grupo, em tempo real.
   Stream<List<SosAlert>> activeAlerts(String code) => _exp(code)

@@ -22,6 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../logic/voice_commands.dart';
+import '../logic/group_requests.dart';
 import '../logic/find_places.dart';
 import '../logic/costs.dart' show formatMoney, fuelLiters;
 import '../logic/tolls.dart';
@@ -624,7 +625,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _stopsLoaded = true;
         _maybeUpgradeRoute();
       }))
-      ..add(_svc.activeAlerts(_code).listen(_onAlerts));
+      ..add(_svc.activeAlerts(_code).listen(_onAlerts))
+      ..add(_svc.requests(_code).listen(_onRequests));
   }
 
   /// Relógios da tela: textos "há X min", chuva e trânsito (só com o app
@@ -1483,6 +1485,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           // _reportHazard confirma por voz ("Alerta de radar móvel enviado").
           await _reportHazard(type);
         }
+      case GroupRequestCommand(:final request):
+        if (!_isExpedition) {
+          _voice.reply('Os pedidos ao grupo funcionam dentro da expedição.');
+        } else {
+          await _sendGroupRequest(request);
+        }
       case CancelCommand():
         final last = _lastVoiceReport;
         Hazard? mine;
@@ -2282,6 +2290,73 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       );
       _showAlertDialog(a);
     }
+  }
+
+  // ------------------------------------------------------------ pedidos ao grupo
+
+  /// Pedidos já vistos (o 1º lote, ao entrar, não é falado).
+  final Set<String> _seenRequests = {};
+  bool _requestsLoaded = false;
+
+  /// Chegou pedido de outro piloto: fala e mostra no topo.
+  void _onRequests(
+      List<({String id, String uid, String name, GroupRequest kind, DateTime at})>
+          list) {
+    final fresh = list.where((r) => !_seenRequests.contains(r.id)).toList();
+    _seenRequests.addAll(list.map((r) => r.id));
+    if (!_requestsLoaded) {
+      _requestsLoaded = true;
+      return;
+    }
+    for (final r in fresh.reversed) {
+      if (r.uid == widget.uid) continue;
+      _voice.alert(groupRequestSpeech(r.name, r.kind));
+      _showTrafficBanner('${r.kind.emoji} ${groupRequestSpeech(r.name, r.kind)}');
+    }
+  }
+
+  /// Envia um pedido só para os pilotos da expedição.
+  Future<void> _sendGroupRequest(GroupRequest kind) async {
+    try {
+      final p = _me ?? await Geolocator.getCurrentPosition();
+      _svc.sendRequest(
+          _code, widget.uid, widget.userName, kind, p.latitude, p.longitude);
+      AnalyticsService.event('group_request', {'kind': kind.name});
+      _voice.reply('Pedido enviado ao grupo: ${kind.label}.');
+      _snack('${kind.emoji} Enviado ao grupo: ${kind.label}');
+    } catch (e) {
+      _snack('Não foi possível enviar: $e');
+    }
+  }
+
+  /// Botão acima do SOS: os atalhos de pedido ao grupo.
+  void _showGroupRequests() {
+    showSafeSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            title: Text('Pedido ao grupo',
+                style: Theme.of(ctx).textTheme.titleLarge),
+            subtitle: const Text(
+                'Só os pilotos desta expedição recebem (voz e notificação). '
+                'Também por voz: "UauGo, preciso abastecer".'),
+          ),
+          for (final r in GroupRequest.values)
+            ListTile(
+              minVerticalPadding: 14,
+              leading: Text(r.emoji, style: const TextStyle(fontSize: 30)),
+              title: Text(r.label,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _sendGroupRequest(r);
+              },
+            ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
   }
 
   // ------------------------------------------------------------ ações
@@ -3671,13 +3746,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         Positioned(
           left: 16,
           bottom: 24,
-          child: FloatingActionButton.large(
-            heroTag: 'hazard',
-            tooltip: 'Reportar perigo',
-            backgroundColor: Colors.amber,
-            foregroundColor: Colors.black,
-            onPressed: _showReportSheet,
-            child: const Icon(Icons.warning_amber_rounded, size: 44),
+          // Um pouco menor que antes (era o "large", 96 px).
+          child: SizedBox(
+            width: 74,
+            height: 74,
+            child: FloatingActionButton(
+              heroTag: 'hazard',
+              tooltip: 'Reportar perigo',
+              backgroundColor: Colors.amber,
+              foregroundColor: Colors.black,
+              onPressed: _showReportSheet,
+              child: const Icon(Icons.warning_amber_rounded, size: 38),
+            ),
           ),
         ),
 
@@ -3766,6 +3846,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       ? (_showAll ? Icons.person_pin_circle : Icons.zoom_out_map)
                       : Icons.navigation),
             ),
+            if (_sim == null && _isExpedition) ...[
+              const SizedBox(height: 16),
+              // Pedidos ao grupo ("Preciso abastecer"...), acima do SOS.
+              FloatingActionButton(
+                heroTag: 'requests',
+                tooltip: 'Pedidos ao grupo',
+                backgroundColor: Colors.orange.shade700,
+                foregroundColor: Colors.white,
+                onPressed: _showGroupRequests,
+                child: const Icon(Icons.campaign, size: 30),
+              ),
+            ],
             if (_sim == null) ...[
             const SizedBox(height: 20),
             // Precisa SEGURAR para evitar SOS acidental (luva, vibração).
