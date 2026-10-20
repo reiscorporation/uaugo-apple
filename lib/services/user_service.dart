@@ -48,6 +48,25 @@ class UserService {
     return prefs.getStringList(_kHistory) ?? [];
   }
 
+  /// Nomes das expedições já vistas (código -> nome), para mostrar a lista
+  /// "Minhas expedições" na hora, antes de conferir no servidor.
+  static Future<Map<String, String>> loadExpeditionNames() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('expeditionNames');
+    if (raw == null) return {};
+    try {
+      return Map<String, String>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Guarda os nomes conferidos (só os das expedições da lista).
+  static Future<void> saveExpeditionNames(Map<String, String> names) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('expeditionNames', jsonEncode(names));
+  }
+
   /// Saiu da expedição: tira da lista "Minhas expedições" (o próprio membro
   /// já foi apagado do servidor, então nada fica para a exclusão de dados).
   static Future<void> removeExpeditionHistory(String code) async {

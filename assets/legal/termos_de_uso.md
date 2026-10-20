@@ -1,6 +1,6 @@
 # Termos de Uso do UauGo
 
-Versão 1.3, de 08/10/2026 (o app passou a se chamar UauGo; nomes anteriores: "Convoyar", "RodaJunto" e "Comboio").
+Versão 1.3, de 08/10/2026.
 
 Estes Termos regulam o uso do aplicativo **UauGo** ("App"), desenvolvido e mantido por **Ricardo Reis**, pessoa física, sob a marca **HelpAITech** ("nós"). Ao tocar em "Li e aceito", você ("Usuário") declara que leu, entendeu e concorda com estes Termos e com a Política de Privacidade. Se não concordar, não use o App.
 

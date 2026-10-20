@@ -23,7 +23,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../logic/voice_commands.dart';
 import '../logic/find_places.dart';
-import '../logic/costs.dart' show formatMoney;
+import '../logic/costs.dart' show formatMoney, fuelLiters;
 import '../logic/tolls.dart';
 import '../services/toll_service.dart';
 import '../services/places_service.dart';
@@ -1927,6 +1927,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _expWalkerSig = expPoly;
       final pts = [for (final q in decodePolyline(expPoly)) (q.latitude, q.longitude)];
       _expWalker = pts.length >= 2 ? RouteWalker(pts) : null;
+      if (pts.length >= 2) {
+        var dist = 0;
+        for (final s in _stops) {
+          dist += s.legDistanceM;
+        }
+        _calcRouteCost(pts, dist);
+      }
     }
     final poly = _personalTrip?.plan.polyline ??
         (expPoly.isNotEmpty ? expPoly : _trip?.plan.polyline ?? '');
@@ -1940,6 +1947,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         : _stops.map((s) => LatLng(s.lat, s.lng)).toList());
     _routeRecs = [for (final q in _route) (q.latitude, q.longitude)];
     CarService.instance.route(_routeRecs);
+    // Rota normal: custo estimado (na expedição, calculado acima).
+    final t = _trip;
+    if (!_isExpedition && t != null && _routeRecs.length >= 2) {
+      _calcRouteCost(_routeRecs, t.distanceM);
+    }
     _walker = _routeRecs.length >= 2 ? RouteWalker(_routeRecs) : null;
     // Rota nova: as manobras são reposicionadas nela na próxima leitura.
     _nav?.detachRoute();
@@ -3196,7 +3208,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // o fechamento da tela derrubava o app (defeito do Flutter com o mapa).
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        title: Column(
+        // Toque no título: resumo da viagem (tempo, km, custo).
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _showTripSummary,
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -3207,8 +3223,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         : (_trip?.title ?? 'Navegação'),
                 overflow: TextOverflow.ellipsis),
             Text(_isExpedition ? _expeditionSubtitle() : _etaText(),
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall),
           ],
+        ),
         ),
         actions: !_isExpedition
             ? null
@@ -4526,26 +4544,112 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Com o trânsito conferido, usa a velocidade efetiva de agora.
     final secs = (left / (_etaSpeed ?? trip.averageSpeed)).round();
     final eta = DateTime.now().add(Duration(seconds: secs));
-    return 'Chegada ${formatTime(eta)} · ${formatDuration(secs)} · $km';
+    final cost = _expCost == null ? '' : ' · ~${formatMoney(_expCost!)}';
+    return 'Chegada ${formatTime(eta)} · ${formatDuration(secs)} · $km$cost';
   }
 
   /// Expedição: navegando, chegada e quanto falta pela rota do grupo (mesmo
   /// numa rota própria para voltar a ela), e o código; parado, só o código.
   String _expeditionSubtitle() {
     final w = _expWalker ?? _walker, p = _me;
-    if (!_navigating || w == null || _arrivedAtDestination) return 'Código: $_code';
-    final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
-    // Velocidade: a do trânsito conferido ou a média planejada do roteiro.
     var dist = 0, dur = 0;
     for (final s in _stops) {
       dist += s.legDistanceM;
       dur += s.legDurationS;
     }
+    final cost = _expCost == null ? '' : ' · ~${formatMoney(_expCost!)}';
+    if (w == null || _arrivedAtDestination) return 'Código: $_code';
+    if (!_navigating) {
+      // Antes de iniciar: o roteiro todo (km, tempo e custo estimado).
+      if (dist <= 0) return 'Código: $_code';
+      return '${formatDistance(dist)} · ${formatDuration(dur)}$cost · código $_code';
+    }
+    final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
+    // Velocidade: a do trânsito conferido ou a média planejada do roteiro.
     final speed = _etaSpeed ?? (dur > 0 ? dist / dur : 16.7);
     final secs = (left / speed).round();
     final eta = DateTime.now().add(Duration(seconds: secs));
     return 'Chegada ${formatTime(eta)} · ${formatDuration(secs)} · '
-        '${formatDistance(left.round())} · código $_code';
+        '${formatDistance(left.round())}$cost · código $_code';
+  }
+
+  /// Custo estimado da viagem para o MEU veículo: combustível (se o
+  /// consumo e o preço estão em "Meu veículo") + pedágios da rota.
+  double? _expCost;
+  double? _fuelCost;
+  TollEstimate? _tollEst;
+
+  Future<void> _calcRouteCost(List<(double, double)> line, int distM) async {
+    final table = await TollService.instance.table();
+    if (!mounted) return;
+    final tolls =
+        table == null ? null : estimateTolls(table.onRoute(line), _myBike);
+    final f = AppSettings.instance.fuel.value;
+    final fuel = f.ready && distM > 0
+        ? fuelLiters(distM.toDouble(), f.kmPerLiter) * f.pricePerLiter
+        : null;
+    final tollTotal = tolls != null && tolls.plazas > 0 ? tolls.total : 0.0;
+    final total = (fuel ?? 0) + tollTotal;
+    setState(() {
+      _fuelCost = fuel;
+      _tollEst = tolls;
+      _expCost = total > 0 ? total : null;
+    });
+  }
+
+  /// Toque no título: resumo da viagem (distância, tempo, chegada, quanto
+  /// falta, combustível, pedágios e custo).
+  void _showTripSummary() {
+    final w = _isExpedition ? (_expWalker ?? _walker) : _walker;
+    if (w == null) return;
+    final p = _me;
+    final totalM = _isExpedition
+        ? _stops.fold<int>(0, (a, s) => a + s.legDistanceM)
+        : (_trip?.distanceM ?? w.length.round());
+    final totalS = _isExpedition
+        ? _stops.fold<int>(0, (a, s) => a + s.legDurationS)
+        : (_trip?.durationS ?? 0);
+    final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
+    final speed = _etaSpeed ??
+        (totalS > 0 ? totalM / totalS : (_trip?.averageSpeed ?? 16.7));
+    final secs = (left / speed).round();
+    final eta = DateTime.now().add(Duration(seconds: secs));
+    final f = AppSettings.instance.fuel.value;
+    final tolls = _tollEst;
+    Widget row(IconData i, String a, String b) => ListTile(
+          dense: true,
+          leading: Icon(i),
+          title: Text(a),
+          trailing: Text(b,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        );
+    showSafeSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            title: Text(
+                _isExpedition ? (_exp?.name ?? 'Expedição') : (_trip?.title ?? 'Viagem'),
+                style: Theme.of(ctx).textTheme.titleLarge),
+            subtitle: const Text('Resumo da viagem'),
+          ),
+          row(Icons.straighten, 'Distância total', formatDistance(totalM)),
+          if (totalS > 0) row(Icons.timer_outlined, 'Tempo total previsto', formatDuration(totalS)),
+          if (_navigating) ...[
+            row(Icons.flag, 'Falta', formatDistance(left.round())),
+            row(Icons.hourglass_bottom, 'Tempo restante', formatDuration(secs)),
+            row(Icons.schedule, 'Chegada prevista', formatTime(eta)),
+          ],
+          row(Icons.local_gas_station, 'Combustível',
+              _fuelCost != null ? formatMoney(_fuelCost!) : (f.ready ? '—' : 'informe em Meu veículo')),
+          row(Icons.toll, 'Pedágios',
+              tolls == null ? '—' : (tolls.plazas == 0 ? 'sem pedágio' : formatMoney(tolls.total))),
+          if (_expCost != null)
+            row(Icons.payments, 'Custo estimado', formatMoney(_expCost!)),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
   }
 
   /// Próxima manobra no topo da tela (como no Waze/Google Maps).
@@ -4697,6 +4801,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Sozinho não há grupo para avisar: telefones de emergência e
   /// compartilhar a localização com quem você quiser.
+  /// Mensagem de socorro com o link da posição no Google Maps.
+  String _sosText(Position p) => '🆘 Preciso de ajuda. Estou aqui: '
+      'https://www.google.com/maps/search/?api=1&query='
+      '${p.latitude.toStringAsFixed(6)},${p.longitude.toStringAsFixed(6)}';
+
   void _showEmergency() {
     HapticFeedback.heavyImpact();
     final p = _me;
@@ -4720,15 +4829,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               title: Text('$num · $label'),
               onTap: () => launchUrl(Uri.parse('tel:$num')),
             ),
-          if (p != null)
+          if (p != null) ...[
+            // Direto no WhatsApp (a pessoa escolhe o contato); a lista de
+            // compartilhar do Android às vezes nem mostra o WhatsApp.
+            ListTile(
+              leading: const Icon(Icons.chat, color: Color(0xFF25D366)),
+              title: const Text('Enviar minha localização pelo WhatsApp'),
+              onTap: () async {
+                final text = _sosText(p);
+                final ok = await launchUrl(
+                    Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}'),
+                    mode: LaunchMode.externalApplication);
+                if (!ok) SharePlus.instance.share(ShareParams(text: text));
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.share_location),
-              title: const Text('Enviar minha localização (WhatsApp...)'),
-              onTap: () => SharePlus.instance.share(ShareParams(
-                  text: '🆘 Preciso de ajuda. Estou aqui: '
-                      'https://www.google.com/maps/search/?api=1&query='
-                      '${p.latitude.toStringAsFixed(6)},${p.longitude.toStringAsFixed(6)}')),
+              title: const Text('Enviar por outro app (SMS, Telegram...)'),
+              onTap: () => SharePlus.instance.share(ShareParams(text: _sosText(p))),
             ),
+          ],
         ]),
       ),
     );

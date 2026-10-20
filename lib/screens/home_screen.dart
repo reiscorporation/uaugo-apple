@@ -132,19 +132,36 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     final codes = (await UserService.loadExpeditionHistory()).take(10).toList();
-    final found = <(String, String)>[];
-    for (final c in codes) {
+    // 1º: mostra na hora o que já se conhecia (nomes guardados no celular).
+    final names = await UserService.loadExpeditionNames();
+    final known = [
+      for (final c in codes)
+        if (names[c] != null) (c, names[c]!)
+    ];
+    if (mounted && known.isNotEmpty) setState(() => _myExps = known);
+    // 2º: confere todas no servidor AO MESMO TEMPO (antes: uma por vez, e a
+    // lista demorava a aparecer). Sem resposta = mantém como estava.
+    final results = await Future.wait(codes.map((c) async {
       try {
-        final e = await _svc.find(c).timeout(const Duration(seconds: 8));
-        if (e != null) {
-          found.add((c, e.name));
-        } else {
-          // Encerrada: some da lista (a viagem fica em "Minhas viagens" se
-          // o piloto rodou algum trecho).
-          await UserService.removeExpeditionHistory(c);
-        }
-      } catch (_) {}
+        final e = await _svc.find(c).timeout(const Duration(seconds: 10));
+        return (c, e?.name, true);
+      } catch (_) {
+        return (c, names[c], false);
+      }
+    }));
+    final found = <(String, String)>[];
+    final fresh = <String, String>{};
+    for (final (c, name, answered) in results) {
+      if (name != null) {
+        found.add((c, name));
+        fresh[c] = name;
+      } else if (answered) {
+        // Encerrada: some da lista (a viagem fica em "Minhas viagens" se
+        // o piloto rodou algum trecho).
+        await UserService.removeExpeditionHistory(c);
+      }
     }
+    await UserService.saveExpeditionNames(fresh);
     if (mounted) setState(() => _myExps = found);
   }
 

@@ -1,6 +1,6 @@
 # Política de Privacidade do UauGo
 
-Versão 1.13, de 18/10/2026 (estatísticas anônimas de uso e relatório de erros, que podem ser desligados; versão 1.12: alerta "veículo parado no acostamento" passa a ser automático, sem identificar o usuário; versão 1.11: pedidos falados livres interpretados por IA; versão 1.10: alerta opcional "veículo parado no acostamento"; versão 1.9: pesquisa de trajeto por voz, opcional; versão 1.8: a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano"; versão 1.7: o app passou a se chamar UauGo; nomes anteriores: "Convoyar", "RodaJunto" e "Comboio").
+Versão 1.13, de 18/10/2026 (estatísticas anônimas de uso e relatório de erros, que podem ser desligados; versão 1.12: alerta "veículo parado no acostamento" passa a ser automático, sem identificar o usuário; versão 1.11: pedidos falados livres interpretados por IA; versão 1.10: alerta opcional "veículo parado no acostamento"; versão 1.9: pesquisa de trajeto por voz, opcional; versão 1.8: a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano").
 
 Esta Política explica quais dados pessoais o aplicativo **UauGo** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
