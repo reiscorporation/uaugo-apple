@@ -167,7 +167,7 @@ class _AccountTile extends StatelessWidget {
             ),
             const Padding(
               padding: EdgeInsets.only(left: 56),
-              child: Row(children: [
+              child: Wrap(children: [
                 TextButton(
                   onPressed: AuthService.resendVerification,
                   child: Text('Reenviar'),
@@ -240,7 +240,11 @@ class _AlertPicker extends StatelessWidget {
         Row(children: [
           Icon(icon, size: 20),
           const SizedBox(width: 8),
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          // Expanded: título longo quebra a linha em tela estreita (antes
+          // estourava: "right overflowed by 25 pixels").
+          Expanded(
+            child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+          ),
         ]),
         const SizedBox(height: 6),
         const Text('Primeiro aviso a'),
