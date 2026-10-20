@@ -2204,20 +2204,32 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Grade com os apelidos (capitão/ferrolhos): ⚠️ em quem saiu do trajeto;
   /// tocar mostra o piloto no mapa.
   Widget _groupGridPanel() {
+    // Quem saiu do trajeto primeiro (o capitão vê na hora), depois quem está
+    // sem sinal por último; no empate, pelo nome.
+    int rank(Member m) => _memberOffRoute(m) ? 0 : (m.isStale ? 2 : 1);
     final others = [
       for (final m in _members)
         if (m.uid != widget.uid) m
-    ]..sort((a, b) => a.name.compareTo(b.name));
+    ]..sort((a, b) {
+        final r = rank(a).compareTo(rank(b));
+        return r != 0 ? r : a.name.compareTo(b.name);
+      });
+    // Muitos pilotos (ex.: 20 motos): duas colunas, menos rolagem.
+    final twoCols = others.length > 8;
+    final itemW = twoCols ? 128.0 : 178.0;
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerHigh.withAlpha(235),
       elevation: 6,
       borderRadius: BorderRadius.circular(12),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-            maxWidth: 190, maxHeight: MediaQuery.of(context).size.height * 0.45),
-        child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(6), children: [
+            maxWidth: twoCols ? 270 : 190,
+            maxHeight: MediaQuery.of(context).size.height * 0.6),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(6),
+          child: Wrap(children: [
           for (final m in others)
-            InkWell(
+            SizedBox(width: itemW, child: InkWell(
               onTap: m.hasLocation
                   ? () {
                       setState(() => _follow = false);
@@ -2246,8 +2258,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       style: const TextStyle(fontSize: 12)),
                 ]),
               ),
-            ),
+            )),
         ]),
+        ),
       ),
     );
   }
@@ -3717,7 +3730,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (_groupGrid && _watchesGroup)
           Positioned(
             left: 8,
-            top: MediaQuery.of(context).padding.top + 150,
+            // Logo abaixo da faixa da próxima curva (ou no topo, parado).
+            top: _navigating ? 92 : 8,
             child: _groupGridPanel(),
           ),
 
