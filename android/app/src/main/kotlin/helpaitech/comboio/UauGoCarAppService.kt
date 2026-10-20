@@ -7,7 +7,8 @@
 //   celular (CarState, alimentado pelo Dart). A rota é escolhida no celular
 //   (ou por voz: "UauGo, ir para").
 // Quem usa: o Android Auto (serviço declarado no AndroidManifest.xml).
-// Onde mexer: Desenho do mapa: MapRenderer. Ícones das manobras:
+// Onde mexer: Mapa: CarMapView.kt (Google Maps; MapRenderer é o desenho
+//   simples de reserva). Ícones das manobras:
 //   res/drawable/car_*.xml.
 // ============================================================================
 
@@ -80,10 +81,12 @@ class UauGoSession : Session() {
 /** Tela de navegação do carro. */
 class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
     private val renderer = MapRenderer()
+    // Mapa do Google na tela do carro; se não abrir, fica o desenho simples.
+    private val carMap = CarMapView(ctx)
     private var navigating = false
     private val nav: NavigationManager = ctx.getCarService(NavigationManager::class.java)
     private val onChange: () -> Unit = {
-        renderer.draw()
+        if (carMap.running) carMap.update() else renderer.draw()
         updateNavigationState()
         invalidate()
     }
@@ -101,6 +104,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onDestroy(owner: LifecycleOwner) {
                 CarState.unlisten(onChange)
+                carMap.stop()
                 if (navigating) runCatching { nav.navigationEnded() }
             }
         })
@@ -183,18 +187,25 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
 
     // ---- SurfaceCallback: o desenho do trajeto na tela do carro
     override fun onSurfaceAvailable(c: SurfaceContainer) {
-        renderer.surface = c.surface
+        val s = c.surface ?: return
+        if (carMap.start(s, c.width, c.height, c.dpi)) return
+        renderer.surface = s
         renderer.width = c.width
         renderer.height = c.height
         renderer.draw()
     }
 
     override fun onVisibleAreaChanged(visibleArea: Rect) {
-        renderer.visible = visibleArea
-        renderer.draw()
+        if (carMap.running) {
+            carMap.setVisibleArea(visibleArea)
+        } else {
+            renderer.visible = visibleArea
+            renderer.draw()
+        }
     }
 
     override fun onSurfaceDestroyed(c: SurfaceContainer) {
+        carMap.stop()
         renderer.surface = null
     }
 }

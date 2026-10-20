@@ -79,4 +79,7 @@ dependencies {
     implementation("com.alphacephei:vosk-android:0.3.75")
     // Modo carro (Android Auto): UauGoCarAppService.kt.
     implementation("androidx.car.app:app:1.4.0")
+    // Mapa do Google na tela do carro (CarMapView.kt); mesma versão do plugin
+    // do mapa do Flutter.
+    implementation("com.google.android.gms:play-services-maps:20.0.0")
 }
