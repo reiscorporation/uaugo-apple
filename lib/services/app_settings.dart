@@ -9,6 +9,7 @@
 // ============================================================================
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show Color;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../logic/map_style.dart';
@@ -102,6 +103,21 @@ enum AlertMode {
   final String label;
 }
 
+/// Cor de destaque escolhida em Configurações → Aparência. [color] é a
+/// cor principal (botões, destaques); [clean] = tons neutros.
+enum AppAccent {
+  orange('Laranja UauGo', Color(0xFFFF7A1A)),
+  blue('Azul', Color(0xFF4A9BFF)),
+  green('Verde', Color(0xFF2EC4A0)),
+  purple('Roxo', Color(0xFFA77BFF)),
+  pink('Rosa', Color(0xFFFF6FA8)),
+  clean('Clean', Color(0xFFDDE3EA));
+
+  const AppAccent(this.label, this.color);
+  final String label;
+  final Color color;
+}
+
 /// Distância e quantidade de avisos falados até o ponto, e os avisos extras.
 class AlertPrefs {
   final int radarMeters; // radar fixo e radar móvel
@@ -193,6 +209,10 @@ class AppSettings {
   /// Camada de trânsito do Google no mapa (vias em verde/laranja/vermelho).
   final showTraffic = ValueNotifier<bool>(true);
 
+  /// Cor de destaque do app (escolha do usuário). As cores de segurança
+  /// (alertas, SOS, radar, pedidos ao grupo) não mudam.
+  final accent = ValueNotifier<AppAccent>(AppAccent.orange);
+
   /// Mapa claro/escuro (automático pelo pôr do sol).
   final mapTheme = ValueNotifier<MapTheme>(MapTheme.auto);
 
@@ -224,6 +244,10 @@ class AppSettings {
     backgroundShare.value = p.getBool('backgroundShare') ?? false;
     shareStats.value = p.getBool('shareStats') ?? true;
     showTraffic.value = p.getBool('showTraffic') ?? true;
+    accent.value = AppAccent.values
+            .where((a) => a.name == p.getString('appAccent'))
+            .firstOrNull ??
+        AppAccent.orange;
     mapTheme.value = MapTheme.values.firstWhere(
         (m) => m.name == p.getString('mapTheme'),
         orElse: () => MapTheme.auto);
@@ -292,6 +316,12 @@ class AppSettings {
   }
 
   /// Liga/desliga a camada de trânsito do Google no mapa.
+  /// Troca a cor de destaque (vale na hora).
+  Future<void> setAccent(AppAccent a) async {
+    accent.value = a;
+    (await SharedPreferences.getInstance()).setString('appAccent', a.name);
+  }
+
   Future<void> setShowTraffic(bool v) async {
     showTraffic.value = v;
     (await SharedPreferences.getInstance()).setBool('showTraffic', v);

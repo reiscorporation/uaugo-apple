@@ -75,6 +75,35 @@ const appColorScheme = ColorScheme(
   scrim: Color(0xFF000000),
 );
 
+/// Paleta com a cor de destaque escolhida: a base azul-marinho continua;
+/// muda a cor principal. "Clean" deixa os destaques em tons neutros. Cores
+/// fortes de segurança (alertas, SOS, radar) são fixas na tela do mapa.
+ColorScheme schemeFor(AppAccent a) {
+  if (a == AppAccent.orange) return appColorScheme;
+  if (a == AppAccent.clean) {
+    return appColorScheme.copyWith(
+      primary: a.color,
+      onPrimary: const Color(0xFF0F1B2D),
+      primaryContainer: const Color(0xFF223047),
+      onPrimaryContainer: const Color(0xFFEAF1FA),
+      secondary: const Color(0xFFB8C2CF),
+      onSecondary: const Color(0xFF0F1B2D),
+      secondaryContainer: const Color(0xFF26354B),
+      onSecondaryContainer: const Color(0xFFEAF1FA),
+      tertiary: const Color(0xFFB8C2CF),
+      tertiaryContainer: const Color(0xFF26354B),
+      onTertiaryContainer: const Color(0xFFEAF1FA),
+      inversePrimary: const Color(0xFF4A5A70),
+    );
+  }
+  return appColorScheme.copyWith(
+    primary: a.color,
+    onPrimary: const Color(0xFF0F1B2D),
+    tertiary: Color.lerp(a.color, Colors.white, 0.3),
+    inversePrimary: Color.lerp(a.color, Colors.black, 0.4),
+  );
+}
+
 /// Ligado pelo scripts/testar-local.ps1: usa o Firebase Emulator Suite
 /// rodando no computador em vez da nuvem.
 const usarEmulador = bool.fromEnvironment('USE_EMULATOR');
@@ -168,13 +197,25 @@ Future<void> _conectarEmuladores() async {
   debugPrint('Usando o Firebase Emulator Suite em $host');
 }
 
+/// Tema do app com a paleta [c] (cor de destaque escolhida).
+ThemeData _theme(ColorScheme c) => ThemeData(
+      useMaterial3: true,
+      colorScheme: c,
+      scaffoldBackgroundColor: c.surface,
+      appBarTheme:
+          const AppBarTheme(systemOverlayStyle: SystemUiOverlayStyle.light),
+    );
+
 /// Raiz do app: tema (cores, modo escuro) e a primeira tela.
 class ComboioApp extends StatelessWidget {
   const ComboioApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    // Troca de aparência (Configurações) vale na hora.
+    return ValueListenableBuilder<AppAccent>(
+        valueListenable: AppSettings.instance.accent,
+        builder: (_, accent, __) => MaterialApp(
       title: 'UauGo',
       debugShowCheckedModeBanner: false,
       // Calendário, relógio e botões do sistema em português.
@@ -182,13 +223,8 @@ class ComboioApp extends StatelessWidget {
       supportedLocales: const [Locale('pt', 'BR')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       navigatorKey: NotificationService.navigatorKey,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: appColorScheme,
-        scaffoldBackgroundColor: appColorScheme.surface,
-        appBarTheme: const AppBarTheme(systemOverlayStyle: SystemUiOverlayStyle.light),
-      ),
+      theme: _theme(schemeFor(accent)),
       home: const StartupGate(),
-    );
+    ));
   }
 }

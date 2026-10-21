@@ -339,6 +339,48 @@ class SettingsScreen extends StatelessWidget {
               onChanged: s.setBackgroundShare,
             ),
           ),
+          ValueListenableBuilder<AppAccent>(
+            valueListenable: s.accent,
+            builder: (_, cur, __) => ListTile(
+              leading: const Icon(Icons.palette_outlined),
+              title: const Text('Aparência (cor do app)'),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(spacing: 10, runSpacing: 8, children: [
+                      for (final a in AppAccent.values)
+                        Tooltip(
+                          message: a.label,
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () => s.setAccent(a),
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: a.color,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: a == cur ? Colors.white : Colors.transparent,
+                                    width: 3),
+                              ),
+                              child: a == cur
+                                  ? const Icon(Icons.check, color: Color(0xFF0F1B2D))
+                                  : null,
+                            ),
+                          ),
+                        ),
+                    ]),
+                    const SizedBox(height: 6),
+                    Text('${cur.label}. Alertas, SOS e radares mantêm as cores '
+                        'de segurança.'),
+                  ],
+                ),
+              ),
+            ),
+          ),
           ValueListenableBuilder<bool>(
             valueListenable: s.showTraffic,
             builder: (_, on, __) => SwitchListTile(

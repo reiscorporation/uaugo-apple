@@ -730,8 +730,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (shown != null && !_shownManually) {
       final d = Geolocator.distanceBetween(
           p.latitude, p.longitude, shown.lat, shown.lng);
-      // Já passou do ponto: fecha o aviso.
-      final behind = d > 80 && !_isAhead(p, shown);
+      // Já passou do ponto: fecha o aviso (logo depois, a 30 m).
+      final behind = d > 30 && !_isAhead(p, shown);
       if (behind || d > 2200 || !shown.isActive) {
         setState(() => _shownHazard = null);
       }
@@ -967,9 +967,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           kmh != null && kmh > 0 ? 'limite $kmh km/h' : 'limite não informado',
         ].join(' · '),
         speech: radarSpeech(r, d, roadLimit: roadKmh),
-        passed: (q) =>
+        // Some logo depois de passar pelo radar (antes: só ~200 m depois do
+        // alcance do aviso, ex.: 950 m).
+        passed: (q) => _passedPoint(q, r.lat, r.lng) ||
             distanceMeters(q.latitude, q.longitude, r.lat, r.lng) >
-            range + 200,
+                range + 200,
       );
       return; // um aviso por vez
     }
@@ -1106,8 +1108,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         speech: speech,
         speak: !bump || prefs.bumps == AlertMode.voice,
         passed: (q) =>
-            distanceMeters(q.latitude, q.longitude, poi.lat, poi.lng) > 150 &&
-            !_onMyWay(q, poi.lat, poi.lng, side: 200),
+            _passedPoint(q, poi.lat, poi.lng) ||
+            (distanceMeters(q.latitude, q.longitude, poi.lat, poi.lng) > 150 &&
+                !_onMyWay(q, poi.lat, poi.lng, side: 200)),
       );
       return; // um aviso por vez
     }
@@ -1321,6 +1324,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Só avisa do que está à frente (±60° da direção da moto).
+  /// Já passou pelo ponto: ficou para trás (mais de 100° da direção) e a
+  /// mais de 30 m.
+  bool _passedPoint(Position p, double lat, double lng) {
+    if (distanceMeters(p.latitude, p.longitude, lat, lng) <= 30) return false;
+    if (_speedMs < 2) return false;
+    final a = signedAngle(
+        _bearing, bearingBetween(p.latitude, p.longitude, lat, lng));
+    return a.abs() > 100;
+  }
+
   bool _isAhead(Position p, Hazard h) => isAhead(
         lat: p.latitude,
         lng: p.longitude,
@@ -1652,12 +1665,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Faixa de um alerta da comunidade com a distância e os botões de voto.
   Widget _hazardBanner(Hazard h) {
-    const white = TextStyle(color: Colors.white);
+    // Faixa amarela com letra preta (antes: a cor do tipo, ex. polícia azul).
+    const white = TextStyle(color: Colors.black);
     final mine = h.createdBy == widget.uid;
     final canVote = !mine && !_voted.contains(h.id);
     final dist = _dist(h.lat, h.lng).replaceFirst(' · ', '');
     return Material(
-      color: h.type.color,
+      color: Colors.amber,
       elevation: 6,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
@@ -3365,6 +3379,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // o fechamento da tela derrubava o app (defeito do Flutter com o mapa).
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
+        // Topo mais alto: informações da viagem em 2 linhas, letra maior.
+        toolbarHeight: 84,
         // Toque no título: resumo da viagem (tempo, km, custo).
         title: GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -3378,10 +3394,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     : widget.simulate
                         ? 'Simulação: ${_trip?.title ?? ''}'
                         : (_trip?.title ?? 'Navegação'),
-                overflow: TextOverflow.ellipsis),
-            Text(_isExpedition ? _expeditionSubtitle() : _etaText(),
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall),
+                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 2),
+            Text(_isExpedition ? _expeditionSubtitle() : _etaText(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600, height: 1.25)),
           ],
         ),
         ),
@@ -3590,7 +3610,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             if (_radarBanner != null) ...[
               const SizedBox(height: 8),
               Material(
-                color: Colors.indigo.shade700,
+                // Amarelo: aviso de radar/velocidade/polícia chama atenção.
+                color: Colors.amber,
                 elevation: 6,
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
@@ -3601,11 +3622,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(_radarBanner!.text,
-                          style: white.copyWith(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
+                          style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold)),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
+                      icon: const Icon(Icons.close, color: Colors.black),
                       onPressed: () => setState(() => _radarBanner = null),
                     ),
                   ]),
@@ -4720,7 +4743,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final secs = (left / (_etaSpeed ?? trip.averageSpeed)).round();
     final eta = DateTime.now().add(Duration(seconds: secs));
     final cost = _expCost == null ? '' : ' · ~${formatMoney(_expCost!)}';
-    return 'Chegada ${formatTime(eta)} · ${formatDuration(secs)} · $km$cost';
+    return 'Chegada ${formatTime(eta)} · ${formatDuration(secs)}\nFaltam $km$cost';
   }
 
   /// Expedição: navegando, chegada e quanto falta pela rota do grupo (mesmo
@@ -4737,15 +4760,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!_navigating) {
       // Antes de iniciar: o roteiro todo (km, tempo e custo estimado).
       if (dist <= 0) return 'Código: $_code';
-      return '${formatDistance(dist)} · ${formatDuration(dur)}$cost · código $_code';
+      return '${formatDistance(dist)} · ${formatDuration(dur)}$cost\nCódigo $_code';
     }
     final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
     // Velocidade: a do trânsito conferido ou a média planejada do roteiro.
     final speed = _etaSpeed ?? (dur > 0 ? dist / dur : 16.7);
     final secs = (left / speed).round();
     final eta = DateTime.now().add(Duration(seconds: secs));
-    return 'Chegada ${formatTime(eta)} · ${formatDuration(secs)} · '
-        '${formatDistance(left.round())}$cost · código $_code';
+    return 'Chegada ${formatTime(eta)} · ${formatDuration(secs)}\n'
+        'Faltam ${formatDistance(left.round())}$cost · código $_code';
   }
 
   /// Custo estimado da viagem para o MEU veículo: combustível (se o
