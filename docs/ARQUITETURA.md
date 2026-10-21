@@ -375,11 +375,11 @@ Testes de segurança: `tests/rules/rules.test.js` (regras do Firestore) e
 | Apagar de vez a chave "Comboio Rotas" | ~7 dias sem uso | Pendente |
 | Site público com Termos, Política e exclusão de dados | — | ✅ No ar |
 | Chave de upload e AAB assinado | — | ✅ Gerados |
-| Enviar o AAB ao teste fechado e cadastrar o SHA da chave de assinatura da Play no Firebase e no mapa | Conta Play | Pendente |
-| Vincular o projeto do Google Cloud no Play Console (Integridade do app → Play Integrity API), senão o App Check recusa quem baixar da loja | 1º envio do AAB | Pendente |
+| Enviar o AAB ao teste fechado e cadastrar o SHA da chave de assinatura da Play no Firebase e no mapa | Conta Play | ✅ Feito (2026-10-18/20): AAB no teste interno; SHA-1/256 da Play no Firebase e na chave do Maps |
+| Vincular o projeto do Google Cloud no Play Console (Integridade do app → Play Integrity API), senão o App Check recusa quem baixar da loja | 1º envio do AAB | ✅ Feito (2026-10-18): projeto vinculado; Play Integrity funcionando |
 | ✅ Exigir App Check (funções: `ENFORCE_APP_CHECK=true`; Firestore e Storage no console) | Tokens de depuração dos aparelhos de teste registrados | ✅ Feito |
 | Ativar o login com Google no console do Firebase | — | Pendente (responsável) |
-| Contas nas lojas (Google Play, Apple Developer) | Definição do nome | Pendente (responsável) |
+| Contas nas lojas (Google Play, Apple Developer) | Definição do nome | ✅ Google Play feito; Apple Developer pendente (responsável) |
 | Nome do app: UauGo (trocado em 2026-10-07) | — | ✅ Feito |
 | Registro da marca UauGo no INPI | Responsável | Pendente |
 | Backup no Google Drive da HelpAITech | Google Drive para computador | Pendente (responsável) |
