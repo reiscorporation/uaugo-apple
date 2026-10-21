@@ -157,22 +157,37 @@ class SpeedLimitIndex {
 /// Mantém o último limite por um trecho curto sem dados (cruzamentos,
 /// pontes), para o velocímetro não piscar.
 class LimitTracker {
+  /// Leituras seguidas que um limite DIFERENTE precisa para valer (a 80 km/h,
+  /// 3 leituras ≈ 65 m): pontos de saída ou marginal colados à pista não
+  /// trocam a placa por um instante.
+  static const confirmations = 3;
+
   RoadLimit? _current;
   RoadLimit? _pending;
+  int _pendingCount = 0;
   DateTime? _seenAt;
 
   RoadLimit? get current => _current;
 
   /// Novo resultado da busca. Um limite DIFERENTE só vale depois de aparecer
-  /// em duas leituras seguidas (um ponto solto de uma saída não troca a
-  /// placa); sem dado, mantém o anterior por até 15 s (cruzamentos e pontes).
+  /// em [confirmations] leituras seguidas (um ponto solto de uma saída não
+  /// troca a placa); sem dado, mantém o anterior por até 15 s (cruzamentos e
+  /// pontes).
   RoadLimit? update(RoadLimit? found, DateTime now) {
     if (found != null) {
-      if (_current == null || found == _current || found == _pending) {
+      if (_current == null || found == _current) {
         _current = found;
         _pending = null;
+        _pendingCount = 0;
+      } else if (found == _pending) {
+        if (++_pendingCount >= confirmations) {
+          _current = found;
+          _pending = null;
+          _pendingCount = 0;
+        }
       } else {
         _pending = found;
+        _pendingCount = 1;
       }
       _seenAt = now;
     } else if (_seenAt != null &&

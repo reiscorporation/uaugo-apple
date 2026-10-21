@@ -48,6 +48,8 @@ void main() {
       expect(t.update(const RoadLimit(110, false), t0)?.kmh, 110);
       // 80 duas vezes seguidas: troca.
       expect(t.update(const RoadLimit(80, false), t0)?.kmh, 110);
+      expect(t.update(const RoadLimit(80, false), t0)?.kmh, 110);
+      // 3ª leitura seguida: agora vale.
       expect(t.update(const RoadLimit(80, false), t0)?.kmh, 80);
     });
 

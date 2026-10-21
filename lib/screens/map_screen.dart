@@ -933,7 +933,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // Sem limite na base: usa o limite da via no local do radar.
       final roadKmh = r.limit > 0
           ? null
-          : _speedSvc.lookup(r.lat, r.lng, _bearing, _speedMs)?.kmh;
+          : (_speedSvc.lookup(r.lat, r.lng, _bearing, _speedMs)?.kmh ??
+              // Rodovia com poucos pontos de limite perto do radar: o limite
+              // da via em que o piloto está (o radar está à frente nela).
+              _roadLimit?.kmh);
       final kmh = r.limit > 0 ? r.limit : roadKmh;
       // Pílula ao lado do velocímetro com a distância até este radar.
       if (first || _activeRadar == null) {
@@ -2713,6 +2716,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   // ---- Velocidade reduzida à frente ("Velocidade reduzida para 60 em 300 m")
   (int, int)? _reducedAhead; // (limite, metros) mostrado no velocímetro
+  int? _reducedPendingKmh; // redução vista na leitura anterior
   final Set<String> _reducedAnnounced = {};
 
   /// Procura à frente (100 a 500 m) um limite pelo menos 10 km/h menor e
@@ -2727,7 +2731,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     final w = _walker;
     (int, int)? found;
-    for (final d in const [100, 200, 300, 400, 500]) {
+    // Precisa aparecer em DOIS pontos seguidos à frente (ex.: 300 e 400 m)
+    // com o mesmo limite: um ponto solto de saída/marginal não conta.
+    int? prevKmh;
+    int? prevD;
+    for (final d in const [100, 200, 300, 400, 500, 600]) {
       double la, lo, brg;
       if (along != null && w != null) {
         final q = w.at(along + d);
@@ -2741,11 +2749,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ? (a, b) => w.offsetNear(a, b, along + d)
               : null);
       // Só placas (não estimados) e redução de pelo menos 10 km/h.
-      if (l != null && !l.estimated && l.kmh <= cur.kmh - 10) {
-        found = (l.kmh, d);
+      final reduced =
+          l != null && !l.estimated && l.kmh <= cur.kmh - 10 ? l.kmh : null;
+      if (reduced != null && reduced == prevKmh) {
+        found = (reduced, prevD!);
         break;
       }
+      prevKmh = reduced;
+      prevD = d;
     }
+    // E em duas leituras seguidas do GPS (não fala por um instante).
+    final confirmed = found != null && found.$1 == _reducedPendingKmh;
+    _reducedPendingKmh = found?.$1;
+    if (!confirmed) found = null;
     if (found != _reducedAhead) setState(() => _reducedAhead = found);
     if (found == null) return;
     // Fala uma vez por redução (mesmo limite num raio de ~1 km).
