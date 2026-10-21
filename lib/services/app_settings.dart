@@ -9,6 +9,7 @@
 // ============================================================================
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter/painting.dart' show Color;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -205,6 +206,18 @@ class AppSettings {
   /// o usuário pode recusar). Ver AnalyticsService.
   final shareStats = ValueNotifier<bool>(true);
 
+  /// Modo leve: mapa sem prédios 3D e sem a camada de trânsito (menos
+  /// memória e processador). null = automático (liga em celulares com menos
+  /// de 4,5 GB de RAM, ex.: Galaxy A14).
+  final lightModeChoice = ValueNotifier<bool?>(null);
+
+  /// RAM do aparelho em MB (0 = não sabe).
+  int deviceMemMb = 0;
+
+  /// Modo leve valendo agora (escolha do usuário ou automático).
+  bool get lightMode =>
+      lightModeChoice.value ?? (deviceMemMb > 0 && deviceMemMb < 4500);
+
   /// Contato de emergência (só no celular): (nome, telefone com DDD) ou null.
   /// No SOS, "Avisar <nome> pelo WhatsApp" com a localização.
   final emergencyContact = ValueNotifier<(String, String)?>(null);
@@ -250,6 +263,13 @@ class AppSettings {
     keepScreenOn.value = p.getBool('keepScreenOn') ?? true;
     backgroundShare.value = p.getBool('backgroundShare') ?? false;
     shareStats.value = p.getBool('shareStats') ?? true;
+    lightModeChoice.value =
+        p.containsKey('lightMode') ? p.getBool('lightMode') : null;
+    try {
+      deviceMemMb = await const MethodChannel('uaugo/device')
+              .invokeMethod<int>('totalMemMb') ??
+          0;
+    } catch (_) {}
     final en = p.getString('emergencyName'), ep = p.getString('emergencyPhone');
     emergencyContact.value =
         en != null && ep != null && ep.isNotEmpty ? (en, ep) : null;
@@ -355,6 +375,12 @@ class AppSettings {
       await p.setString('emergencyName', c.$1);
       await p.setString('emergencyPhone', c.$2);
     }
+  }
+
+  /// Liga/desliga o modo leve (escolha do usuário; vale sobre o automático).
+  Future<void> setLightMode(bool v) async {
+    lightModeChoice.value = v;
+    (await SharedPreferences.getInstance()).setBool('lightMode', v);
   }
 
   /// Liga/desliga as estatísticas de uso e o relatório de erros.

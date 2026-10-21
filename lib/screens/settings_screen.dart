@@ -369,6 +369,19 @@ class SettingsScreen extends StatelessWidget {
               onTap: () => _editEmergency(ctx, c),
             ),
           ),
+          ValueListenableBuilder<bool?>(
+            valueListenable: s.lightModeChoice,
+            builder: (_, choice, __) => SwitchListTile(
+              secondary: const Icon(Icons.speed_outlined),
+              title: const Text('Modo leve'),
+              subtitle: Text(
+                  'Mapa sem prédios 3D e sem a camada de trânsito: o app fica mais '
+                  'rápido e gasta menos memória e bateria. '
+                  '${choice == null ? (s.lightMode ? 'Ligado automaticamente (celular com ${(s.deviceMemMb / 1024).toStringAsFixed(1)} GB de RAM).' : 'Automático: liga em celulares com menos de 4,5 GB de RAM.') : ''}'),
+              value: s.lightMode,
+              onChanged: s.setLightMode,
+            ),
+          ),
           ValueListenableBuilder<bool>(
             valueListenable: s.shareStats,
             builder: (_, on, __) => SwitchListTile(

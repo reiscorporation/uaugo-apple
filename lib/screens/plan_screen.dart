@@ -94,6 +94,9 @@ class _PlanScreenState extends State<PlanScreen> {
     _loadIcons();
   }
 
+  /// Fração da tela ocupada pelo mapa (a alça muda; 0,2 a 0,75).
+  double _mapFrac = 0.34;
+
   /// Pedágios da rota do roteiro para o MEU veículo (estimado).
   TollEstimate? _tolls;
   String _tollsSig = '';
@@ -489,7 +492,8 @@ class _PlanScreenState extends State<PlanScreen> {
       bottomNavigationBar: _isLeader ? _leaderBar() : null,
       body: Column(children: [
         SizedBox(
-          height: MediaQuery.of(context).size.height * 0.34,
+          // Altura do mapa: arraste a alça (abaixo) para aumentar ou diminuir.
+          height: MediaQuery.of(context).size.height * _mapFrac,
           child: Stack(children: [
             GoogleMap(
               initialCameraPosition: const CameraPosition(
@@ -548,6 +552,29 @@ class _PlanScreenState extends State<PlanScreen> {
                 ),
               ),
           ]),
+        ),
+        // Alça: arraste para baixo = mapa maior; para cima = lista maior.
+        // Toque: alterna entre mapa grande e normal.
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _mapFrac = _mapFrac < 0.5 ? 0.7 : 0.34),
+          onVerticalDragUpdate: (d) => setState(() {
+            final h = MediaQuery.of(context).size.height;
+            _mapFrac = (_mapFrac + d.delta.dy / h).clamp(0.2, 0.75);
+          }),
+          child: Container(
+            height: 22,
+            alignment: Alignment.center,
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            child: Container(
+              width: 44,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ),
         ),
         Expanded(child: _buildList(schedule)),
       ]),

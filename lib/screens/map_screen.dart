@@ -3536,8 +3536,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           // Trânsito do Google: vias em verde/laranja/vermelho (sem custo).
           // Na economia de bateria, sem trânsito e sem prédios 3D (menos
           // trabalho para o processador gráfico).
-          trafficEnabled: AppSettings.instance.showTraffic.value && !_saving,
-          buildingsEnabled: !_saving,
+          // Modo leve (celulares mais simples): sem trânsito e sem prédios 3D.
+          trafficEnabled: AppSettings.instance.showTraffic.value &&
+              !_saving &&
+              !AppSettings.instance.lightMode,
+          buildingsEnabled: !_saving && !AppSettings.instance.lightMode,
           // Mapa escuro à noite (ou sempre, conforme Configurações).
           style: _darkMap ? darkMapStyle : null,
           // Mantém o logo do Google acima da barra de navegação.
