@@ -31,6 +31,8 @@ import '../services/profile_service.dart';
 import '../services/user_service.dart';
 import '../services/analytics_service.dart';
 import '../services/car_service.dart';
+import '../services/planned_trips_service.dart';
+import '../logic/itinerary.dart' show formatDay, formatTime;
 import 'club_screen.dart';
 import 'consent_screen.dart';
 import 'map_screen.dart';
@@ -68,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadPrefs();
     SavedPlacesService.instance.load();
+    PlannedTripsService.instance.load();
     SharedPlaceService.instance.pending.addListener(_onShared);
     CarService.instance.connected.addListener(_onCar);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -403,6 +406,72 @@ class _HomeScreenState extends State<HomeScreen> {
     ));
   }
 
+  // ---- Viagens planejadas (prévia da rota → "Saída" → Salvar)
+
+  /// Lista das viagens com saída marcada; tocar abre a prévia saindo de
+  /// onde o piloto estiver.
+  Widget _plannedTripsList() => ValueListenableBuilder<List<PlannedTrip>>(
+        valueListenable: PlannedTripsService.instance.trips,
+        builder: (_, list, __) => list.isEmpty
+            ? const SizedBox.shrink()
+            : Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Viagens planejadas',
+                        style: Theme.of(context).textTheme.titleSmall),
+                    for (final t in list.take(4))
+                      Card(
+                        margin: const EdgeInsets.only(top: 6),
+                        child: ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.event_available),
+                          title: Text(t.title, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(
+                              'Saída ${formatDay(t.departAt)} ${formatTime(t.departAt)}'),
+                          onTap: () => _openPlanned(t),
+                          trailing: IconButton(
+                            tooltip: 'Apagar',
+                            icon: const Icon(Icons.close),
+                            onPressed: () =>
+                                PlannedTripsService.instance.remove(t.id),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+      );
+
+  /// Abre a prévia da viagem planejada, saindo de onde o piloto está.
+  Future<void> _openPlanned(PlannedTrip t) async {
+    final uid = await _prepareAlone();
+    if (uid == null || !mounted) return;
+    Position? me;
+    try {
+      me = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(timeLimit: Duration(seconds: 10)));
+    } catch (_) {
+      me = await Geolocator.getLastKnownPosition();
+    }
+    if (!mounted) return;
+    final pts = [...t.points];
+    if (me != null && pts.isNotEmpty && pts.first.name == 'Sua posição') {
+      pts[0] = TripPoint('Sua posição', me.latitude, me.longitude, type: StopType.meet);
+    }
+    final res = await TripPreviewSheet.show(context, title: t.title, points: pts);
+    if (res == null || !mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => MapScreen(
+        uid: uid,
+        userName: _riderName,
+        trip: res.$2,
+        simulate: res.$1 == TripAction.simulate,
+      ),
+    ));
+  }
+
   // ---- Locais salvos (Casa, Trabalho e outros; só no celular)
 
   /// Atalhos abaixo do "Para onde?". Toque: rota; toque longo: trocar/remover.
@@ -629,6 +698,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               _savedPlacesRow(),
+              _plannedTripsList(),
               // "Só dirigir" em destaque: botão grande, logo abaixo da busca.
               const SizedBox(height: 12),
               FilledButton(

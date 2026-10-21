@@ -1,6 +1,6 @@
 # Política de Privacidade do UauGo
 
-Versão 1.13, de 18/10/2026 (estatísticas anônimas de uso e relatório de erros, que podem ser desligados; versão 1.12: alerta "veículo parado no acostamento" passa a ser automático, sem identificar o usuário; versão 1.11: pedidos falados livres interpretados por IA; versão 1.10: alerta opcional "veículo parado no acostamento"; versão 1.9: pesquisa de trajeto por voz, opcional; versão 1.8: a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano").
+Versão 1.14, de 21/10/2026 (placa do veículo e contato de emergência, guardados só no celular; versão 1.13: estatísticas anônimas de uso e relatório de erros, que podem ser desligados; versão 1.12: alerta "veículo parado no acostamento" passa a ser automático, sem identificar o usuário; versão 1.11: pedidos falados livres interpretados por IA; versão 1.10: alerta opcional "veículo parado no acostamento"; versão 1.9: pesquisa de trajeto por voz, opcional; versão 1.8: a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano").
 
 Esta Política explica quais dados pessoais o aplicativo **UauGo** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
@@ -48,7 +48,7 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 - Token de notificações do celular (Firebase Cloud Messaging). Finalidade: avisar SOS e paradas do grupo e mensagens do clube.
 
 **Dados que ficam só no celular**
-- Histórico de viagens (caminho, estatísticas, gastos), configurações, consumo do veículo e telefone. **Não temos acesso a eles.** Desinstalar o App apaga esses dados.
+- Histórico de viagens (caminho, estatísticas, gastos), viagens planejadas, configurações, consumo do veículo, telefone, **placa do veículo** (usada só para avisar do rodízio) e **contato de emergência** (nome e WhatsApp, usado só quando você toca no SOS). **Não temos acesso a eles.** Desinstalar o App apaga esses dados.
 
 ## 4. Com quem compartilhamos
 

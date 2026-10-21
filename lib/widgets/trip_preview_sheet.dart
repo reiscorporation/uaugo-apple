@@ -26,6 +26,7 @@ import '../models/trip.dart';
 import 'place_search.dart';
 import '../services/app_settings.dart';
 import '../services/profile_service.dart';
+import '../services/planned_trips_service.dart';
 import '../services/toll_service.dart';
 import '../services/voice_service.dart';
 import '../services/trip_service.dart';
@@ -74,6 +75,40 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
   /// Pontos da viagem (o 1º é a saída, que o piloto pode trocar para
   /// planejar ou simular uma viagem que começa em outro lugar).
   late final List<TripPoint> _points = [...widget.points];
+
+  /// Saída planejada (null = agora): muda a chegada e o aviso de rodízio, e
+  /// permite salvar a viagem para depois.
+  DateTime? _departAt;
+
+  Future<void> _pickDeparture() async {
+    final now = DateTime.now();
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _departAt ?? now,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: now.add(const Duration(days: 365)),
+      helpText: 'Dia da saída',
+    );
+    if (d == null || !mounted) return;
+    final t = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_departAt ?? now),
+      helpText: 'Hora da saída',
+    );
+    if (t == null || !mounted) return;
+    setState(() => _departAt = DateTime(d.year, d.month, d.day, t.hour, t.minute));
+    _calcTolls(); // refaz o aviso de rodízio para o horário escolhido
+  }
+
+  Future<void> _savePlanned() async {
+    final at = _departAt;
+    if (at == null) return;
+    await PlannedTripsService.instance.add(widget.title, at, [..._points]);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Viagem planejada salva. Ela aparece na tela inicial.')));
+    Navigator.pop(context);
+  }
 
   /// A saída é a posição atual do GPS? (Senão, é um lugar escolhido.)
   bool _fromHere = true;
@@ -167,7 +202,10 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     setState(() {
       _tollCost = estimateTolls(table.onRoute(line), _bike);
       _rodizio = rodizioWarning(
-          plate: _plate, style: _bike.style, route: line, when: DateTime.now());
+          plate: _plate,
+          style: _bike.style,
+          route: line,
+          when: _departAt ?? DateTime.now());
     });
   }
 
@@ -261,7 +299,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     final t = _trip;
     final eta = t == null
         ? null
-        : DateTime.now().add(Duration(seconds: t.durationS));
+        : (_departAt ?? DateTime.now()).add(Duration(seconds: t.durationS));
     // Rolável: com várias paradas a prévia pode passar da altura da tela.
     return SafeArea(
       child: SingleChildScrollView(
@@ -333,9 +371,27 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
             else if (t == null)
               const Text('Não foi possível calcular a rota. Confira a internet.')
             else ...[
+              // Saída: agora ou planejada (data e hora).
+              Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                ActionChip(
+                  avatar: const Icon(Icons.schedule, size: 18),
+                  label: Text(_departAt == null
+                      ? 'Saída: agora'
+                      : 'Saída: ${formatDay(_departAt!)} ${formatTime(_departAt!)}'),
+                  onPressed: _pickDeparture,
+                ),
+                if (_departAt != null)
+                  TextButton(
+                    onPressed: () {
+                      setState(() => _departAt = null);
+                      _calcTolls();
+                    },
+                    child: const Text('Sair agora'),
+                  ),
+              ]),
               Text(
                 '${formatDuration(t.durationS)} · ${formatDistance(t.distanceM)}'
-                ' · chegada ${formatTime(eta!)}',
+                ' · chegada ${_departAt != null && (eta!.day != _departAt!.day) ? '${formatDay(eta)} ' : ''}${formatTime(eta!)}',
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
@@ -437,6 +493,15 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                 ),
                 const SizedBox(width: 8),
               ] else
+              if (_departAt != null && t != null)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _savePlanned,
+                    icon: const Icon(Icons.bookmark_add_outlined),
+                    label: const Text('Salvar'),
+                  ),
+                )
+              else
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: t == null
