@@ -35,6 +35,21 @@ class ProfileService {
     await prefs.setString(_key, jsonEncode(p.toMap()));
   }
 
+  /// Placa do veículo (só no celular, NUNCA vai para o grupo nem para o
+  /// servidor): usada no aviso de rodízio.
+  static Future<String> loadPlate() async =>
+      (await SharedPreferences.getInstance()).getString('vehiclePlate') ?? '';
+
+  static Future<void> savePlate(String plate) async {
+    final prefs = await SharedPreferences.getInstance();
+    final p = plate.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    if (p.isEmpty) {
+      await prefs.remove('vehiclePlate');
+    } else {
+      await prefs.setString('vehiclePlate', p);
+    }
+  }
+
   /// Cada envio gera um arquivo novo, assim todos veem a foto atualizada.
   /// A foto anterior é apagada para não acumular arquivos.
   static Future<String> uploadPhoto(String uid, File file,

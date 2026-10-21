@@ -19,6 +19,7 @@ import '../logic/geo.dart' show decodePolyline;
 import '../logic/itinerary.dart';
 import '../logic/radars.dart' show distanceMeters;
 import '../logic/tolls.dart';
+import '../logic/rodizio.dart';
 import '../models/bike.dart';
 import '../models/expedition.dart' show StopType;
 import '../models/trip.dart';
@@ -139,7 +140,15 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
       setState(() => _bike = b);
       _calcTolls();
     });
+    ProfileService.loadPlate().then((p) {
+      _plate = p;
+      if (mounted) _calcTolls();
+    });
   }
+
+  /// Placa (só no celular) e aviso de rodízio de São Paulo para esta rota.
+  String _plate = '';
+  String? _rodizio;
 
   BikeProfile _bike = const BikeProfile();
 
@@ -155,7 +164,11 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     final line = [
       for (final p in decodePolyline(t.plan.polyline)) (p.latitude, p.longitude)
     ];
-    setState(() => _tollCost = estimateTolls(table.onRoute(line), _bike));
+    setState(() {
+      _tollCost = estimateTolls(table.onRoute(line), _bike);
+      _rodizio = rodizioWarning(
+          plate: _plate, style: _bike.style, route: line, when: DateTime.now());
+    });
   }
 
   // ---- Início automático (destino por voz)
@@ -345,6 +358,13 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                       '⛽ ~${formatDecimal(l)} L de combustível · '
                       '${formatMoney(l * f.pricePerLiter)}');
                 }),
+              if (_rodizio != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('🚫 $_rodizio',
+                      style: const TextStyle(
+                          color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                ),
               // Pedágios: valor para o veículo ou aviso de valor não fornecido.
               for (final line in _tollLines(t))
                 Text(line, style: TextStyle(color: Colors.amber.shade800)),

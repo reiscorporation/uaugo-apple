@@ -30,6 +30,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   BikeProfile _bike = const BikeProfile();
   final _modelCtrl = TextEditingController();
+  final _plateCtrl = TextEditingController();
   File? _newPhoto;
   bool _loading = true;
   bool _saving = false;
@@ -52,6 +53,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _modelCtrl.text = b.model;
         _loading = false;
       });
+    });
+    ProfileService.loadPlate().then((p) {
+      if (mounted) _plateCtrl.text = p;
     });
   }
 
@@ -86,6 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         clearPhoto: url == null,
       );
       await ProfileService.save(p);
+      await ProfileService.savePlate(_plateCtrl.text);
       await AppSettings.instance.setFuel(FuelPrefs(
         enabled: _fuelOn,
         kmPerLiter: parseDecimal(_kmlCtrl.text) ?? 0,
@@ -190,6 +195,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Modelo',
                   hintText: 'Versys 650',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _plateCtrl,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Placa (opcional)',
+                  hintText: 'ABC1D23',
+                  helperText: 'Fica só no seu celular. Serve para avisar do rodízio '
+                      'de São Paulo quando a rota passar pelo centro expandido.',
+                  helperMaxLines: 2,
                   border: OutlineInputBorder(),
                 ),
               ),

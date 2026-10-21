@@ -26,6 +26,7 @@ import '../logic/group_requests.dart';
 import '../logic/find_places.dart';
 import '../logic/costs.dart' show formatMoney, fuelLiters;
 import '../logic/tolls.dart';
+import '../logic/rodizio.dart';
 import '../services/toll_service.dart';
 import '../services/places_service.dart';
 import '../services/car_service.dart';
@@ -2773,6 +2774,35 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         kmh, _roadLimit, _speedSvc.settings.value, DateTime.now());
     if (speech != null) _voice.alert(speech);
     _checkReducedSpeedAhead(p, onRoute ? pr.along : null);
+    _checkRodizio(p);
+  }
+
+  // ---- Rodízio de São Paulo (placa salva só no celular)
+  String _plate = '';
+  bool _plateLoaded = false;
+  String _rodizioSaid = '';
+  DateTime _rodizioChecked = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Entrou no centro expandido no dia/horário de rodízio da placa: avisa
+  /// uma vez por dia (só carro, camionete, caminhão...; moto não).
+  void _checkRodizio(Position p) {
+    final now = DateTime.now();
+    if (now.difference(_rodizioChecked) < const Duration(seconds: 30)) return;
+    _rodizioChecked = now;
+    if (!_plateLoaded) {
+      _plateLoaded = true;
+      ProfileService.loadPlate().then((v) => _plate = v);
+      return;
+    }
+    final d = plateDigit(_plate);
+    if (d == null || !subjectToRodizio(_myBike.style) || !rodizioNow(d, now)) return;
+    if (!insideCentroExpandido(p.latitude, p.longitude)) return;
+    final key = '${now.year}-${now.month}-${now.day}-${now.hour < 12}';
+    if (_rodizioSaid == key) return;
+    _rodizioSaid = key;
+    _voice.alert('Atenção: rodízio. Placa final $d não pode circular no centro '
+        'expandido agora.');
+    _showTrafficBanner('🚫 Rodízio: placa final $d no centro expandido agora');
   }
 
   // ---- Velocidade reduzida à frente ("Velocidade reduzida para 60 em 300 m")
