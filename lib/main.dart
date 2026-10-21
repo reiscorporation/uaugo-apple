@@ -75,32 +75,23 @@ const appColorScheme = ColorScheme(
   scrim: Color(0xFF000000),
 );
 
-/// Paleta com a cor de destaque escolhida: a base azul-marinho continua;
-/// muda a cor principal. "Clean" deixa os destaques em tons neutros. Cores
-/// fortes de segurança (alertas, SOS, radar) são fixas na tela do mapa.
-ColorScheme schemeFor(AppAccent a) {
-  if (a == AppAccent.orange) return appColorScheme;
-  if (a == AppAccent.clean) {
-    return appColorScheme.copyWith(
-      primary: a.color,
-      onPrimary: const Color(0xFF0F1B2D),
-      primaryContainer: const Color(0xFF223047),
-      onPrimaryContainer: const Color(0xFFEAF1FA),
-      secondary: const Color(0xFFB8C2CF),
-      onSecondary: const Color(0xFF0F1B2D),
-      secondaryContainer: const Color(0xFF26354B),
-      onSecondaryContainer: const Color(0xFFEAF1FA),
-      tertiary: const Color(0xFFB8C2CF),
-      tertiaryContainer: const Color(0xFF26354B),
-      onTertiaryContainer: const Color(0xFFEAF1FA),
-      inversePrimary: const Color(0xFF4A5A70),
-    );
-  }
-  return appColorScheme.copyWith(
+/// Paleta do app. Padrão: as cores originais (azul-marinho e laranja).
+/// Clean: tudo claro (fundo branco, letra escura) com a cor dos botões
+/// escolhida. As cores de segurança (alertas, SOS, radar) são fixas no mapa.
+ColorScheme schemeFor(bool clean, AppAccent a) {
+  if (!clean) return appColorScheme;
+  final s = ColorScheme.fromSeed(seedColor: a.color, brightness: Brightness.light);
+  return s.copyWith(
     primary: a.color,
-    onPrimary: const Color(0xFF0F1B2D),
-    tertiary: Color.lerp(a.color, Colors.white, 0.3),
-    inversePrimary: Color.lerp(a.color, Colors.black, 0.4),
+    onPrimary: Colors.white,
+    surface: const Color(0xFFF7F8FA),
+    onSurface: const Color(0xFF16202C),
+    surfaceContainerLowest: Colors.white,
+    surfaceContainerLow: const Color(0xFFF2F4F7),
+    surfaceContainer: const Color(0xFFECEFF3),
+    surfaceContainerHigh: const Color(0xFFE6EAEF),
+    surfaceContainerHighest: const Color(0xFFDFE4EA),
+    error: const Color(0xFFD32F2F),
   );
 }
 
@@ -202,8 +193,11 @@ ThemeData _theme(ColorScheme c) => ThemeData(
       useMaterial3: true,
       colorScheme: c,
       scaffoldBackgroundColor: c.surface,
-      appBarTheme:
-          const AppBarTheme(systemOverlayStyle: SystemUiOverlayStyle.light),
+      // Relógio e bateria legíveis: claros no Padrão, escuros no Clean.
+      appBarTheme: AppBarTheme(
+          systemOverlayStyle: c.brightness == Brightness.light
+              ? SystemUiOverlayStyle.dark
+              : SystemUiOverlayStyle.light),
     );
 
 /// Raiz do app: tema (cores, modo escuro) e a primeira tela.
@@ -213,9 +207,10 @@ class ComboioApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Troca de aparência (Configurações) vale na hora.
-    return ValueListenableBuilder<AppAccent>(
-        valueListenable: AppSettings.instance.accent,
-        builder: (_, accent, __) => MaterialApp(
+    final s = AppSettings.instance;
+    return ListenableBuilder(
+        listenable: Listenable.merge([s.cleanTheme, s.accent]),
+        builder: (_, __) => MaterialApp(
       title: 'UauGo',
       debugShowCheckedModeBanner: false,
       // Calendário, relógio e botões do sistema em português.
@@ -223,7 +218,7 @@ class ComboioApp extends StatelessWidget {
       supportedLocales: const [Locale('pt', 'BR')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       navigatorKey: NotificationService.navigatorKey,
-      theme: _theme(schemeFor(accent)),
+      theme: _theme(schemeFor(s.cleanTheme.value, s.accent.value)),
       home: const StartupGate(),
     ));
   }

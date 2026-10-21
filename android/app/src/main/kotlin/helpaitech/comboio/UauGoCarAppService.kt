@@ -25,6 +25,11 @@ import android.view.Surface
 import androidx.car.app.AppManager
 import androidx.car.app.CarAppService
 import androidx.car.app.CarContext
+import androidx.car.app.CarToast
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.os.Looper
 import androidx.car.app.Screen
 import androidx.car.app.Session
 import androidx.car.app.SurfaceCallback
@@ -91,8 +96,37 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         invalidate()
     }
 
+    // GPS direto do celular: o mapa do carro abre onde o piloto está, com a
+    // velocidade, mesmo sem o mapa aberto no celular. Quando o celular
+    // (Dart) está mandando a posição, ela tem prioridade.
+    private val gps = LocationListener { loc: Location ->
+        if (System.currentTimeMillis() - CarState.lastDartUpdate < 3000) return@LocationListener
+        CarState.lat = loc.latitude
+        CarState.lng = loc.longitude
+        if (loc.hasBearing() && loc.speed > 1.5f) CarState.bearing = loc.bearing.toDouble()
+        CarState.speedKmh = (loc.speed * 3.6f).toInt()
+        CarState.hasPosition = true
+        CarState.changed()
+    }
+
+    private fun startGps() {
+        val lm = carContext.getSystemService(android.content.Context.LOCATION_SERVICE) as LocationManager
+        try {
+            lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let { gps.onLocationChanged(it) }
+            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, gps, Looper.getMainLooper())
+        } catch (_: SecurityException) {
+            // Sem permissão de localização: o mapa espera o celular.
+        } catch (_: Exception) {}
+    }
+
+    private fun toast(t: String) = runCatching {
+        CarToast.makeText(carContext, t, CarToast.LENGTH_LONG).show()
+    }
+
     init {
         ctx.getCarService(AppManager::class.java).setSurfaceCallback(this)
+        startGps()
+        CarState.toastSink = { t -> toast(t) }
         nav.setNavigationManagerCallback(object : NavigationManagerCallback {
             // O carro pediu para parar (ex.: outro app de navegação começou).
             override fun onStopNavigation() {
@@ -104,6 +138,11 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onDestroy(owner: LifecycleOwner) {
                 CarState.unlisten(onChange)
+                runCatching {
+                    (carContext.getSystemService(android.content.Context.LOCATION_SERVICE) as LocationManager)
+                        .removeUpdates(gps)
+                }
+                CarState.toastSink = null
                 carMap.stop()
                 if (navigating) runCatching { nav.navigationEnded() }
             }
@@ -155,7 +194,11 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
     override fun onGetTemplate(): Template {
         fun action(title: String, code: String) = Action.Builder()
             .setTitle(title)
-            .setOnClickListener { CarState.actionSink?.invoke(code) }
+            .setOnClickListener {
+                // Sem o app rodando no celular, avisa em vez de ficar mudo.
+                val sink = CarState.actionSink
+                if (sink == null) toast("Abra o UauGo no celular") else sink(code)
+            }
             .build()
         val strip = ActionStrip.Builder()
             .addAction(action("Radar", "radar"))

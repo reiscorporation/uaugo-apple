@@ -12,6 +12,11 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
+
+import '../models/hazard.dart';
+import 'auth_service.dart';
+import 'hazard_service.dart';
 
 class CarService {
   CarService._();
@@ -34,11 +39,52 @@ class CarService {
     if (_started) return;
     _started = true;
     _ch.setMethodCallHandler((c) async {
-      if (c.method == 'action') _actions.add(c.arguments as String);
+      if (c.method == 'action') {
+        final a = c.arguments as String;
+        // Mapa aberto no celular: ele cuida. Senão, os botões ainda valem.
+        if (_actions.hasListener) {
+          _actions.add(a);
+        } else {
+          _handleWithoutMap(a);
+        }
+      }
       if (c.method == 'connected') connected.value = c.arguments == true;
     });
     _ch.invokeMethod<bool>('connected').then((v) => connected.value = v == true,
         onError: (_) {});
+  }
+
+  /// Aviso curto na tela do carro.
+  void toast(String text) =>
+      _ch.invokeMethod('toast', text).catchError((_) => null);
+
+  /// Botão do carro com o UauGo fora do mapa (tela inicial, outra tela):
+  /// Radar/Perigo marcam o alerta na posição atual; Encerrar não tem o que
+  /// encerrar.
+  Future<void> _handleWithoutMap(String a) async {
+    final type = switch (a) {
+      'radar' => HazardType.radar,
+      'hazard' => HazardType.danger,
+      _ => null,
+    };
+    if (type == null) {
+      toast('Nenhuma navegação em andamento');
+      return;
+    }
+    if (AuthService.isAnonymous) {
+      toast('Entre na sua conta no celular para marcar alertas');
+      return;
+    }
+    try {
+      final p = await Geolocator.getLastKnownPosition() ??
+          await Geolocator.getCurrentPosition();
+      final uid = AuthService.user?.uid;
+      if (uid == null) return;
+      await HazardService.instance.report(type, p.latitude, p.longitude, uid);
+      toast('Alerta enviado: ${type.label}');
+    } catch (_) {
+      toast('Não foi possível marcar o alerta');
+    }
   }
 
   /// Estado da navegação (no máximo 1 vez por segundo). [text] null = sem

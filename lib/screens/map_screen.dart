@@ -4496,10 +4496,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     switch (a) {
       case 'radar':
         await _reportHazard(HazardType.radar);
+        CarService.instance.toast('Alerta enviado: radar móvel');
       case 'hazard':
         await _reportHazard(HazardType.danger);
+        CarService.instance.toast('Alerta enviado: perigo na pista');
       case 'stop':
-        if (!_navigating) return;
+        if (!_navigating) {
+          CarService.instance.toast('Nenhuma navegação em andamento');
+          return;
+        }
         await _voice.stop();
         if (!mounted) return;
         if (_isExpedition) {

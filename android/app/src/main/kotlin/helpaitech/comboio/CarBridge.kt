@@ -38,6 +38,13 @@ object CarState {
     /** A tela do carro está aberta (o Dart mantém o GPS e a voz). */
     @Volatile var connected = false
 
+    /** Hora do último envio do celular (Dart). Sem envio recente, a tela do
+     *  carro usa o GPS direto (CarLocation) para o mapa e a velocidade. */
+    @Volatile var lastDartUpdate = 0L
+
+    /** Aviso curto na tela do carro ("Alerta de radar enviado"). */
+    var toastSink: ((String) -> Unit)? = null
+
     private val main = Handler(Looper.getMainLooper())
     private val listeners = mutableSetOf<() -> Unit>()
 
@@ -74,6 +81,7 @@ class CarBridge(messenger: BinaryMessenger) {
                         CarState.speedKmh = (a["speedKmh"] as? Number)?.toInt() ?: 0
                         CarState.limitKmh = (a["limitKmh"] as? Number)?.toInt() ?: 0
                         CarState.hasPosition = true
+                        CarState.lastDartUpdate = System.currentTimeMillis()
                         val text = a["text"] as? String
                         CarState.nav = if (text == null) null else CarState.Nav(
                             text = text,
@@ -102,6 +110,11 @@ class CarBridge(messenger: BinaryMessenger) {
                     result.success(null)
                 }
                 "connected" -> result.success(CarState.connected)
+                "toast" -> {
+                    val t = call.arguments as? String
+                    if (t != null) CarState.toastSink?.let { s -> Handler(Looper.getMainLooper()).post { s(t) } }
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

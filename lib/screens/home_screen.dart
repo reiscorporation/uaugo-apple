@@ -30,6 +30,7 @@ import '../services/notification_service.dart';
 import '../services/profile_service.dart';
 import '../services/user_service.dart';
 import '../services/analytics_service.dart';
+import '../services/car_service.dart';
 import 'club_screen.dart';
 import 'consent_screen.dart';
 import 'map_screen.dart';
@@ -68,13 +69,26 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadPrefs();
     SavedPlacesService.instance.load();
     SharedPlaceService.instance.pending.addListener(_onShared);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _onShared());
+    CarService.instance.connected.addListener(_onCar);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _onShared();
+      _onCar();
+    });
   }
 
   @override
   void dispose() {
     SharedPlaceService.instance.pending.removeListener(_onShared);
+    CarService.instance.connected.removeListener(_onCar);
     super.dispose();
+  }
+
+  /// Conectou no Android Auto com a tela inicial aberta: abre o "Dirigir
+  /// agora" (radares, limite e avisos na tela do carro).
+  void _onCar() {
+    if (!mounted || !CarService.instance.connected.value || _busy) return;
+    if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
+    _justDrive();
   }
 
   /// Endereço recebido de outro app ("Abrir com UauGo" / "Compartilhar"):

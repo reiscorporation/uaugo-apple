@@ -103,15 +103,14 @@ enum AlertMode {
   final String label;
 }
 
-/// Cor de destaque escolhida em Configurações → Aparência. [color] é a
-/// cor principal (botões, destaques); [clean] = tons neutros.
+/// Cor dos botões no estilo Clean (Configurações → Aparência).
 enum AppAccent {
-  orange('Laranja UauGo', Color(0xFFFF7A1A)),
-  blue('Azul', Color(0xFF4A9BFF)),
-  green('Verde', Color(0xFF2EC4A0)),
-  purple('Roxo', Color(0xFFA77BFF)),
-  pink('Rosa', Color(0xFFFF6FA8)),
-  clean('Clean', Color(0xFFDDE3EA));
+  orange('Laranja', Color(0xFFF26B0F)),
+  blue('Azul', Color(0xFF1A73E8)),
+  green('Verde', Color(0xFF12946F)),
+  purple('Roxo', Color(0xFF7B4DD8)),
+  pink('Rosa', Color(0xFFD8437A)),
+  gray('Cinza', Color(0xFF5F6B7A));
 
   const AppAccent(this.label, this.color);
   final String label;
@@ -209,8 +208,12 @@ class AppSettings {
   /// Camada de trânsito do Google no mapa (vias em verde/laranja/vermelho).
   final showTraffic = ValueNotifier<bool>(true);
 
-  /// Cor de destaque do app (escolha do usuário). As cores de segurança
-  /// (alertas, SOS, radar, pedidos ao grupo) não mudam.
+  /// Estilo do app: false = Padrão (cores originais, azul-marinho e
+  /// laranja); true = Clean (tudo claro).
+  final cleanTheme = ValueNotifier<bool>(false);
+
+  /// No Clean: cor dos botões e destaques (escolha do usuário). As cores de
+  /// segurança (alertas, SOS, radar, pedidos ao grupo) não mudam.
   final accent = ValueNotifier<AppAccent>(AppAccent.orange);
 
   /// Mapa claro/escuro (automático pelo pôr do sol).
@@ -244,6 +247,7 @@ class AppSettings {
     backgroundShare.value = p.getBool('backgroundShare') ?? false;
     shareStats.value = p.getBool('shareStats') ?? true;
     showTraffic.value = p.getBool('showTraffic') ?? true;
+    cleanTheme.value = p.getBool('cleanTheme') ?? false;
     accent.value = AppAccent.values
             .where((a) => a.name == p.getString('appAccent'))
             .firstOrNull ??
@@ -316,7 +320,13 @@ class AppSettings {
   }
 
   /// Liga/desliga a camada de trânsito do Google no mapa.
-  /// Troca a cor de destaque (vale na hora).
+  /// Troca o estilo (Padrão / Clean), vale na hora.
+  Future<void> setCleanTheme(bool v) async {
+    cleanTheme.value = v;
+    (await SharedPreferences.getInstance()).setBool('cleanTheme', v);
+  }
+
+  /// Troca a cor dos botões do Clean (vale na hora).
   Future<void> setAccent(AppAccent a) async {
     accent.value = a;
     (await SharedPreferences.getInstance()).setString('appAccent', a.name);

@@ -339,16 +339,31 @@ class SettingsScreen extends StatelessWidget {
               onChanged: s.setBackgroundShare,
             ),
           ),
-          ValueListenableBuilder<AppAccent>(
-            valueListenable: s.accent,
-            builder: (_, cur, __) => ListTile(
+          ListenableBuilder(
+            listenable: Listenable.merge([s.cleanTheme, s.accent]),
+            builder: (_, __) {
+              final clean = s.cleanTheme.value;
+              final cur = s.accent.value;
+              return ListTile(
               leading: const Icon(Icons.palette_outlined),
-              title: const Text('Aparência (cor do app)'),
+              title: const Text('Aparência'),
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('Padrão')),
+                        ButtonSegment(value: true, label: Text('Clean (claro)')),
+                      ],
+                      selected: {clean},
+                      onSelectionChanged: (v) => s.setCleanTheme(v.first),
+                    ),
+                    if (clean) ...[
+                    const SizedBox(height: 10),
+                    const Text('Cor dos botões'),
+                    const SizedBox(height: 6),
                     Wrap(spacing: 10, runSpacing: 8, children: [
                       for (final a in AppAccent.values)
                         Tooltip(
@@ -363,23 +378,27 @@ class SettingsScreen extends StatelessWidget {
                                 color: a.color,
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                    color: a == cur ? Colors.white : Colors.transparent,
+                                    color: a == cur ? Colors.black54 : Colors.transparent,
                                     width: 3),
                               ),
                               child: a == cur
-                                  ? const Icon(Icons.check, color: Color(0xFF0F1B2D))
+                                  ? const Icon(Icons.check, color: Colors.white)
                                   : null,
                             ),
                           ),
                         ),
                     ]),
+                    ],
                     const SizedBox(height: 6),
-                    Text('${cur.label}. Alertas, SOS e radares mantêm as cores '
-                        'de segurança.'),
+                    Text(clean
+                        ? 'Tudo claro, botões em ${cur.label.toLowerCase()}. '
+                            'Alertas, SOS e radares mantêm as cores de segurança.'
+                        : 'Cores originais do UauGo.'),
                   ],
                 ),
               ),
-            ),
+            );
+            },
           ),
           ValueListenableBuilder<bool>(
             valueListenable: s.showTraffic,
