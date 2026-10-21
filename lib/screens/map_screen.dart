@@ -571,6 +571,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _glideTimer?.cancel();
     for (final s in [..._subs, ..._fireSubs]) {
       s.cancel();
     }
@@ -668,6 +669,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _me = p;
     } else {
       setState(() => _me = p);
+      _glideMeTo(LatLng(p.latitude, p.longitude));
     }
     // Posição na rota: calculada uma vez por leitura e usada pela voz,
     // radares, limite da via e avisos à frente.
@@ -3182,6 +3184,47 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Marcadores do mapa: os fixos (paradas, grupo, alertas, radares)
   /// reaproveitados e só a moto do piloto refeita a cada leitura (leve).
+  // ---- "Você" deslizando entre as leituras do GPS (sem pulos)
+
+  /// Posição desenhada do "Você" (vai de [_glideFrom] a [_glideTo] no mesmo
+  /// tempo da câmera, 0,9 s), em vez de saltar a cada leitura.
+  LatLng? _shownMe;
+  LatLng? _glideFrom, _glideTo;
+  DateTime _glideStart = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _glideTimer;
+  static const _glideTime = Duration(milliseconds: 900);
+
+  void _glideMeTo(LatLng to) {
+    final from = _shownMe;
+    // 1ª posição ou salto grande (> 300 m, ex.: GPS voltou): vai direto.
+    if (from == null ||
+        distanceMeters(from.latitude, from.longitude, to.latitude, to.longitude) >
+            300) {
+      _glideTimer?.cancel();
+      _shownMe = to;
+      return;
+    }
+    _glideFrom = from;
+    _glideTo = to;
+    _glideStart = DateTime.now();
+    // ~15 quadros por segundo: suave sem pesar no celular.
+    _glideTimer ??= Timer.periodic(const Duration(milliseconds: 66), (_) {
+      if (!mounted || _inBackground) return;
+      final a = _glideFrom, b = _glideTo;
+      if (a == null || b == null) return;
+      final t = (DateTime.now().difference(_glideStart).inMilliseconds /
+              _glideTime.inMilliseconds)
+          .clamp(0.0, 1.0);
+      setState(() => _shownMe = LatLng(
+          a.latitude + (b.latitude - a.latitude) * t,
+          a.longitude + (b.longitude - a.longitude) * t));
+      if (t >= 1) {
+        _glideTimer?.cancel();
+        _glideTimer = null;
+      }
+    });
+  }
+
   Set<Marker> _buildMarkers() {
     final sig = Object.hashAll([
       identityHashCode(_stops),
@@ -3206,7 +3249,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ..._staticMarkers,
       Marker(
         markerId: const MarkerId('me'),
-        position: LatLng(me.latitude, me.longitude),
+        position: _shownMe ?? LatLng(me.latitude, me.longitude),
         zIndex: 3,
         anchor: icon != null ? bikeMarkerAnchor : const Offset(0.5, 1),
         icon: icon ??

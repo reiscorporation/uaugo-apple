@@ -22,7 +22,7 @@
  */
 
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, HttpsError, onRequest: onHttpRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
@@ -594,6 +594,9 @@ exports.updateTolls = onSchedule(
       }
     }
     const data = await buildTolls({ booths, log: (m) => console.log(m) });
+    // Preços achados pela rotina semanal (n8n) nas praças sem preço da ANTT.
+    const extra = await applyTollPrices(data);
+    console.log(`Pedágios: ${extra} praças com preço da rotina semanal`);
     if (data.priced < 50) {
       alerta(`Pedágios: só ${data.priced} praças com preço da ANTT; mantida a versão anterior.`);
       return;
@@ -612,6 +615,121 @@ exports.updateTolls = onSchedule(
     console.log(`Pedágios publicados: ${data.p.length} praças, ${gz.length} bytes`);
   }
 );
+
+// ===================== Preços de pedágio (rotina semanal no n8n) ==========
+
+/** Chave da praça: posição do 1º ponto com 5 casas ("-22.12345,-47.12345"). */
+const plazaKey = (row) => `${Number(row[0]).toFixed(5)},${Number(row[1]).toFixed(5)}`;
+
+/**
+ * Preenche, nas praças SEM preço da ANTT, o preço achado pela rotina
+ * (tollPrices/{chave}). Moto: guarda a fração do carro (como na tabela).
+ * Devolve quantas praças ganharam preço.
+ */
+async function applyTollPrices(data) {
+  const snap = await db.collection("tollPrices").where("found", "==", true).get();
+  const byKey = new Map(snap.docs.map((d) => [d.id, d.data()]));
+  let n = 0;
+  for (const row of data.p) {
+    if (row[2] != null) continue; // já tem preço da ANTT
+    const t = byKey.get(plazaKey(row));
+    if (!t || !(t.car > 0)) continue;
+    row[2] = Math.round(t.car * 100) / 100;
+    if (t.moto === 0) row[3] = 0;
+    else if (t.moto > 0) row[3] = Math.round((t.moto / t.car) * 100) / 100;
+    n++;
+  }
+  return n;
+}
+
+/** Lê a tabela publicada (public/pedagios.json.gz). */
+async function readTollTable() {
+  const [buf] = await getStorage().bucket().file("public/pedagios.json.gz").download();
+  return JSON.parse(zlib.gunzipSync(buf).toString());
+}
+
+/** Publica a tabela e avisa os apps (meta/tolls.version). */
+async function writeTollTable(data) {
+  const gz = zlib.gzipSync(JSON.stringify(data), { level: 9 });
+  await getStorage().bucket().file("public/pedagios.json.gz").save(gz, {
+    contentType: "application/octet-stream",
+    resumable: false,
+    metadata: { cacheControl: "no-cache" },
+  });
+  await db.doc("meta/tolls").set({
+    version: Date.now(), builtAt: data.builtAt, month: data.month,
+    plazas: data.p.length, priced: data.priced, bytes: gz.length,
+  }, { merge: true });
+}
+
+/**
+ * Rotina semanal de preços de pedágio (fluxo do n8n na VPS). Protegida pela
+ * senha TOLL_INGEST_SECRET (cabeçalho x-uaugo-key); o n8n não acessa o banco.
+ * - GET ?limit=40: praças sem preço ainda não conferidas nos últimos 30 dias.
+ * - POST { items: [{ key, name, car, moto, source }] }: grava em
+ *   tollPrices/{key} (preço estimado, com fonte e data) e atualiza a tabela
+ *   do app na hora. car/moto em R$ (moto 0 = isenta; null = não achou).
+ */
+exports.tollPrices = onHttpRequest({ region, invoker: "public", timeoutSeconds: 300, memory: "512MiB" }, async (req, res) => {
+  const secret = process.env.TOLL_INGEST_SECRET || "";
+  const got = String(req.get("x-uaugo-key") || "");
+  const ok = secret.length > 20 && got.length === secret.length &&
+    require("crypto").timingSafeEqual(Buffer.from(got), Buffer.from(secret));
+  if (!ok) {
+    res.status(401).json({ error: "não autorizado" });
+    return;
+  }
+  try {
+    const data = await readTollTable();
+    if (req.method === "GET") {
+      const limit = Math.min(Math.max(Number(req.query.limit) || 40, 1), 150);
+      const since = Date.now() - 30 * 24 * 3600 * 1000;
+      const seen = await db.collection("tollPrices")
+        .where("checkedAt", ">", Timestamp.fromMillis(since)).get();
+      const recent = new Set(seen.docs.map((d) => d.id));
+      const missing = data.p
+        .filter((r) => r[2] == null && !recent.has(plazaKey(r)))
+        .slice(0, limit)
+        .map((r) => ({ key: plazaKey(r), lat: Number(r[0]), lng: Number(r[1]) }));
+      const total = data.p.filter((r) => r[2] == null).length;
+      res.json({ missing, totalWithoutPrice: total, plazas: data.p.length });
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).end();
+      return;
+    }
+    const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 150) : [];
+    const keys = new Set(data.p.map(plazaKey));
+    const num = (v) => (typeof v === "number" && isFinite(v) && v >= 0 && v < 500 ? Math.round(v * 100) / 100 : null);
+    const batch = db.batch();
+    let saved = 0;
+    for (const it of items) {
+      const key = String(it?.key || "");
+      if (!keys.has(key)) continue;
+      const car = num(it.car);
+      const moto = num(it.moto);
+      batch.set(db.doc(`tollPrices/${key.replace(/\//g, "_")}`), {
+        car, moto,
+        found: car != null && car > 0,
+        name: String(it.name || "").slice(0, 120),
+        source: String(it.source || "").slice(0, 300),
+        method: "n8n-ia",
+        estimated: true,
+        checkedAt: FieldValue.serverTimestamp(),
+      });
+      saved++;
+    }
+    await batch.commit();
+    const patched = await applyTollPrices(data);
+    await writeTollTable(data);
+    console.log(`Pedágios (rotina): ${saved} recebidos, ${patched} praças com preço da rotina`);
+    res.json({ saved, patched });
+  } catch (e) {
+    console.error("tollPrices", e);
+    res.status(500).json({ error: "falha ao processar" });
+  }
+});
 
 /**
  * Limpeza diária conforme a Política de Privacidade:

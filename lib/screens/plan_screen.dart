@@ -28,6 +28,9 @@ import '../services/app_settings.dart';
 import '../widgets/safe_sheet.dart';
 import '../widgets/emoji_marker.dart';
 import '../widgets/place_search.dart';
+import '../logic/tolls.dart';
+import '../services/profile_service.dart';
+import '../services/toll_service.dart';
 import 'map_screen.dart';
 
 /// Planejamento do roteiro: pontos, rota pelas estradas, horários e dias.
@@ -77,6 +80,7 @@ class _PlanScreenState extends State<PlanScreen> {
         setState(() => _exp = e);
         _updateRoute();
         _maybeUpgradeRoute();
+        _calcTolls();
       }))
       ..add(_svc.stops(widget.code).listen((s) {
         setState(() {
@@ -88,6 +92,25 @@ class _PlanScreenState extends State<PlanScreen> {
         _maybeUpgradeRoute();
       }));
     _loadIcons();
+  }
+
+  /// Pedágios da rota do roteiro para o MEU veículo (estimado).
+  TollEstimate? _tolls;
+  String _tollsSig = '';
+
+  Future<void> _calcTolls() async {
+    final poly = _plan.polyline;
+    if (poly == _tollsSig) return;
+    _tollsSig = poly;
+    if (poly.isEmpty) {
+      if (mounted) setState(() => _tolls = null);
+      return;
+    }
+    final table = await TollService.instance.table();
+    final bike = await ProfileService.load();
+    if (!mounted || table == null || _tollsSig != poly) return;
+    final line = [for (final q in decodePolyline(poly)) (q.latitude, q.longitude)];
+    setState(() => _tolls = estimateTolls(table.onRoute(line), bike));
   }
 
   @override
@@ -588,6 +611,7 @@ class _PlanScreenState extends State<PlanScreen> {
   Widget _buildList(Schedule schedule) {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
     final header = _PlanHeader(
+      tolls: _tolls,
       plan: _plan,
       schedule: schedule,
       editable: _isLeader,
@@ -660,6 +684,7 @@ class _PlanScreenState extends State<PlanScreen> {
 class _PlanHeader extends StatelessWidget {
   const _PlanHeader({
     required this.plan,
+    this.tolls,
     required this.schedule,
     required this.editable,
     required this.routeFailed,
@@ -673,6 +698,9 @@ class _PlanHeader extends StatelessWidget {
   });
 
   final TripPlan plan;
+
+  /// Pedágios da rota (estimado) para o veículo do piloto.
+  final TollEstimate? tolls;
   final Schedule schedule;
   final bool editable;
   final bool routeFailed;
@@ -710,6 +738,35 @@ class _PlanHeader extends StatelessWidget {
                 '⛽ Seu combustível estimado: ${formatDecimal(l)} L · '
                 '${formatMoney(l * f.pricePerLiter)}',
                 textAlign: TextAlign.center,
+              ),
+            );
+          }),
+        // Pedágios da rota para o seu veículo (estimado) e custo total.
+        if (s.stops.length >= 2 && tolls != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              tolls!.plazas == 0
+                  ? '🛣️ Sem pedágio na rota'
+                  : '🛣️ Pedágios: ${formatMoney(tolls!.total)} '
+                      '(${tolls!.plazas} ${tolls!.plazas == 1 ? 'praça' : 'praças'}, estimado)',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        if (s.stops.length >= 2 &&
+            tolls != null &&
+            AppSettings.instance.fuel.value.ready)
+          Builder(builder: (_) {
+            final f = AppSettings.instance.fuel.value;
+            final fuel = fuelLiters(s.totalDistanceM.toDouble(), f.kmPerLiter) *
+                f.pricePerLiter;
+            return Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '💰 Custo estimado: ${formatMoney(fuel + tolls!.total)} '
+                '(combustível + pedágios)',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             );
           }),
