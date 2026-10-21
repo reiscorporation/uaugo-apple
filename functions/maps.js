@@ -102,12 +102,66 @@ async function directions(req) {
   if (av.length) p.set("avoid", av.join("|"));
   if (alternatives === true && !wps.length) p.set("alternatives", "true");
   if (traffic === true) p.set("departure_time", "now");
-  const res = await fetch(`https://maps.googleapis.com/maps/api/directions/json?${p}`,
-    { signal: AbortSignal.timeout(15000) });
-  const body = await res.json();
+  let body = await askDirections(p);
+  // Sem rota (ex.: ponto no meio do deserto, longe de estrada): troca cada
+  // ponto que não é a saída pelo lugar com estrada mais próximo (cidade ou
+  // posto, até 50 km) e tenta de novo. Só nesse caso (custa uma busca).
+  if (body.status === "ZERO_RESULTS" || body.status === "NOT_FOUND") {
+    const pts = [...wps, destination];
+    const near = await Promise.all(pts.map(nearestRoadPlace));
+    if (near.some((x) => x)) {
+      const fixed = pts.map((pt, i) => near[i] ? `${near[i].lat},${near[i].lng}` : pt);
+      p.set("destination", fixed[fixed.length - 1]);
+      if (wps.length) p.set("waypoints", fixed.slice(0, -1).join("|"));
+      const again = await askDirections(p);
+      if (again.status === "OK") {
+        again.snapped = near.map((x, i) => x ? { index: i + 1, ...x } : null).filter(Boolean);
+        body = again;
+      }
+    }
+  }
   // Nunca devolve mensagens internas do Google (podem citar a chave).
   delete body.error_message;
   return body;
+}
+
+/** Uma chamada à Directions API. */
+async function askDirections(p) {
+  const res = await fetch(`https://maps.googleapis.com/maps/api/directions/json?${p}`,
+    { signal: AbortSignal.timeout(15000) });
+  return res.json();
+}
+
+/**
+ * Lugar com estrada mais próximo de "lat,lng" (cidade, vila ou posto, até
+ * 50 km), pela busca de lugares. Null se não achar.
+ */
+async function nearestRoadPlace(coord) {
+  const [lat, lng] = coord.split(",").map(Number);
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-Goog-Api-Key": key(),
+        "X-Goog-FieldMask": "places.displayName,places.location",
+      },
+      body: JSON.stringify({
+        includedTypes: ["locality", "gas_station", "lodging", "tourist_attraction"],
+        maxResultCount: 1,
+        rankPreference: "DISTANCE",
+        locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: 50000 } },
+        languageCode: "pt-BR",
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    const j = await res.json();
+    const pl = (j.places || [])[0];
+    if (!pl?.location) return null;
+    return { lat: pl.location.latitude, lng: pl.location.longitude, name: pl.displayName?.text || "" };
+  } catch (_) {
+    return null;
+  }
 }
 
 async function places(req) {

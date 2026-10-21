@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:comboio/logic/voice_commands.dart';
 import 'package:comboio/models/hazard.dart';
+import 'package:comboio/logic/find_places.dart';
 import 'package:comboio/logic/group_requests.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,6 +15,19 @@ String vosk(String text, [double conf = 1]) => jsonEncode({
     });
 
 void main() {
+  test('parada por voz: "parar no posto" e "adicionar parada"', () {
+    String j(String t) =>
+        '{"text":"$t","result":[${t.split(' ').map((w) => '{"word":"$w","conf":0.95}').join(',')}]}';
+    final a = parseVoiceResult(j('uau go parar no posto'));
+    expect((a as FindCommand).category, FindCategory.fuel);
+    final b = parseVoiceResult(j('uau go parada restaurante'));
+    expect((b as FindCommand).category, FindCategory.food);
+    final c = parseVoiceResult(j('uau go adicionar parada'));
+    expect((c as WakeCommand).find, isTrue);
+    // "parada banheiro" continua sendo pedido ao grupo.
+    expect(parseVoiceResult(j('uau go parada banheiro')), isA<GroupRequestCommand>());
+  });
+
   test('pedidos ao grupo por voz', () {
     String j(String t) =>
         '{"text":"$t","result":[${t.split(' ').map((w) => '{"word":"$w","conf":0.95}').join(',')}]}';

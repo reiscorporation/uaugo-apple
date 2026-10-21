@@ -554,7 +554,8 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 // Conta: "Entrar" (anônimo) ou o nome de quem entrou.
-                StreamBuilder(
+                // Flexible: nome/e-mail longo não passa por cima da engrenagem.
+                Flexible(child: StreamBuilder(
                   stream: AuthService.changes,
                   builder: (context, _) => TextButton.icon(
                     onPressed: () => Navigator.of(context).push(
@@ -568,11 +569,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: Text(
                       AuthService.isAnonymous
                           ? 'Entrar'
-                          : AuthService.displayName.split(' ').first,
+                          // Sem nome na conta: só a parte do e-mail antes do @.
+                          : AuthService.displayName.split(' ').first.split('@').first,
                       overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
-                ),
+                )),
                 IconButton(
                   tooltip: 'Configurações',
                   icon: const Icon(Icons.settings),

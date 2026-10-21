@@ -920,7 +920,10 @@ class _StopEditorState extends State<_StopEditor> {
           left: 16,
           right: 16,
           top: 16,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16),
+          // Teclado + barra de navegação do Android (botão Salvar visível).
+          bottom: MediaQuery.of(context).viewInsets.bottom +
+              MediaQuery.of(context).viewPadding.bottom +
+              16),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,

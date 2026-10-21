@@ -50,6 +50,8 @@ const voiceMinConfidenceYesNo = 0.85;
 List<String> _commandPhrases() => [
       for (final w in voiceAlertWords.keys) w,
       'cancelar',
+      // "UauGo, adicionar parada": pergunta o que procurar.
+      'adicionar parada',
       // Pedidos ao grupo (só na expedição): "UauGo, preciso abastecer".
       for (final w in groupRequestWords.keys) w,
       // "ir para ...": o destino (frase livre) é ouvido depois do bipe
@@ -179,7 +181,9 @@ VoiceCommand? parseVoiceResult(String json, {VoiceContext? context}) {
   final plain = words.map((w) => w.word).join(' ');
   // "UauGo" sozinho / "UauGo, procurar" (pausa no meio da frase).
   if (sure && plain == voiceWakeWord) return const WakeCommand();
-  if (sure && findVerbs.any((v) => plain == '$voiceWakeWord $v')) {
+  if (sure &&
+      (findVerbs.any((v) => plain == '$voiceWakeWord $v') ||
+          plain == '$voiceWakeWord adicionar parada')) {
     return const WakeCommand(find: true);
   }
   final isWake = words.length >= 2 && words[0].word == 'uau' && words[1].word == 'go';

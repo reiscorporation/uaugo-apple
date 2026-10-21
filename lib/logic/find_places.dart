@@ -107,7 +107,8 @@ String cleanFindQuery(String spoken) {
 }
 
 /// Verbos aceitos antes da categoria ("procurar posto", "procura posto").
-const findVerbs = ['procurar', 'procura'];
+// "parar no posto", "parada restaurante": também incluem parada no caminho.
+const findVerbs = ['procurar', 'procura', 'parar no', 'parar na', 'parada'];
 
 /// Um lugar encontrado.
 class FoundPlace {

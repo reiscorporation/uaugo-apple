@@ -4849,6 +4849,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               tolls == null ? '—' : (tolls.plazas == 0 ? 'sem pedágio' : formatMoney(tolls.total))),
           if (_expCost != null)
             row(Icons.payments, 'Custo estimado', formatMoney(_expCost!)),
+          // Rota normal: ver a viagem antes (simulação na tela).
+          if (!_isExpedition && _trip != null && !widget.simulate)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.play_circle_outline),
+                label: const Text('Simular esta viagem'),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => MapScreen(
+                      uid: widget.uid,
+                      userName: widget.userName,
+                      trip: _trip,
+                      simulate: true,
+                    ),
+                  ));
+                },
+              ),
+            ),
           const SizedBox(height: 8),
         ]),
       ),
