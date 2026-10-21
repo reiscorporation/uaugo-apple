@@ -1526,6 +1526,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           Navigator.of(confirm).pop(yes);
           return;
         }
+        // Capitão/líder confirmando um pedido do grupo ("sim" = OK 👍).
+        final ack = _pendingAck;
+        if (ack != null && yes) {
+          await _ackRequest(ack);
+          _voice.reply('Confirmado para ${ack.name}.');
+          return;
+        }
         // Resposta a "Adicionar como parada?" (procurar posto...).
         if (_found.isNotEmpty) {
           yes ? _addFoundStop(_found[_foundIdx]) : _nextFound();
@@ -2307,24 +2314,65 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   // ------------------------------------------------------------ pedidos ao grupo
 
-  /// Pedidos já vistos (o 1º lote, ao entrar, não é falado).
+  /// Pedidos já vistos e OKs já avisados (o 1º lote, ao entrar, é calado).
   final Set<String> _seenRequests = {};
+  final Set<String> _seenAcks = {};
   bool _requestsLoaded = false;
 
-  /// Chegou pedido de outro piloto: fala e mostra no topo.
-  void _onRequests(
-      List<({String id, String uid, String name, GroupRequest kind, DateTime at})>
-          list) {
+  /// Pedido esperando o OK do capitão/líder (o "sim" falado confirma).
+  GroupRequestItem? _pendingAck;
+
+  /// Capitão ou líder: quem confirma os pedidos.
+  bool get _canAck => _isCaptain || _isLeader;
+
+  /// Pedidos do grupo: novos (fala e mostra) e OKs do capitão.
+  void _onRequests(List<GroupRequestItem> list) {
     final fresh = list.where((r) => !_seenRequests.contains(r.id)).toList();
+    final acked = list
+        .where((r) => r.ackName != null && !_seenAcks.contains(r.id))
+        .toList();
     _seenRequests.addAll(list.map((r) => r.id));
+    _seenAcks.addAll(acked.map((r) => r.id));
     if (!_requestsLoaded) {
       _requestsLoaded = true;
       return;
     }
     for (final r in fresh.reversed) {
       if (r.uid == widget.uid) continue;
-      _voice.alert(groupRequestSpeech(r.name, r.kind));
-      _showTrafficBanner('${r.kind.emoji} ${groupRequestSpeech(r.name, r.kind)}');
+      final text = groupRequestSpeech(r.name, r.kind);
+      if (_canAck && r.ackName == null) {
+        // Capitão/líder: pede o OK (toque ou "sim").
+        _pendingAck = r;
+        _voice.alert('$text. Diga sim para confirmar.');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(seconds: 30),
+          content: Text('${r.kind.emoji} $text'),
+          action: SnackBarAction(label: 'OK 👍', onPressed: () => _ackRequest(r)),
+        ));
+      } else {
+        _voice.alert(text);
+        _showTrafficBanner('${r.kind.emoji} $text');
+      }
+    }
+    for (final r in acked) {
+      if (_pendingAck?.id == r.id) _pendingAck = null;
+      if (r.uid == widget.uid) {
+        _voice.alert('${r.ackName} viu seu pedido.');
+        _showTrafficBanner('👍 ${r.ackName} viu seu pedido: ${r.kind.label}');
+      } else if (!_canAck) {
+        _showTrafficBanner('👍 ${r.ackName} confirmou o pedido de ${r.name}');
+      }
+    }
+  }
+
+  /// "OK 👍" no pedido (capitão/líder).
+  Future<void> _ackRequest(GroupRequestItem r) async {
+    if (_pendingAck?.id == r.id) _pendingAck = null;
+    try {
+      await _svc.ackRequest(_code, r.id, widget.uid, widget.userName);
+      _snack('👍 Confirmado para ${r.name}');
+    } catch (_) {
+      // Outro (capitão ou líder) já confirmou.
     }
   }
 

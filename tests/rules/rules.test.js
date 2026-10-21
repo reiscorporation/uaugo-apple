@@ -196,6 +196,22 @@ describe("Pedidos ao grupo (expedição)", () => {
     await assertFails(req("alice", { uid: "bob" }));
     await assertFails(req("alice", { expiresAt: Timestamp.fromDate(new Date(Date.now() + 86400e3)) }));
   });
+  it("capitão/líder confirma (OK) uma vez; membro comum não", async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      const f = c.firestore();
+      await setDoc(doc(f, "expeditions/ABC123"), { name: "Serra", leaderId: "alice", captainId: "carol" });
+      await setDoc(doc(f, "expeditions/ABC123/members/bob"), { name: "Bob" });
+      await setDoc(doc(f, "expeditions/ABC123/members/carol"), { name: "Carol" });
+      await setDoc(doc(f, "expeditions/ABC123/requests/r1"), { uid: "bob", name: "Bob", kind: "restroom" });
+      await setDoc(doc(f, "expeditions/ABC123/requests/r2"), { uid: "bob", name: "Bob", kind: "fuel" });
+    });
+    const ack = (u, id) => updateDoc(doc(db(u), `expeditions/ABC123/requests/${id}`),
+      { ackBy: u, ackName: "X", ackAt: serverTimestamp() });
+    await assertFails(ack("bob", "r1"));
+    await assertSucceeds(ack("carol", "r1"));
+    await assertFails(ack("alice", "r1")); // já confirmado
+    await assertSucceeds(ack("alice", "r2"));
+  });
 });
 
 describe("Perfil privado (users)", () => {

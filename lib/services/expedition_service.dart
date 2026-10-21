@@ -349,9 +349,16 @@ class ExpeditionService {
     });
   }
 
+  /// Capitão/líder confirma o pedido ("OK 👍").
+  Future<void> ackRequest(String code, String id, String uid, String name) =>
+      _exp(code).collection('requests').doc(id).update({
+        'ackBy': uid,
+        'ackName': name,
+        'ackAt': FieldValue.serverTimestamp(),
+      });
+
   /// Pedidos dos últimos 30 min, em tempo real (mais novo primeiro).
-  Stream<List<({String id, String uid, String name, GroupRequest kind, DateTime at})>>
-      requests(String code) => _exp(code)
+  Stream<List<GroupRequestItem>> requests(String code) => _exp(code)
           .collection('requests')
           .where('createdAt',
               isGreaterThan: Timestamp.fromDate(
@@ -368,6 +375,7 @@ class ExpeditionService {
                       kind: k,
                       at: (d.data()['createdAt'] as Timestamp?)?.toDate() ??
                           DateTime.now(),
+                      ackName: d.data()['ackName'] as String?,
                     ),
               ]..sort((a, b) => b.at.compareTo(a.at)));
 

@@ -28,6 +28,16 @@ enum GroupRequest {
       GroupRequest.values.where((r) => r.name == n).firstOrNull;
 }
 
+/// Um pedido recebido ([ackName]: quem confirmou com "OK", se alguém).
+typedef GroupRequestItem = ({
+  String id,
+  String uid,
+  String name,
+  GroupRequest kind,
+  DateTime at,
+  String? ackName,
+});
+
 /// Frase falada para o grupo: "Ricardo precisa abastecer".
 String groupRequestSpeech(String who, GroupRequest r) {
   final name = who.trim().isEmpty ? 'Um piloto' : who.trim();

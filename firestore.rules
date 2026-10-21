@@ -132,7 +132,16 @@ service cloud.firestore {
           && isLat(request.resource.data.lat) && isLng(request.resource.data.lng)
           && request.resource.data.expiresAt is timestamp
           && request.resource.data.expiresAt < request.time + duration.value(2, 'h');
-        allow update, delete: if false;
+        // Capitão ou líder confirma ("OK 👍"): só os campos do OK, em nome
+        // próprio, uma vez.
+        allow update: if hasAccount()
+          && (get(/databases/$(database)/documents/expeditions/$(code)).data.get('captainId', '') == request.auth.uid
+              || get(/databases/$(database)/documents/expeditions/$(code)).data.leaderId == request.auth.uid)
+          && !('ackBy' in resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ackBy', 'ackName', 'ackAt'])
+          && request.resource.data.ackBy == request.auth.uid
+          && str(request.resource.data.ackName, 60);
+        allow delete: if false;
       }
     }
 
