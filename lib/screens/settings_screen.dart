@@ -281,6 +281,48 @@ class _AlertPicker extends StatelessWidget {
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
+  /// Cadastra/troca/apaga o contato de emergência (fica só no celular).
+  Future<void> _editEmergency(BuildContext context, (String, String)? c) async {
+    final name = TextEditingController(text: c?.$1 ?? '');
+    final phone = TextEditingController(text: c?.$2 ?? '');
+    final r = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Contato de emergência'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            controller: name,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(labelText: 'Nome (ex.: Ana)'),
+          ),
+          TextField(
+            controller: phone,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+                labelText: 'WhatsApp com DDD', hintText: '(16) 99999-9999'),
+          ),
+          const SizedBox(height: 8),
+          const Text('Fica só no seu celular. Usado apenas quando você toca no SOS.',
+              style: TextStyle(fontSize: 12)),
+        ]),
+        actions: [
+          if (c != null)
+            TextButton(onPressed: () => Navigator.pop(ctx, 'apagar'), child: const Text('Apagar')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, 'salvar'), child: const Text('Salvar')),
+        ],
+      ),
+    );
+    final s = AppSettings.instance;
+    if (r == 'apagar') {
+      await s.setEmergencyContact(null);
+    } else if (r == 'salvar') {
+      final digits = phone.text.replaceAll(RegExp(r'\D'), '');
+      if (name.text.trim().isEmpty || digits.length < 10) return;
+      await s.setEmergencyContact((name.text.trim(), digits));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = AppSettings.instance;
@@ -311,6 +353,20 @@ class SettingsScreen extends StatelessWidget {
                   'ela fica sempre ligada. Use com o carregador da moto.'),
               value: on,
               onChanged: s.setKeepScreenOn,
+            ),
+          ),
+          ValueListenableBuilder<(String, String)?>(
+            valueListenable: s.emergencyContact,
+            builder: (ctx, c, __) => ListTile(
+              leading: const Icon(Icons.contact_emergency_outlined),
+              title: const Text('Contato de emergência'),
+              subtitle: Text(c == null
+                  ? 'Ninguém cadastrado. No SOS, um toque avisa essa pessoa pelo '
+                      'WhatsApp com a sua localização.'
+                  : '${c.$1} · ${c.$2}\nNo SOS: "Avisar ${c.$1} pelo WhatsApp".'),
+              isThreeLine: c != null,
+              trailing: const Icon(Icons.edit_outlined),
+              onTap: () => _editEmergency(ctx, c),
             ),
           ),
           ValueListenableBuilder<bool>(

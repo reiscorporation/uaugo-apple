@@ -52,6 +52,8 @@ List<String> _commandPhrases() => [
       'cancelar',
       // "UauGo, adicionar parada": pergunta o que procurar.
       'adicionar parada',
+      // "UauGo, cancelar parada": tira a próxima parada (pergunta antes).
+      'cancelar parada',
       // Pedidos ao grupo (só na expedição): "UauGo, preciso abastecer".
       for (final w in groupRequestWords.keys) w,
       // "ir para ...": o destino (frase livre) é ouvido depois do bipe
@@ -112,6 +114,11 @@ class ReportCommand extends VoiceCommand {
 class GroupRequestCommand extends VoiceCommand {
   final GroupRequest request;
   const GroupRequestCommand(this.request);
+}
+
+/// "UauGo, cancelar parada": tira a próxima parada da rota (confirma antes).
+class CancelStopCommand extends VoiceCommand {
+  const CancelStopCommand();
 }
 
 /// "UauGo, cancelar": desfaz o último alerta marcado por voz.
@@ -232,6 +239,7 @@ VoiceCommand? parseVoiceResult(String json, {VoiceContext? context}) {
     return null;
   }
   final what = text.substring(voiceWakeWord.length + 1);
+  if (what == 'cancelar parada') return const CancelStopCommand();
   if (what == 'cancelar') return const CancelCommand();
   final req = groupRequestWords[what];
   if (req != null) return GroupRequestCommand(req);

@@ -200,9 +200,15 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
             onTap: _loading ? null : () => _choose(r),
           ),
         if (_results.isEmpty && _ctrl.text.trim().length >= 3 && !_loading)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Text('Nenhum lugar encontrado', textAlign: TextAlign.center),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+                _places.lastFailed
+                    ? '📵 Sem internet: a busca precisa de conexão.\n'
+                        'Os destinos recentes acima funcionam sem internet. '
+                        'Os avisos de radar e velocidade continuam funcionando.'
+                    : 'Nenhum lugar encontrado',
+                textAlign: TextAlign.center),
           ),
       ]),
     );

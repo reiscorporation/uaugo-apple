@@ -1509,6 +1509,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         } else {
           await _sendGroupRequest(request);
         }
+      case CancelStopCommand():
+        final s = _nextSoloStop;
+        if (_isExpedition) {
+          _voice.reply('Na expedição, as paradas são do líder ou do capitão.');
+        } else if (s == null) {
+          _voice.reply('Não há parada no caminho para cancelar.');
+        } else {
+          _pendingCancelStop = s;
+          _voice.reply('Cancelar a parada ${s.name}? Diga sim ou não.');
+        }
       case CancelCommand():
         final last = _lastVoiceReport;
         Hazard? mine;
@@ -1542,6 +1552,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         final confirm = _voiceConfirmCtx;
         if (confirm != null && confirm.mounted) {
           Navigator.of(confirm).pop(yes);
+          return;
+        }
+        // "Cancelar a parada X?" (UauGo, cancelar parada).
+        final cancel = _pendingCancelStop;
+        if (cancel != null) {
+          _pendingCancelStop = null;
+          if (yes) {
+            await _removeSoloStop(cancel);
+          } else {
+            _voice.reply('Parada mantida.');
+          }
           return;
         }
         // Capitão/líder confirmando um pedido do grupo ("sim" = OK 👍).
@@ -1840,7 +1861,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     setState(() => _rerouting = true);
     _lastReroute = DateTime.now();
-    _voice.narrate('Recalculando a rota');
+    // Sem internet da última vez: não repete "Recalculando" a cada tentativa.
+    if (!_rerouteOffline) _voice.narrate('Recalculando a rota');
     var next = 1;
     while (next < trip.stops.length - 1 &&
         _stopArrived.contains(trip.stops[next].id)) {
@@ -1851,12 +1873,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _rerouting = false);
     if (nt == null) {
-      // Sem internet: permite tentar de novo logo.
-      _lastReroute = DateTime.fromMillisecondsSinceEpoch(0);
+      // Sem internet: avisa uma vez, segue com a rota que já está no celular
+      // e tenta de novo a cada 20 s (antes: tentava a cada leitura do GPS).
+      if (!_rerouteOffline) {
+        _voice.alert('Sem internet: volte para a rota. '
+            'Recalculo quando a conexão voltar.');
+        _showTrafficBanner('📵 Sem internet: siga para a rota azul');
+      }
+      _rerouteOffline = true;
+      _lastReroute = DateTime.now().add(const Duration(seconds: 10));
       return;
     }
+    _rerouteOffline = false;
     _applyTrip(nt);
   }
+
+  /// O último recálculo falhou (sem internet).
+  bool _rerouteOffline = false;
 
   /// Roteiro antigo (rota que cortava as curvas): o líder recalcula uma vez,
   /// sozinho, ao abrir o mapa; os participantes recebem a rota nova.
@@ -2528,14 +2561,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               _navigate(s.lat, s.lng);
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.route),
-            title: Text(_isLeader ? 'Editar no roteiro' : 'Ver roteiro'),
-            onTap: () {
-              Navigator.pop(ctx);
-              _openPlan();
-            },
-          ),
+          if (_isExpedition)
+            ListTile(
+              leading: const Icon(Icons.route),
+              title: Text(_isLeader ? 'Editar no roteiro' : 'Ver roteiro'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openPlan();
+              },
+            ),
+          // Rota normal: tirar uma parada do meio (não a saída nem o destino).
+          if (_canCancelSoloStop(s))
+            ListTile(
+              leading: const Icon(Icons.wrong_location_outlined, color: Colors.red),
+              title: const Text('Cancelar esta parada'),
+              subtitle: const Text('A rota é recalculada sem ela'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _removeSoloStop(s);
+              },
+            ),
         ]),
       ),
     );
@@ -4205,6 +4250,57 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _voice.reply('Parada incluída: $name.');
   }
 
+  /// Parada do meio da rota normal, ainda não visitada: dá para cancelar.
+  bool _canCancelSoloStop(Stop s) {
+    final t = _trip;
+    if (_isExpedition || t == null || _sim != null) return false;
+    final i = t.stops.indexWhere((x) => x.id == s.id);
+    return i > 0 && i < t.stops.length - 1 && !_stopArrived.contains(s.id);
+  }
+
+  /// Próxima parada do meio (para "UauGo, cancelar parada").
+  Stop? get _nextSoloStop {
+    final t = _trip;
+    if (t == null) return null;
+    for (var i = 1; i < t.stops.length - 1; i++) {
+      if (!_stopArrived.contains(t.stops[i].id)) return t.stops[i];
+    }
+    return null;
+  }
+
+  /// Parada esperando o "sim" de "Cancelar a parada X?".
+  Stop? _pendingCancelStop;
+
+  /// Tira a parada [s] e recalcula a rota de onde o piloto está.
+  Future<void> _removeSoloStop(Stop s) async {
+    final trip = _trip, p = _me;
+    if (trip == null || p == null) return;
+    final rest = [
+      for (var i = 1; i < trip.stops.length; i++)
+        if (trip.stops[i].id != s.id && !_stopArrived.contains(trip.stops[i].id))
+          trip.stops[i]
+    ];
+    if (rest.isEmpty) return;
+    setState(() => _rerouting = true);
+    final nt = await TripService.build(
+      title: trip.title,
+      points: [
+        TripPoint('Sua posição', p.latitude, p.longitude, type: StopType.meet),
+        for (final x in rest) TripPoint(x.name, x.lat, x.lng, type: x.type),
+      ],
+      avoidTolls: trip.plan.avoidTolls,
+      avoidHighways: trip.plan.avoidHighways,
+    );
+    if (!mounted) return;
+    setState(() => _rerouting = false);
+    if (nt == null) {
+      _voice.reply('Não consegui tirar a parada. Confira a internet.');
+      return;
+    }
+    _applyTrip(nt);
+    _voice.reply('Parada cancelada: ${s.name}.');
+  }
+
   /// Rota normal em andamento (sozinho): dá para incluir paradas.
   bool get _canAddSoloStop =>
       !_isExpedition && _sim == null && _navigating && _trip != null &&
@@ -5095,6 +5191,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               title: Text('$num · $label'),
               onTap: () => launchUrl(Uri.parse('tel:$num')),
             ),
+          // Contato de emergência (Configurações): um toque avisa pelo WhatsApp.
+          if (p != null && AppSettings.instance.emergencyContact.value != null)
+            Builder(builder: (_) {
+              final (nome, fone) = AppSettings.instance.emergencyContact.value!;
+              final num = fone.startsWith('55') && fone.length >= 12 ? fone : '55$fone';
+              return ListTile(
+                leading: const Icon(Icons.contact_emergency, color: Color(0xFF25D366), size: 30),
+                title: Text('Avisar $nome pelo WhatsApp',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Mensagem pronta com a sua localização'),
+                onTap: () => launchUrl(
+                    Uri.parse('https://wa.me/$num?text=${Uri.encodeComponent(_sosText(p))}'),
+                    mode: LaunchMode.externalApplication),
+              );
+            }),
           if (p != null) ...[
             // Direto no WhatsApp (a pessoa escolhe o contato); a lista de
             // compartilhar do Android às vezes nem mostra o WhatsApp.

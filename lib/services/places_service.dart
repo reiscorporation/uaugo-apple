@@ -45,6 +45,9 @@ class PlacesService {
 
   String _session = _newSession();
 
+  /// A última busca falhou por falta de conexão (ou servidor fora).
+  bool lastFailed = false;
+
   /// Token de sessão: o Google cobra a busca inteira (várias letras +
   /// escolha) como uma consulta só.
   static String _newSession() {
@@ -67,6 +70,7 @@ class PlacesService {
   Future<List<PlaceSuggestion>> search(String text,
       {double? nearLat, double? nearLng}) async {
     if (text.trim().length < 3) return const [];
+    lastFailed = false;
     try {
       final data = await _call({
         'action': 'autocomplete',
@@ -91,6 +95,7 @@ class PlacesService {
               ))
           .toList();
     } catch (_) {
+      lastFailed = true;
       return const [];
     }
   }

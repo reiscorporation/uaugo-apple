@@ -24,6 +24,8 @@ void main() {
     expect((b as FindCommand).category, FindCategory.food);
     final c = parseVoiceResult(j('uau go adicionar parada'));
     expect((c as WakeCommand).find, isTrue);
+    expect(parseVoiceResult(j('uau go cancelar parada')), isA<CancelStopCommand>());
+    expect(parseVoiceResult(j('uau go cancelar')), isA<CancelCommand>());
     // "parada banheiro" continua sendo pedido ao grupo.
     expect(parseVoiceResult(j('uau go parada banheiro')), isA<GroupRequestCommand>());
   });

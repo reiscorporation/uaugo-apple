@@ -219,7 +219,9 @@ class _PlanScreenState extends State<PlanScreen> {
   /// Adiciona uma parada no fim (antes do destino) e recalcula.
   Future<void> _addPoint(String name, double lat, double lng,
       {String address = ''}) async {
-    setState(() => _routing = true);
+    // Só a saída (1º ponto): não há rota para calcular, sem "carregando".
+    final first = _stops.isEmpty;
+    if (!first) setState(() => _routing = true);
     final ok = await _guard(() => _svc.addToItinerary(
           code: widget.code,
           uid: widget.uid,

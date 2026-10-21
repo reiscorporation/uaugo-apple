@@ -205,6 +205,10 @@ class AppSettings {
   /// o usuário pode recusar). Ver AnalyticsService.
   final shareStats = ValueNotifier<bool>(true);
 
+  /// Contato de emergência (só no celular): (nome, telefone com DDD) ou null.
+  /// No SOS, "Avisar <nome> pelo WhatsApp" com a localização.
+  final emergencyContact = ValueNotifier<(String, String)?>(null);
+
   /// Camada de trânsito do Google no mapa (vias em verde/laranja/vermelho).
   final showTraffic = ValueNotifier<bool>(true);
 
@@ -246,6 +250,9 @@ class AppSettings {
     keepScreenOn.value = p.getBool('keepScreenOn') ?? true;
     backgroundShare.value = p.getBool('backgroundShare') ?? false;
     shareStats.value = p.getBool('shareStats') ?? true;
+    final en = p.getString('emergencyName'), ep = p.getString('emergencyPhone');
+    emergencyContact.value =
+        en != null && ep != null && ep.isNotEmpty ? (en, ep) : null;
     showTraffic.value = p.getBool('showTraffic') ?? true;
     cleanTheme.value = p.getBool('cleanTheme') ?? false;
     accent.value = AppAccent.values
@@ -335,6 +342,19 @@ class AppSettings {
   Future<void> setShowTraffic(bool v) async {
     showTraffic.value = v;
     (await SharedPreferences.getInstance()).setBool('showTraffic', v);
+  }
+
+  /// Salva (ou apaga, com null) o contato de emergência.
+  Future<void> setEmergencyContact((String, String)? c) async {
+    emergencyContact.value = c;
+    final p = await SharedPreferences.getInstance();
+    if (c == null) {
+      await p.remove('emergencyName');
+      await p.remove('emergencyPhone');
+    } else {
+      await p.setString('emergencyName', c.$1);
+      await p.setString('emergencyPhone', c.$2);
+    }
   }
 
   /// Liga/desliga as estatísticas de uso e o relatório de erros.

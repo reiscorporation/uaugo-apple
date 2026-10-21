@@ -209,6 +209,8 @@ class ExpeditionService {
           type: type,
         ));
     await reorderStops(code, list.map((s) => s.id).toList());
+    // Só a saída: ainda não há rota (calcula quando o destino entrar).
+    if (list.length < 2) return true;
     return recalculateRoute(code, plan, list);
   }
 
