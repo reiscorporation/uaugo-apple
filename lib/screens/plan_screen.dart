@@ -31,6 +31,9 @@ import '../widgets/place_search.dart';
 import '../logic/tolls.dart';
 import '../services/profile_service.dart';
 import '../services/toll_service.dart';
+import '../logic/find_places.dart';
+import '../logic/simulation.dart' show RouteWalker;
+import '../services/places_service.dart';
 import 'map_screen.dart';
 
 /// Planejamento do roteiro: pontos, rota pelas estradas, horários e dias.
@@ -92,6 +95,106 @@ class _PlanScreenState extends State<PlanScreen> {
         _maybeUpgradeRoute();
       }));
     _loadIcons();
+  }
+
+  /// Pergunta o intervalo e inclui um posto a cada X km da rota.
+  Future<void> _askFuelStops() async {
+    var km = 150;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: const Text('Paradas para abastecer'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('Incluir uma parada num posto a cada:'),
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, children: [
+              for (final k in const [100, 150, 200, 250, 300])
+                ChoiceChip(
+                  label: Text('$k km'),
+                  selected: km == k,
+                  onSelected: (_) => set(() => km = k),
+                ),
+            ]),
+            const SizedBox(height: 10),
+            const Text(
+                'O app procura o posto mais perto de cada ponto, no caminho. '
+                'Depois dá para trocar ou tirar no roteiro.',
+                style: TextStyle(fontSize: 12)),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sugerir')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) await _suggestFuelStops(km);
+  }
+
+  /// Um posto a cada [km] km pela rota (o mais perto de cada ponto, até
+  /// 5 km da rota), na ordem do caminho; recalcula uma vez no fim.
+  Future<void> _suggestFuelStops(int km) async {
+    final pts = [for (final q in decodePolyline(_plan.polyline)) (q.latitude, q.longitude)];
+    if (pts.length < 2) return;
+    final w = RouteWalker(pts);
+    final every = km * 1000.0;
+    final marks = <double>[
+      for (var d = every; d < w.length - 30000 && d <= every * 15; d += every) d
+    ];
+    if (marks.isEmpty) {
+      _snack('A rota é mais curta que $km km: não precisa de parada.');
+      return;
+    }
+    setState(() => _routing = true);
+    final places = PlacesService();
+    final found = <({String name, double lat, double lng, double along})>[];
+    for (final d in marks) {
+      final at = w.at(d);
+      final r = await places.find(FindCategory.fuel, lat: at.lat, lng: at.lng);
+      if (r.limit) break;
+      for (final f in r.places) {
+        final pr = w.project(f.lat, f.lng);
+        if (pr.offset > 5000) continue; // longe da rota
+        found.add((name: f.name, lat: f.lat, lng: f.lng, along: pr.along));
+        break;
+      }
+    }
+    if (!mounted) return;
+    if (found.isEmpty) {
+      setState(() => _routing = false);
+      _snack('Não encontrei postos perto da rota. Tente outro intervalo.');
+      return;
+    }
+    // Insere na ordem do caminho, entre as paradas que já existem.
+    final ok = await _guard(() async {
+      final items = <({String id, double along})>[
+        for (final st in _stops)
+          (id: st.id, along: w.project(st.lat, st.lng).along),
+      ];
+      for (final f in found) {
+        final id = _svc.addStop(widget.code, widget.uid, f.name, f.lat, f.lng,
+            type: StopType.fuel, stayMin: 15);
+        items.add((id: id, along: f.along));
+      }
+      // Saída e destino ficam nas pontas.
+      final first = _stops.first.id, last = _stops.last.id;
+      double rank(({String id, double along}) e) =>
+          e.id == first ? -1e12 : (e.id == last ? 1e12 : e.along);
+      items.sort((a, b) => rank(a).compareTo(rank(b)));
+      await _svc.reorderStops(widget.code, items.map((e) => e.id).toList());
+      return true;
+    });
+    if (!mounted) return;
+    setState(() => _routing = false);
+    if (!ok) {
+      _snack('Não foi possível salvar as paradas. Confira a internet.');
+      return;
+    }
+    _snack('${found.length} ${found.length == 1 ? 'posto incluído' : 'postos incluídos'} no roteiro.');
+    // A lista de paradas chega pelo Firestore; recalcula com ela.
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) await _recalc();
   }
 
   /// Fração da tela ocupada pelo mapa (a alça muda; 0,2 a 0,75).
@@ -654,6 +757,9 @@ class _PlanScreenState extends State<PlanScreen> {
       onHighways: (v) =>
           _savePlan(_plan.copyWith(avoidHighways: v), recalc: true),
       onRetry: () => _recalc(),
+      onFuelStops: _isLeader && _stops.length >= 2 && _plan.polyline.isNotEmpty
+          ? _askFuelStops
+          : null,
       // O líder usa a barra de baixo (Salvar / Iniciar).
       onStart: widget.showStartButton && !_isLeader
           ? () => Navigator.of(context).pop(true)
@@ -722,6 +828,7 @@ class _PlanHeader extends StatelessWidget {
     required this.onTolls,
     required this.onHighways,
     required this.onRetry,
+    this.onFuelStops,
     this.onStart,
     this.onSimulate,
   });
@@ -738,6 +845,9 @@ class _PlanHeader extends StatelessWidget {
   final ValueChanged<bool> onTolls;
   final ValueChanged<bool> onHighways;
   final VoidCallback onRetry;
+
+  /// "Paradas a cada X km" (só o líder, com rota calculada).
+  final VoidCallback? onFuelStops;
   final VoidCallback? onStart;
   final VoidCallback? onSimulate;
 
@@ -834,6 +944,14 @@ class _PlanHeader extends StatelessWidget {
             onSelected: editable ? onHighways : null,
           ),
         ]),
+        if (onFuelStops != null) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: onFuelStops,
+            icon: const Icon(Icons.local_gas_station_outlined),
+            label: const Text('Paradas para abastecer a cada X km'),
+          ),
+        ],
         if (onSimulate != null) ...[
           const SizedBox(height: 8),
           OutlinedButton.icon(
