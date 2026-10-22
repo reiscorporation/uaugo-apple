@@ -4980,6 +4980,39 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     });
   }
 
+  /// Linhas das paradas no resumo: nome, distância pela rota e chegada.
+  List<Widget> _stopRows() {
+    final w = _isExpedition ? (_expWalker ?? _walker) : _walker;
+    final p = _me, pr = _proj;
+    final speed = _etaSpeed ??
+        (_trip?.averageSpeed ?? 16.7);
+    return [
+      for (var i = 1; i < _stops.length; i++)
+        Builder(builder: (_) {
+          final s = _stops[i];
+          final done = _stopArrived.contains(s.id);
+          String sub = '';
+          if (!done && w != null && p != null) {
+            final along = w.project(s.lat, s.lng).along;
+            final left = along - (pr?.along ?? 0);
+            if (left > 0) {
+              final eta = DateTime.now().add(Duration(seconds: (left / speed).round()));
+              sub = '${formatDistance(left.round())} · chegada ${formatTime(eta)}';
+            }
+          }
+          return ListTile(
+            dense: true,
+            leading: Text(s.type.emoji, style: const TextStyle(fontSize: 22)),
+            title: Text(s.name,
+                style: TextStyle(
+                    decoration: done ? TextDecoration.lineThrough : null)),
+            subtitle: Text(done ? 'Visitada' : sub),
+            onTap: () => _focus(s.lat, s.lng),
+          );
+        }),
+    ];
+  }
+
   /// Toque no título: resumo da viagem (distância, tempo, chegada, quanto
   /// falta, combustível, pedágios e custo).
   void _showTripSummary() {
@@ -5029,6 +5062,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               tolls == null ? '—' : (tolls.plazas == 0 ? 'sem pedágio' : formatMoney(tolls.total))),
           if (_expCost != null)
             row(Icons.payments, 'Custo estimado', formatMoney(_expCost!)),
+          // Paradas da rota (as que faltam e as já visitadas), com a distância
+          // daqui e a hora prevista de chegada em cada uma.
+          if (_stops.length > 1) ...[
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              child: Text('Paradas', style: Theme.of(ctx).textTheme.titleMedium),
+            ),
+            ..._stopRows(),
+          ],
           // Rota normal: ver a viagem antes (simulação na tela).
           if (!_isExpedition && _trip != null && !widget.simulate)
             Padding(
