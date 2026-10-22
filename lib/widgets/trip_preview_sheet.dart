@@ -289,8 +289,10 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
   double? _tripCost(Trip t) {
     final f = AppSettings.instance.fuel.value;
     final e = _tollCost;
-    if (!f.ready || e == null || !e.complete || e.total == 0) return null;
-    return fuelLiters(t.distanceM.toDouble(), f.kmPerLiter) * f.pricePerLiter + e.total;
+    if (!f.ready) return null;
+    // Sem pedágio (ou valores ainda não conhecidos): só o combustível.
+    final tolls = e != null && e.complete ? e.total : 0.0;
+    return fuelLiters(t.distanceM.toDouble(), f.kmPerLiter) * f.pricePerLiter + tolls;
   }
 
   @override
@@ -425,8 +427,17 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
               for (final line in _tollLines(t))
                 Text(line, style: TextStyle(color: Colors.amber.shade800)),
               if (_tripCost(t) case final cost?)
-                Text('💰 Custo estimado: ${formatMoney(cost)} (combustível + pedágios)',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                    '💰 Custo estimado: ${formatMoney(cost)} '
+                    '${(_tollCost?.total ?? 0) > 0 ? '(combustível + pedágios)' : '(combustível)'}',
+                    style: const TextStyle(fontWeight: FontWeight.bold))
+              else
+                Text(
+                    'Para calcular o combustível, informe o consumo e o preço '
+                    'do litro em "Configurar meu veículo".',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant)),
               if (AppSettings.instance.route.value.avoidRisk)
                 Text(
                   t.riskCount == 0
