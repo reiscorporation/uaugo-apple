@@ -51,9 +51,8 @@ class CarMapView(private val context: Context) {
     private var routeLine: Polyline? = null
     private var routeSig = 0
     private var me: Marker? = null
-    private var speedText: TextView? = null
-    private var limitText: TextView? = null
-    private var alertText: TextView? = null
+    private var overlay: CarOverlay? = null
+    private var meIcon = ""
     private var visible: Rect? = null
     private var width = 0
     private var height = 0
@@ -70,11 +69,13 @@ class CarMapView(private val context: Context) {
             DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY)
         display = vd
         val p = Presentation(context, vd.display)
-        val mv = MapView(context)
+        val mv = MapView(p.context)
         mv.onCreate(null)
-        val root = FrameLayout(context)
+        val root = FrameLayout(p.context)
         root.addView(mv, FrameLayout.LayoutParams(-1, -1))
-        root.addView(overlay(), FrameLayout.LayoutParams(-1, -1))
+        val ov = CarOverlay(p.context)
+        overlay = ov
+        root.addView(ov.root, FrameLayout.LayoutParams(-1, -1))
         p.setContentView(root)
         p.show()
         mv.onStart()
@@ -84,7 +85,7 @@ class CarMapView(private val context: Context) {
             g.uiSettings.setAllGesturesEnabled(false)
             g.uiSettings.isMapToolbarEnabled = false
             g.uiSettings.isCompassEnabled = false
-            g.isTrafficEnabled = true
+            g.isTrafficEnabled = true // como no celular
             g.isBuildingsEnabled = false // mais leve
             applyPadding()
             update()
@@ -116,6 +117,8 @@ class CarMapView(private val context: Context) {
         map = null
         routeLine = null
         me = null
+        overlay = null
+        meIcon = ""
         routeSig = 0
     }
 
@@ -134,35 +137,29 @@ class CarMapView(private val context: Context) {
             routeLine = if (pts.size >= 2) g.addPolyline(
                 PolylineOptions()
                     .addAll(pts.map { LatLng(it[0], it[1]) })
-                    .color(Color.rgb(26, 115, 232))
-                    .width(16f)
+                    .color(Color.rgb(26, 115, 232)) // azul da rota do celular
+                    .width(11f)
                     .zIndex(2f)) else null
         }
-        speedText?.text = "${CarState.speedKmh} km/h"
-        limitText?.let {
-            it.text = if (CarState.limitKmh > 0) "${CarState.limitKmh}" else ""
-            it.visibility = if (CarState.limitKmh > 0) TextView.VISIBLE else TextView.GONE
-        }
-        alertText?.let {
-            val a = CarState.nav?.alert
-            it.text = a ?: ""
-            it.visibility = if (a.isNullOrBlank()) TextView.GONE else TextView.VISIBLE
-        }
+        overlay?.update()
         if (!CarState.hasPosition) return
         val pos = LatLng(CarState.lat, CarState.lng)
+        if (meIcon != CarState.vehicle) {
+            me?.remove()
+            me = null
+            meIcon = CarState.vehicle
+        }
         val m = me ?: g.addMarker(
-            MarkerOptions().position(pos).flat(true).anchor(0.5f, 0.5f)
-                .icon(BitmapDescriptorFactory.fromBitmap(arrowBitmap())).zIndex(5f)
+            MarkerOptions().position(pos).anchor(0.5f, 0.5f)
+                .icon(BitmapDescriptorFactory.fromBitmap(vehicleBitmap(meIcon))).zIndex(5f)
         )?.also { me = it }
         m?.position = pos
-        // Seta "deitada" no mapa, na direção do piloto; como o mapa gira
-        // junto, ela aparece sempre para cima.
-        m?.rotation = CarState.bearing.toFloat()
+        // Ícone em pé (o mapa gira com o piloto).
         // Mais longe na rodovia, mais perto na cidade.
         val zoom = when {
-            CarState.speedKmh >= 90 -> 15.5f
-            CarState.speedKmh >= 50 -> 16.3f
-            else -> 17.2f
+            CarState.speedKmh >= 90 -> 14.6f
+            CarState.speedKmh >= 50 -> 15.4f
+            else -> 16.2f
         }
         g.animateCamera(
             CameraUpdateFactory.newCameraPosition(
@@ -179,56 +176,6 @@ class CarMapView(private val context: Context) {
         g.setPadding(r.left, r.top + extraTop, max(0, width - r.right), max(0, height - r.bottom))
     }
 
-    /** Velocidade, placa do limite e aviso de radar por cima do mapa. */
-    private fun overlay(): FrameLayout {
-        val f = FrameLayout(context)
-        val col = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.START or Gravity.BOTTOM
-            setPadding(28, 28, 28, 28)
-        }
-        limitText = TextView(context).apply {
-            textSize = 22f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.BLACK)
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.WHITE)
-                setStroke(10, Color.RED)
-            }
-            visibility = TextView.GONE
-        }
-        col.addView(limitText, LinearLayout.LayoutParams(110, 110).apply { bottomMargin = 12 })
-        speedText = TextView(context).apply {
-            textSize = 26f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            setPadding(22, 10, 22, 10)
-            background = GradientDrawable().apply {
-                cornerRadius = 24f
-                setColor(Color.argb(220, 15, 27, 45))
-            }
-        }
-        col.addView(speedText)
-        f.addView(col, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.BOTTOM))
-        alertText = TextView(context).apply {
-            textSize = 24f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            setPadding(26, 14, 26, 14)
-            background = GradientDrawable().apply {
-                cornerRadius = 24f
-                setColor(Color.rgb(198, 40, 40))
-            }
-            visibility = TextView.GONE
-        }
-        f.addView(alertText, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.BOTTOM).apply {
-            setMargins(28, 28, 28, 28)
-        })
-        return f
-    }
-
     /** Seta do piloto (branca com borda azul), sempre apontando para cima. */
     private fun arrowBitmap(): Bitmap {
         val s = 72
@@ -241,6 +188,19 @@ class CarMapView(private val context: Context) {
         c.drawPath(path, Paint().apply {
             color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = 6f; isAntiAlias = true
         })
+        return b
+    }
+
+    private fun vehicleBitmap(emoji: String): Bitmap {
+        val px = 96
+        val b = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+        val c = Canvas(b)
+        c.drawCircle(px / 2f, px / 2f, px / 2f - 4, Paint().apply { color = Color.WHITE; isAntiAlias = true })
+        c.drawCircle(px / 2f, px / 2f, px / 2f - 4, Paint().apply {
+            color = Color.rgb(255, 122, 26); style = Paint.Style.STROKE; strokeWidth = 7f; isAntiAlias = true
+        })
+        val t = Paint().apply { textSize = 52f; textAlign = Paint.Align.CENTER; isAntiAlias = true }
+        c.drawText(emoji, px / 2f, px / 2f + 18f, t)
         return b
     }
 }

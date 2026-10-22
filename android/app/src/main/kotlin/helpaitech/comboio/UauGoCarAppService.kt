@@ -206,25 +206,8 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             .addAction(action("Encerrar", "stop"))
             .build()
         val b = NavigationTemplate.Builder().setActionStrip(strip)
-        val n = CarState.nav
-        if (n == null) {
-            b.setNavigationInfo(
-                MessageInfo.Builder("Abra a navegação no UauGo")
-                    .setText("Escolha o destino no celular ou diga \"UauGo, ir para\".")
-                    .build())
-        } else {
-            val cue = if (n.alert.isNullOrBlank()) n.text else "${n.text} · ${n.alert}"
-            val step = Step.Builder(cue).setManeuver(maneuverOf(n.maneuver)).build()
-            b.setNavigationInfo(RoutingInfo.Builder().setCurrentStep(step, distance(n.meters)).build())
-            if (n.etaMillis > 0) {
-                b.setDestinationTravelEstimate(
-                    TravelEstimate.Builder(
-                        distance(n.remainingM),
-                        DateTimeWithZone.create(n.etaMillis, TimeZone.getDefault()))
-                        .setRemainingTimeSeconds(max(0L, (n.etaMillis - System.currentTimeMillis()) / 1000))
-                        .build())
-            }
-        }
+        // A manobra, a chegada e os avisos são desenhados no mapa (CarOverlay),
+        // com o visual do celular; o Android Auto mostra só os botões.
         return b.build()
     }
 

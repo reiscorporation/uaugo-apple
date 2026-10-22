@@ -34,6 +34,11 @@ object CarState {
     @Volatile var hasPosition = false
     @Volatile var speedKmh = 0
     @Volatile var limitKmh = 0
+    /** Contagem do radar ("📸 80 em 450 m") e faixa amarela de aviso. */
+    @Volatile var alert: String? = null
+    @Volatile var banner: String? = null
+    /** Emoji do veículo do piloto (🏍️ / 🚗 / 🚚). */
+    @Volatile var vehicle = "🏍️"
 
     /** A tela do carro está aberta (o Dart mantém o GPS e a voz). */
     @Volatile var connected = false
@@ -82,6 +87,9 @@ class CarBridge(messenger: BinaryMessenger) {
                         CarState.limitKmh = (a["limitKmh"] as? Number)?.toInt() ?: 0
                         CarState.hasPosition = true
                         CarState.lastDartUpdate = System.currentTimeMillis()
+                        CarState.alert = a["alert"] as? String
+                        CarState.banner = a["banner"] as? String
+                        (a["vehicle"] as? String)?.let { CarState.vehicle = it }
                         val text = a["text"] as? String
                         CarState.nav = if (text == null) null else CarState.Nav(
                             text = text,

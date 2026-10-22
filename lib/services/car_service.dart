@@ -101,6 +101,8 @@ class CarService {
     double remainingM = 0,
     DateTime? eta,
     String? alert,
+    String? banner,
+    String vehicle = '🏍️',
   }) {
     final now = DateTime.now();
     if (now.difference(_last) < const Duration(milliseconds: 900)) return;
@@ -111,13 +113,17 @@ class CarService {
       'bearing': bearing,
       'speedKmh': speedKmh,
       'limitKmh': limitKmh,
+      // Valem com ou sem rota (Só dirigir): contagem do radar, faixa amarela
+      // de aviso e o ícone do veículo.
+      if (alert != null) 'alert': alert,
+      if (banner != null) 'banner': banner,
+      'vehicle': vehicle,
       if (text != null) ...{
         'text': text,
         'maneuver': maneuver,
         'meters': meters,
         'remainingM': remainingM,
         'eta': eta?.millisecondsSinceEpoch ?? 0,
-        if (alert != null) 'alert': alert,
       },
     }).catchError((_) => null);
   }
