@@ -2117,6 +2117,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Com rota própria: voltou ao trajeto da expedição (3 leituras a menos de
   /// 40 m)? Então segue a rota do grupo de novo.
   void _checkBackOnExpeditionRoute(Position p) {
+    // Indo socorrer um colega: a rota própria vale até chegar nele.
+    final help = _helpTarget;
+    if (help != null) {
+      if (distanceMeters(p.latitude, p.longitude, help.lat, help.lng) < 80) {
+        _helpTarget = null;
+        _personalTrip = null;
+        _routeSig = '';
+        _navSig = '';
+        _onStops(_stops);
+        _voice.alert('Você chegou até ${help.name}. Ao seguir, volto para a rota da expedição.');
+      }
+      return;
+    }
     final w = _expWalker;
     if (_personalTrip == null || w == null) return;
     final off = w.project(p.latitude, p.longitude).offset;
@@ -2127,6 +2140,45 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _navSig = '';
     _onStops(_stops);
     _voice.narrate('Você voltou para a rota da expedição');
+  }
+
+  /// Colega que pediu ajuda (SOS) e para onde o piloto está indo.
+  ({String name, double lat, double lng})? _helpTarget;
+
+  /// "Ir até lá" no SOS: rota temporária, dentro do UauGo, até o colega
+  /// (antes abria o Google Maps). Ao chegar, volta para a rota do grupo.
+  Future<void> _goHelp(String name, double lat, double lng) async {
+    final p = _me;
+    if (p == null) {
+      _snack('Ainda sem a sua posição pelo GPS');
+      return;
+    }
+    setState(() => _rerouting = true);
+    final nt = await TripService.build(
+      title: 'Ajuda: $name',
+      points: [
+        TripPoint('Sua posição', p.latitude, p.longitude, type: StopType.meet),
+        TripPoint(name, lat, lng, type: StopType.destination),
+      ],
+    );
+    if (!mounted) return;
+    setState(() => _rerouting = false);
+    if (nt == null) {
+      _snack('Não foi possível traçar a rota até $name. Confira a internet.');
+      return;
+    }
+    _helpTarget = (name: name, lat: lat, lng: lng);
+    _personalTrip = nt;
+    _backOnExpRoute = 0;
+    _offRouteCount = 0;
+    _offRoute = false;
+    _routeSig = '';
+    _updateRoute();
+    _navSig = 'personal';
+    _nav = _buildNav([for (final s in nt.stops.skip(1)) ...s.steps]);
+    _navSynced = false;
+    if (!_navigating) _startNavigation();
+    _voice.alert('Rota até $name. ${formatDistance(nt.distanceM)}.');
   }
 
   /// Trocou o capitão: avisa todo mundo (e por voz quem virou capitão).
@@ -3000,7 +3052,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _navigate(a.lat, a.lng);
+              _goHelp(a.name, a.lat, a.lng);
             },
             child: const Text('Ir até lá'),
           ),
