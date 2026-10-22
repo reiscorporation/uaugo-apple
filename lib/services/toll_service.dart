@@ -30,9 +30,23 @@ class TollService {
   TollTable? _table;
   Future<TollTable?>? _loading;
 
+  /// Última conferência da versão da tabela.
+  DateTime _checkedAt = DateTime.fromMillisecondsSinceEpoch(0);
+
   /// Tabela pronta (lê do celular e confere versão nova); null se indisponível.
   Future<TollTable?> table() {
-    if (_table != null) return Future.value(_table);
+    if (_table != null) {
+      // Os preços são atualizados ao longo do dia (rotina do n8n): confere a
+      // versão de novo a cada 30 min, sem segurar quem pediu a tabela.
+      if (DateTime.now().difference(_checkedAt) > const Duration(minutes: 30)) {
+        _checkedAt = DateTime.now();
+        getApplicationSupportDirectory()
+            .then((d) => _refresh(File('${d.path}/$_file')))
+            .catchError((_) {});
+      }
+      return Future.value(_table);
+    }
+    _checkedAt = DateTime.now();
     return _loading ??= _load().whenComplete(() => _loading = null);
   }
 

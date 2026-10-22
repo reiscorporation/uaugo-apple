@@ -687,8 +687,34 @@ exports.tollPrices = onHttpRequest({ region, invoker: "public", timeoutSeconds: 
       const seen = await db.collection("tollPrices")
         .where("checkedAt", ">", Timestamp.fromMillis(since)).get();
       const recent = new Set(seen.docs.map((d) => d.id));
+      // Ordem pedida: SP, MG, RJ, PR, SC, RS e depois os demais estados. O
+      // estado vem dos arquivos de pontos (cada praça saiu de uma cabine de
+      // um estado); dentro do estado, a mais perto de São Paulo primeiro.
+      const ORDER = ["SP", "MG", "RJ", "PR", "SC", "RS"];
+      const bucket = getStorage().bucket();
+      const byUf = [];
+      for (const uf of ORDER) {
+        try {
+          const [buf] = await bucket.file(`public/pois/${uf}.json.gz`).download();
+          const json = JSON.parse(zlib.gunzipSync(buf).toString());
+          byUf.push(boothsFromPois(json.d || json));
+        } catch (_) {
+          byUf.push([]);
+        }
+      }
+      const rank = (r) => {
+        const la = Number(r[0]), lo = Number(r[1]);
+        for (let i = 0; i < byUf.length; i++) {
+          if (byUf[i].some((b) => Math.abs(b[0] - la) < 0.01 && Math.abs(b[1] - lo) < 0.01)) return i;
+        }
+        return ORDER.length;
+      };
+      const d2 = (r) => (Number(r[0]) + 23.55) ** 2 + (Number(r[1]) + 46.63) ** 2;
       const missing = data.p
         .filter((r) => r[2] == null && !recent.has(plazaKey(r)))
+        .map((r) => ({ r, k: rank(r), d: d2(r) }))
+        .sort((a, b) => a.k - b.k || a.d - b.d)
+        .map((x) => x.r)
         .slice(0, limit)
         .map((r) => ({ key: plazaKey(r), lat: Number(r[0]), lng: Number(r[1]) }));
       const total = data.p.filter((r) => r[2] == null).length;
