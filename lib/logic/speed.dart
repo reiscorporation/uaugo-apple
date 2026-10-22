@@ -90,6 +90,7 @@ class SpeedLimitIndex {
       double speed = 0,
       double maxMeters = 40,
       double pathMeters = 150,
+      double maxAngle = 60,
       double Function(double lat, double lng)? routeOffset}) {
     final la = (lat * 1e5).round(), lo = (lng * 1e5).round();
     final kx = cos(lat * pi / 180);
@@ -114,7 +115,7 @@ class SpeedLimitIndex {
           if (d2 > path2) continue;
           final dir = _dir[p];
           if (dir >= 0 && speed >= 3 && heading >= 0 &&
-              angleDiff(dir.toDouble(), heading) > 60) {
+              angleDiff(dir.toDouble(), heading) > maxAngle) {
             continue; // limite do outro sentido da pista
           }
           // Ponto da via em que o piloto está (rota ou linha da direção).
@@ -151,6 +152,64 @@ class SpeedLimitIndex {
         ? bestOnPath
         : (routeOffset != null || useHeading ? -1 : best);
     return p < 0 ? null : RoadLimit(_lim[p], _est[p] == 1);
+  }
+}
+
+/// Limite da via AO LONGO DA ROTA (perfil), em vez do ponto mais próximo:
+/// amostras a cada [step] m; trechos curtos (< [minRun] m) com limite
+/// diferente do que vem antes E depois são ignorados — é o caso das saídas
+/// e alças coladas à pista (placa de verdade vale por quilômetros).
+class RouteLimitProfile {
+  RouteLimitProfile(this.start, this.step, List<RoadLimit?> raw,
+      {double minRun = 400})
+      : _v = _smooth(raw, (minRun / step).ceil());
+
+  /// Distância pela rota (m) da 1ª amostra.
+  final double start;
+  final double step;
+  final List<RoadLimit?> _v;
+
+  double get end => start + step * (_v.length - 1);
+
+  /// Limite em [along] (m pela rota); null fora do perfil ou sem dado.
+  RoadLimit? at(double along) {
+    final i = ((along - start) / step).round();
+    if (i < 0 || i >= _v.length) return null;
+    return _v[i];
+  }
+
+  static List<RoadLimit?> _smooth(List<RoadLimit?> raw, int minLen) {
+    // 1) Sem dado no meio de um trecho: repete o anterior (pontes, viadutos).
+    final v = [...raw];
+    for (var i = 1; i < v.length; i++) {
+      v[i] ??= v[i - 1];
+    }
+    // 2) Trechos curtos diferentes dos vizinhos dos DOIS lados (ou de um lado,
+    //    na ponta) viram o valor de antes: saída/alça não troca a placa.
+    var changed = true;
+    var guard = 0;
+    while (changed && guard++ < 5) {
+      changed = false;
+      var i = 0;
+      while (i < v.length) {
+        var j = i;
+        while (j + 1 < v.length && v[j + 1] == v[i]) {
+          j++;
+        }
+        final len = j - i + 1;
+        final before = i > 0 ? v[i - 1] : null;
+        final after = j + 1 < v.length ? v[j + 1] : null;
+        final short = len < minLen && v[i] != null;
+        if (short && before != null && (after == null || after == before)) {
+          for (var k = i; k <= j; k++) {
+            v[k] = before;
+          }
+          changed = true;
+        }
+        i = j + 1;
+      }
+    }
+    return v;
   }
 }
 

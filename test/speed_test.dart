@@ -15,6 +15,28 @@ List<int> compact(List<(double, double, int, int, int)> pts) {
 }
 
 void main() {
+  group('Perfil de limite pela rota', () {
+    const a = RoadLimit(110, false), b = RoadLimit(60, false), c = RoadLimit(80, false);
+    test('saída curta (200 m) no meio da rodovia é ignorada', () {
+      // 50 m por amostra: 1 km a 110, 200 m a 60 (saída), 1 km a 110.
+      final raw = [...List.filled(20, a), ...List.filled(4, b), ...List.filled(20, a)];
+      final p = RouteLimitProfile(0, 50, raw);
+      expect(p.at(1050)?.kmh, 110);
+      expect(p.at(1100)?.kmh, 110);
+    });
+    test('redução de verdade (longa) continua valendo', () {
+      final raw = [...List.filled(20, a), ...List.filled(30, c)];
+      final p = RouteLimitProfile(0, 50, raw);
+      expect(p.at(500)?.kmh, 110);
+      expect(p.at(1500)?.kmh, 80);
+    });
+    test('sem dado no meio repete o anterior', () {
+      final raw = <RoadLimit?>[a, a, null, null, a, a];
+      final p = RouteLimitProfile(0, 50, raw);
+      expect(p.at(100)?.kmh, 110);
+    });
+  });
+
   // Rodovia norte-sul com pistas separadas (sentido sul: 80; norte: 60),
   // e uma rua urbana sem placa (estimada 40) a 2 km dali.
   final idx = SpeedLimitIndex.fromCompact(compact([

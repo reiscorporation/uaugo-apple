@@ -168,10 +168,14 @@ class SpeedService {
   /// distância de um ponto até a rota, para pegar o limite da pista da rota
   /// e não o da marginal.
   RoadLimit? lookup(double lat, double lng, double heading, double speed,
-      {double Function(double lat, double lng)? routeOffset}) {
+      {double Function(double lat, double lng)? routeOffset,
+      double maxAngle = 60}) {
     for (final idx in _loaded.values) {
       final r = idx.lookup(lat, lng,
-          heading: heading, speed: speed, routeOffset: routeOffset);
+          heading: heading,
+          speed: speed,
+          maxAngle: maxAngle,
+          routeOffset: routeOffset);
       if (r != null) return r;
     }
     return null;

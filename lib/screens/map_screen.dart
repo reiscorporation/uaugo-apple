@@ -2766,9 +2766,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Em cima da rota: só vale o limite de pontos da rota (não a marginal).
     final w = _walker, pr = _proj;
     final onRoute = w != null && pr != null && pr.offset < 40;
-    final found = _speedSvc.lookup(p.latitude, p.longitude, _bearing, _speedMs,
-        routeOffset:
-            onRoute ? (la, lo) => w.offsetNear(la, lo, pr.along) : null);
+    // Na rota: o limite vem do PERFIL da rota (saídas e alças curtas são
+    // ignoradas); fora dela (ou sem perfil), do ponto mais próximo.
+    final prof = onRoute ? _routeLimitProfile(w, pr.along) : null;
+    final found = prof?.at(pr!.along) ??
+        _speedSvc.lookup(p.latitude, p.longitude, _bearing, _speedMs,
+            routeOffset:
+                onRoute ? (la, lo) => w.offsetNear(la, lo, pr.along) : null);
     _roadLimit = _limitTracker.update(found, DateTime.now());
     final speech = _speedAlerter.update(
         kmh, _roadLimit, _speedSvc.settings.value, DateTime.now());
@@ -2805,6 +2809,34 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _showTrafficBanner('🚫 Rodízio: placa final $d no centro expandido agora');
   }
 
+  // ---- Perfil do limite ao longo da rota (de 1 km atrás a 6 km à frente)
+  RouteLimitProfile? _limitProfile;
+  Object? _limitProfileRoute;
+
+  /// Perfil válido para [along]; refaz ao andar 2 km ou ao trocar a rota.
+  RouteLimitProfile? _routeLimitProfile(RouteWalker w, double along) {
+    final cur = _limitProfile;
+    if (cur != null &&
+        identical(_limitProfileRoute, w) &&
+        along >= cur.start + 1000 - 1 &&
+        along <= cur.start + 3000) {
+      return cur;
+    }
+    const step = 50.0;
+    final start = max(0.0, along - 1000);
+    final end = min(w.length, along + 6000);
+    final raw = <RoadLimit?>[];
+    for (var d = start; d <= end; d += step) {
+      final q = w.at(d);
+      raw.add(_speedSvc.lookup(q.lat, q.lng, q.bearing, max(_speedMs, 10.0),
+          routeOffset: (a, b) => w.offsetNear(a, b, d), maxAngle: 30));
+    }
+    if (raw.every((r) => r == null)) return null; // sem dados aqui ainda
+    _limitProfile = RouteLimitProfile(start, step, raw);
+    _limitProfileRoute = w;
+    return _limitProfile;
+  }
+
   // ---- Velocidade reduzida à frente ("Velocidade reduzida para 60 em 300 m")
   (int, int)? _reducedAhead; // (limite, metros) mostrado no velocímetro
   int? _reducedPendingKmh; // redução vista na leitura anterior
@@ -2835,10 +2867,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         final q = _ahead(p.latitude, p.longitude, _bearing, d.toDouble());
         (la, lo, brg) = (q.latitude, q.longitude, _bearing);
       }
-      final l = _speedSvc.lookup(la, lo, brg, _speedMs,
-          routeOffset: along != null && w != null
-              ? (a, b) => w.offsetNear(a, b, along + d)
-              : null);
+      // Na rota: o perfil (já sem as saídas curtas).
+      final l = (along != null ? _limitProfile?.at(along + d) : null) ??
+          _speedSvc.lookup(la, lo, brg, _speedMs,
+              routeOffset: along != null && w != null
+                  ? (a, b) => w.offsetNear(a, b, along + d)
+                  : null);
       // Só placas (não estimados) e redução de pelo menos 10 km/h.
       final reduced =
           l != null && !l.estimated && l.kmh <= cur.kmh - 10 ? l.kmh : null;
