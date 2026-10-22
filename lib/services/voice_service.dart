@@ -87,14 +87,19 @@ class VoiceService {
   /// Fala um aviso (respeita o botão de avisos).
   void alert(String text, {bool urgent = false}) {
     if (!alertsOn.value) return;
-    _expires[text] = DateTime.now().add(alertMaxAge);
+    // Urgente (SOS do grupo): sempre fala. Os demais, se atrasarem na fila
+    // (uma fala encavalada na outra), são descartados: fica só a faixa na tela.
+    if (!urgent) _expires[text] = DateTime.now().add(alertMaxAge);
     _say(text, urgent: urgent);
   }
 
   /// Fala uma instrução do trajeto (respeita o botão de narração, a menos
-  /// que [force]: usado na simulação da viagem).
+  /// que [force]: usado na simulação da viagem). Instrução atrasada também é
+  /// descartada ("vire à direita" depois de passar a esquina só confunde).
   void narrate(String text, {bool force = false}) {
-    if (narrationOn.value || force) _say(text);
+    if (!(narrationOn.value || force)) return;
+    _expires[text] = DateTime.now().add(alertMaxAge);
+    _say(text);
   }
 
   bool _fast = false;
