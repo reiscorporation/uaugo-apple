@@ -12,6 +12,10 @@
     <!-- Modo carro (Android Auto): telas de navegação e desenho do trajeto. -->
     <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES"/>
     <uses-permission android:name="androidx.car.app.ACCESS_SURFACE"/>
+    <!-- Sem ID de publicidade: o Analytics vem com essas permissões, mas o
+         UauGo não usa anúncios nem coleta o ID (Play: "ID de publicidade" = Não). -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove"/>
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove"/>
     <application
         android:label="UauGo"
         android:name="${applicationName}"
