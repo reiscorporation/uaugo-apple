@@ -680,7 +680,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _me = p;
     } else {
       setState(() => _me = p);
-      _glideMeTo(LatLng(p.latitude, p.longitude));
+      _lead = _leadMeters(p);
+      _glideMeTo(_ahead(p.latitude, p.longitude, _bearing, _lead));
     }
     // Posição na rota: calculada uma vez por leitura e usada pela voz,
     // radares, limite da via e avisos à frente.
@@ -2731,7 +2732,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _bearingFrom = p;
     }
     if (_map == null || (!_follow && !force)) return;
-    final here = LatLng(p.latitude, p.longitude);
+    final here = _ahead(p.latitude, p.longitude, _bearing, _lead);
 
     if (_view == _MapView.solo) {
       // Primeira pessoa: moto na parte de baixo da tela, olhando a estrada.
@@ -2739,7 +2740,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
         // Quanto mais afastado o zoom, mais à frente fica o centro.
         target: _ahead(p.latitude, p.longitude, _bearing,
-            90 * pow(2, 18 - zoom).toDouble()),
+            90 * pow(2, 18 - zoom).toDouble() + _lead),
         zoom: zoom,
         tilt: 65,
         bearing: _bearing,
@@ -3364,6 +3365,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   DateTime _glideStart = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _glideTimer;
   static const _glideTime = Duration(milliseconds: 900);
+
+  /// Quanto o piloto já andou desde a leitura do GPS até o fim do deslize
+  /// (idade da leitura + tempo do deslize, na velocidade atual). Sem isso o
+  /// "Você" e a câmera ficavam ~1 s atrás do real (20–30 m na estrada).
+  /// Até 40 m; parado ou devagar (< 3 m/s), zero.
+  double _lead = 0;
+  double _leadMeters(Position p) {
+    final v = p.speed;
+    if (!v.isFinite || v < 3) return 0;
+    final age = DateTime.now().difference(p.timestamp).inMilliseconds / 1000;
+    final secs = age.clamp(0.0, 1.5) + _glideTime.inMilliseconds / 1000;
+    return (v * secs).clamp(0.0, 40.0).toDouble();
+  }
 
   void _glideMeTo(LatLng to) {
     final from = _shownMe;
