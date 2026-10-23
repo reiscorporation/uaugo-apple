@@ -137,7 +137,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool get _carMode =>
       _sim == null && _navigating && CarService.instance.connected.value;
 
-  /// O GPS atual é o econômico de segundo plano (com notificação fixa)?
+  /// O GPS atual roda no serviço com notificação fixa ("UauGo ativo")?
   bool _bgGps = false;
 
   /// Parado há tanto tempo em segundo plano = o piloto esqueceu o app aberto:
@@ -145,16 +145,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   static const _idleBackgroundLimit = Duration(minutes: 15);
   DateTime? _idleSince;
 
-  /// (Re)inicia o GPS: na tela (1 s, ou 2 s na economia) ou, com
-  /// [background], o econômico de segundo plano (15 s, notificação fixa).
-  void _startGps({bool background = false}) {
+  /// (Re)inicia o GPS (1 s, ou 2 s na economia). Quando o GPS deve seguir
+  /// com o app fora da tela ([_keepGpsInBackground]), já nasce no serviço com
+  /// notificação fixa, AINDA COM O APP NA TELA: no Android 14+ o serviço de
+  /// localização só pode começar com o app visível — ligado na saída do app
+  /// ("inactive"), o Android recusava (SecurityException) e o grupo deixava
+  /// de ver o piloto. Por isso ele também não é reiniciado ao sair.
+  void _startGps() {
     _gpsSub?.cancel();
     _idleSince = null;
-    _bgGps = background;
+    final service = _keepGpsInBackground;
+    _bgGps = service;
     _gpsSub = LocationService.track(
       saving: _saving,
-      background: background,
-      economical: !_carMode,
+      background: service,
+      economical: false,
       notificationText: 'Compartilhando sua localização com o comboio',
     ).listen(_onPosition, onError: (e) => _snack('GPS: $e'));
   }
@@ -204,16 +209,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // microfone em segundo plano sem um serviço próprio).
     _inBackground ? _voiceCmd.stop() : _voiceCmd.start();
     if (_sim == null) {
-      // O serviço de segundo plano tem de começar com o app ainda visível
-      // ("inactive"): o Android não deixa iniciá-lo depois de sair.
-      if (state == AppLifecycleState.inactive && _keepGpsInBackground && !_bgGps) {
-        _startGps(background: true);
-      }
+      // Saiu da tela: o GPS só continua se já está no serviço (comboio com
+      // a opção ligada, ou Android Auto); senão, desliga.
       final left = state == AppLifecycleState.paused ||
           state == AppLifecycleState.hidden;
-      if (left && !_keepGpsInBackground) _stopGps();
-      // De volta à tela: GPS normal, sem notificação fixa.
-      if (state == AppLifecycleState.resumed && (_gpsSub == null || _bgGps)) {
+      if (left && !_bgGps) _stopGps();
+      // De volta à tela: religa, ou troca de modo se a situação mudou.
+      if (state == AppLifecycleState.resumed &&
+          (_gpsSub == null || _bgGps != _keepGpsInBackground)) {
         _startGps();
       }
     }
@@ -664,6 +667,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// acontece aqui, nesta ordem. Veja docs/ARQUITETURA.md, seção 4.
   void _onPosition(Position p) {
     if (_sim == null) _checkIdleInBackground(p);
+    // Mudou a situação com o app na tela (entrou no comboio, ligou o Android
+    // Auto...): troca o GPS para/do serviço agora, enquanto o Android deixa.
+    if (_sim == null && !_inBackground && _bgGps != _keepGpsInBackground) {
+      Future.microtask(() {
+        if (mounted && !_inBackground) _startGps();
+      });
+    }
     // Minimizado / tela apagada: guarda a posição sem redesenhar a tela
     // (a voz, os avisos e a gravação continuam).
     if (_inBackground) {

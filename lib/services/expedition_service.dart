@@ -163,9 +163,10 @@ class ExpeditionService {
     StopType type = StopType.waypoint,
     int stayMin = 0,
     int? order,
+    WriteBatch? batch,
   }) {
     final ref = _exp(code).collection('stops').doc();
-    ref.set({
+    final data = {
       'name': name,
       'address': address,
       'lat': lat,
@@ -176,7 +177,8 @@ class ExpeditionService {
       'nextDayStart': '08:00',
       'order': order ?? DateTime.now().millisecondsSinceEpoch,
       'createdBy': uid,
-    });
+    };
+    batch == null ? ref.set(data) : batch.set(ref, data);
     return ref.id;
   }
 
@@ -194,8 +196,12 @@ class ExpeditionService {
   }) async {
     final at = insertIndexFor(current);
     final type = defaultTypeFor(current);
+    // Cria a parada e reordena NO MESMO lote: gravando separado, a
+    // reordenação podia chegar antes da criação ("No document to update")
+    // e o roteiro dizia que não salvou.
+    final batch = _db.batch();
     final id = addStop(code, uid, name, lat, lng,
-        address: address, type: type, order: at);
+        address: address, type: type, order: at, batch: batch);
     final list = [...current]..insert(
         at,
         Stop(
@@ -208,7 +214,12 @@ class ExpeditionService {
           address: address,
           type: type,
         ));
-    await reorderStops(code, list.map((s) => s.id).toList());
+    final ids = list.map((s) => s.id).toList();
+    for (var i = 0; i < ids.length; i++) {
+      if (ids[i] == id) continue; // a nova já nasce com a ordem certa
+      batch.update(_exp(code).collection('stops').doc(ids[i]), {'order': i});
+    }
+    await batch.commit();
     // Só a saída: ainda não há rota (calcula quando o destino entrar).
     if (list.length < 2) return true;
     return recalculateRoute(code, plan, list);

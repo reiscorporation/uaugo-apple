@@ -402,7 +402,7 @@ class SettingsScreen extends StatelessWidget {
               title: const Text('Compartilhar posição em segundo plano'),
               subtitle: const Text(
                   'Só no comboio: o grupo continua vendo você com o app fora '
-                  'da tela (GPS econômico, a cada 15 s). Desligado, o GPS para '
+                  'da tela (notificação "UauGo ativo"). Desligado, o GPS para '
                   'ao sair do app. Ligar aumenta o consumo de bateria.'),
               value: on,
               onChanged: s.setBackgroundShare,
