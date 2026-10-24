@@ -31,6 +31,7 @@ import '../services/toll_service.dart';
 import '../services/voice_service.dart';
 import '../services/trip_service.dart';
 import '../l10n/i18n.dart';
+import 'toll_confirm_sheet.dart';
 
 /// O que o piloto escolheu na prévia da viagem.
 enum TripAction { start, simulate }
@@ -421,6 +422,14 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
               // Pedágios: valor para o veículo ou aviso de valor não fornecido.
               for (final line in _tollLines(t))
                 Text(line, style: TextStyle(color: Colors.amber.shade800)),
+              // Valores estimados: o piloto confirma ou corrige (vale para todos).
+              if (_tollCost case final e? when e.list.any((p) => p.editable))
+                TextButton.icon(
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  icon: const Icon(Icons.fact_check_outlined, size: 18),
+                  label: Text(tr('Confirmar valores dos pedágios ({0} a confirmar)', [e.toConfirm])),
+                  onPressed: () => TollConfirmSheet.show(context, e.list),
+                ),
               if (_tripCost(t) case final cost?)
                 Text(
                     tr('💰 Custo estimado: {0} {1}', [formatMoney(cost), (_tollCost?.total ?? 0) > 0 ? tr('(combustível + pedágios)') : tr('(combustível)')]),

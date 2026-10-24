@@ -36,6 +36,7 @@ import '../logic/simulation.dart' show RouteWalker;
 import '../services/places_service.dart';
 import 'map_screen.dart';
 import '../l10n/i18n.dart';
+import '../widgets/toll_confirm_sheet.dart';
 
 /// Planejamento do roteiro: pontos, rota pelas estradas, horários e dias.
 /// O líder edita; os demais pilotos só visualizam e compartilham.
@@ -887,6 +888,15 @@ class _PlanHeader extends StatelessWidget {
                   : tr('🛣️ Pedágios: {0} ({1} {2}, estimado)', [formatMoney(tolls!.total), tolls!.plazas, tolls!.plazas == 1 ? tr('praça') : tr('praças')]),
               textAlign: TextAlign.center,
             ),
+          ),
+        if (s.stops.length >= 2 && tolls != null && tolls!.list.any((p) => p.editable))
+          Center(
+            child: TextButton.icon(
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  icon: const Icon(Icons.fact_check_outlined, size: 18),
+                  label: Text(tr('Confirmar valores dos pedágios ({0} a confirmar)', [tolls!.toConfirm])),
+                  onPressed: () => TollConfirmSheet.show(context, tolls!.list),
+                ),
           ),
         if (s.stops.length >= 2 &&
             tolls != null &&

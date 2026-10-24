@@ -401,3 +401,27 @@ describe("Alertas públicos", () => {
     await assertSucceeds(vote(db("carol"), "carol", false, removeVote())); // 5º
   });
 });
+
+describe("Valores de pedágio informados pelos pilotos", () => {
+  const ref = (d, uid) => doc(d, `tollReports/-22.51348,-48.90462/reports/${uid}`);
+  it("piloto com conta informa carro e moto", () =>
+    assertSucceeds(setDoc(ref(db("alice"), "alice"), { car: 9.1, moto: 4.55, at: serverTimestamp() })));
+  it("pode informar só a moto (0 = isenta)", () =>
+    assertSucceeds(setDoc(ref(db("alice"), "alice"), { moto: 0, at: serverTimestamp() })));
+  it("sem conta (anônimo) não informa", () =>
+    assertFails(setDoc(ref(anon("alice"), "alice"), { car: 9.1, at: serverTimestamp() })));
+  it("ninguém informa em nome de outro", () =>
+    assertFails(setDoc(ref(db("bob"), "alice"), { car: 9.1, at: serverTimestamp() })));
+  it("valor negativo ou absurdo é recusado", async () => {
+    await assertFails(setDoc(ref(db("alice"), "alice"), { car: -1, at: serverTimestamp() }));
+    await assertFails(setDoc(ref(db("alice"), "alice"), { car: 900, at: serverTimestamp() }));
+  });
+  it("campo extra é recusado", () =>
+    assertFails(setDoc(ref(db("alice"), "alice"), { car: 9.1, nome: "x", at: serverTimestamp() })));
+  it("relato vazio é recusado", () =>
+    assertFails(setDoc(ref(db("alice"), "alice"), { at: serverTimestamp() })));
+  it("cada um lê só o próprio relato", async () => {
+    await assertFails(getDoc(ref(db("bob"), "alice")));
+    await assertSucceeds(getDoc(ref(db("alice"), "alice")));
+  });
+});

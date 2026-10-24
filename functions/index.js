@@ -21,7 +21,7 @@
  * arquivo para meta/{radars,limits,pois}: o app só baixa quando muda.
  */
 
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError, onRequest: onHttpRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
@@ -618,25 +618,89 @@ exports.updateTolls = onSchedule(
 
 // ===================== Preços de pedágio (rotina semanal no n8n) ==========
 
+/**
+ * Valor de pedágio informado (ou confirmado) por um piloto no app:
+ * tollReports/{chave}/reports/{uid} = { car, moto, at }. Quando 2 pilotos
+ * diferentes informam valores parecidos (carro até 5% ou R$ 0,30 de
+ * diferença; moto igual, contando isenta = 0), o valor vira o da praça
+ * (tollPrices, method "usuarios") e a tabela do app é republicada. Praças
+ * com preço oficial da ANTT não aceitam relato.
+ */
+exports.onTollReport = onDocumentWritten(
+  { document: "tollReports/{key}/reports/{uid}", region },
+  async (event) => {
+    const key = event.params.key;
+    const since = Date.now() - 180 * 24 * 3600 * 1000;
+    const snap = await db.collection(`tollReports/${key}/reports`).get();
+    const reps = snap.docs
+      .map((d) => ({ uid: d.id, ...d.data() }))
+      .filter((r) => (r.at?.toMillis?.() || 0) > since)
+      .sort((a, b) => (b.at?.toMillis?.() || 0) - (a.at?.toMillis?.() || 0));
+    const near = (a, b) => a != null && b != null && Math.abs(a - b) <= Math.max(0.3, 0.05 * Math.max(a, b));
+    // O relato mais recente que tem outro piloto concordando.
+    const agree = (field) => {
+      for (const r of reps) {
+        if (r[field] == null) continue;
+        const group = reps.filter((o) => o[field] != null && near(o[field], r[field]));
+        if (new Set(group.map((o) => o.uid)).size >= 2) {
+          return Math.round((group.reduce((a, o) => a + o[field], 0) / group.length) * 10) / 10;
+        }
+      }
+      return undefined;
+    };
+    const car = agree("car");
+    const moto = agree("moto");
+    if (car === undefined && moto === undefined) return;
+    const data = await readTollTable();
+    const row = data.p.find((r) => plazaKey(r) === key.replace(/_/g, "/"));
+    if (!row) return;
+    const ref = db.doc(`tollPrices/${key}`);
+    const cur = (await ref.get()).data();
+    if (!cur && row[2] != null) return; // preço oficial (ANTT)
+    const newCar = car ?? cur?.car ?? null;
+    if (!(newCar > 0)) return;
+    await ref.set({
+      car: newCar,
+      moto: moto !== undefined ? moto : (cur?.moto ?? null),
+      found: true,
+      method: "usuarios",
+      estimated: false,
+      name: cur?.name || "",
+      source: "Confirmado por pilotos no UauGo",
+      checkedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    await applyTollPrices(data);
+    await writeTollTable(data);
+    console.log(`Pedágio ${key}: confirmado por usuários (carro ${newCar}, moto ${moto})`);
+  }
+);
+
 /** Chave da praça: posição do 1º ponto com 5 casas ("-22.12345,-47.12345"). */
 const plazaKey = (row) => `${Number(row[0]).toFixed(5)},${Number(row[1]).toFixed(5)}`;
 
 /**
- * Preenche, nas praças SEM preço da ANTT, o preço achado pela rotina
- * (tollPrices/{chave}). Moto: guarda a fração do carro (como na tabela).
- * Devolve quantas praças ganharam preço.
+ * Preenche as praças sem preço da ANTT com o de tollPrices/{chave} (rotina
+ * do n8n, planilha conferida pelo Ricardo ou confirmado pelos usuários).
+ * Moto: guarda a fração do carro (como na tabela). Refaz também as já
+ * preenchidas antes (o valor pode ter sido corrigido). As praças da ANTT
+ * não têm tollPrices e ficam como estão.
+ * data.s[chave] = "e" (estimado, a confirmar) ou "u" (confirmado por
+ * usuários); data.n[chave] = nome da praça. Devolve quantas preencheu.
  */
 async function applyTollPrices(data) {
   const snap = await db.collection("tollPrices").where("found", "==", true).get();
   const byKey = new Map(snap.docs.map((d) => [d.id, d.data()]));
+  data.s = {};
+  data.n = {};
   let n = 0;
   for (const row of data.p) {
-    if (row[2] != null) continue; // já tem preço da ANTT
-    const t = byKey.get(plazaKey(row));
+    const key = plazaKey(row);
+    const t = byKey.get(key);
     if (!t || !(t.car > 0)) continue;
     row[2] = Math.round(t.car * 100) / 100;
-    if (t.moto === 0) row[3] = 0;
-    else if (t.moto > 0) row[3] = Math.round((t.moto / t.car) * 100) / 100;
+    row[3] = t.moto === 0 ? 0 : (t.moto > 0 ? Math.round((t.moto / t.car) * 100) / 100 : null);
+    data.s[key] = t.method === "usuarios" ? "u" : "e";
+    if (t.name) data.n[key] = String(t.name).slice(0, 60);
     n++;
   }
   return n;
@@ -730,9 +794,13 @@ exports.tollPrices = onHttpRequest({ region, invoker: "public", timeoutSeconds: 
     const num = (v) => (typeof v === "number" && isFinite(v) && v >= 0 && v < 500 ? Math.round(v * 100) / 100 : null);
     const batch = db.batch();
     let saved = 0;
+    // Valores da planilha conferida ou confirmados pelos usuários não são
+    // trocados pela rotina automática.
+    const locked = new Set((await db.collection("tollPrices")
+      .where("method", "in", ["planilha", "usuarios"]).get()).docs.map((d) => d.id));
     for (const it of items) {
       const key = String(it?.key || "");
-      if (!keys.has(key)) continue;
+      if (!keys.has(key) || locked.has(key.replace(/\//g, "_"))) continue;
       const car = num(it.car);
       const moto = num(it.moto);
       batch.set(db.doc(`tollPrices/${key.replace(/\//g, "_")}`), {

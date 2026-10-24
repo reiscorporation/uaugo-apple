@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
@@ -79,6 +80,22 @@ class TollService {
     await cache.writeAsBytes(bytes, flush: true);
     await prefs.setInt(_kVersion, version);
     _table = parsed;
+  }
+
+  /// O piloto informa (ou confirma) o valor de uma praça: carro e moto em
+  /// R\$ (moto 0 = isenta; null = não sabe). Um relato por pessoa e praça;
+  /// vale para todos quando outro piloto informar valor parecido
+  /// (functions: onTollReport). Precisa de conta (não anônima).
+  Future<void> report(String key, {double? car, double? moto}) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw StateError('sem login');
+    await FirebaseFirestore.instance
+        .doc('tollReports/$key/reports/$uid')
+        .set({
+      'car': car,
+      'moto': moto,
+      'at': FieldValue.serverTimestamp(),
+    });
   }
 }
 

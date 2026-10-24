@@ -27,19 +27,57 @@ class TollPlaza {
   final double? moto;
   final double radius;
 
-  const TollPlaza(this.pts, this.car, this.moto, this.radius);
+  /// De onde vem o valor: oficial (ANTT), a confirmar (IA/planilha) ou
+  /// confirmado por pilotos.
+  final TollSource source;
+
+  /// Nome da praça, quando conhecido.
+  final String name;
+
+  const TollPlaza(this.pts, this.car, this.moto, this.radius,
+      {this.source = TollSource.official, this.name = ''});
+
+  /// Chave da praça no servidor: 1º ponto com 5 casas ("-22.12345,-47.12345").
+  String get key =>
+      '${pts.first.$1.toStringAsFixed(5)},${pts.first.$2.toStringAsFixed(5)}';
+
+  /// Valor que dá para confirmar/corrigir (não é o oficial da ANTT).
+  bool get editable => source != TollSource.official || car == null;
+
+  /// Moto em R\$ (null = não informado).
+  double? get motoValue => moto == null || car == null ? (moto == 0 ? 0 : null) : _round(car! * moto!);
 
   /// [lat, lng, carro, moto, raio, lat2, lng2, ...] (functions/tolls.js).
-  static TollPlaza? fromRow(List row) {
+  /// [status] e [names]: mapas "s" e "n" da tabela, pela chave da praça.
+  static TollPlaza? fromRow(List row,
+      [Map<String, dynamic> status = const {}, Map<String, dynamic> names = const {}]) {
     if (row.length < 5) return null;
     final pts = <(double, double)>[
       ((row[0] as num).toDouble(), (row[1] as num).toDouble()),
       for (var i = 5; i + 1 < row.length; i += 2)
         ((row[i] as num).toDouble(), (row[i + 1] as num).toDouble()),
     ];
+    final key = '${pts.first.$1.toStringAsFixed(5)},${pts.first.$2.toStringAsFixed(5)}';
+    final st = status[key];
     return TollPlaza(pts, (row[2] as num?)?.toDouble(), (row[3] as num?)?.toDouble(),
-        (row[4] as num?)?.toDouble() ?? 40);
+        (row[4] as num?)?.toDouble() ?? 40,
+        source: st == 'u'
+            ? TollSource.users
+            : (st == 'e' ? TollSource.estimated : TollSource.official),
+        name: (names[key] as String?) ?? '');
   }
+}
+
+/// Origem do valor de uma praça.
+enum TollSource {
+  /// Dados abertos da ANTT.
+  official,
+
+  /// Estimado (pesquisa automática ou planilha): pede confirmação.
+  estimated,
+
+  /// Confirmado por 2 ou mais pilotos.
+  users,
 }
 
 /// Tabela nacional de praças.
@@ -50,13 +88,17 @@ class TollTable {
   final String month;
   const TollTable(this.plazas, this.month);
 
-  factory TollTable.fromJson(Map<String, dynamic> j) => TollTable(
-      (j['p'] as List? ?? const [])
-          .whereType<List>()
-          .map(TollPlaza.fromRow)
-          .whereType<TollPlaza>()
-          .toList(),
-      (j['month'] ?? '') as String);
+  factory TollTable.fromJson(Map<String, dynamic> j) {
+    final st = (j['s'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+    final names = (j['n'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+    return TollTable(
+        (j['p'] as List? ?? const [])
+            .whereType<List>()
+            .map((r) => TollPlaza.fromRow(r, st, names))
+            .whereType<TollPlaza>()
+            .toList(),
+        (j['month'] ?? '') as String);
+  }
 
   /// Praças por onde a rota [line] passa, na ordem do caminho.
   List<TollPlaza> onRoute(List<(double, double)> line) {
@@ -132,13 +174,21 @@ class TollEstimate {
   /// conta metade (regra padrão da tabela da ANTT).
   final int motoAssumed;
 
+  /// As praças do caminho (na ordem), para confirmar/corrigir valores.
+  final List<TollPlaza> list;
+
   const TollEstimate({
     required this.plazas,
     required this.priced,
     required this.total,
     required this.free,
     this.motoAssumed = 0,
+    this.list = const [],
   });
+
+  /// Praças com valor a confirmar (estimado ou sem valor).
+  int get toConfirm =>
+      list.where((p) => p.source == TollSource.estimated || p.car == null).length;
 
   /// Todas as praças têm valor: dá para somar no custo da viagem.
   bool get complete => plazas > 0 && priced == plazas;
@@ -172,6 +222,7 @@ TollEstimate estimateTolls(List<TollPlaza> onRoute, BikeProfile bike) {
     total: total,
     free: free,
     motoAssumed: assumed,
+    list: onRoute,
   );
 }
 
@@ -185,7 +236,7 @@ List<String> describeTolls(TollEstimate e, BikeProfile bike, String Function(dou
   final n = e.plazas == 1 ? tr('1 praça') : tr('{0} praças', [e.plazas]);
   final noun = bike.style.noun;
   if (e.complete) {
-    if (e.total == 0) return ['🛣️ $n de pedágio: moto não paga nesta rota'];
+    if (e.total == 0) return [tr('🛣️ {0} de pedágio: moto não paga nesta rota', [n])];
     final freeNote = e.free > 0
         ? tr(' ({0} para moto)', [e.free == 1 ? tr('1 isenta') : tr('{0} isentas', [e.free])])
         : '';

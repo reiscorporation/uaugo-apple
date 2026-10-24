@@ -240,6 +240,22 @@ service cloud.firestore {
       return ['bump', 'fixedRadar', 'signal'];
     }
 
+    // Valor de pedágio informado/confirmado por um piloto (com conta): um
+    // relato por pessoa e praça; o servidor (onTollReport) junta os relatos.
+    match /tollReports/{plaza}/reports/{uid} {
+      function money(v) { return v == null || (v is number && v >= 0 && v < 500); }
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if hasAccount() && request.auth.uid == uid
+        && plaza.size() <= 40
+        && request.resource.data.keys().hasOnly(['car', 'moto', 'at'])
+        && money(request.resource.data.get('car', null))
+        && money(request.resource.data.get('moto', null))
+        && (request.resource.data.get('car', null) != null
+            || request.resource.data.get('moto', null) != null)
+        && request.resource.data.at == request.time;
+      allow delete: if false;
+    }
+
     match /hazards/{hazardId} {
       function voteRef() {
         return /databases/$(database)/documents/hazards/$(hazardId)/votes/$(request.auth.uid);

@@ -80,6 +80,7 @@ import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import '../l10n/i18n.dart';
+import '../widgets/toll_confirm_sheet.dart';
 
 /// Tela de mapa/navegação. Três usos:
 /// - expedição em grupo: [code] preenchido;
@@ -1087,14 +1088,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final next = nextAlert(d, done, thresholds);
       if (next == null) continue;
       _poiSpoken[poi.id] = next;
+      final plaza = toll && _tollTable != null
+          ? nearestPlaza(_tollTable!, poi.lat, poi.lng)
+          : null;
+      // Valor estimado (a confirmar): guarda para conferir na chegada; na
+      // simulação, já oferece conferir agora.
+      if (plaza != null && plaza.editable && !_tollsSeen.containsKey(plaza.key)) {
+        _tollsSeen[plaza.key] = plaza;
+        if (_sim != null) _offerTollCheck(plaza);
+      }
       // Pedágio: quanto o veículo paga, pela tabela (ANTT por praça); moto
       // sem informação = "não informado" (nunca afirma que paga).
       final tollNote = !toll
           ? ''
           : tollPlazaNote(
-              _tollTable == null
-                  ? null
-                  : nearestPlaza(_tollTable!, poi.lat, poi.lng),
+              plaza,
               _myBike,
               formatMoney,
               osmMotoFree: poi.kind == PoiKind.tollMotoFree);
@@ -1127,6 +1135,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       );
       return; // um aviso por vez
     }
+  }
+
+  /// Praças com valor a confirmar por onde o piloto passou nesta viagem.
+  final _tollsSeen = <String, TollPlaza>{};
+
+  /// Simulação: "Pedágio: carro R\$ X · moto R\$ Y. Está certo?" → conferir.
+  void _offerTollCheck(TollPlaza p) {
+    final money = p.car == null ? tr('Valor não informado') : tr('carro {0}', [formatMoney(p.car!)]);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 12),
+      content: Text(tr('🛣️ Pedágio: {0}. O valor está certo?', [money])),
+      action: SnackBarAction(
+        label: tr('Conferir'),
+        onPressed: () => TollConfirmSheet.show(context, [p]),
+      ),
+    ));
   }
 
   /// "Você chegou à metade do trajeto" (opção em Configurações).
@@ -4291,9 +4315,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Fala a opção atual e pergunta se inclui como parada.
   void _offerFound() {
     final f = _found[_foundIdx];
-    _voice.reply('${f.name}, a ${spokenDistance(f.meters)}'
-        '${f.onRoute ? ', no caminho' : ''}. '
-        '${_isExpedition ? 'No comboio, combine a parada com o líder.' : 'Adicionar como parada? Diga sim ou não.'}');
+    _voice.reply(tr('{0}, a {1}{2}. {3}', [
+      f.name,
+      spokenDistance(f.meters),
+      f.onRoute ? tr(', no caminho') : '',
+      _isExpedition
+          ? tr('No comboio, combine a parada com o líder.')
+          : tr('Adicionar como parada? Diga sim ou não.'),
+    ]));
   }
 
   /// "Não": oferece a próxima opção (ou encerra).
@@ -4889,6 +4918,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           title: Text(tr('🏁 Você chegou!')),
           content: Text(tr('{0}\n\nA navegação foi encerrada e a viagem ficou salva em "Minhas viagens".\n\nEsta tela fecha sozinha em 20 segundos.', [s.name])),
           actions: [
+            if (_tollsSeen.isNotEmpty)
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, 'tolls'),
+                  child: Text(tr('Conferir pedágios ({0})', [_tollsSeen.length]))),
             TextButton(
                 onPressed: () => Navigator.pop(ctx, 'stay'),
                 child: Text(tr('Ficar no mapa'))),
@@ -4902,6 +4935,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     autoClose = false;
     timer.cancel();
     if (!mounted) return;
+    if (choice == 'tolls') {
+      // Parado no destino: confere os pedágios da viagem e depois fecha.
+      await TollConfirmSheet.show(context, _tollsSeen.values.toList());
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
     if (choice == 'stay') {
       _startGps(); // só o mapa e os avisos, sem navegação
     } else {
