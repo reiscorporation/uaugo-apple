@@ -10,7 +10,6 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/i18n.dart';
@@ -18,6 +17,7 @@ import '../logic/costs.dart' show formatMoney;
 import '../logic/tolls.dart';
 import '../services/auth_service.dart';
 import '../services/toll_service.dart';
+import 'money_input.dart';
 
 class TollConfirmSheet extends StatefulWidget {
   const TollConfirmSheet({super.key, required this.plazas});
@@ -72,7 +72,7 @@ class _TollConfirmSheetState extends State<TollConfirmSheet> {
   }
 
   Future<void> _correct(TollPlaza p) async {
-    String fmt(double? v) => v == null ? '' : v.toStringAsFixed(2).replaceAll('.', I18n.isEn ? '.' : ',');
+    String fmt(double? v) => v == null ? '' : MoneyInputFormatter.format(v);
     final carCtl = TextEditingController(text: fmt(p.car));
     final motoCtl = TextEditingController(text: fmt(p.motoValue));
     double? parse(String s) {
@@ -87,15 +87,15 @@ class _TollConfirmSheetState extends State<TollConfirmSheet> {
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
             controller: carCtl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+            keyboardType: TextInputType.number,
+            inputFormatters: [MoneyInputFormatter()],
             decoration: InputDecoration(labelText: tr('Carro (R\$)'), hintText: '12,40'),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: motoCtl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+            keyboardType: TextInputType.number,
+            inputFormatters: [MoneyInputFormatter()],
             decoration: InputDecoration(
                 labelText: tr('Moto (R\$)'),
                 helperText: tr('0 se a moto for isenta; vazio se não souber')),

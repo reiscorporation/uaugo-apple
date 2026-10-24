@@ -18,6 +18,7 @@ import '../services/app_settings.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
 import '../l10n/i18n.dart';
+import '../widgets/money_input.dart';
 
 /// "Meu veículo": foto, marca, modelo, tipo, eixos/reboque e cor do marcador.
 class ProfileScreen extends StatefulWidget {
@@ -46,7 +47,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     final f = AppSettings.instance.fuel.value;
     if (f.kmPerLiter > 0) _kmlCtrl.text = formatDecimal(f.kmPerLiter);
-    if (f.pricePerLiter > 0) _priceCtrl.text = formatDecimal(f.pricePerLiter, 2);
+    if (f.pricePerLiter > 0) _priceCtrl.text = MoneyInputFormatter.format(f.pricePerLiter);
     ProfileService.load().then((b) {
       if (!mounted) return;
       setState(() {
@@ -306,8 +307,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Expanded(
                     child: TextField(
                       controller: _priceCtrl,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
+                      // Centavos automáticos: 629 → 6,29.
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [MoneyInputFormatter()],
                       decoration: InputDecoration(
                         labelText: tr('Preço do litro'),
                         prefixText: 'R\$ ',

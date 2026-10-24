@@ -14,6 +14,7 @@ import '../models/trip_record.dart';
 import '../services/app_settings.dart';
 import '../services/history_service.dart';
 import '../l10n/i18n.dart';
+import 'money_input.dart';
 
 /// Gastos de uma viagem de "Minhas viagens": estimativa de combustível,
 /// gastos registrados, total (e por pessoa, na expedição) e consumo real.
@@ -120,8 +121,9 @@ class TripExpensesCard extends StatelessWidget {
               TextField(
                 controller: value,
                 autofocus: true,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                // Centavos automáticos: 1250 → 12,50.
+                keyboardType: TextInputType.number,
+                inputFormatters: [MoneyInputFormatter()],
                 decoration: InputDecoration(
                     labelText: tr('Valor'), prefixText: 'R\$ '),
               ),
