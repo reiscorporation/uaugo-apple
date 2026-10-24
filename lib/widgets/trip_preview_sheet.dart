@@ -71,6 +71,9 @@ class TripPreviewSheet extends StatefulWidget {
 /// Recalcula a rota quando o piloto muda alguma opção.
 class _TripPreviewSheetState extends State<TripPreviewSheet> {
   Trip? _trip;
+
+  /// Rotas possíveis (a 1ª é a indicada); o piloto escolhe outra.
+  List<Trip> _options = const [];
   bool _loading = true;
   bool _tolls = false;
   bool _highways = false;
@@ -266,10 +269,13 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
       points: _points,
       avoidTolls: _tolls,
       avoidHighways: _highways,
+      // Sem paradas no meio: traz até 2 outras rotas para escolher.
+      alternatives: _points.length == 2,
     );
     if (!mounted) return;
     setState(() {
       _trip = t;
+      _options = t == null ? const [] : [t, ...t.alternatives.take(2)];
       _tollCost = null;
       _loading = false;
     });
@@ -404,6 +410,35 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
+              // Outras rotas (ex.: não quer ir pela Anhanguera).
+              if (_options.length > 1) ...[
+                const SizedBox(height: 6),
+                for (var i = 0; i < _options.length; i++)
+                  RadioListTile<Trip>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    value: _options[i],
+                    groupValue: t,
+                    onChanged: (v) {
+                      if (v == null) return;
+                      _cancelAuto();
+                      setState(() {
+                        _trip = v;
+                        _tollCost = null;
+                      });
+                      _calcTolls();
+                    },
+                    title: Text(
+                        _options[i].summary.isEmpty
+                            ? tr('Rota {0}', [i + 1])
+                            : tr('via {0}', [_options[i].summary]),
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(
+                        '${formatDuration(_options[i].durationS)} · ${formatDistance(_options[i].distanceM)}'
+                        '${i == 0 ? ' · ${tr('indicada')}' : ''}'),
+                  ),
+              ],
               // Com "Considerar o trânsito do momento" ligado.
               if (t.trafficDelayS >= 120)
                 Text(

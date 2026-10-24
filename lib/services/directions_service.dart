@@ -50,7 +50,17 @@ class RouteResult {
   /// A rota passa por estrada com pedágio (pelas instruções do Google).
   final bool hasToll;
   const RouteResult(this.polyline, this.legs, this.legSteps,
-      [this.riskCount = 0, this.hasToll = false]);
+      [this.riskCount = 0, this.hasToll = false, this.summary = '', this.alternatives = const []]);
+
+  /// Estrada principal ("SP-330", "Rod. Anhanguera"), para escolher a rota.
+  final String summary;
+
+  /// Outras rotas possíveis (só sem paradas no meio), da mais rápida à mais
+  /// lenta; vazias se o piloto não pediu opções.
+  final List<RouteResult> alternatives;
+
+  int get distanceM => legs.fold(0, (a, l) => a + l.distanceM);
+  int get durationS => legs.fold(0, (a, l) => a + l.durationS);
 }
 
 /// Traça a rota real pelas estradas passando por todas as paradas.
@@ -78,8 +88,11 @@ class DirectionsService {
     List<LatLng> points, {
     bool avoidTolls = false,
     bool avoidHighways = false,
+    bool alternatives = false,
   }) async {
     if (points.length < 2) return null;
+    // Opções de rota: só de um ponto a outro (o Google não dá alternativas
+    // com paradas no meio).
     final legs = <RouteLeg>[];
     final steps = <List<NavStep>>[];
     final path = <LatLng>[];
@@ -92,6 +105,13 @@ class DirectionsService {
               (h.lat, h.lng)
           ]
         : const <(double, double)>[];
+    if (alternatives && points.length == 2) {
+      return _request(points,
+          avoidTolls: avoidTolls,
+          avoidHighways: avoidHighways,
+          risks: riskPts,
+          alternatives: true);
+    }
     for (var i = 0; i < points.length - 1; i += _maxWaypoints + 1) {
       final end = (i + _maxWaypoints + 1).clamp(0, points.length - 1);
       final part = await _request(points.sublist(i, end + 1),
@@ -127,6 +147,7 @@ class DirectionsService {
     required bool avoidTolls,
     required bool avoidHighways,
     List<(double, double)> risks = const [],
+    bool alternatives = false,
   }) async {
     final prefs0 = AppSettings.instance.route.value;
     // Mesma rota pedida há pouco (ex.: abriu a prévia de novo): usa a
@@ -143,6 +164,7 @@ class DirectionsService {
       prefs0.liveTraffic,
       risks.length,
       I18n.lang.value, // manobras faladas no idioma do app
+      alternatives,
     ].join('|');
     final hit = _cache[key];
     final ttl = prefs0.liveTraffic
@@ -150,7 +172,10 @@ class DirectionsService {
         : const Duration(minutes: 30);
     if (hit != null && DateTime.now().difference(hit.$1) < ttl) return hit.$2;
     final r = await _requestServer(points,
-        avoidTolls: avoidTolls, avoidHighways: avoidHighways, risks: risks);
+        avoidTolls: avoidTolls,
+        avoidHighways: avoidHighways,
+        risks: risks,
+        alternatives: alternatives);
     if (r != null) {
       _cache[key] = (DateTime.now(), r);
       if (_cache.length > 30) _cache.remove(_cache.keys.first);
@@ -167,6 +192,7 @@ class DirectionsService {
     required bool avoidTolls,
     required bool avoidHighways,
     List<(double, double)> risks = const [],
+    bool alternatives = false,
   }) async {
     try {
       final prefs = AppSettings.instance.route.value;
@@ -179,7 +205,7 @@ class DirectionsService {
       // "Mais curta": pede alternativas e fica com a de menos km. (O Google
       // só devolve alternativas quando não há paradas no meio.)
       final shortest = prefs.preference == RoutePreference.shortest;
-      final wantAlternatives = shortest || risks.isNotEmpty;
+      final wantAlternatives = shortest || risks.isNotEmpty || alternatives;
       // A consulta passa pelo servidor (função "directions"), que guarda a
       // chave do Google: ela não fica dentro do app.
       final res = await _fn
@@ -215,48 +241,63 @@ class DirectionsService {
         if (ra != rb) return rb < ra ? b : a;
         return shortest && dist(b) < dist(a) ? b : a;
       });
-      final rawLegs = route['legs'] as List;
-      final legs = rawLegs
-          .map((l) => RouteLeg(
-                (l['distance']['value'] as num).toInt(),
-                // Com trânsito em tempo real, usa o tempo com trânsito.
-                ((l['duration_in_traffic'] ?? l['duration'])['value'] as num)
-                    .toInt(),
-                (l['duration']['value'] as num).toInt(),
-              ))
-          .toList();
-      final legSteps = rawLegs
-          .map((l) => (l['steps'] as List)
-              .map((s) => NavStep(
-                    (s['start_location']['lat'] as num).toDouble(),
-                    (s['start_location']['lng'] as num).toDouble(),
-                    cleanInstruction(s['html_instructions'] as String? ?? ''),
-                    (s['maneuver'] as String?) ?? '',
-                  ))
-              .where((s) => s.text.isNotEmpty)
-              .toList())
-          .toList();
-      // O "overview_polyline" é resumido (curvas viram retas). O traçado
-      // fiel vem de cada manobra; simplificamos com 4 m de tolerância.
-      final detailed = <LatLng>[];
-      for (final l in rawLegs) {
-        for (final s in l['steps'] as List) {
-          final enc = s['polyline']?['points'] as String?;
-          if (enc == null) continue;
-          final pts = decodePolyline(enc);
-          detailed.addAll(detailed.isEmpty ? pts : pts.skip(1));
-        }
-      }
-      final polyline = detailed.length >= 2
-          ? encodePolyline(simplifyPolyline(detailed, 4))
-          : route['overview_polyline']['points'] as String;
-      // "Estrada com pedágio" aparece nas instruções do Google.
-      final hasToll = rawLegs.any((l) => (l['steps'] as List).any((s) =>
-          (s['html_instructions'] as String? ?? '').contains('pedágio')));
-      return RouteResult(polyline, legs, legSteps, riskOf[route]!, hasToll);
+      final best = _parseRoute(route, riskOf[route]!);
+      if (!alternatives) return best;
+      // Opções para o piloto escolher (ex.: não quer ir pela Anhanguera).
+      final others = [
+        for (final r in routes)
+          if (!identical(r, route)) _parseRoute(r, riskOf[r]!)
+      ]..sort((x, y) => x.durationS.compareTo(y.durationS));
+      return RouteResult(best.polyline, best.legs, best.legSteps,
+          best.riskCount, best.hasToll, best.summary, others);
     } catch (_) {
       return null;
     }
+  }
+
+  /// Converte uma rota do Google em [RouteResult] (traçado fiel, trechos,
+  /// manobras, pedágio e a estrada principal).
+  static RouteResult _parseRoute(Map<String, dynamic> route, int risk) {
+    final rawLegs = route['legs'] as List;
+    final legs = rawLegs
+        .map((l) => RouteLeg(
+              (l['distance']['value'] as num).toInt(),
+              // Com trânsito em tempo real, usa o tempo com trânsito.
+              ((l['duration_in_traffic'] ?? l['duration'])['value'] as num)
+                  .toInt(),
+              (l['duration']['value'] as num).toInt(),
+            ))
+        .toList();
+    final legSteps = rawLegs
+        .map((l) => (l['steps'] as List)
+            .map((s) => NavStep(
+                  (s['start_location']['lat'] as num).toDouble(),
+                  (s['start_location']['lng'] as num).toDouble(),
+                  cleanInstruction(s['html_instructions'] as String? ?? ''),
+                  (s['maneuver'] as String?) ?? '',
+                ))
+            .where((s) => s.text.isNotEmpty)
+            .toList())
+        .toList();
+    // O "overview_polyline" é resumido (curvas viram retas). O traçado
+    // fiel vem de cada manobra; simplificamos com 4 m de tolerância.
+    final detailed = <LatLng>[];
+    for (final l in rawLegs) {
+      for (final s in l['steps'] as List) {
+        final enc = s['polyline']?['points'] as String?;
+        if (enc == null) continue;
+        final pts = decodePolyline(enc);
+        detailed.addAll(detailed.isEmpty ? pts : pts.skip(1));
+      }
+    }
+    final polyline = detailed.length >= 2
+        ? encodePolyline(simplifyPolyline(detailed, 4))
+        : route['overview_polyline']['points'] as String;
+    // "Estrada com pedágio" aparece nas instruções do Google.
+    final hasToll = rawLegs.any((l) => (l['steps'] as List).any((s) =>
+        (s['html_instructions'] as String? ?? '').contains(RegExp('pedágio|[Tt]oll'))));
+    return RouteResult(polyline, legs, legSteps, risk, hasToll,
+        (route['summary'] as String?) ?? '');
   }
 
   /// Coordenada no formato do Google: "-27.59,-48.54".

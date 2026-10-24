@@ -32,13 +32,32 @@ class Trip {
   /// A rota passa por estrada com pedágio.
   final bool hasToll;
 
+  /// Estrada principal da rota ("SP-330"), para o piloto escolher.
+  final String summary;
+
+  /// Outras rotas possíveis para o mesmo trajeto (só na prévia, sem paradas).
+  final List<Trip> alternatives;
+
   const Trip(
       {required this.title,
       required this.plan,
       required this.stops,
       this.typicalS,
       this.riskCount = 0,
-      this.hasToll = false});
+      this.hasToll = false,
+      this.summary = '',
+      this.alternatives = const []});
+
+  /// A mesma viagem com outra lista de opções (ao trocar a rota escolhida).
+  Trip withAlternatives(List<Trip> alts) => Trip(
+      title: title,
+      plan: plan,
+      stops: stops,
+      typicalS: typicalS,
+      riskCount: riskCount,
+      hasToll: hasToll,
+      summary: summary,
+      alternatives: alts);
 
   int get distanceM => stops.fold(0, (a, s) => a + s.legDistanceM);
   int get durationS => stops.fold(0, (a, s) => a + s.legDurationS);

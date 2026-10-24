@@ -32,14 +32,26 @@ class TripService {
     required List<TripPoint> points,
     bool avoidTolls = false,
     bool avoidHighways = false,
+    bool alternatives = false,
   }) async {
     if (points.length < 2) return null;
     final r = await DirectionsService.detailedRoute(
       [for (final p in points) LatLng(p.lat, p.lng)],
       avoidTolls: avoidTolls,
       avoidHighways: avoidHighways,
+      alternatives: alternatives,
     );
     if (r == null || r.legs.length != points.length - 1) return null;
+    return _fromRoute(r, title, points, avoidTolls, avoidHighways, [
+      for (final a in r.alternatives)
+        if (a.legs.length == points.length - 1)
+          _fromRoute(a, title, points, avoidTolls, avoidHighways, const [])
+    ]);
+  }
+
+  /// Monta a viagem a partir de uma rota calculada.
+  static Trip _fromRoute(RouteResult r, String title, List<TripPoint> points,
+      bool avoidTolls, bool avoidHighways, List<Trip> alternatives) {
     final stops = <Stop>[
       for (var i = 0; i < points.length; i++)
         Stop(
@@ -61,6 +73,8 @@ class TripService {
       typicalS: r.legs.fold<int>(0, (a, l) => a + l.typicalS),
       riskCount: r.riskCount,
       hasToll: r.hasToll,
+      summary: r.summary,
+      alternatives: alternatives,
       title: title,
       plan: TripPlan(
         polyline: r.polyline,

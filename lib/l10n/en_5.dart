@@ -60,4 +60,7 @@ const en5 = <String, String>{
   'Editar': 'Edit',
   '{0} (definir)': '{0} (set)',
   '{0} salvo.': '{0} saved.',
+  'Rota {0}': 'Route {0}',
+  'via {0}': 'via {0}',
+  'indicada': 'recommended',
 };
