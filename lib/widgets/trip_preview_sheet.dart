@@ -57,9 +57,13 @@ class TripPreviewSheet extends StatefulWidget {
           {required String title,
           required List<TripPoint> points,
           bool autoStart = false}) =>
+      // Tela cheia: o mapa com a rota atrás e o painel dos cálculos por
+      // cima (arrasta para baixo para ver a rota inteira).
       showModalBottomSheet<(TripAction, Trip)>(
         context: context,
         isScrollControlled: true,
+        useSafeArea: true,
+        enableDrag: false,
         builder: (_) => TripPreviewSheet(
             title: title, points: points, autoStart: autoStart),
       );
@@ -311,21 +315,169 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     return fuelLiters(t.distanceM.toDouble(), f.kmPerLiter) * f.pricePerLiter + tolls;
   }
 
+  // ---- Mapa da prévia (rota escolhida em azul, as outras em cinza)
+
+  GoogleMapController? _map;
+
+  /// Fração da tela ocupada pelo painel (para o mapa não esconder a rota).
+  double _sheetFrac = 0.6;
+  String _fittedSig = '';
+
+  Set<Polyline> _routeLines() {
+    final t = _trip;
+    if (t == null) return const {};
+    return {
+      for (var i = 0; i < _options.length; i++)
+        if (!identical(_options[i], t))
+          Polyline(
+            polylineId: PolylineId('alt$i'),
+            points: decodePolyline(_options[i].plan.polyline),
+            color: Colors.grey.shade500,
+            width: 6,
+            consumeTapEvents: true,
+            onTap: () => _chooseRoute(_options[i]),
+          ),
+      Polyline(
+        polylineId: const PolylineId('route'),
+        points: decodePolyline(t.plan.polyline),
+        color: const Color(0xFF1A73E8),
+        width: 7,
+        zIndex: 2,
+      ),
+    };
+  }
+
+  Set<Marker> _routeMarkers() => {
+        if (_points.isNotEmpty)
+          Marker(
+              markerId: const MarkerId('from'),
+              position: LatLng(_points.first.lat, _points.first.lng),
+              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure)),
+        if (_points.length > 1)
+          Marker(
+              markerId: const MarkerId('to'),
+              position: LatLng(_points.last.lat, _points.last.lng)),
+      };
+
+  /// Enquadra a rota (e as alternativas) no espaço livre acima do painel.
+  void _fitRoute() {
+    final t = _trip, m = _map;
+    if (t == null || m == null) return;
+    final sig = '${t.plan.polyline.hashCode}-${_options.length}';
+    if (sig == _fittedSig) return;
+    _fittedSig = sig;
+    final pts = [
+      for (final o in _options.isEmpty ? [t] : _options) ...decodePolyline(o.plan.polyline)
+    ];
+    if (pts.length < 2) return;
+    var s = pts.first.latitude, n = s, w = pts.first.longitude, e = w;
+    for (final p in pts) {
+      s = p.latitude < s ? p.latitude : s;
+      n = p.latitude > n ? p.latitude : n;
+      w = p.longitude < w ? p.longitude : w;
+      e = p.longitude > e ? p.longitude : e;
+    }
+    m.animateCamera(CameraUpdate.newLatLngBounds(
+        LatLngBounds(southwest: LatLng(s, w), northeast: LatLng(n, e)), 48));
+  }
+
+  /// O piloto escolheu outra rota (na lista ou tocando a linha cinza).
+  void _chooseRoute(Trip v) {
+    _cancelAuto();
+    setState(() {
+      _trip = v;
+      _tollCost = null;
+    });
+    _calcTolls();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final h = MediaQuery.of(context).size.height;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fitRoute());
+    return Stack(children: [
+      Positioned.fill(
+        child: GoogleMap(
+          initialCameraPosition: CameraPosition(
+              target: LatLng(_points.first.lat, _points.first.lng), zoom: 9),
+          onMapCreated: (c) {
+            _map = c;
+            _fittedSig = '';
+            _fitRoute();
+          },
+          polylines: _routeLines(),
+          markers: _routeMarkers(),
+          zoomControlsEnabled: false,
+          mapToolbarEnabled: false,
+          myLocationButtonEnabled: false,
+          // A rota fica no espaço acima do painel.
+          padding: EdgeInsets.only(bottom: h * _sheetFrac),
+        ),
+      ),
+      // Fechar (o painel não fecha arrastando, para poder ver o mapa).
+      Positioned(
+        top: 8,
+        left: 8,
+        child: FloatingActionButton.small(
+          heroTag: 'previewClose',
+          tooltip: tr('Fechar'),
+          onPressed: () => Navigator.pop(context),
+          child: const Icon(Icons.close),
+        ),
+      ),
+      NotificationListener<DraggableScrollableNotification>(
+        onNotification: (n) {
+          if ((n.extent - _sheetFrac).abs() > 0.05) {
+            setState(() => _sheetFrac = n.extent);
+          }
+          return false;
+        },
+        child: DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.16,
+          maxChildSize: 0.95,
+          snap: true,
+          // No mínimo, só baixa (mostra o mapa); não fecha a prévia.
+          shouldCloseOnMinExtent: false,
+          builder: (ctx, scroll) => Material(
+            elevation: 8,
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            clipBehavior: Clip.antiAlias,
+            child: _details(scroll),
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  /// Painel com os cálculos da rota (tempo, km, pedágio, custo, opções).
+  Widget _details(ScrollController scroll) {
     final theme = Theme.of(context);
     final t = _trip;
     final eta = t == null
         ? null
         : (_departAt ?? DateTime.now()).add(Duration(seconds: t.durationS));
-    // Rolável: com várias paradas a prévia pode passar da altura da tela.
     return SafeArea(
+      top: false,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        controller: scroll,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Alça: arraste para baixo para ver a rota no mapa.
+            Center(
+              child: Container(
+                width: 40,
+                height: 5,
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                    color: theme.colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(3)),
+              ),
+            ),
             Row(children: [
               const Icon(Icons.flag, color: Colors.red),
               const SizedBox(width: 8),
@@ -421,13 +573,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                     value: _options[i],
                     groupValue: t,
                     onChanged: (v) {
-                      if (v == null) return;
-                      _cancelAuto();
-                      setState(() {
-                        _trip = v;
-                        _tollCost = null;
-                      });
-                      _calcTolls();
+                      if (v != null) _chooseRoute(v);
                     },
                     title: Text(
                         _options[i].summary.isEmpty
