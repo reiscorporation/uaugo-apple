@@ -42,12 +42,16 @@ async function main() {
 
   const edit = await call("POST", `${API}/edits`, "{}", { "content-type": "application/json" });
   console.log("Edição aberta:", edit.id);
-  const bundle = await call(
-    "POST",
-    `${UPLOAD}/edits/${edit.id}/bundles?uploadType=media`,
-    fs.readFileSync(aab),
-    { "content-type": "application/octet-stream" },
-  );
+  // PLAY_VERSION_CODE: pacote já enviado antes (ex.: mesma versão em outra
+  // faixa); não envia de novo.
+  const bundle = process.env.PLAY_VERSION_CODE
+    ? { versionCode: Number(process.env.PLAY_VERSION_CODE) }
+    : await call(
+      "POST",
+      `${UPLOAD}/edits/${edit.id}/bundles?uploadType=media`,
+      fs.readFileSync(aab),
+      { "content-type": "application/octet-stream" },
+    );
   console.log("Pacote enviado: código de versão", bundle.versionCode);
   await call(
     "PUT",
