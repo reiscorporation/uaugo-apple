@@ -3923,6 +3923,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ]),
         ),
 
+        // Controles da música (pílula compacta que o piloto arrasta).
+        if (_sim == null)
+          Positioned.fill(
+            child: LayoutBuilder(builder: (_, box) => _musicPill(box.biggest)),
+          ),
+
         // Controles da simulação (pausar, velocidade, linha do tempo)
         if (_sim != null)
           Positioned(left: 8, right: 8, bottom: 16, child: _simControls()),
@@ -3934,7 +3940,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           right: landscape ? null : 0,
           bottom: _sim != null ? 196 : 96,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            if (_sim == null) _miniPlayer(),
             if (!_follow && _me != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -4114,7 +4119,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
             ],
-            // Música: some quando o mini player está na tela.
+            // Música: botão que libera/abre o app; tocando, vira os controles
+            // compactos (sem tampar o mapa).
             if (_sim == null)
               ValueListenableBuilder<MediaState?>(
                 valueListenable: MediaService.instance.state,
@@ -5057,63 +5063,93 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Mini player da música (Spotify e outros), quando a opção está ligada e
-  /// há algo tocando: capa, música e anterior / tocar-pausar / próxima.
-  Widget _miniPlayer() => ValueListenableBuilder<MediaState?>(
+  /// Posição da pílula de música (fração da área do mapa); o piloto
+  /// arrasta e ela fica guardada no celular.
+  Offset _musicPos = const Offset(0.5, 0.18);
+  bool _musicPosLoaded = false;
+  static const _musicPillSize = Size(168, 56);
+
+  Future<void> _loadMusicPos() async {
+    final p = await SharedPreferences.getInstance();
+    final x = p.getDouble('musicPillX'), y = p.getDouble('musicPillY');
+    if (x != null && y != null && mounted) setState(() => _musicPos = Offset(x, y));
+  }
+
+  /// Pílula compacta da música tocando: capa (toque = tocar/pausar; segurar
+  /// mostra a música), anterior e próxima. Arrastável para qualquer canto.
+  Widget _musicPill(Size area) => ValueListenableBuilder<MediaState?>(
         valueListenable: MediaService.instance.state,
         builder: (_, m, __) {
           if (m == null || m.title.isEmpty) return const SizedBox.shrink();
+          if (!_musicPosLoaded) {
+            _musicPosLoaded = true;
+            _loadMusicPos();
+          }
+          final w = _musicPillSize.width, h = _musicPillSize.height;
+          final maxX = (area.width - w).clamp(0.0, double.infinity);
+          final maxY = (area.height - h).clamp(0.0, double.infinity);
+          final left = (_musicPos.dx * area.width - w / 2).clamp(0.0, maxX);
+          final top = (_musicPos.dy * area.height - h / 2).clamp(0.0, maxY);
           final scheme = Theme.of(context).colorScheme;
           Widget btn(IconData i, String c, String tip) => IconButton(
                 tooltip: tip,
-                iconSize: 30,
-                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                iconSize: 26,
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
                 onPressed: () => MediaService.instance.command(c),
                 icon: Icon(i),
               );
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Material(
-              elevation: 6,
-              color: scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(16),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 340),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: m.art != null
-                          ? Image.memory(m.art!, width: 40, height: 40, gaplessPlayback: true)
-                          : const SizedBox(width: 40, height: 40, child: Icon(Icons.music_note)),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(m.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.w700)),
-                            if (m.artist.isNotEmpty)
-                              Text(m.artist,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall),
-                          ]),
-                    ),
-                    btn(Icons.skip_previous, 'previous', tr('Anterior')),
-                    btn(m.playing ? Icons.pause : Icons.play_arrow, 'toggle',
-                        m.playing ? tr('Pausar') : tr('Tocar')),
-                    btn(Icons.skip_next, 'next', tr('Próxima')),
-                  ]),
+          return Stack(children: [
+            Positioned(
+              left: left,
+              top: top,
+              child: GestureDetector(
+                onPanUpdate: (d) => setState(() => _musicPos = Offset(
+                    ((left + w / 2 + d.delta.dx) / area.width).clamp(0.0, 1.0),
+                    ((top + h / 2 + d.delta.dy) / area.height).clamp(0.0, 1.0))),
+                onPanEnd: (_) async {
+                  final p = await SharedPreferences.getInstance();
+                  await p.setDouble('musicPillX', _musicPos.dx);
+                  await p.setDouble('musicPillY', _musicPos.dy);
+                },
+                child: Material(
+                  elevation: 6,
+                  color: scheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(h / 2),
+                  child: SizedBox(
+                    width: w,
+                    height: h,
+                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                      btn(Icons.skip_previous, 'previous', tr('Anterior')),
+                      Tooltip(
+                        message: m.artist.isEmpty ? m.title : '${m.title} · ${m.artist}',
+                        triggerMode: TooltipTriggerMode.longPress,
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () => MediaService.instance.command('toggle'),
+                          child: ClipOval(
+                            child: SizedBox(
+                              width: 44,
+                              height: 44,
+                              child: Stack(fit: StackFit.expand, children: [
+                                if (m.art != null)
+                                  Image.memory(m.art!, fit: BoxFit.cover, gaplessPlayback: true)
+                                else
+                                  ColoredBox(color: scheme.primaryContainer),
+                                Container(color: Colors.black.withValues(alpha: m.art != null ? 0.35 : 0)),
+                                Icon(m.playing ? Icons.pause : Icons.play_arrow,
+                                    size: 28, color: m.art != null ? Colors.white : scheme.onPrimaryContainer),
+                              ]),
+                            ),
+                          ),
+                        ),
+                      ),
+                      btn(Icons.skip_next, 'next', tr('Próxima')),
+                    ]),
+                  ),
                 ),
               ),
             ),
-          );
+          ]);
         },
       );
 
