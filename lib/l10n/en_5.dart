@@ -49,4 +49,8 @@ const en5 = <String, String>{
   'Nenhum app de música encontrado no celular.': 'No music app found on the phone.',
   'Para ver a música e usar anterior, tocar/pausar e próxima sem sair do mapa, libere o UauGo em "Acesso a notificações" na próxima tela. O UauGo só vê a música que está tocando; nada sai do celular.': 'To see the song and use previous, play/pause and next without leaving the map, allow UauGo in "Notification access" on the next screen. UauGo only sees the music that is playing; nothing leaves the phone.',
   'Liberar': 'Allow',
+  'Norte para cima': 'North up',
+  'Seguindo a direção': 'Heading up',
+  'Mapa com o norte para cima': 'Map with north up',
+  'Mapa seguindo a sua direção': 'Map following your heading',
 };

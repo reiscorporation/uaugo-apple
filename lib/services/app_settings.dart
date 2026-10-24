@@ -237,6 +237,15 @@ class AppSettings {
   /// precisa do "Acesso a notificações" do Android.
   final mediaControls = ValueNotifier<bool>(false);
 
+  /// Sentido do mapa na navegação: false = gira com a direção do piloto
+  /// (padrão, inclinado); true = norte sempre para cima (plano).
+  final northUp = ValueNotifier<bool>(false);
+
+  Future<void> setNorthUp(bool v) async {
+    northUp.value = v;
+    (await SharedPreferences.getInstance()).setBool('northUp', v);
+  }
+
   Future<void> setMediaControls(bool v) async {
     mediaControls.value = v;
     (await SharedPreferences.getInstance()).setBool('mediaControls', v);
@@ -311,6 +320,7 @@ class AppSettings {
         en != null && ep != null && ep.isNotEmpty ? (en, ep) : null;
     showTraffic.value = p.getBool('showTraffic') ?? true;
     mediaControls.value = p.getBool('mediaControls') ?? false;
+    northUp.value = p.getBool('northUp') ?? false;
     cleanTheme.value = p.getBool('cleanTheme') ?? false;
     accent.value = AppAccent.values
             .where((a) => a.name == p.getString('appAccent'))

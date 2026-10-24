@@ -18,7 +18,10 @@ class MediaState {
   final String artist;
   final bool playing;
   final Uint8List? art;
-  const MediaState(this.title, this.artist, this.playing, this.art);
+
+  /// Ícone do app que está tocando (Spotify, YouTube Music...).
+  final Uint8List? appIcon;
+  const MediaState(this.title, this.artist, this.playing, this.art, [this.appIcon]);
 }
 
 class MediaService {
@@ -34,8 +37,11 @@ class MediaService {
       final art = a.containsKey('art')
           ? a['art'] as Uint8List?
           : state.value?.art;
+      final icon = a.containsKey('appIcon')
+          ? a['appIcon'] as Uint8List?
+          : state.value?.appIcon;
       state.value = MediaState((a['title'] ?? '') as String,
-          (a['artist'] ?? '') as String, a['playing'] == true, art);
+          (a['artist'] ?? '') as String, a['playing'] == true, art, icon);
     });
   }
   static final instance = MediaService._();

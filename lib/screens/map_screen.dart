@@ -2751,6 +2751,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (_map == null || (!_follow && !force)) return;
     final here = _ahead(p.latitude, p.longitude, _bearing, _lead);
 
+    if (_view == _MapView.solo && AppSettings.instance.northUp.value) {
+      // Norte para cima: mapa plano, sem girar, centrado no piloto.
+      _moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
+        target: here,
+        zoom: (17 + _zoomOffset).clamp(12.0, 20.0),
+        tilt: 0,
+        bearing: 0,
+      )));
+      return;
+    }
+
     if (_view == _MapView.solo) {
       // Primeira pessoa: moto na parte de baixo da tela, olhando a estrada.
       final zoom = (18 + _zoomOffset).clamp(12.0, 20.0);
@@ -3920,6 +3931,42 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   onTap: _openPlan,
                 ),
               ),
+            // Música (como no Waze): ícone redondo à direita, logo abaixo das
+            // faixas — o do app que está tocando (abre/fecha os controles) ou
+            // o de liberar/abrir.
+            if (_sim == null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: ValueListenableBuilder<MediaState?>(
+                    valueListenable: MediaService.instance.state,
+                    builder: (_, m, __) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: m != null && m.title.isNotEmpty
+                          // Tocando: ícone redondo do app (Spotify...); o toque
+                          // abre/fecha os controles.
+                          ? FloatingActionButton.small(
+                              heroTag: 'music',
+                              tooltip: m.artist.isEmpty ? m.title : '${m.title} · ${m.artist}',
+                              shape: const CircleBorder(),
+                              clipBehavior: Clip.antiAlias,
+                              backgroundColor: Colors.white,
+                              onPressed: () => setState(() => _musicOpen = !_musicOpen),
+                              child: m.appIcon != null
+                                  ? Image.memory(m.appIcon!, width: 40, height: 40, gaplessPlayback: true)
+                                  : const Icon(Icons.music_note, color: Colors.black87),
+                            )
+                          : FloatingActionButton.small(
+                              heroTag: 'music',
+                              tooltip: tr('Música'),
+                              onPressed: _onMusicButton,
+                              child: const Icon(Icons.music_note),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
           ]),
         ),
 
@@ -3984,6 +4031,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 ),
                 const SizedBox(height: 10),
               ],
+              // Sentido do mapa (como nos outros apps): seguindo a direção ou
+              // norte para cima.
+              ValueListenableBuilder<bool>(
+                valueListenable: AppSettings.instance.northUp,
+                builder: (_, north, __) => FloatingActionButton.small(
+                  heroTag: 'heading',
+                  tooltip: north ? tr('Norte para cima') : tr('Seguindo a direção'),
+                  onPressed: () async {
+                    await AppSettings.instance.setNorthUp(!north);
+                    _snack(!north
+                        ? tr('Mapa com o norte para cima')
+                        : tr('Mapa seguindo a sua direção'));
+                    if (_me != null) _updateCamera(_me!, force: true);
+                  },
+                  child: north
+                      ? const Text('N', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18))
+                      : const Icon(Icons.navigation),
+                ),
+              ),
+              const SizedBox(height: 10),
               // Zoom: na mesma coluna do velocímetro, logo acima dele (assim
               // nunca fica atrás dele nem dos botões da direita).
               FloatingActionButton.small(
@@ -4119,23 +4186,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
             ],
-            // Música: botão que libera/abre o app; tocando, vira os controles
-            // compactos (sem tampar o mapa).
-            if (_sim == null)
-              ValueListenableBuilder<MediaState?>(
-                valueListenable: MediaService.instance.state,
-                builder: (_, m, __) => m != null && m.title.isNotEmpty
-                    ? const SizedBox.shrink()
-                    : Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: FloatingActionButton.small(
-                          heroTag: 'music',
-                          tooltip: tr('Música'),
-                          onPressed: _onMusicButton,
-                          child: const Icon(Icons.music_note),
-                        ),
-                      ),
-              ),
             ValueListenableBuilder<bool>(
               valueListenable: _voice.alertsOn,
               builder: (_, on, __) => FloatingActionButton.small(
@@ -5065,9 +5115,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Posição da pílula de música (fração da área do mapa); o piloto
   /// arrasta e ela fica guardada no celular.
-  Offset _musicPos = const Offset(0.5, 0.18);
+  /// null = ainda não arrastou: abre ao lado do ícone (alto, à direita).
+  Offset? _musicPos;
+
+  /// Controles da música abertos (o ícone do app abre e fecha).
+  bool _musicOpen = false;
   bool _musicPosLoaded = false;
-  static const _musicPillSize = Size(168, 56);
+  static const _musicPillSize = Size(212, 56);
 
   Future<void> _loadMusicPos() async {
     final p = await SharedPreferences.getInstance();
@@ -5075,12 +5129,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (x != null && y != null && mounted) setState(() => _musicPos = Offset(x, y));
   }
 
-  /// Pílula compacta da música tocando: capa (toque = tocar/pausar; segurar
-  /// mostra a música), anterior e próxima. Arrastável para qualquer canto.
+  /// Pílula compacta da música tocando (aberta pelo ícone do app): capa
+  /// (toque = tocar/pausar; segurar mostra a música), anterior, próxima e
+  /// fechar. Arrastável para qualquer canto.
   Widget _musicPill(Size area) => ValueListenableBuilder<MediaState?>(
         valueListenable: MediaService.instance.state,
         builder: (_, m, __) {
-          if (m == null || m.title.isEmpty) return const SizedBox.shrink();
+          if (m == null || m.title.isEmpty || !_musicOpen) return const SizedBox.shrink();
           if (!_musicPosLoaded) {
             _musicPosLoaded = true;
             _loadMusicPos();
@@ -5088,8 +5143,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           final w = _musicPillSize.width, h = _musicPillSize.height;
           final maxX = (area.width - w).clamp(0.0, double.infinity);
           final maxY = (area.height - h).clamp(0.0, double.infinity);
-          final left = (_musicPos.dx * area.width - w / 2).clamp(0.0, maxX);
-          final top = (_musicPos.dy * area.height - h / 2).clamp(0.0, maxY);
+          final pos = _musicPos;
+          final left = pos == null
+              ? (area.width - 6 - 48 - 8 - w).clamp(0.0, maxX)
+              : (pos.dx * area.width - w / 2).clamp(0.0, maxX);
+          final top = pos == null ? 8.0 : (pos.dy * area.height - h / 2).clamp(0.0, maxY);
           final scheme = Theme.of(context).colorScheme;
           Widget btn(IconData i, String c, String tip) => IconButton(
                 tooltip: tip,
@@ -5107,9 +5165,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     ((left + w / 2 + d.delta.dx) / area.width).clamp(0.0, 1.0),
                     ((top + h / 2 + d.delta.dy) / area.height).clamp(0.0, 1.0))),
                 onPanEnd: (_) async {
+                  final pos = _musicPos;
+                  if (pos == null) return;
                   final p = await SharedPreferences.getInstance();
-                  await p.setDouble('musicPillX', _musicPos.dx);
-                  await p.setDouble('musicPillY', _musicPos.dy);
+                  await p.setDouble('musicPillX', pos.dx);
+                  await p.setDouble('musicPillY', pos.dy);
                 },
                 child: Material(
                   elevation: 6,
@@ -5144,6 +5204,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         ),
                       ),
                       btn(Icons.skip_next, 'next', tr('Próxima')),
+                      IconButton(
+                        tooltip: tr('Fechar'),
+                        iconSize: 22,
+                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                        onPressed: () => setState(() => _musicOpen = false),
+                        icon: const Icon(Icons.close),
+                      ),
                     ]),
                   ),
                 ),

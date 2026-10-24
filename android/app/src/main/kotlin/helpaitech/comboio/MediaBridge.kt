@@ -41,6 +41,7 @@ class MediaBridge(private val ctx: Context, messenger: BinaryMessenger) {
     private var controller: MediaController? = null
     private var listening = false
     private var lastArtKey = ""
+    private var lastIconPkg = ""
 
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { list ->
         attach(list?.firstOrNull())
@@ -119,6 +120,7 @@ class MediaBridge(private val ctx: Context, messenger: BinaryMessenger) {
         controller?.unregisterCallback(callback)
         controller = c
         lastArtKey = ""
+        lastIconPkg = ""
         c?.registerCallback(callback, main)
         push()
     }
@@ -140,6 +142,20 @@ class MediaBridge(private val ctx: Context, messenger: BinaryMessenger) {
             "playing" to (c.playbackState?.state == PlaybackState.STATE_PLAYING),
             "app" to c.packageName,
         )
+        // Ícone do app que está tocando (Spotify...), só quando muda o app.
+        if (c.packageName != lastIconPkg) {
+            lastIconPkg = c.packageName
+            state["appIcon"] = try {
+                val d = ctx.packageManager.getApplicationIcon(c.packageName)
+                val bmp = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+                val cv = android.graphics.Canvas(bmp)
+                d.setBounds(0, 0, 96, 96)
+                d.draw(cv)
+                val out = ByteArrayOutputStream()
+                bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+                out.toByteArray()
+            } catch (_: Exception) { null }
+        }
         // Capa só quando muda a música (é o item mais pesado).
         val artKey = "$title|$artist"
         if (artKey != lastArtKey) {
