@@ -1,6 +1,6 @@
 # UauGo Privacy Policy
 
-Version 1.14, of 10/21/2026. This is an English translation provided for convenience; in case of any divergence, the Portuguese version prevails.
+Version 1.15, of 10/24/2026. This is an English translation provided for convenience; in case of any divergence, the Portuguese version prevails.
 
 This Policy explains which personal data the **UauGo** app ("App") processes, for what purpose, with whom it is shared, how long it is kept and how you exercise your rights, under the **Brazilian General Data Protection Law (Law 13,709/2018, "LGPD")**.
 
@@ -46,6 +46,9 @@ What can stay on your phone stays on your phone: **trip history, settings, phone
 
 **Notifications**
 - The phone's notification token (Firebase Cloud Messaging). Purpose: deliver group SOS and stops and club messages.
+
+**Music controls on the map (optional, off by default)**
+- If you turn it on in Settings and grant Android's **"Notification access"**, the App reads **only the music that is playing** (title, artist and cover, from apps such as Spotify, YouTube Music or Deezer) to show the mini player and send the previous / play-pause / next commands. This happens **only on the phone**: nothing is sent to our server or stored, and the App **does not read the content of your notifications**. You can turn the option off or remove the access in Android settings at any time. Legal basis: consent (art. 7, I).
 
 **Data that stays only on the phone**
 - Trip history (path, statistics, expenses), planned trips, settings, vehicle consumption, phone number, **license plate** (used only to warn about the São Paulo plate restriction) and **emergency contact** (name and WhatsApp, used only when you tap SOS). **We have no access to them.** Uninstalling the App deletes this data.

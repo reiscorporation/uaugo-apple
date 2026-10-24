@@ -1,6 +1,6 @@
 # Política de Privacidade do UauGo
 
-Versão 1.14, de 21/10/2026 (placa do veículo e contato de emergência, guardados só no celular; versão 1.13: estatísticas anônimas de uso e relatório de erros, que podem ser desligados; versão 1.12: alerta "veículo parado no acostamento" passa a ser automático, sem identificar o usuário; versão 1.11: pedidos falados livres interpretados por IA; versão 1.10: alerta opcional "veículo parado no acostamento"; versão 1.9: pesquisa de trajeto por voz, opcional; versão 1.8: a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano").
+Versão 1.15, de 24/10/2026 (controles de música no mapa, com o acesso a notificações usado só no celular; versão 1.14: placa do veículo e contato de emergência, guardados só no celular; versão 1.13: estatísticas anônimas de uso e relatório de erros, que podem ser desligados; versão 1.12: alerta "veículo parado no acostamento" passa a ser automático, sem identificar o usuário; versão 1.11: pedidos falados livres interpretados por IA; versão 1.10: alerta opcional "veículo parado no acostamento"; versão 1.9: pesquisa de trajeto por voz, opcional; versão 1.8: a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano").
 
 Esta Política explica quais dados pessoais o aplicativo **UauGo** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
@@ -46,6 +46,9 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 
 **Notificações**
 - Token de notificações do celular (Firebase Cloud Messaging). Finalidade: avisar SOS e paradas do grupo e mensagens do clube.
+
+**Controles de música no mapa (opcional, desligado por padrão)**
+- Se você ligar em Configurações e liberar o **"Acesso a notificações"** do Android, o App lê **só a música que está tocando** (título, artista e capa, de apps como Spotify, YouTube Music ou Deezer) para mostrar o mini player e enviar os comandos anterior / tocar-pausar / próxima. Isso acontece **apenas no celular**: nada é enviado ao nosso servidor nem guardado, e o App **não lê o conteúdo das suas notificações**. Você pode desligar a opção ou retirar o acesso nas configurações do Android a qualquer momento. Base legal: consentimento (art. 7º, I).
 
 **Dados que ficam só no celular**
 - Histórico de viagens (caminho, estatísticas, gastos), viagens planejadas, configurações, consumo do veículo, telefone, **placa do veículo** (usada só para avisar do rodízio) e **contato de emergência** (nome e WhatsApp, usado só quando você toca no SOS). **Não temos acesso a eles.** Desinstalar o App apaga esses dados.
