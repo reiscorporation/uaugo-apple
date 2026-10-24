@@ -3650,8 +3650,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
         ),
         actions: !_isExpedition
-            ? null
+            ? [if (_navigating && _sim == null) _exitNavButton()]
             : [
+          if (_navigating && _sim == null) _exitNavButton(),
           IconButton(
               icon: const Icon(Icons.route),
               tooltip: tr('Roteiro'),
@@ -3985,7 +3986,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         Positioned(
           left: landscape ? 210 : 0,
           right: landscape ? null : 0,
-          bottom: _sim != null ? 196 : 96,
+          bottom: _sim != null ? 196 : 28,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             if (!_follow && _me != null)
               Padding(
@@ -4132,24 +4133,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
         // Modo de visualização: Comboio (de cima) x Solo (primeira pessoa)
         if (_sim == null)
-        Positioned(
-          left: landscape ? 210 : 0,
-          right: landscape ? null : 0,
-          bottom: 28,
-          child: Center(
-            child: FloatingActionButton.extended(
-              heroTag: 'view',
-              tooltip: tr('Trocar visualização'),
-              onPressed: _toggleView,
-              icon: Icon(_view == _MapView.convoy
-                  ? Icons.groups_2
-                  : Icons.visibility),
-              label: Text(_view == _MapView.convoy ? 'COMBOIO' : 'SOLO',
-                  style: const TextStyle(fontWeight: FontWeight.w800)),
-            ),
-          ),
-        ),
-
         // Botão de reportar perigo (canto esquerdo)
         if (_sim == null)
         Positioned(
@@ -4186,6 +4169,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
             ],
+            // Visão (o "olho"): SOLO (primeira pessoa) ou COMBOIO (de cima).
+            FloatingActionButton.small(
+              heroTag: 'view',
+              tooltip: _view == _MapView.convoy
+                  ? tr('Visão: comboio (toque para solo)')
+                  : tr('Visão: solo (toque para comboio)'),
+              onPressed: _toggleView,
+              child: Icon(_view == _MapView.convoy ? Icons.groups_2 : Icons.visibility),
+            ),
+            const SizedBox(height: 12),
             ValueListenableBuilder<bool>(
               valueListenable: _voice.alertsOn,
               builder: (_, on, __) => FloatingActionButton.small(
@@ -5220,6 +5213,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         },
       );
 
+  /// "Encerrar" no canto superior (barra do título): pequeno, vermelho, só
+  /// o ícone de sair; pede confirmação ao tocar.
+  Widget _exitNavButton() => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: IconButton.filled(
+          tooltip: _justDriving ? tr('Sair do Dirigir agora?') : tr('Encerrar navegação'),
+          style: IconButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(40, 40)),
+          onPressed: _stopNavigation,
+          icon: Icon(_isExpedition ? Icons.close : Icons.logout, size: 22),
+        ),
+      );
+
   /// Botão grande de iniciar/encerrar (acima do botão Comboio/Solo).
   Widget? _tripButton() {
     if (_sim != null) {
@@ -5235,18 +5243,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
       );
     }
-    if (_navigating) {
-      // Pequeno, só o ícone de sair (pede confirmação ao tocar).
-      return IconButton.filled(
-        tooltip: tr('Encerrar navegação'),
-        style: IconButton.styleFrom(
-            backgroundColor: Colors.red.shade700,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(44, 44)),
-        onPressed: _stopNavigation,
-        icon: const Icon(Icons.logout, size: 22),
-      );
-    }
+    // Navegando, o "Encerrar" fica no canto de cima (_exitNavButton).
+    if (_navigating) return null;
     if (_isExpedition && _routeRecs.length >= 2) {
       return FilledButton.icon(
         style: FilledButton.styleFrom(

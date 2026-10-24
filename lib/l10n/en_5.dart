@@ -53,4 +53,6 @@ const en5 = <String, String>{
   'Seguindo a direção': 'Heading up',
   'Mapa com o norte para cima': 'Map with north up',
   'Mapa seguindo a sua direção': 'Map following your heading',
+  'Visão: comboio (toque para solo)': 'View: convoy (tap for solo)',
+  'Visão: solo (toque para comboio)': 'View: solo (tap for convoy)',
 };
