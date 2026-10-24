@@ -3623,8 +3623,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // o fechamento da tela derrubava o app (defeito do Flutter com o mapa).
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        // Topo mais alto: informações da viagem em 2 linhas, letra maior.
-        toolbarHeight: 84,
+        // Topo com as informações da viagem em 2 linhas, letra maior; deitado
+        // ou no "Dirigir agora" sem destino, uma linha só (sobra mapa).
+        toolbarHeight: landscape || _justDriving ? 52 : 84,
         // Toque no título: resumo da viagem (tempo, km, custo).
         title: GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -3639,13 +3640,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         ? tr('Simulação: {0}', [_trip?.title ?? ''])
                         : (_trip?.title ?? tr('Navegação')),
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 2),
-            Text(_isExpedition ? _expeditionSubtitle() : _etaText(),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600, height: 1.25)),
+                style: TextStyle(fontSize: landscape ? 16 : 19, fontWeight: FontWeight.bold)),
+            if (!_justDriving) ...[
+              if (!landscape) const SizedBox(height: 2),
+              Text(
+                  (_isExpedition ? _expeditionSubtitle() : _etaText())
+                      .replaceAll('\n', landscape ? ' · ' : '\n'),
+                  maxLines: landscape ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: landscape ? 13 : 15,
+                      fontWeight: FontWeight.w600,
+                      height: 1.25)),
+            ],
           ],
         ),
         ),
@@ -3690,6 +3697,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           myLocationButtonEnabled: false,
           zoomControlsEnabled: false,
           mapToolbarEnabled: false,
+          compassEnabled: false, // o sentido do mapa tem botão próprio
           // Trânsito do Google: vias em verde/laranja/vermelho (sem custo).
           // Na economia de bateria, sem trânsito e sem prédios 3D (menos
           // trabalho para o processador gráfico).
@@ -3720,7 +3728,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
         // Botões e faixas ficam acima da barra de navegação do Android
         // (no Samsung o app vai até a borda da tela).
-        Positioned.fill(child: SafeArea(top: false, child: Stack(children: [
+        // Laterais sem folga (deitado, a folga da câmera afastava os botões
+        // da borda); só a de baixo (barra do Android) é respeitada.
+        Positioned.fill(child: SafeArea(top: false, left: false, right: false, child: Stack(children: [
 
         // Faixas no topo: SOS do grupo + alerta de perigo próximo
         Positioned(
@@ -3932,40 +3942,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   onTap: _openPlan,
                 ),
               ),
-            // Música (como no Waze): ícone redondo à direita, logo abaixo das
-            // faixas — o do app que está tocando (abre/fecha os controles) ou
-            // o de liberar/abrir.
-            if (_sim == null)
+            // Música (como no Waze): em pé, ícone redondo à direita, logo abaixo
+            // das faixas; deitado, fica no topo da coluna da direita.
+            if (_sim == null && !landscape)
               Align(
                 alignment: Alignment.centerRight,
                 child: Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: ValueListenableBuilder<MediaState?>(
-                    valueListenable: MediaService.instance.state,
-                    builder: (_, m, __) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: m != null && m.title.isNotEmpty
-                          // Tocando: ícone redondo do app (Spotify...); o toque
-                          // abre/fecha os controles.
-                          ? FloatingActionButton.small(
-                              heroTag: 'music',
-                              tooltip: m.artist.isEmpty ? m.title : '${m.title} · ${m.artist}',
-                              shape: const CircleBorder(),
-                              clipBehavior: Clip.antiAlias,
-                              backgroundColor: Colors.white,
-                              onPressed: () => setState(() => _musicOpen = !_musicOpen),
-                              child: m.appIcon != null
-                                  ? Image.memory(m.appIcon!, width: 40, height: 40, gaplessPlayback: true)
-                                  : const Icon(Icons.music_note, color: Colors.black87),
-                            )
-                          : FloatingActionButton.small(
-                              heroTag: 'music',
-                              tooltip: tr('Música'),
-                              onPressed: _onMusicButton,
-                              child: const Icon(Icons.music_note),
-                            ),
-                    ),
-                  ),
+                  child: _musicButton(),
                 ),
               ),
           ]),
@@ -4169,6 +4153,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
             ],
+            if (_sim == null && landscape) _musicButton(),
             // Visão (o "olho"): SOLO (primeira pessoa) ou COMBOIO (de cima).
             FloatingActionButton.small(
               heroTag: 'view',
@@ -4234,20 +4219,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
             ],
-            FloatingActionButton(
-              heroTag: 'me',
-              onPressed: _centerOnMe,
-              tooltip: !_follow
-                  ? tr('Voltar a acompanhar')
-                  : _view == _MapView.convoy
-                      ? (_showAll ? tr('Mostrar só {0}', [_myBike.style.noun]) : tr('Mostrar o grupo todo'))
-                      : tr('Acompanhando'),
-              child: Icon(!_follow
-                  ? Icons.my_location
-                  : _view == _MapView.convoy
-                      ? (_showAll ? Icons.person_pin_circle : Icons.zoom_out_map)
-                      : Icons.navigation),
-            ),
+            // Só no COMBOIO: alterna "grupo todo" / "só o meu veículo" (ou volta
+            // a acompanhar). No SOLO não fazia nada; lá quem volta é o
+            // "Recentralizar".
+            if (_view == _MapView.convoy)
+              FloatingActionButton(
+                heroTag: 'me',
+                onPressed: _centerOnMe,
+                tooltip: !_follow
+                    ? tr('Voltar a acompanhar')
+                    : (_showAll ? tr('Mostrar só {0}', [_myBike.style.noun]) : tr('Mostrar o grupo todo')),
+                child: Icon(!_follow
+                    ? Icons.my_location
+                    : (_showAll ? Icons.person_pin_circle : Icons.zoom_out_map)),
+              ),
             if (_sim == null && _isExpedition) ...[
               const SizedBox(height: 16),
               // Pedidos ao grupo ("Preciso abastecer"...), acima do SOS.
@@ -5071,6 +5056,35 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _navSynced = false;
     sim.paused.value = false;
   }
+
+  /// Ícone de música: o do app que está tocando (abre/fecha os controles)
+  /// ou o de liberar/abrir o app de música.
+  Widget _musicButton() => ValueListenableBuilder<MediaState?>(
+        valueListenable: MediaService.instance.state,
+        builder: (_, m, __) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: m != null && m.title.isNotEmpty
+              // Tocando: ícone redondo do app (Spotify...); o toque
+              // abre/fecha os controles.
+              ? FloatingActionButton.small(
+                  heroTag: 'music',
+                  tooltip: m.artist.isEmpty ? m.title : '${m.title} · ${m.artist}',
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  backgroundColor: Colors.white,
+                  onPressed: () => setState(() => _musicOpen = !_musicOpen),
+                  child: m.appIcon != null
+                      ? Image.memory(m.appIcon!, width: 40, height: 40, gaplessPlayback: true)
+                      : const Icon(Icons.music_note, color: Colors.black87),
+                )
+              : FloatingActionButton.small(
+                  heroTag: 'music',
+                  tooltip: tr('Música'),
+                  onPressed: _onMusicButton,
+                  child: const Icon(Icons.music_note),
+                ),
+        ),
+      );
 
   /// Botão de música: sem a opção ou sem o acesso do Android, explica e leva
   /// à liberação; liberado e nada tocando, abre o app de música.
