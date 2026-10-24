@@ -61,6 +61,18 @@ class MediaBridge(private val ctx: Context, messenger: BinaryMessenger) {
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     result.success(null)
                 }
+                "openMusicApp" -> {
+                    // Abre o app de música do celular (o Android pergunta qual,
+                    // se houver mais de um).
+                    try {
+                        ctx.startActivity(Intent.makeMainSelectorActivity(
+                            Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        result.success(true)
+                    } catch (_: Exception) {
+                        result.success(false)
+                    }
+                }
                 "start" -> { start(); result.success(null) }
                 "stop" -> { stop(); result.success(null) }
                 "command" -> {

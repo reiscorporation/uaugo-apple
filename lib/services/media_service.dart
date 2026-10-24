@@ -62,6 +62,16 @@ class MediaService {
     if (_android) await _ch.invokeMethod('openSettings');
   }
 
+  /// Abre o app de música do celular. false = não há nenhum.
+  Future<bool> openMusicApp() async {
+    if (!_android) return false;
+    try {
+      return await _ch.invokeMethod<bool>('openMusicApp') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Começa / para de acompanhar a música (com o mapa na tela).
   Future<void> start() async {
     if (_android) await _ch.invokeMethod('start').catchError((_) => null);

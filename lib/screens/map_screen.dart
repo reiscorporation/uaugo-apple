@@ -4114,6 +4114,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
             ],
+            // Música: some quando o mini player está na tela.
+            if (_sim == null)
+              ValueListenableBuilder<MediaState?>(
+                valueListenable: MediaService.instance.state,
+                builder: (_, m, __) => m != null && m.title.isNotEmpty
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: FloatingActionButton.small(
+                          heroTag: 'music',
+                          tooltip: tr('Música'),
+                          onPressed: _onMusicButton,
+                          child: const Icon(Icons.music_note),
+                        ),
+                      ),
+              ),
             ValueListenableBuilder<bool>(
               valueListenable: _voice.alertsOn,
               builder: (_, on, __) => FloatingActionButton.small(
@@ -5005,6 +5021,40 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     setState(() => _simStarted = true);
     _navSynced = false;
     sim.paused.value = false;
+  }
+
+  /// Botão de música: sem a opção ou sem o acesso do Android, explica e leva
+  /// à liberação; liberado e nada tocando, abre o app de música.
+  Future<void> _onMusicButton() async {
+    final s = AppSettings.instance;
+    final access = await MediaService.instance.hasAccess();
+    if (!mounted) return;
+    if (s.mediaControls.value && access) {
+      await MediaService.instance.start();
+      if (!await MediaService.instance.openMusicApp() && mounted) {
+        _snack(tr('Nenhum app de música encontrado no celular.'));
+      }
+      return;
+    }
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('Controles de música no mapa')),
+        content: Text(tr('Para ver a música e usar anterior, tocar/pausar e próxima sem sair do mapa, libere o UauGo em "Acesso a notificações" na próxima tela. O UauGo só vê a música que está tocando; nada sai do celular.')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Agora não'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Liberar'))),
+        ],
+      ),
+    );
+    if (go != true) return;
+    await s.setMediaControls(true);
+    if (access) {
+      await MediaService.instance.start();
+    } else {
+      // Ao voltar para o app, _resumeWork liga o acompanhamento.
+      await MediaService.instance.openSettings();
+    }
   }
 
   /// Mini player da música (Spotify e outros), quando a opção está ligada e
