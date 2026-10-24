@@ -15,7 +15,8 @@ const path = require("path");
 const { GoogleAuth } = require(path.join(__dirname, "..", "functions", "node_modules", "google-auth-library"));
 
 const PACKAGE = "helpaitech.comboio";
-const TRACK = "internal";
+// Faixa: "internal" (teste interno, padrão) ou outra via PLAY_TRACK (ex.: "alpha" = teste fechado).
+const TRACK = process.env.PLAY_TRACK || "internal";
 const API = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE}`;
 const UPLOAD = `https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/${PACKAGE}`;
 
@@ -55,14 +56,14 @@ async function main() {
       track: TRACK,
       releases: [{
         versionCodes: [String(bundle.versionCode)],
-        status: "completed",
+        status: process.env.PLAY_STATUS || "completed", // "draft" no 1º lançamento de uma faixa nova
         releaseNotes: notes ? [{ language: "pt-BR", text: notes.slice(0, 500) }] : [],
       }],
     }),
     { "content-type": "application/json" },
   );
   await call("POST", `${API}/edits/${edit.id}:commit`, undefined);
-  console.log(`Publicado no teste interno (versão ${bundle.versionCode}).`);
+  console.log(`Publicado na faixa ${TRACK} (versão ${bundle.versionCode}).`);
 }
 
 main().catch((e) => {
