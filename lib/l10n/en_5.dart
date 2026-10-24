@@ -55,4 +55,9 @@ const en5 = <String, String>{
   'Mapa seguindo a sua direção': 'Map following your heading',
   'Visão: comboio (toque para solo)': 'View: convoy (tap for solo)',
   'Visão: solo (toque para comboio)': 'View: solo (tap for convoy)',
+  'Locais salvos ({0})': 'Saved places ({0})',
+  'Locais salvos': 'Saved places',
+  'Editar': 'Edit',
+  '{0} (definir)': '{0} (set)',
+  '{0} salvo.': '{0} saved.',
 };

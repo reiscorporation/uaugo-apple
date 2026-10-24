@@ -491,17 +491,25 @@ class _HomeScreenState extends State<HomeScreen> {
         valueListenable: SavedPlacesService.instance.places,
         builder: (_, list, __) => Padding(
           padding: const EdgeInsets.only(top: 8),
+          // Casa e Trabalho sempre à vista; os outros ficam em "Locais
+          // salvos" (com muitos, a tela inicial descia demais).
           child: Wrap(spacing: 8, runSpacing: 4, children: [
             _savedChip(savedHome, tr('Casa'), Icons.home),
             _savedChip(savedWork, tr('Trabalho'), Icons.work),
-            for (final p in list)
-              if (p.key != savedHome && p.key != savedWork)
-                _savedChip(p.key, p.name, Icons.star),
-            ActionChip(
-              avatar: const Icon(Icons.add, size: 18),
-              label: Text(tr('Salvar local')),
-              onPressed: _addSavedPlace,
-            ),
+            if (list.any((p) => p.key != savedHome && p.key != savedWork))
+              ActionChip(
+                avatar: const Icon(Icons.star, size: 18),
+                label: Text(tr('Locais salvos ({0})', [
+                  list.where((p) => p.key != savedHome && p.key != savedWork).length
+                ])),
+                onPressed: _showSavedPlaces,
+              )
+            else
+              ActionChip(
+                avatar: const Icon(Icons.add, size: 18),
+                label: Text(tr('Salvar local')),
+                onPressed: _addSavedPlace,
+              ),
           ]),
         ),
       );
@@ -512,13 +520,62 @@ class _HomeScreenState extends State<HomeScreen> {
       onLongPress: p == null ? null : () => _editSavedPlace(p),
       child: ActionChip(
         avatar: Icon(icon, size: 18),
-        label: Text(p == null ? '$name (definir)' : name),
+        label: Text(p == null ? tr('{0} (definir)', [name]) : name),
         onPressed: () => p == null
             ? _pickSavedPlace(key, name)
             : _whereTo(shared: SharedPlace(lat: p.lat, lng: p.lng, label: p.name)),
       ),
     );
   }
+
+  /// Lista dos outros locais salvos: tocar vai até lá; lápis edita;
+  /// "Salvar local" inclui um novo.
+  Future<void> _showSavedPlaces() => showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        builder: (ctx) => ValueListenableBuilder<List<SavedPlace>>(
+          valueListenable: SavedPlacesService.instance.places,
+          builder: (_, list, __) {
+            final others = [
+              for (final p in list)
+                if (p.key != savedHome && p.key != savedWork) p
+            ];
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
+              child: ListView(shrinkWrap: true, children: [
+                ListTile(title: Text(tr('Locais salvos'), style: Theme.of(ctx).textTheme.titleLarge)),
+                for (final p in others)
+                  ListTile(
+                    leading: const Icon(Icons.star),
+                    title: Text(p.name),
+                    subtitle: p.address.isEmpty ? null : Text(p.address, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _whereTo(shared: SharedPlace(lat: p.lat, lng: p.lng, label: p.name));
+                    },
+                    trailing: IconButton(
+                      tooltip: tr('Editar'),
+                      icon: const Icon(Icons.edit),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _editSavedPlace(p);
+                      },
+                    ),
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.add),
+                  title: Text(tr('Salvar local')),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _addSavedPlace();
+                  },
+                ),
+              ]),
+            );
+          },
+        ),
+      );
 
   /// Escolhe o endereço do local [key] e salva.
   Future<void> _pickSavedPlace(String key, String name) async {
@@ -535,7 +592,7 @@ class _HomeScreenState extends State<HomeScreen> {
         picked.address.isEmpty ? picked.name : picked.address, picked.lat, picked.lng));
     _snack(key == savedHome || key == savedWork
         ? tr('{0} salvo. Toque no atalho ou diga "UauGo, ir para {1}".', [name, key == savedHome ? 'casa' : 'o trabalho'])
-        : '$name salvo.');
+        : tr('{0} salvo.', [name]));
   }
 
   /// "Salvar local": pede o nome e o endereço.
