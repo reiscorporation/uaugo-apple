@@ -115,6 +115,17 @@
             android:name="flutterEmbedding"
             android:value="2" />
         <meta-data android:name="com.google.android.geo.API_KEY" android:value="AIzaSyCHMsi8HPQCSB-ukiWswncX7m-ogoJv6NQ"/>
+        <!-- Mini player: o Android só mostra as sessões de mídia (Spotify...)
+             a quem tem um serviço de notificações liberado pelo usuário. -->
+        <service
+            android:name=".MediaListenerService"
+            android:exported="true"
+            android:label="UauGo (controles de música)"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

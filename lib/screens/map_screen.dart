@@ -81,6 +81,7 @@ import 'profile_screen.dart';
 import 'settings_screen.dart';
 import '../l10n/i18n.dart';
 import '../widgets/toll_confirm_sheet.dart';
+import '../services/media_service.dart';
 
 /// Tela de mapa/navegação. Três usos:
 /// - expedição em grupo: [code] preenchido;
@@ -233,6 +234,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Saiu da tela: para relógios e escutas do Firestore (e guarda a viagem).
   void _pauseWork() {
+    MediaService.instance.stop();
     _ticker?.cancel();
     _rainTimer?.cancel();
     _trafficTimer?.cancel();
@@ -250,6 +252,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Voltou à tela: religa relógios e escutas.
   void _resumeWork() {
+    if (AppSettings.instance.mediaControls.value) MediaService.instance.start();
     _listenExpedition();
     _startTimers();
     BatteryService.instance.start();
@@ -402,6 +405,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    if (AppSettings.instance.mediaControls.value) MediaService.instance.start();
     if (_isExpedition) {
       _listenExpedition();
     } else {
@@ -577,6 +581,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    MediaService.instance.stop();
     _glideTimer?.cancel();
     for (final s in [..._subs, ..._fireSubs]) {
       s.cancel();
@@ -3929,6 +3934,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           right: landscape ? null : 0,
           bottom: _sim != null ? 196 : 96,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (_sim == null) _miniPlayer(),
             if (!_follow && _me != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -4817,6 +4823,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ? FittedBox(fit: BoxFit.scaleDown, alignment: alignment, child: child)
           : child;
 
+  /// "Dirigir agora" sem destino: só radares, perigos e velocidade.
+  bool get _justDriving => !_isExpedition && _trip == null && _sim == null;
+
   /// Rota em andamento: sair da tela pede confirmação.
   bool get _confirmExit =>
       _navigating && _sim == null && !_arrivedAtDestination;
@@ -4827,10 +4836,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(tr('Sair da navegação?')),
-        content: Text(_isExpedition
-            ? tr('A navegação até o destino será encerrada. Você continua no comboio e pode voltar ao mapa pela tela inicial.')
-            : tr('A rota até o destino será encerrada.')),
+        title: Text(_justDriving ? tr('Sair do Dirigir agora?') : tr('Sair da navegação?')),
+        content: Text(_justDriving
+            ? tr('Os avisos de radar, perigos e velocidade param.')
+            : _isExpedition
+                ? tr('A navegação até o destino será encerrada. Você continua no comboio e pode voltar ao mapa pela tela inicial.')
+                : tr('A rota até o destino será encerrada.')),
         actions: [
           FilledButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -4954,10 +4965,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(tr('Encerrar navegação?')),
-        content: Text(_isExpedition
-            ? tr('A narração e o painel de manobras param. Você continua no comboio, compartilhando a posição com o grupo.')
-            : tr('A navegação será encerrada.')),
+        title: Text(_justDriving ? tr('Sair do Dirigir agora?') : tr('Encerrar navegação?')),
+        content: Text(_justDriving
+            ? tr('Os avisos de radar, perigos e velocidade param.')
+            : _isExpedition
+                ? tr('A narração e o painel de manobras param. Você continua no comboio, compartilhando a posição com o grupo.')
+                : tr('A navegação será encerrada.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -4993,6 +5006,66 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _navSynced = false;
     sim.paused.value = false;
   }
+
+  /// Mini player da música (Spotify e outros), quando a opção está ligada e
+  /// há algo tocando: capa, música e anterior / tocar-pausar / próxima.
+  Widget _miniPlayer() => ValueListenableBuilder<MediaState?>(
+        valueListenable: MediaService.instance.state,
+        builder: (_, m, __) {
+          if (m == null || m.title.isEmpty) return const SizedBox.shrink();
+          final scheme = Theme.of(context).colorScheme;
+          Widget btn(IconData i, String c, String tip) => IconButton(
+                tooltip: tip,
+                iconSize: 30,
+                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                onPressed: () => MediaService.instance.command(c),
+                icon: Icon(i),
+              );
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Material(
+              elevation: 6,
+              color: scheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(16),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 340),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: m.art != null
+                          ? Image.memory(m.art!, width: 40, height: 40, gaplessPlayback: true)
+                          : const SizedBox(width: 40, height: 40, child: Icon(Icons.music_note)),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(m.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w700)),
+                            if (m.artist.isNotEmpty)
+                              Text(m.artist,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall),
+                          ]),
+                    ),
+                    btn(Icons.skip_previous, 'previous', tr('Anterior')),
+                    btn(m.playing ? Icons.pause : Icons.play_arrow, 'toggle',
+                        m.playing ? tr('Pausar') : tr('Tocar')),
+                    btn(Icons.skip_next, 'next', tr('Próxima')),
+                  ]),
+                ),
+              ),
+            ),
+          );
+        },
+      );
 
   /// Botão grande de iniciar/encerrar (acima do botão Comboio/Solo).
   Widget? _tripButton() {

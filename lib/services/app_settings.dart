@@ -233,6 +233,15 @@ class AppSettings {
   /// Camada de trânsito do Google no mapa (vias em verde/laranja/vermelho).
   final showTraffic = ValueNotifier<bool>(true);
 
+  /// Mini player da música (Spotify e outros) no mapa. Desligado por padrão:
+  /// precisa do "Acesso a notificações" do Android.
+  final mediaControls = ValueNotifier<bool>(false);
+
+  Future<void> setMediaControls(bool v) async {
+    mediaControls.value = v;
+    (await SharedPreferences.getInstance()).setBool('mediaControls', v);
+  }
+
   /// Estilo do app: false = Padrão (cores originais, azul-marinho e
   /// laranja); true = Clean (tudo claro).
   final cleanTheme = ValueNotifier<bool>(false);
@@ -301,6 +310,7 @@ class AppSettings {
     emergencyContact.value =
         en != null && ep != null && ep.isNotEmpty ? (en, ep) : null;
     showTraffic.value = p.getBool('showTraffic') ?? true;
+    mediaControls.value = p.getBool('mediaControls') ?? false;
     cleanTheme.value = p.getBool('cleanTheme') ?? false;
     accent.value = AppAccent.values
             .where((a) => a.name == p.getString('appAccent'))

@@ -43,6 +43,7 @@ import 'about_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 import '../l10n/i18n.dart';
+import '../services/calendar_service.dart';
 
 /// Tela inicial do app.
 class HomeScreen extends StatefulWidget {
@@ -431,12 +432,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           subtitle: Text(
                               tr('Saída {0} {1}', [formatDay(t.departAt), formatTime(t.departAt)])),
                           onTap: () => _openPlanned(t),
-                          trailing: IconButton(
-                            tooltip: tr('Apagar'),
-                            icon: const Icon(Icons.close),
-                            onPressed: () =>
-                                PlannedTripsService.instance.remove(t.id),
-                          ),
+                          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                            IconButton(
+                              tooltip: tr('Pôr na agenda'),
+                              icon: const Icon(Icons.event),
+                              onPressed: () => CalendarService.addTrip(
+                                  title: t.title,
+                                  departAt: t.departAt,
+                                  destination: t.points.isEmpty ? '' : t.points.last.name),
+                            ),
+                            IconButton(
+                              tooltip: tr('Apagar'),
+                              icon: const Icon(Icons.close),
+                              onPressed: () =>
+                                  PlannedTripsService.instance.remove(t.id),
+                            ),
+                          ]),
                         ),
                       ),
                   ],

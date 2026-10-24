@@ -24,6 +24,7 @@ import '../services/club_service.dart';
 import 'login_screen.dart';
 import 'terms_screen.dart';
 import '../l10n/i18n.dart';
+import '../services/media_service.dart';
 
 /// Escolher estados e baixar os dados para usar sem internet.
 class _OfflineScreen extends StatefulWidget {
@@ -471,6 +472,32 @@ class SettingsScreen extends StatelessWidget {
               ),
             );
             },
+          ),
+          // Mini player da música no mapa (precisa do acesso a notificações).
+          ValueListenableBuilder<bool>(
+            valueListenable: s.mediaControls,
+            builder: (_, on, __) => SwitchListTile(
+              secondary: const Icon(Icons.music_note),
+              title: Text(tr('Controles de música no mapa')),
+              subtitle: Text(tr('Spotify, YouTube Music, Deezer, rádio...: música, anterior, tocar/pausar e próxima sem sair do mapa. O Android pede para liberar o "Acesso a notificações" ao UauGo; nada sai do celular.')),
+              value: on,
+              onChanged: (v) async {
+                await s.setMediaControls(v);
+                if (!v || await MediaService.instance.hasAccess() || !context.mounted) return;
+                final go = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: Text(tr('Liberar acesso')),
+                    content: Text(tr('Na próxima tela, ative o UauGo em "Acesso a notificações". É assim que o Android deixa o app ver a música que está tocando. O UauGo não lê nem guarda suas notificações.')),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Agora não'))),
+                      FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Abrir'))),
+                    ],
+                  ),
+                );
+                if (go == true) await MediaService.instance.openSettings();
+              },
+            ),
           ),
           ValueListenableBuilder<bool>(
             valueListenable: s.showTraffic,

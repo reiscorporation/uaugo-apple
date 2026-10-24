@@ -32,6 +32,7 @@ import '../services/voice_service.dart';
 import '../services/trip_service.dart';
 import '../l10n/i18n.dart';
 import 'toll_confirm_sheet.dart';
+import '../services/calendar_service.dart';
 
 /// O que o piloto escolheu na prévia da viagem.
 enum TripAction { start, simulate }
@@ -107,8 +108,17 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     if (at == null) return;
     await PlannedTripsService.instance.add(widget.title, at, [..._points]);
     if (!mounted) return;
+    final dur = _trip == null ? null : Duration(seconds: _trip!.durationS);
+    final title = widget.title, dest = _points.last.name;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(tr('Viagem planejada salva. Ela aparece na tela inicial.'))));
+        duration: const Duration(seconds: 8),
+        content: Text(tr('Viagem planejada salva. Ela aparece na tela inicial.')),
+        // Lembrete com alarme na agenda do celular (sem permissão de agenda).
+        action: SnackBarAction(
+          label: tr('Pôr na agenda'),
+          onPressed: () => CalendarService.addTrip(
+              title: title, departAt: at, duration: dur, destination: dest),
+        )));
     Navigator.pop(context);
   }
 
