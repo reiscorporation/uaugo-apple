@@ -13,6 +13,7 @@ import 'dart:math';
 
 import '../models/bike.dart';
 import 'radars.dart' show distanceMeters;
+import '../l10n/i18n.dart';
 
 /// Uma praça de pedágio.
 class TollPlaza {
@@ -181,41 +182,38 @@ double _round(double v) => (v * 10).round() / 10;
 /// diz se o veículo paga nas praças sem valor).
 List<String> describeTolls(TollEstimate e, BikeProfile bike, String Function(double) money) {
   if (e.plazas == 0) return const [];
-  final n = e.plazas == 1 ? '1 praça' : '${e.plazas} praças';
+  final n = e.plazas == 1 ? tr('1 praça') : tr('{0} praças', [e.plazas]);
   final noun = bike.style.noun;
   if (e.complete) {
     if (e.total == 0) return ['🛣️ $n de pedágio: moto não paga nesta rota'];
     final freeNote = e.free > 0
-        ? ' (${e.free == 1 ? '1 isenta' : '${e.free} isentas'} para moto)'
+        ? tr(' ({0} para moto)', [e.free == 1 ? tr('1 isenta') : tr('{0} isentas', [e.free])])
         : '';
     return [
-      '🛣️ Pedágios: ≈ ${money(e.total)} em $n$freeNote',
+      tr('🛣️ Pedágios: ≈ {0} em {1}{2}', [money(e.total), n, freeNote]),
       if (e.motoAssumed > 0) _assumedNote(e),
     ];
   }
-  final missing = e.unpriced == 1 ? '1 praça' : '${e.unpriced} praças';
+  final missing = e.unpriced == 1 ? tr('1 praça') : tr('{0} praças', [e.unpriced]);
   final lines = <String>[
-    '🛣️ $n de pedágio no caminho. Os valores de $missing não foram fornecidos '
-        'pelos órgãos responsáveis.'
-        '${e.priced > 0 ? ' Praças com valor: ≈ ${money(e.total)}.' : ''}',
+    tr('🛣️ {0} de pedágio no caminho. Os valores de {1} não foram fornecidos pelos órgãos responsáveis.{2}', [n, missing, e.priced > 0 ? tr(' Praças com valor: ≈ {0}.', [money(e.total)]) : '']),
   ];
   if (bike.style.isMoto) {
     if (e.motoAssumed > 0) lines.add(_assumedNote(e));
-    lines.add('Nessas praças a moto normalmente paga metade do valor do carro.');
+    lines.add(tr('Nessas praças a moto normalmente paga metade do valor do carro.'));
   } else {
     final cap = noun[0].toUpperCase() + noun.substring(1);
     final f = bike.tollFactor ?? 1;
     lines.add(f == 1
-        ? '$cap paga pedágio nessas praças.'
-        : '$cap paga pedágio nessas praças (${_times(f)} o valor do carro).');
+        ? tr('{0} paga pedágio nessas praças.', [cap])
+        : tr('{0} paga pedágio nessas praças ({1} o valor do carro).', [cap, _times(f)]));
   }
   return lines;
 }
 
 String _assumedNote(TollEstimate e) => e.motoAssumed == 1
-    ? 'Em 1 praça a concessionária não informa a regra da moto: contei metade do carro.'
-    : 'Em ${e.motoAssumed} praças a concessionária não informa a regra da moto: '
-        'contei metade do carro.';
+    ? tr('Em 1 praça a concessionária não informa a regra da moto: contei metade do carro.')
+    : tr('Em {0} praças a concessionária não informa a regra da moto: contei metade do carro.', [e.motoAssumed]);
 
 String _times(double f) =>
     f == f.roundToDouble() ? '${f.toInt()}×' : '${f.toString().replaceAll('.', ',')}×';
@@ -245,11 +243,11 @@ String tollPlazaNote(TollPlaza? plaza, BikeProfile bike,
   final car = plaza?.car;
   if (bike.style.isMoto) {
     final rule = plaza?.moto ?? (osmMotoFree ? 0.0 : null);
-    if (rule == 0) return 'Moto isenta';
-    if (rule == null) return 'Valor para moto não informado';
+    if (rule == 0) return tr('Moto isenta');
+    if (rule == null) return tr('Valor para moto não informado');
     return car != null
-        ? 'Moto paga ${money(_round(car * rule))}'
-        : 'Moto paga metade do valor do carro';
+        ? tr('Moto paga {0}', [money(_round(car * rule))])
+        : tr('Moto paga metade do valor do carro');
   }
   if (car == null) return '';
   final noun = bike.style.noun;

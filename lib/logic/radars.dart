@@ -12,6 +12,7 @@ import 'dart:math';
 
 import 'geo.dart';
 import 'speech.dart';
+import '../l10n/i18n.dart';
 
 /// Radares (funções puras, sem Firebase nem GPS, para facilitar os testes).
 
@@ -260,12 +261,12 @@ String radarSpeech(FixedRadar r, double meters, {int? roadLimit}) {
   final dist = spokenDistance(meters);
   final kmh = r.limit > 0 ? r.limit : roadLimit;
   final limit = kmh != null && kmh > 0
-      ? ', velocidade $kmh'
-      : ', velocidade não informada';
+      ? tr(', velocidade {0}', [kmh])
+      : tr(', velocidade não informada');
   return switch (r.kind) {
-    RadarKind.fixed => 'Radar a $dist$limit',
-    RadarKind.section => 'Radar de velocidade média a $dist$limit',
-    RadarKind.redLight => 'Radar de avanço de sinal a $dist$limit',
+    RadarKind.fixed => tr('Radar a {0}{1}', [dist, limit]),
+    RadarKind.section => tr('Radar de velocidade média a {0}{1}', [dist, limit]),
+    RadarKind.redLight => tr('Radar de avanço de sinal a {0}{1}', [dist, limit]),
   };
 }
 
@@ -275,10 +276,10 @@ String prfStretchSpeech(PrfStretch s, double meters) {
   // qualquer ordem): "nos próximos 60 quilômetros".
   final len = (s.kmTo - s.kmFrom).abs().round();
   final span = len >= 1
-      ? ' nos próximos ${spokenDistance(len * 1000.0)}'
+      ? tr(' nos próximos {0}', [spokenDistance(len * 1000.0)])
       : '';
   final road = 'B R ${int.parse(s.br)}';
   return meters < 100
-      ? 'Atenção: pode haver radar móvel da polícia rodoviária na $road$span'
-      : 'Atenção: em ${spokenDistance(meters)} começa trecho com radar móvel da polícia rodoviária na $road$span';
+      ? tr('Atenção: pode haver radar móvel da polícia rodoviária na {0}{1}', [road, span])
+      : tr('Atenção: em {0} começa trecho com radar móvel da polícia rodoviária na {1}{2}', [spokenDistance(meters), road, span]);
 }

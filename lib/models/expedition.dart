@@ -12,6 +12,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../logic/navigation.dart';
 import 'bike.dart';
+import '../l10n/i18n.dart';
 
 typedef Doc = DocumentSnapshot<Map<String, dynamic>>;
 
@@ -49,7 +50,7 @@ class Expedition {
     final d = doc.data() ?? {};
     return Expedition(
       code: doc.id,
-      name: d['name'] ?? 'Expedição',
+      name: d['name'] ?? tr('Expedição'),
       leaderId: d['leaderId'] ?? '',
       plan: TripPlan.fromMap(d['plan'] as Map<String, dynamic>?),
       captainId: d['captainId'] as String?,
@@ -89,7 +90,7 @@ class TripPlan {
   });
 
   factory TripPlan.fromMap(Map<String, dynamic>? d) {
-    if (d == null) return const TripPlan();
+    if (d == null) return TripPlan();
     return TripPlan(
       startDate: d['startDate'] ?? '',
       startTime: d['startTime'] ?? '08:00',
@@ -153,13 +154,13 @@ class Member {
   /// Sem atualização há mais de 5 minutos = provavelmente sem sinal.
   bool get isStale =>
       updatedAt == null ||
-      DateTime.now().difference(updatedAt!) > const Duration(minutes: 5);
+      DateTime.now().difference(updatedAt!) > Duration(minutes: 5);
 
   factory Member.fromDoc(Doc doc) {
     final d = doc.data() ?? {};
     return Member(
       uid: doc.id,
-      name: d['name'] ?? 'Piloto',
+      name: d['name'] ?? tr('Piloto'),
       lat: _num(d['lat']),
       lng: _num(d['lng']),
       speed: _num(d['speed']) ?? 0,
@@ -180,8 +181,9 @@ enum StopType {
   waypoint('Passagem', '📍'),
   destination('Destino', '🏁');
 
-  const StopType(this.label, this.emoji);
-  final String label;
+  const StopType(this._label, this.emoji);
+  final String _label;
+  String get label => tr(_label);
   final String emoji;
 
   /// Lê o tipo salvo pelo nome (desconhecido = ponto de passagem).
@@ -236,7 +238,7 @@ class Stop {
     final d = doc.data() ?? {};
     return Stop(
       id: doc.id,
-      name: d['name'] ?? 'Parada',
+      name: d['name'] ?? tr('Parada'),
       address: d['address'] ?? '',
       lat: _num(d['lat']) ?? 0,
       lng: _num(d['lng']) ?? 0,
@@ -279,7 +281,7 @@ class SosAlert {
     return SosAlert(
       id: doc.id,
       uid: d['uid'] ?? '',
-      name: d['name'] ?? 'Piloto',
+      name: d['name'] ?? tr('Piloto'),
       lat: _num(d['lat']) ?? 0,
       lng: _num(d['lng']) ?? 0,
       createdAt: _date(d['createdAt']),

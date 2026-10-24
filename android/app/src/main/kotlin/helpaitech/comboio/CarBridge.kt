@@ -39,6 +39,8 @@ object CarState {
     @Volatile var banner: String? = null
     /** Emoji do veículo do piloto (🏍️ / 🚗 / 🚚). */
     @Volatile var vehicle = "🏍️"
+    /** Textos da tela do carro em inglês (idioma do app, vem do celular). */
+    @Volatile var en = java.util.Locale.getDefault().language != "pt"
 
     /** A tela do carro está aberta (o Dart mantém o GPS e a voz). */
     @Volatile var connected = false
@@ -90,6 +92,7 @@ class CarBridge(messenger: BinaryMessenger) {
                         CarState.alert = a["alert"] as? String
                         CarState.banner = a["banner"] as? String
                         (a["vehicle"] as? String)?.let { CarState.vehicle = it }
+                        (a["lang"] as? String)?.let { CarState.en = it == "en" }
                         val text = a["text"] as? String
                         CarState.nav = if (text == null) null else CarState.Nav(
                             text = text,

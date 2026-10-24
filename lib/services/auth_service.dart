@@ -14,6 +14,7 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import '../l10n/i18n.dart';
 
 /// Conta do usuário no Firebase Authentication.
 class AuthService {
@@ -190,24 +191,24 @@ class AuthService {
   static String friendlyError(Object e) {
     if (e is FirebaseAuthException) {
       return switch (e.code) {
-        'invalid-email' => 'E-mail inválido.',
+        'invalid-email' => tr('E-mail inválido.'),
         'user-not-found' ||
         'wrong-password' ||
         'invalid-credential' =>
-          'E-mail ou senha incorretos.',
+          tr('E-mail ou senha incorretos.'),
         'email-already-in-use' ||
         'credential-already-in-use' =>
-          'Já existe uma conta com este e-mail. Use "Já tenho conta".',
-        'weak-password' => 'Senha fraca: use pelo menos 8 caracteres.',
+          tr('Já existe uma conta com este e-mail. Use "Já tenho conta".'),
+        'weak-password' => tr('Senha fraca: use pelo menos 8 caracteres.'),
         'too-many-requests' =>
-          'Muitas tentativas. Aguarde alguns minutos e tente de novo.',
-        'network-request-failed' => 'Sem internet. Confira a conexão.',
+          tr('Muitas tentativas. Aguarde alguns minutos e tente de novo.'),
+        'network-request-failed' => tr('Sem internet. Confira a conexão.'),
         'operation-not-allowed' =>
-          'Esta forma de login ainda não foi ativada no servidor.',
-        'web-context-canceled' || 'canceled' => 'Login cancelado.',
-        _ => 'Não foi possível entrar (${e.code}).',
+          tr('Esta forma de login ainda não foi ativada no servidor.'),
+        'web-context-canceled' || 'canceled' => tr('Login cancelado.'),
+        _ => tr('Não foi possível entrar ({0}).', [e.code]),
       };
     }
-    return 'Não foi possível entrar: $e';
+    return tr('Não foi possível entrar: {0}', [e]);
   }
 }

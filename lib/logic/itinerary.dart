@@ -9,6 +9,7 @@
 // ============================================================================
 
 import '../models/expedition.dart';
+import '../l10n/i18n.dart';
 
 /// Funções puras do roteiro (sem Firebase), para facilitar os testes.
 
@@ -153,17 +154,18 @@ String _pad2(int n) => n.toString().padLeft(2, '0');
 String formatTime(DateTime t) => '${_pad2(t.hour)}:${_pad2(t.minute)}';
 
 const _weekdays = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
+const _weekdaysEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-/// "sáb 12/10"
+/// "sáb 12/10" (em inglês, "Sat 12/10")
 String formatDay(DateTime d) =>
-    '${_weekdays[d.weekday - 1]} ${_pad2(d.day)}/${_pad2(d.month)}';
+    '${(I18n.isEn ? _weekdaysEn : _weekdays)[d.weekday - 1]} ${_pad2(d.day)}/${_pad2(d.month)}';
 
 /// "850 m", "12,3 km", "245 km"
 String formatDistance(int meters) {
   if (meters < 1000) return '$meters m';
   final km = meters / 1000;
   return km < 100
-      ? '${km.toStringAsFixed(1).replaceAll('.', ',')} km'
+      ? '${I18n.isEn ? km.toStringAsFixed(1) : km.toStringAsFixed(1).replaceAll('.', ',')} km'
       : '${km.round()} km';
 }
 
@@ -227,19 +229,17 @@ String buildShareText({
     ..writeln();
   final s = schedule;
   if (s.stops.isNotEmpty) {
-    b.writeln('📏 ${formatDistance(s.totalDistanceM)} · '
-        '⏱️ ${formatDuration(s.totalRideS)} rodando'
-        '${s.days.length > 1 ? ' · ${s.days.length} dias' : ''}');
+    b.writeln(tr('📏 {0} · ⏱️ {1} rodando{2}', [formatDistance(s.totalDistanceM), formatDuration(s.totalRideS), s.days.length > 1 ? tr(' · {0} dias', [s.days.length]) : '']));
   }
   for (final d in s.days) {
     b.writeln();
-    final title = s.days.length > 1 ? 'Dia ${d.day}' : 'Roteiro';
+    final title = s.days.length > 1 ? tr('Dia {0}', [d.day]) : tr('Roteiro');
     b.writeln(s.hasDate
         ? '*$title – ${formatDay(d.date)}* (${formatDistance(d.distanceM)})'
         : '*$title* (${formatDistance(d.distanceM)})');
     for (final x in s.stops.where((x) => x.day == d.day)) {
       final when = x.isStart
-          ? 'saída ${formatTime(x.departure)}'
+          ? tr('saída {0}', [formatTime(x.departure)])
           : x.arrival != null
               ? formatTime(x.arrival!)
               : '';
@@ -256,13 +256,13 @@ String buildShareText({
   if (links.isNotEmpty) {
     b
       ..writeln()
-      ..writeln(links.length == 1 ? '🗺️ Rota no Google Maps:' : '🗺️ Rota no Google Maps (por trecho):');
+      ..writeln(links.length == 1 ? tr('🗺️ Rota no Google Maps:') : tr('🗺️ Rota no Google Maps (por trecho):'));
     for (final l in links) {
       b.writeln(l);
     }
   }
   b
     ..writeln()
-    ..writeln('👉 Para entrar no comboio, abra o app *UauGo* e use o código *$code*');
+    ..writeln(tr('👉 Para entrar no comboio, abra o app *UauGo* e use o código *{0}*', [code]));
   return b.toString().trimRight();
 }

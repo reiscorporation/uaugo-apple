@@ -12,6 +12,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../l10n/i18n.dart';
 
 /// Exige uma conta (não anônima) antes de uma ação: se precisar, abre a tela
 /// de login explicando o motivo. Devolve true se puder continuar.
@@ -73,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _email.text.trim();
     final pass = _password.text;
     if (!email.contains('@')) {
-      setState(() => _error = 'Digite um e-mail válido.');
+      setState(() => _error = tr('Digite um e-mail válido.'));
       return;
     }
     if (_haveAccount) {
@@ -81,31 +82,31 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     if (_name.text.trim().isEmpty) {
-      setState(() => _error = 'Digite seu nome.');
+      setState(() => _error = tr('Digite seu nome.'));
       return;
     }
     if (!_validPassword(pass)) {
       setState(() => _error =
-          'A senha precisa ter pelo menos 8 caracteres, com letras e números.');
+          tr('A senha precisa ter pelo menos 8 caracteres, com letras e números.'));
       return;
     }
     _run(() => AuthService.registerWithEmail(_name.text, email, pass),
-        done: 'Conta criada! Enviamos um e-mail para confirmar o endereço.');
+        done: tr('Conta criada! Enviamos um e-mail para confirmar o endereço.'));
   }
 
   /// "Esqueci a senha": envia o link para o e-mail digitado.
   Future<void> _forgot() async {
     final email = _email.text.trim();
     if (!email.contains('@')) {
-      setState(() => _error = 'Digite seu e-mail acima e toque de novo.');
+      setState(() => _error = tr('Digite seu e-mail acima e toque de novo.'));
       return;
     }
     try {
       await AuthService.resetPassword(email);
       if (mounted) {
         setState(() => _error = null);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Enviamos um link para criar uma nova senha.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(tr('Enviamos um link para criar uma nova senha.'))));
       }
     } catch (e) {
       if (mounted) setState(() => _error = AuthService.friendlyError(e));
@@ -116,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Entrar')),
+      appBar: AppBar(title: Text(tr('Entrar'))),
       body: SafeArea(
         top: false,
         child: AbsorbPointer(
@@ -138,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
             FilledButton.icon(
               onPressed: () => _run(AuthService.signInWithGoogle),
               icon: const Icon(Icons.g_mobiledata, size: 32),
-              label: const Text('Continuar com Google'),
+              label: Text(tr('Continuar com Google')),
             ),
             if (AuthService.appleAvailable) ...[
               const SizedBox(height: 10),
@@ -148,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     foregroundColor: Colors.white),
                 onPressed: () => _run(AuthService.signInWithApple),
                 icon: const Icon(Icons.apple),
-                label: const Text('Continuar com Apple'),
+                label: Text(tr('Continuar com Apple')),
               ),
             ],
             const SizedBox(height: 20),
@@ -156,15 +157,15 @@ class _LoginScreenState extends State<LoginScreen> {
               const Expanded(child: Divider()),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text('ou com e-mail', style: theme.textTheme.bodySmall),
+                child: Text(tr('ou com e-mail'), style: theme.textTheme.bodySmall),
               ),
               const Expanded(child: Divider()),
             ]),
             const SizedBox(height: 12),
             SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Criar conta')),
-                ButtonSegment(value: true, label: Text('Já tenho conta')),
+              segments: [
+                ButtonSegment(value: false, label: Text(tr('Criar conta'))),
+                ButtonSegment(value: true, label: Text(tr('Já tenho conta'))),
               ],
               selected: {_haveAccount},
               onSelectionChanged: (s) => setState(() {
@@ -177,8 +178,8 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: _name,
                 textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                    labelText: 'Nome', border: OutlineInputBorder()),
+                decoration: InputDecoration(
+                    labelText: tr('Nome'), border: OutlineInputBorder()),
               ),
               const SizedBox(height: 10),
             ],
@@ -194,9 +195,9 @@ class _LoginScreenState extends State<LoginScreen> {
               controller: _password,
               obscureText: !_showPassword,
               decoration: InputDecoration(
-                labelText: 'Senha',
+                labelText: tr('Senha'),
                 helperText:
-                    _haveAccount ? null : 'Mínimo 8 caracteres, letras e números',
+                    _haveAccount ? null : tr('Mínimo 8 caracteres, letras e números'),
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   icon: Icon(
@@ -219,17 +220,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(_haveAccount ? 'Entrar' : 'Criar conta'),
+                  : Text(_haveAccount ? tr('Entrar') : tr('Criar conta')),
             ),
             if (_haveAccount)
               TextButton(
                 onPressed: _forgot,
-                child: const Text('Esqueci a senha'),
+                child: Text(tr('Esqueci a senha')),
               ),
             const SizedBox(height: 16),
             Text(
-              'Sua conta guarda seu perfil e permite usar o app em outro '
-              'celular. O que você já fez neste aparelho continua valendo.',
+              tr('Sua conta guarda seu perfil e permite usar o app em outro celular. O que você já fez neste aparelho continua valendo.'),
               style: theme.textTheme.bodySmall,
               textAlign: TextAlign.center,
             ),

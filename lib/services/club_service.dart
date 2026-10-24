@@ -15,6 +15,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../l10n/i18n.dart';
 
 /// Clube: código interno, nome e administradores.
 class Club {
@@ -73,7 +74,7 @@ class NearbyMember {
 
   factory NearbyMember.fromMap(Map<String, dynamic> m) => NearbyMember(
         uid: m['uid'] ?? '',
-        name: m['name'] ?? 'Membro',
+        name: m['name'] ?? tr('Membro'),
         city: m['city'] ?? '',
         bike: m['bike'] ?? '',
         distanceKm: (m['distanceKm'] as num?)?.toInt() ?? 0,
@@ -169,7 +170,7 @@ class ClubService {
 
   /// Código de administrador do clube (12 caracteres).
   Future<({String code, String clubName})> adminActivationCode(String clubId) async {
-    final r = await _call('adminActivationCode', {'clubId': clubId, 'note': 'gerado no app'});
+    final r = await _call('adminActivationCode', {'clubId': clubId, 'note': tr('gerado no app')});
     return (code: r['code'] as String, clubName: (r['clubName'] ?? '') as String);
   }
 
@@ -247,7 +248,7 @@ class ClubService {
       _club(clubId).collection('members').snapshots().map((s) => s.docs
           .map((d) => ClubMember(
                 uid: d.id,
-                name: d.data()['name'] ?? 'Membro',
+                name: d.data()['name'] ?? tr('Membro'),
                 city: d.data()['city'] ?? '',
                 bike: d.data()['bike'] ?? '',
                 isAdmin: d.data()['role'] == 'admin' ||

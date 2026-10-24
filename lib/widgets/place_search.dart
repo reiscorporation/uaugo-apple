@@ -16,6 +16,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../services/places_service.dart';
 import '../services/recent_places_service.dart';
 import '../services/saved_places_service.dart';
+import '../l10n/i18n.dart';
 
 /// Busca de lugares por nome (como no Google Maps), com opção de usar a
 /// localização atual. Devolve um [PickedPlace] ao fechar.
@@ -117,7 +118,7 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
     setState(() => _loading = false);
     if (d == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Não foi possível abrir este lugar')));
+          SnackBar(content: Text(tr('Não foi possível abrir este lugar'))));
       return;
     }
     RecentPlacesService.instance
@@ -130,7 +131,7 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
     setState(() => _loading = true);
     try {
       final p = await Geolocator.getCurrentPosition();
-      var name = 'Minha localização';
+      var name = tr('Minha localização');
       var address = '';
       try {
         final pm =
@@ -147,7 +148,7 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
       if (!mounted) return;
       setState(() => _loading = false);
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('GPS indisponível: $e')));
+          .showSnackBar(SnackBar(content: Text(tr('GPS indisponível: {0}', [e]))));
     }
   }
 
@@ -162,7 +163,7 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
           onChanged: _onChanged,
           onSubmitted: _search,
           decoration: InputDecoration(
-            hintText: '${widget.title}: buscar lugar',
+            hintText: tr('{0}: buscar lugar', [widget.title]),
             border: InputBorder.none,
           ),
         ),
@@ -175,14 +176,13 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
       body: ListView(children: [
         ListTile(
           leading: const Icon(Icons.my_location),
-          title: const Text('Usar minha localização atual'),
+          title: Text(tr('Usar minha localização atual')),
           onTap: _loading ? null : _useMyLocation,
         ),
         if (!PlacesService.available)
-          const ListTile(
+          ListTile(
             leading: Icon(Icons.info_outline),
-            title: Text('Busca indisponível nesta versão (sem chave de API).'
-                ' Toque e segure no mapa para escolher o ponto.'),
+            title: Text(tr('Busca indisponível nesta versão (sem chave de API). Toque e segure no mapa para escolher o ponto.')),
           ),
         // Casa e Trabalho (os salvos na tela inicial), também durante a
         // navegação: um toque e pronto.
@@ -219,14 +219,14 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
         for (final p in RecentPlacesService.matching(_recents, _ctrl.text)
             .take(_ctrl.text.trim().isEmpty ? 8 : 3))
           ListTile(
-            leading: const Icon(Icons.history),
+            leading: Icon(Icons.history),
             title: Text(p.name),
             subtitle: p.address.isEmpty ? null : Text(p.address),
             onTap: _loading ? null : () => _chooseRecent(p),
           ),
         for (final r in _results)
           ListTile(
-            leading: const Icon(Icons.place_outlined),
+            leading: Icon(Icons.place_outlined),
             title: Text(r.title),
             subtitle: r.subtitle.isEmpty ? null : Text(r.subtitle),
             onTap: _loading ? null : () => _choose(r),
@@ -236,10 +236,8 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
             padding: const EdgeInsets.all(24),
             child: Text(
                 _places.lastFailed
-                    ? '📵 Sem internet: a busca precisa de conexão.\n'
-                        'Os destinos recentes acima funcionam sem internet. '
-                        'Os avisos de radar e velocidade continuam funcionando.'
-                    : 'Nenhum lugar encontrado',
+                    ? tr('📵 Sem internet: a busca precisa de conexão.\nOs destinos recentes acima funcionam sem internet. Os avisos de radar e velocidade continuam funcionando.')
+                    : tr('Nenhum lugar encontrado'),
                 textAlign: TextAlign.center),
           ),
       ]),

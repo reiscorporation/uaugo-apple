@@ -8,12 +8,15 @@
 // Onde mexer: Padrões: construtores de RoutePrefs, AlertPrefs, FuelPrefs.
 // ============================================================================
 
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter/painting.dart' show Color;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../logic/map_style.dart';
+import '../l10n/i18n.dart';
 
 export '../logic/map_style.dart' show MapTheme;
 
@@ -23,9 +26,11 @@ enum RoutePreference {
   fastest('Mais rápida', 'A rota que o Google indica (menor tempo)'),
   shortest('Mais curta', 'Entre as alternativas do Google, a de menos km');
 
-  const RoutePreference(this.label, this.description);
-  final String label;
-  final String description;
+  const RoutePreference(this._label, this._description);
+  final String _label;
+  String get label => tr(_label);
+  final String _description;
+  String get description => tr(_description);
 }
 
 /// Preferências de rota (enviadas ao Google ao calcular).
@@ -90,8 +95,9 @@ enum BatteryMode {
   off('Desligada (máximo desempenho)'),
   on('Sempre ligada');
 
-  const BatteryMode(this.label);
-  final String label;
+  const BatteryMode(this._label);
+  final String _label;
+  String get label => tr(_label);
 }
 
 /// Como avisar: desligado, só na tela (com vibração) ou também por voz.
@@ -100,8 +106,9 @@ enum AlertMode {
   visual('Só notificação na tela'),
   voice('Notificação e voz');
 
-  const AlertMode(this.label);
-  final String label;
+  const AlertMode(this._label);
+  final String _label;
+  String get label => tr(_label);
 }
 
 /// Cor dos botões no estilo Clean (Configurações → Aparência).
@@ -113,8 +120,9 @@ enum AppAccent {
   pink('Rosa', Color(0xFFD8437A)),
   gray('Cinza', Color(0xFF5F6B7A));
 
-  const AppAccent(this.label, this.color);
-  final String label;
+  const AppAccent(this._label, this.color);
+  final String _label;
+  String get label => tr(_label);
   final Color color;
 }
 
@@ -229,6 +237,23 @@ class AppSettings {
   /// laranja); true = Clean (tudo claro).
   final cleanTheme = ValueNotifier<bool>(false);
 
+  /// Idioma: 'auto' (o do celular: português se for pt, senão inglês),
+  /// 'pt' ou 'en'. O efetivo fica em I18n.lang.
+  final language = ValueNotifier<String>('auto');
+
+  Future<void> setLanguage(String v) async {
+    language.value = v;
+    _applyLanguage();
+    (await SharedPreferences.getInstance()).setString('language', v);
+  }
+
+  void _applyLanguage() {
+    final v = language.value;
+    I18n.lang.value = v == 'auto'
+        ? (PlatformDispatcher.instance.locale.languageCode == 'pt' ? 'pt' : 'en')
+        : v;
+  }
+
   /// No Clean: cor dos botões e destaques (escolha do usuário). As cores de
   /// segurança (alertas, SOS, radar, pedidos ao grupo) não mudam.
   final accent = ValueNotifier<AppAccent>(AppAccent.orange);
@@ -261,6 +286,8 @@ class AppSettings {
     _loaded = true;
     final p = await SharedPreferences.getInstance();
     keepScreenOn.value = p.getBool('keepScreenOn') ?? true;
+    language.value = p.getString('language') ?? 'auto';
+    _applyLanguage();
     backgroundShare.value = p.getBool('backgroundShare') ?? false;
     shareStats.value = p.getBool('shareStats') ?? true;
     lightModeChoice.value =

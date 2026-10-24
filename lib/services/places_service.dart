@@ -15,6 +15,7 @@ import 'dart:math';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../logic/find_places.dart';
+import '../l10n/i18n.dart';
 
 /// Sugestão da busca (ainda sem coordenadas).
 class PlaceSuggestion {
@@ -57,6 +58,7 @@ class PlacesService {
 
   /// Chama a função "places" do servidor e devolve o resultado como Map.
   Future<Map<String, dynamic>> _call(Map<String, dynamic> data) async {
+    data = {...data, 'lang': I18n.isEn ? 'en' : 'pt'};
     final res = await _fn
         .httpsCallable('places',
             options:

@@ -20,6 +20,7 @@ import 'package:share_plus/share_plus.dart';
 import '../logic/geo.dart';
 import '../logic/itinerary.dart';
 import '../models/trip_record.dart';
+import '../l10n/i18n.dart';
 
 /// Data para a imagem: "05/10/2026".
 String _date(DateTime d) =>
@@ -79,9 +80,9 @@ Future<Uint8List> buildShareImage(TripRecord t, Uint8List? mapPng) async {
       60, mapH + 98, 32, color: const Color(0xFFFFCC80));
   final stats = [
     (formatDistance(t.distanceM.round()), 'percorridos'),
-    (formatDuration(t.movingS), 'em movimento'),
-    ('${t.avgKmh.round()} km/h', 'média'),
-    ('${t.maxKmh.round()} km/h', 'máxima'),
+    (formatDuration(t.movingS), tr('em movimento')),
+    ('${t.avgKmh.round()} km/h', tr('média')),
+    ('${t.maxKmh.round()} km/h', tr('máxima')),
   ];
   for (var i = 0; i < stats.length; i++) {
     final x = 60 + i * (w - 120) / 4;
@@ -90,7 +91,7 @@ Future<Uint8List> buildShareImage(TripRecord t, Uint8List? mapPng) async {
     text(stats[i].$2, x, mapH + 228, 26,
         color: Colors.white70, maxW: (w - 120) / 4 - 10);
   }
-  text('UauGo · HelpAITech', 60, h - 60, 24, color: Colors.white54);
+  text(tr('UauGo · HelpAITech'), 60, h - 60, 24, color: Colors.white54);
 
   final pic = rec.endRecording();
   final out = await pic.toImage(w.toInt(), h.toInt());
@@ -114,8 +115,7 @@ String buildGpx(TripRecord t) {
         '<time>${t.startedAt.toUtc().toIso8601String()}</time></metadata>')
     ..writeln('  <trk><name>${esc(t.title)}</name><trkseg>');
   for (final p in pts) {
-    b.writeln('    <trkpt lat="${p.latitude.toStringAsFixed(6)}" '
-        'lon="${p.longitude.toStringAsFixed(6)}"/>');
+    b.writeln('    <trkpt lat="${p.latitude.toStringAsFixed(6)}" lon="${p.longitude.toStringAsFixed(6)}"/>');
   }
   b
     ..writeln('  </trkseg></trk>')
@@ -140,18 +140,17 @@ Future<void> shareTrip(BuildContext context, TripRecord t,
   await gpxFile.writeAsString(buildGpx(t), flush: true);
   try {
     await Gal.putImage(imgFile.path, album: 'UauGo');
-    messenger.showSnackBar(const SnackBar(
-        content: Text('Imagem salva na galeria (álbum UauGo)')));
+    messenger.showSnackBar(SnackBar(
+        content: Text(tr('Imagem salva na galeria (álbum UauGo)'))));
   } catch (e) {
     messenger.showSnackBar(
-        SnackBar(content: Text('Não foi possível salvar na galeria: $e')));
+        SnackBar(content: Text(tr('Não foi possível salvar na galeria: {0}', [e]))));
   }
   await SharePlus.instance.share(ShareParams(
     files: [
       XFile(imgFile.path, mimeType: 'image/png'),
       XFile(gpxFile.path, mimeType: 'application/gpx+xml'),
     ],
-    text: '${t.title} · ${formatDistance(t.distanceM.round())} percorridos '
-        'com o UauGo',
+    text: tr('{0} · {1} percorridos com o UauGo', [t.title, formatDistance(t.distanceM.round())]),
   ));
 }

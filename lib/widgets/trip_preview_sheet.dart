@@ -30,6 +30,7 @@ import '../services/planned_trips_service.dart';
 import '../services/toll_service.dart';
 import '../services/voice_service.dart';
 import '../services/trip_service.dart';
+import '../l10n/i18n.dart';
 
 /// O que o piloto escolheu na prévia da viagem.
 enum TripAction { start, simulate }
@@ -87,13 +88,13 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
       initialDate: _departAt ?? now,
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: now.add(const Duration(days: 365)),
-      helpText: 'Dia da saída',
+      helpText: tr('Dia da saída'),
     );
     if (d == null || !mounted) return;
     final t = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_departAt ?? now),
-      helpText: 'Hora da saída',
+      helpText: tr('Hora da saída'),
     );
     if (t == null || !mounted) return;
     setState(() => _departAt = DateTime(d.year, d.month, d.day, t.hour, t.minute));
@@ -105,8 +106,8 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     if (at == null) return;
     await PlannedTripsService.instance.add(widget.title, at, [..._points]);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Viagem planejada salva. Ela aparece na tela inicial.')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Viagem planejada salva. Ela aparece na tela inicial.'))));
     Navigator.pop(context);
   }
 
@@ -121,7 +122,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => PlaceSearchPage(
-            near: LatLng(here.lat, here.lng), title: 'Saindo de'),
+            near: LatLng(here.lat, here.lng), title: tr('Saindo de')),
       ),
     );
     if (picked == null || !mounted) return;
@@ -146,7 +147,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => PlaceSearchPage(
-            near: LatLng(ref.lat, ref.lng), title: 'Parada no caminho'),
+            near: LatLng(ref.lat, ref.lng), title: tr('Parada no caminho')),
       ),
     );
     if (picked == null || !mounted) return;
@@ -217,9 +218,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
   /// Rota pronta: fala o destino e conta 5 s para iniciar.
   void _startCountdown(Trip t) {
     final min = (t.durationS / 60).round();
-    VoiceService.instance.reply('Rota para ${widget.title}: '
-        '${min < 60 ? '$min minutos' : '${min ~/ 60} horas e ${min % 60} minutos'}. '
-        'Iniciando.');
+    VoiceService.instance.reply(tr('Rota para {0}: {1}. Iniciando.', [widget.title, min < 60 ? tr('{0} minutos', [min]) : tr('{0} horas e {1} minutos', [min ~/ 60, min % 60])]));
     setState(() => _countdown = 5);
     _autoTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return timer.cancel();
@@ -278,10 +277,10 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     // O Google indica pedágio, mas a praça não está na tabela.
     final noun = _bike.style.noun;
     return [
-      '🛣️ Rota com pedágio. Os valores não foram fornecidos pelos órgãos responsáveis.',
+      tr('🛣️ Rota com pedágio. Os valores não foram fornecidos pelos órgãos responsáveis.'),
       _bike.style.isMoto
-          ? 'Na maioria das praças a moto paga metade do valor do carro.'
-          : '${noun[0].toUpperCase()}${noun.substring(1)} paga pedágio.',
+          ? tr('Na maioria das praças a moto paga metade do valor do carro.')
+          : tr('{0}{1} paga pedágio.', [noun[0].toUpperCase(), noun.substring(1)]),
     ];
   }
 
@@ -325,20 +324,18 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Saindo de: ${_fromHere ? 'sua posição atual' : _points.first.name}',
+                  tr('Saindo de: {0}', [_fromHere ? tr('sua posição atual') : _points.first.name]),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               TextButton(
                 onPressed: _loading ? null : _changeOrigin,
-                child: const Text('Trocar'),
+                child: Text(tr('Trocar')),
               ),
             ]),
             if (!_fromHere)
-              const Text(
-                  'Saída diferente da sua posição: bom para simular. Se tocar '
-                  'em Iniciar, a navegação recalcula a partir de onde você '
-                  'estiver.',
+              Text(
+                  tr('Saída diferente da sua posição: bom para simular. Se tocar em Iniciar, a navegação recalcula a partir de onde você estiver.'),
                   style: TextStyle(fontSize: 12)),
             // Paradas no caminho (entre a saída e o destino).
             for (var i = 1; i < _points.length - 1; i++)
@@ -346,11 +343,11 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                 const Icon(Icons.more_vert, color: Colors.amber, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text('Parada $i: ${_points[i].name}',
+                  child: Text(tr('Parada {0}: {1}', [i, _points[i].name]),
                       overflow: TextOverflow.ellipsis),
                 ),
                 IconButton(
-                  tooltip: 'Remover parada',
+                  tooltip: tr('Remover parada'),
                   icon: const Icon(Icons.close, size: 20),
                   onPressed: _loading ? null : () => _removeStop(i),
                 ),
@@ -361,7 +358,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                 onPressed:
                     _loading || _points.length >= 12 ? null : _addStop,
                 icon: const Icon(Icons.add_location_alt_outlined),
-                label: const Text('Adicionar parada'),
+                label: Text(tr('Adicionar parada')),
               ),
             ),
             const SizedBox(height: 4),
@@ -371,15 +368,15 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (t == null)
-              const Text('Não foi possível calcular a rota. Confira a internet.')
+              Text(tr('Não foi possível calcular a rota. Confira a internet.'))
             else ...[
               // Saída: agora ou planejada (data e hora).
               Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 ActionChip(
                   avatar: const Icon(Icons.schedule, size: 18),
                   label: Text(_departAt == null
-                      ? 'Saída: agora'
-                      : 'Saída: ${formatDay(_departAt!)} ${formatTime(_departAt!)}'),
+                      ? tr('Saída: agora')
+                      : tr('Saída: {0} {1}', [formatDay(_departAt!), formatTime(_departAt!)])),
                   onPressed: _pickDeparture,
                 ),
                 if (_departAt != null)
@@ -388,19 +385,18 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                       setState(() => _departAt = null);
                       _calcTolls();
                     },
-                    child: const Text('Sair agora'),
+                    child: Text(tr('Sair agora')),
                   ),
               ]),
               Text(
-                '${formatDuration(t.durationS)} · ${formatDistance(t.distanceM)}'
-                ' · chegada ${_departAt != null && (eta!.day != _departAt!.day) ? '${formatDay(eta)} ' : ''}${formatTime(eta!)}',
+                tr('{0} · {1} · chegada {2}{3}', [formatDuration(t.durationS), formatDistance(t.distanceM), _departAt != null && (eta!.day != _departAt!.day) ? '${formatDay(eta)} ' : '', formatTime(eta!)]),
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
               // Com "Considerar o trânsito do momento" ligado.
               if (t.trafficDelayS >= 120)
                 Text(
-                  '🚗 Trânsito: +${(t.trafficDelayS / 60).round()} min em relação ao normal',
+                  tr('🚗 Trânsito: +{0} min em relação ao normal', [(t.trafficDelayS / 60).round()]),
                   style: TextStyle(
                       color: t.trafficDelayS >= 600
                           ? Colors.red
@@ -413,8 +409,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                   final f = AppSettings.instance.fuel.value;
                   final l = fuelLiters(t.distanceM.toDouble(), f.kmPerLiter);
                   return Text(
-                      '⛽ ~${formatDecimal(l)} L de combustível · '
-                      '${formatMoney(l * f.pricePerLiter)}');
+                      tr('⛽ ~{0} L de combustível · {1}', [formatDecimal(l), formatMoney(l * f.pricePerLiter)]));
                 }),
               if (_rodizio != null)
                 Padding(
@@ -428,23 +423,19 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                 Text(line, style: TextStyle(color: Colors.amber.shade800)),
               if (_tripCost(t) case final cost?)
                 Text(
-                    '💰 Custo estimado: ${formatMoney(cost)} '
-                    '${(_tollCost?.total ?? 0) > 0 ? '(combustível + pedágios)' : '(combustível)'}',
+                    tr('💰 Custo estimado: {0} {1}', [formatMoney(cost), (_tollCost?.total ?? 0) > 0 ? tr('(combustível + pedágios)') : tr('(combustível)')]),
                     style: const TextStyle(fontWeight: FontWeight.bold))
               else
                 Text(
-                    'Para calcular o combustível, informe o consumo e o preço '
-                    'do litro em "Configurar meu veículo".',
+                    tr('Para calcular o combustível, informe o consumo e o preço do litro em "Configurar meu veículo".'),
                     style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant)),
               if (AppSettings.instance.route.value.avoidRisk)
                 Text(
                   t.riskCount == 0
-                      ? '🛡️ Rota sem áreas de risco reportadas'
-                      : '🚨 Atenção: a rota passa perto de ${t.riskCount} '
-                          '${t.riskCount == 1 ? 'área' : 'áreas'} de risco '
-                          '(não havia alternativa melhor)',
+                      ? tr('🛡️ Rota sem áreas de risco reportadas')
+                      : tr('🚨 Atenção: a rota passa perto de {0} {1} de risco (não havia alternativa melhor)', [t.riskCount, t.riskCount == 1 ? tr('área') : tr('áreas')]),
                   style: TextStyle(
                       color: t.riskCount == 0
                           ? Colors.green.shade700
@@ -455,7 +446,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
             const SizedBox(height: 8),
             Wrap(spacing: 8, children: [
               FilterChip(
-                label: const Text('Evitar pedágios'),
+                label: Text(tr('Evitar pedágios')),
                 selected: _tolls,
                 onSelected: _loading
                     ? null
@@ -465,7 +456,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                       },
               ),
               FilterChip(
-                label: const Text('Evitar rodovias'),
+                label: Text(tr('Evitar rodovias')),
                 selected: _highways,
                 onSelected: _loading
                     ? null
@@ -475,7 +466,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                       },
               ),
               FilterChip(
-                label: const Text('Evitar locais de risco'),
+                label: Text(tr('Evitar locais de risco')),
                 selected: AppSettings.instance.route.value.avoidRisk,
                 onSelected: _loading
                     ? null
@@ -495,11 +486,11 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                     const Icon(Icons.timer_outlined),
                     const SizedBox(width: 6),
                     Flexible(
-                      child: Text('Iniciando em $_countdown s…',
+                      child: Text(tr('Iniciando em {0} s…', [_countdown]),
                           style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
                     TextButton(
-                        onPressed: _cancelAuto, child: const Text('Cancelar')),
+                        onPressed: _cancelAuto, child: Text(tr('Cancelar'))),
                   ]),
                 ),
                 const SizedBox(width: 8),
@@ -509,7 +500,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                   child: OutlinedButton.icon(
                     onPressed: _savePlanned,
                     icon: const Icon(Icons.bookmark_add_outlined),
-                    label: const Text('Salvar'),
+                    label: Text(tr('Salvar')),
                   ),
                 )
               else
@@ -519,7 +510,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                       ? null
                       : () => Navigator.pop(context, (TripAction.simulate, t)),
                   icon: const Icon(Icons.play_circle_outline),
-                  label: const Text('Simular'),
+                  label: Text(tr('Simular')),
                 ),
               ),
               const SizedBox(width: 12),
@@ -532,7 +523,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                       ? null
                       : () => Navigator.pop(context, (TripAction.start, t)),
                   icon: const Icon(Icons.navigation),
-                  label: const Text('Iniciar'),
+                  label: Text(tr('Iniciar')),
                 ),
               ),
             ]),

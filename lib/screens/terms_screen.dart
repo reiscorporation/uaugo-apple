@@ -19,6 +19,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/auth_service.dart';
+import '../l10n/i18n.dart';
 
 /// Versão vigente dos Termos e o registro do aceite.
 class TermsService {
@@ -53,7 +54,7 @@ class TermsService {
           'appVersion': '${app.version}+${app.buildNumber}',
           'platform': Platform.operatingSystem,
           'osVersion': Platform.operatingSystemVersion,
-          'account': AuthService.isAnonymous ? 'anônima' : AuthService.email,
+          'account': AuthService.isAnonymous ? tr('anônima') : AuthService.email,
           'method': method,
         },
       }, SetOptions(merge: true));
@@ -115,7 +116,14 @@ class _TermsScreenState extends State<TermsScreen> {
   @override
   void initState() {
     super.initState();
-    rootBundle.loadString(widget.asset).then((t) {
+    // Inglês: versão traduzida (_en.md), com o original como reserva.
+    final asset = I18n.isEn
+        ? widget.asset.replaceFirst('.md', '_en.md')
+        : widget.asset;
+    rootBundle
+        .loadString(asset)
+        .catchError((_) => rootBundle.loadString(widget.asset))
+        .then((t) {
       if (mounted) setState(() => _text = t);
       // Tela grande em que o texto cabe inteiro: já conta como lido.
       WidgetsBinding.instance.addPostFrameCallback((_) => _onScroll());
@@ -149,7 +157,7 @@ class _TermsScreenState extends State<TermsScreen> {
     final mustAccept = widget.onAccept != null;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text(tr(widget.title)),
         automaticallyImplyLeading: !mustAccept,
       ),
       body: SafeArea(
@@ -160,7 +168,7 @@ class _TermsScreenState extends State<TermsScreen> {
                 Expanded(
                   child: ListView(
                     controller: _scroll,
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(16),
                     children: _render(context, text),
                   ),
                 ),
@@ -168,7 +176,7 @@ class _TermsScreenState extends State<TermsScreen> {
                   Material(
                     elevation: 8,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 4, 16, 12),
+                      padding: EdgeInsets.fromLTRB(8, 4, 16, 12),
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         Align(
                           alignment: Alignment.centerLeft,
@@ -178,18 +186,18 @@ class _TermsScreenState extends State<TermsScreen> {
                                     builder: (_) =>
                                         const TermsScreen.privacy())),
                             icon: const Icon(Icons.privacy_tip_outlined),
-                            label: const Text('Ler a Política de Privacidade'),
+                            label: Text(tr('Ler a Política de Privacidade')),
                           ),
                         ),
                         if (!_readToEnd)
-                          const Padding(
+                          Padding(
                             padding: EdgeInsets.only(left: 12, bottom: 4),
                             child: Row(children: [
                               Icon(Icons.arrow_downward, size: 18),
                               SizedBox(width: 6),
                               Expanded(
                                 child: Text(
-                                    'Role o texto até o fim para poder aceitar.'),
+                                    tr('Role o texto até o fim para poder aceitar.')),
                               ),
                             ]),
                           ),
@@ -199,11 +207,8 @@ class _TermsScreenState extends State<TermsScreen> {
                           onChanged: (v) =>
                               setState(() => _checked = v ?? false),
                           controlAffinity: ListTileControlAffinity.leading,
-                          title: const Text(
-                              'Li e aceito os Termos de Uso e a Política de '
-                              'Privacidade. Declaro ter 18 '
-                              'anos ou mais e que não vou manusear o celular '
-                              'enquanto estiver dirigindo ou pilotando.'),
+                          title: Text(
+                              tr('Li e aceito os Termos de Uso e a Política de Privacidade. Declaro ter 18 anos ou mais e que não vou manusear o celular enquanto estiver dirigindo ou pilotando.')),
                         ),
                         SizedBox(
                           width: double.infinity,
@@ -216,7 +221,7 @@ class _TermsScreenState extends State<TermsScreen> {
                                     height: 20,
                                     child: CircularProgressIndicator(
                                         strokeWidth: 2))
-                                : const Text('Continuar'),
+                                : Text(tr('Continuar')),
                           ),
                         ),
                       ]),

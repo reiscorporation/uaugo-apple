@@ -14,6 +14,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'geo.dart';
+import '../l10n/i18n.dart';
 
 // Velocímetro, limite da via e alertas de velocidade (funções puras).
 
@@ -308,7 +309,7 @@ class SpeedAlerter {
         if (_personalArmed || now.difference(_lastPersonal) > repeatAfter) {
           _personalArmed = false;
           _lastPersonal = now;
-          return 'Atenção: velocidade acima de ${s.personalMax} quilômetros por hora';
+          return tr('Atenção: velocidade acima de {0} quilômetros por hora', [s.personalMax]);
         }
       } else if (kmh < s.personalMax - 5) {
         _personalArmed = true;
@@ -319,7 +320,7 @@ class SpeedAlerter {
         if (_roadArmed || now.difference(_lastRoad) > repeatAfter) {
           _roadArmed = false;
           _lastRoad = now;
-          return 'Velocidade acima do limite de ${limit.kmh}';
+          return tr('Velocidade acima do limite de {0}', [limit.kmh]);
         }
       } else if (kmh <= limit.kmh) {
         _roadArmed = true;

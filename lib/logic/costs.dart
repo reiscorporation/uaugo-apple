@@ -1,3 +1,4 @@
+import '../l10n/i18n.dart';
 // Consumo e gastos de viagem (funções puras, testáveis).
 
 /// Tipos de gasto registrados numa viagem.
@@ -8,8 +9,9 @@ enum ExpenseKind {
   lodging('Hospedagem', '🏨'),
   other('Outros', '🧾');
 
-  const ExpenseKind(this.label, this.emoji);
-  final String label;
+  const ExpenseKind(this._label, this.emoji);
+  final String _label;
+  String get label => tr(_label);
   final String emoji;
 
   /// Lê o tipo salvo pelo nome (desconhecido = "Outros").
@@ -85,11 +87,13 @@ String formatMoney(double v) {
   final cents = (v * 100).round();
   final reais = (cents ~/ 100).toString();
   final buf = StringBuffer();
+  // Inglês: "R\$ 1,234.50" (a moeda continua o real).
+  final (thou, dec) = I18n.isEn ? (',', '.') : ('.', ',');
   for (var i = 0; i < reais.length; i++) {
-    if (i > 0 && (reais.length - i) % 3 == 0) buf.write('.');
+    if (i > 0 && (reais.length - i) % 3 == 0) buf.write(thou);
     buf.write(reais[i]);
   }
-  return 'R\$ $buf,${(cents % 100).toString().padLeft(2, '0')}';
+  return 'R\$ $buf$dec${(cents % 100).toString().padLeft(2, '0')}';
 }
 
 /// "12,5"

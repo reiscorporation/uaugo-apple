@@ -1,3 +1,4 @@
+import '../l10n/i18n.dart';
 // ============================================================================
 // group_requests.dart — Pedidos ao grupo (só dentro da expedição)
 //
@@ -17,12 +18,14 @@ enum GroupRequest {
   behind('🐢', 'Esperem, fiquei para trás', 'ficou para trás. Esperem'),
   ;
 
-  const GroupRequest(this.emoji, this.label, this.spokenAction);
+  const GroupRequest(this.emoji, this._label, this._spokenAction);
   final String emoji;
-  final String label;
+  final String _label;
+  String get label => tr(_label);
 
   /// Completa a frase depois do nome: "Ricardo precisa abastecer".
-  final String spokenAction;
+  final String _spokenAction;
+  String get spokenAction => tr(_spokenAction);
 
   static GroupRequest? fromName(String? n) =>
       GroupRequest.values.where((r) => r.name == n).firstOrNull;
@@ -40,7 +43,7 @@ typedef GroupRequestItem = ({
 
 /// Frase falada para o grupo: "Ricardo precisa abastecer".
 String groupRequestSpeech(String who, GroupRequest r) {
-  final name = who.trim().isEmpty ? 'Um piloto' : who.trim();
+  final name = who.trim().isEmpty ? tr('Um piloto') : who.trim();
   return '$name ${r.spokenAction}';
 }
 

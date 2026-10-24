@@ -35,6 +35,7 @@ import '../logic/find_places.dart';
 import '../logic/simulation.dart' show RouteWalker;
 import '../services/places_service.dart';
 import 'map_screen.dart';
+import '../l10n/i18n.dart';
 
 /// Planejamento do roteiro: pontos, rota pelas estradas, horários e dias.
 /// O líder edita; os demais pilotos só visualizam e compartilham.
@@ -104,9 +105,9 @@ class _PlanScreenState extends State<PlanScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, set) => AlertDialog(
-          title: const Text('Paradas para abastecer'),
+          title: Text(tr('Paradas para abastecer')),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Incluir uma parada num posto a cada:'),
+            Text(tr('Incluir uma parada num posto a cada:')),
             const SizedBox(height: 10),
             Wrap(spacing: 8, children: [
               for (final k in const [100, 150, 200, 250, 300])
@@ -117,14 +118,13 @@ class _PlanScreenState extends State<PlanScreen> {
                 ),
             ]),
             const SizedBox(height: 10),
-            const Text(
-                'O app procura o posto mais perto de cada ponto, no caminho. '
-                'Depois dá para trocar ou tirar no roteiro.',
+            Text(
+                tr('O app procura o posto mais perto de cada ponto, no caminho. Depois dá para trocar ou tirar no roteiro.'),
                 style: TextStyle(fontSize: 12)),
           ]),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sugerir')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Sugerir'))),
           ],
         ),
       ),
@@ -143,7 +143,7 @@ class _PlanScreenState extends State<PlanScreen> {
       for (var d = every; d < w.length - 30000 && d <= every * 15; d += every) d
     ];
     if (marks.isEmpty) {
-      _snack('A rota é mais curta que $km km: não precisa de parada.');
+      _snack(tr('A rota é mais curta que {0} km: não precisa de parada.', [km]));
       return;
     }
     setState(() => _routing = true);
@@ -163,7 +163,7 @@ class _PlanScreenState extends State<PlanScreen> {
     if (!mounted) return;
     if (found.isEmpty) {
       setState(() => _routing = false);
-      _snack('Não encontrei postos perto da rota. Tente outro intervalo.');
+      _snack(tr('Não encontrei postos perto da rota. Tente outro intervalo.'));
       return;
     }
     // Insere na ordem do caminho, entre as paradas que já existem.
@@ -188,10 +188,10 @@ class _PlanScreenState extends State<PlanScreen> {
     if (!mounted) return;
     setState(() => _routing = false);
     if (!ok) {
-      _snack('Não foi possível salvar as paradas. Confira a internet.');
+      _snack(tr('Não foi possível salvar as paradas. Confira a internet.'));
       return;
     }
-    _snack('${found.length} ${found.length == 1 ? 'posto incluído' : 'postos incluídos'} no roteiro.');
+    _snack(tr('{0} {1} no roteiro.', [found.length, found.length == 1 ? tr('posto incluído') : tr('postos incluídos')]));
     // A lista de paradas chega pelo Firestore; recalcula com ela.
     await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) await _recalc();
@@ -319,7 +319,7 @@ class _PlanScreenState extends State<PlanScreen> {
       _routing = false;
       _routeFailed = !ok;
     });
-    if (!ok) _snack('Não foi possível calcular a rota. Confira a internet.');
+    if (!ok) _snack(tr('Não foi possível calcular a rota. Confira a internet.'));
   }
 
   /// Adiciona uma parada no fim (antes do destino) e recalcula.
@@ -344,7 +344,7 @@ class _PlanScreenState extends State<PlanScreen> {
       _routeFailed = !ok;
     });
     if (!ok) {
-      _snack('Não foi possível salvar a parada. Confira a internet e tente de novo.');
+      _snack(tr('Não foi possível salvar a parada. Confira a internet e tente de novo.'));
     }
   }
 
@@ -376,10 +376,10 @@ class _PlanScreenState extends State<PlanScreen> {
                 ? null
                 : LatLng(me.latitude, me.longitude),
         title: _stops.isEmpty
-            ? 'Ponto de saída'
+            ? tr('Ponto de saída')
             : _stops.length == 1
-                ? 'Destino'
-                : 'Adicionar parada',
+                ? tr('Destino')
+                : tr('Adicionar parada'),
       ),
     ));
     if (picked == null) return;
@@ -390,7 +390,7 @@ class _PlanScreenState extends State<PlanScreen> {
   /// Segurou no mapa: adiciona uma parada naquele ponto.
   Future<void> _addFromMap(LatLng pos) async {
     if (!_isLeader) return;
-    var name = 'Ponto no mapa';
+    var name = tr('Ponto no mapa');
     var address = '';
     try {
       final p = (await placemarkFromCoordinates(pos.latitude, pos.longitude))
@@ -412,15 +412,15 @@ class _PlanScreenState extends State<PlanScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Adicionar ao roteiro?'),
+        title: Text(tr('Adicionar ao roteiro?')),
         content: Text(address.isEmpty ? name : '$name\n$address'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
+              child: Text(tr('Cancelar'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Adicionar')),
+              child: Text(tr('Adicionar'))),
         ],
       ),
     );
@@ -470,7 +470,7 @@ class _PlanScreenState extends State<PlanScreen> {
       initialDate: cur.isBefore(now) ? now : cur,
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 2),
-      helpText: 'Data de saída',
+      helpText: tr('Data de saída'),
     );
     if (d != null) await _savePlan(_plan.copyWith(startDate: formatYmd(d)));
   }
@@ -523,7 +523,7 @@ class _PlanScreenState extends State<PlanScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.navigation),
-            title: const Text('Navegar até aqui (Google Maps)'),
+            title: Text(tr('Navegar até aqui (Google Maps)')),
             onTap: () {
               Navigator.pop(ctx);
               _navigate(s);
@@ -543,27 +543,27 @@ class _PlanScreenState extends State<PlanScreen> {
   /// Compartilha o roteiro (texto com paradas e horários + link do mapa).
   Future<void> _share() async {
     if (_stops.length < 2) {
-      _snack('Adicione pelo menos a saída e o destino');
+      _snack(tr('Adicione pelo menos a saída e o destino'));
       return;
     }
     final text = buildShareText(
-      expeditionName: _exp?.name ?? 'Expedição',
+      expeditionName: _exp?.name ?? tr('Expedição'),
       code: widget.code,
       schedule: buildSchedule(_plan, _stops),
     );
     await SharePlus.instance.share(
-        ShareParams(text: text, subject: _exp?.name ?? 'Roteiro'));
+        ShareParams(text: text, subject: _exp?.name ?? tr('Roteiro')));
   }
 
   /// Copia o roteiro como texto.
   Future<void> _copy() async {
     final text = buildShareText(
-      expeditionName: _exp?.name ?? 'Expedição',
+      expeditionName: _exp?.name ?? tr('Expedição'),
       code: widget.code,
       schedule: buildSchedule(_plan, _stops),
     );
     await Clipboard.setData(ClipboardData(text: text));
-    _snack('Roteiro copiado');
+    _snack(tr('Roteiro copiado'));
   }
 
   // ------------------------------------------------------------ UI
@@ -575,7 +575,7 @@ class _PlanScreenState extends State<PlanScreen> {
       resizeToAvoidBottomInset: false, // mapa não redimensiona com o teclado (evita travamento)
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Roteiro'),
+          Text(tr('Roteiro')),
           Text(_exp?.name ?? '',
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall),
@@ -583,11 +583,11 @@ class _PlanScreenState extends State<PlanScreen> {
         actions: [
           IconButton(
               icon: const Icon(Icons.copy),
-              tooltip: 'Copiar roteiro',
+              tooltip: tr('Copiar roteiro'),
               onPressed: _stops.length < 2 ? null : _copy),
           IconButton(
               icon: const Icon(Icons.share),
-              tooltip: 'Enviar roteiro (WhatsApp...)',
+              tooltip: tr('Enviar roteiro (WhatsApp...)'),
               onPressed: _share),
         ],
       ),
@@ -640,7 +640,7 @@ class _PlanScreenState extends State<PlanScreen> {
               const Positioned(
                   top: 0, left: 0, right: 0, child: LinearProgressIndicator()),
             if (_isLeader && _stops.isEmpty)
-              const Positioned(
+              Positioned(
                 left: 8,
                 right: 8,
                 bottom: 8,
@@ -648,7 +648,7 @@ class _PlanScreenState extends State<PlanScreen> {
                   child: Padding(
                     padding: EdgeInsets.all(10),
                     child: Text(
-                      'Busque um lugar pelo botão abaixo ou toque e segure no mapa',
+                      tr('Busque um lugar pelo botão abaixo ou toque e segure no mapa'),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -703,10 +703,10 @@ class _PlanScreenState extends State<PlanScreen> {
                   icon: const Icon(Icons.add_location_alt),
                   label: Text(
                       _stops.isEmpty
-                          ? 'Saída'
+                          ? tr('Saída')
                           : _stops.length == 1
-                              ? 'Destino'
-                              : 'Parada',
+                              ? tr('Destino')
+                              : tr('Parada'),
                       overflow: TextOverflow.ellipsis),
                 ),
               ),
@@ -717,10 +717,10 @@ class _PlanScreenState extends State<PlanScreen> {
                   onPressed: _routing
                       ? null
                       : () {
-                          _snack('Roteiro salvo: o grupo já vê as mudanças.');
+                          _snack(tr('Roteiro salvo: o grupo já vê as mudanças.'));
                           Navigator.of(context).pop(false);
                         },
-                  child: const Text('Salvar'),
+                  child: Text(tr('Salvar')),
                 ),
               ),
               const SizedBox(width: 8),
@@ -731,7 +731,7 @@ class _PlanScreenState extends State<PlanScreen> {
                       ? () => Navigator.of(context).pop(true)
                       : null,
                   icon: const Icon(Icons.navigation),
-                  label: const Text('Iniciar'),
+                  label: Text(tr('Iniciar')),
                 ),
               ),
             ]),
@@ -750,7 +750,7 @@ class _PlanScreenState extends State<PlanScreen> {
       routeFailed: _routeFailed,
       onDate: _pickDate,
       onTime: () async {
-        final t = await _pickTime(_plan.startTime, 'Hora de saída');
+        final t = await _pickTime(_plan.startTime, tr('Hora de saída'));
         if (t != null) await _savePlan(_plan.copyWith(startTime: t));
       },
       onTolls: (v) => _savePlan(_plan.copyWith(avoidTolls: v), recalc: true),
@@ -770,10 +770,10 @@ class _PlanScreenState extends State<PlanScreen> {
                 builder: (_) => MapScreen(
                   code: widget.code,
                   uid: widget.uid,
-                  userName: 'Você',
+                  userName: tr('Você'),
                   simulate: true,
                   trip: Trip(
-                      title: _exp?.name ?? 'Roteiro',
+                      title: _exp?.name ?? tr('Roteiro'),
                       plan: _plan,
                       stops: _stops),
                 ),
@@ -800,9 +800,7 @@ class _PlanScreenState extends State<PlanScreen> {
           item: x,
           isLast: i == items.length - 1,
           dayHeader: newDay && schedule.days.length > 1
-              ? 'Dia ${day.day}'
-                  '${schedule.hasDate ? ' · ${formatDay(day.date)}' : ''}'
-                  ' · ${formatDistance(day.distanceM)} · ${formatDuration(day.rideS)}'
+              ? tr('Dia {0}{1} · {2} · {3}', [day.day, schedule.hasDate ? ' · ${formatDay(day.date)}' : '', formatDistance(day.distanceM), formatDuration(day.rideS)])
               : null,
           dragIndex: _isLeader ? i : null,
           onTap: () => _editStop(x.stop),
@@ -864,7 +862,7 @@ class _PlanHeader extends StatelessWidget {
             _Stat(Icons.straighten, formatDistance(s.totalDistanceM)),
             _Stat(Icons.timer_outlined, formatDuration(s.totalRideS)),
             _Stat(Icons.calendar_month,
-                s.days.length == 1 ? '1 dia' : '${s.days.length} dias'),
+                s.days.length == 1 ? tr('1 dia') : '${s.days.length} dias'),
           ]),
         // Combustível estimado (opcional: "Minha moto" → consumo e gastos).
         if (s.stops.length >= 2 && AppSettings.instance.fuel.value.ready)
@@ -874,8 +872,7 @@ class _PlanHeader extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                '⛽ Seu combustível estimado: ${formatDecimal(l)} L · '
-                '${formatMoney(l * f.pricePerLiter)}',
+                tr('⛽ Seu combustível estimado: {0} L · {1}', [formatDecimal(l), formatMoney(l * f.pricePerLiter)]),
                 textAlign: TextAlign.center,
               ),
             );
@@ -886,9 +883,8 @@ class _PlanHeader extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               tolls!.plazas == 0
-                  ? '🛣️ Sem pedágio na rota'
-                  : '🛣️ Pedágios: ${formatMoney(tolls!.total)} '
-                      '(${tolls!.plazas} ${tolls!.plazas == 1 ? 'praça' : 'praças'}, estimado)',
+                  ? tr('🛣️ Sem pedágio na rota')
+                  : tr('🛣️ Pedágios: {0} ({1} {2}, estimado)', [formatMoney(tolls!.total), tolls!.plazas, tolls!.plazas == 1 ? tr('praça') : tr('praças')]),
               textAlign: TextAlign.center,
             ),
           ),
@@ -902,8 +898,7 @@ class _PlanHeader extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                '💰 Custo estimado: ${formatMoney(fuel + tolls!.total)} '
-                '(combustível + pedágios)',
+                tr('💰 Custo estimado: {0} (combustível + pedágios)', [formatMoney(fuel + tolls!.total)]),
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
@@ -915,9 +910,9 @@ class _PlanHeader extends StatelessWidget {
             child: ListTile(
               dense: true,
               leading: const Icon(Icons.cloud_off),
-              title: const Text('Rota não calculada (linha pontilhada)'),
+              title: Text(tr('Rota não calculada (linha pontilhada)')),
               trailing: editable
-                  ? TextButton(onPressed: onRetry, child: const Text('Tentar'))
+                  ? TextButton(onPressed: onRetry, child: Text(tr('Tentar')))
                   : null,
             ),
           ),
@@ -925,21 +920,21 @@ class _PlanHeader extends StatelessWidget {
         Wrap(spacing: 8, runSpacing: 4, children: [
           ActionChip(
             avatar: const Icon(Icons.event, size: 18),
-            label: Text(date == null ? 'Definir data' : formatDay(date)),
+            label: Text(date == null ? tr('Definir data') : formatDay(date)),
             onPressed: editable ? onDate : null,
           ),
           ActionChip(
             avatar: const Icon(Icons.schedule, size: 18),
-            label: Text('Saída ${plan.startTime}'),
+            label: Text(tr('Saída {0}', [plan.startTime])),
             onPressed: editable ? onTime : null,
           ),
           FilterChip(
-            label: const Text('Evitar pedágios'),
+            label: Text(tr('Evitar pedágios')),
             selected: plan.avoidTolls,
             onSelected: editable ? onTolls : null,
           ),
           FilterChip(
-            label: const Text('Evitar rodovias'),
+            label: Text(tr('Evitar rodovias')),
             selected: plan.avoidHighways,
             onSelected: editable ? onHighways : null,
           ),
@@ -949,7 +944,7 @@ class _PlanHeader extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: onFuelStops,
             icon: const Icon(Icons.local_gas_station_outlined),
-            label: const Text('Paradas para abastecer a cada X km'),
+            label: Text(tr('Paradas para abastecer a cada X km')),
           ),
         ],
         if (onSimulate != null) ...[
@@ -957,7 +952,7 @@ class _PlanHeader extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: onSimulate,
             icon: const Icon(Icons.play_circle_outline),
-            label: const Text('Simular a viagem'),
+            label: Text(tr('Simular a viagem')),
           ),
         ],
         if (onStart != null) ...[
@@ -965,15 +960,14 @@ class _PlanHeader extends StatelessWidget {
           FilledButton.tonalIcon(
             onPressed: onStart,
             icon: const Icon(Icons.map),
-            label: const Text('Abrir mapa do comboio'),
+            label: Text(tr('Abrir mapa do comboio')),
           ),
         ],
         if (editable && s.stops.length >= 2)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              'Toque num ponto para editar · arraste ⠿ para reordenar · '
-              'um "Pernoite" encerra o dia',
+              tr('Toque num ponto para editar · arraste ⠿ para reordenar · um "Pernoite" encerra o dia'),
               style: theme.textTheme.bodySmall,
               textAlign: TextAlign.center,
             ),
@@ -1025,11 +1019,11 @@ class _StopTile extends StatelessWidget {
     final theme = Theme.of(context);
     final s = item.stop;
     final times = item.isStart
-        ? 'Saída ${formatTime(item.departure)}'
+        ? tr('Saída {0}', [formatTime(item.departure)])
         : isLast || item.departure == item.arrival
-            ? 'Chegada ${formatTime(item.arrival!)}'
+            ? tr('Chegada {0}', [formatTime(item.arrival!)])
             : s.type == StopType.overnight
-                ? 'Chegada ${formatTime(item.arrival!)} · sai ${s.nextDayStart} do dia seguinte'
+                ? tr('Chegada {0} · sai {1} do dia seguinte', [formatTime(item.arrival!), s.nextDayStart])
                 : '${formatTime(item.arrival!)} – ${formatTime(item.departure)}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1133,18 +1127,18 @@ class _StopEditorState extends State<_StopEditor> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Editar ponto', style: theme.textTheme.titleLarge),
+            Text(tr('Editar ponto'), style: theme.textTheme.titleLarge),
             if (widget.stop.address.isNotEmpty)
               Text(widget.stop.address, style: theme.textTheme.bodySmall),
             const SizedBox(height: 12),
             TextField(
               controller: _name,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                  labelText: 'Nome', border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                  labelText: tr('Nome'), border: OutlineInputBorder()),
             ),
             const SizedBox(height: 12),
-            Text('Tipo', style: theme.textTheme.labelLarge),
+            Text(tr('Tipo'), style: theme.textTheme.labelLarge),
             Wrap(spacing: 6, runSpacing: 0, children: [
               for (final t in StopType.values)
                 ChoiceChip(
@@ -1155,11 +1149,11 @@ class _StopEditorState extends State<_StopEditor> {
             ]),
             if (!widget.isLast && _type != StopType.overnight) ...[
               const SizedBox(height: 12),
-              Text('Tempo parado', style: theme.textTheme.labelLarge),
+              Text(tr('Tempo parado'), style: theme.textTheme.labelLarge),
               Wrap(spacing: 6, children: [
                 for (final m in _stayOptions)
                   ChoiceChip(
-                    label: Text(m == 0 ? 'Não para' : formatDuration(m * 60)),
+                    label: Text(m == 0 ? tr('Não para') : formatDuration(m * 60)),
                     selected: _stay == m,
                     onSelected: (_) => setState(() => _stay = m),
                   ),
@@ -1170,10 +1164,10 @@ class _StopEditorState extends State<_StopEditor> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.wb_sunny_outlined),
-                title: const Text('Saída no dia seguinte'),
+                title: Text(tr('Saída no dia seguinte')),
                 trailing: Text(_nextDay, style: theme.textTheme.titleMedium),
                 onTap: () async {
-                  final t = await widget.pickTime(_nextDay, 'Saída no dia seguinte');
+                  final t = await widget.pickTime(_nextDay, tr('Saída no dia seguinte'));
                   if (t != null) setState(() => _nextDay = t);
                 },
               ),
@@ -1184,16 +1178,16 @@ class _StopEditorState extends State<_StopEditor> {
               maxLines: 3,
               minLines: 1,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Observações',
-                hintText: 'Ex.: abastecer cheio, próximo posto a 120 km',
+              decoration: InputDecoration(
+                labelText: tr('Observações'),
+                hintText: tr('Ex.: abastecer cheio, próximo posto a 120 km'),
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
             Row(children: [
               IconButton(
-                tooltip: 'Remover do roteiro',
+                tooltip: tr('Remover do roteiro'),
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () async {
                   Navigator.pop(context);
@@ -1201,14 +1195,14 @@ class _StopEditorState extends State<_StopEditor> {
                 },
               ),
               IconButton(
-                tooltip: 'Navegar até aqui',
+                tooltip: tr('Navegar até aqui'),
                 icon: const Icon(Icons.navigation_outlined),
                 onPressed: widget.onNavigate,
               ),
               const Spacer(),
               TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar')),
+                  child: Text(tr('Cancelar'))),
               FilledButton(
                 onPressed: () async {
                   final name = _name.text.trim();
@@ -1221,7 +1215,7 @@ class _StopEditorState extends State<_StopEditor> {
                     'nextDayStart': _nextDay,
                   });
                 },
-                child: const Text('Salvar'),
+                child: Text(tr('Salvar')),
               ),
             ]),
           ],

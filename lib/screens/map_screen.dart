@@ -79,6 +79,7 @@ import 'plan_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
+import '../l10n/i18n.dart';
 
 /// Tela de mapa/navegação. Três usos:
 /// - expedição em grupo: [code] preenchido;
@@ -160,7 +161,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       saving: _saving,
       background: service,
       economical: false,
-      notificationText: 'Compartilhando sua localização com o comboio',
+      notificationText: tr('Compartilhando sua localização com o comboio'),
     ).listen(_onPosition, onError: (e) => _snack('GPS: $e'));
   }
 
@@ -194,7 +195,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (s == _saving || !mounted) return;
     setState(() => _saving = s);
     if (_sim == null && !_inBackground) _startGps();
-    if (s) _snack('🔋 Economia de bateria ligada');
+    if (s) _snack(tr('🔋 Economia de bateria ligada'));
   }
 
   /// App fora da tela (minimizado ou tela apagada): para tudo que gasta
@@ -516,8 +517,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
-            leading: const Icon(Icons.sos, color: Colors.red),
-            title: const Text('Pedir ajuda ao membro mais próximo'),
+            leading: Icon(Icons.sos, color: Colors.red),
+            title: Text(tr('Pedir ajuda ao membro mais próximo')),
             onTap: () {
               Navigator.pop(ctx);
               showClubNearbySheet(context,
@@ -525,8 +526,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.waving_hand_outlined),
-            title: const Text('Avisar membros que estou passando'),
+            leading: Icon(Icons.waving_hand_outlined),
+            title: Text(tr('Avisar membros que estou passando')),
             onTap: () {
               Navigator.pop(ctx);
               showClubNearbySheet(context,
@@ -974,11 +975,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         },
         text: [
           switch (r.kind) {
-            RadarKind.fixed => 'Radar fixo',
-            RadarKind.section => 'Radar de velocidade média',
-            RadarKind.redLight => 'Radar de avanço de sinal',
+            RadarKind.fixed => tr('Radar fixo'),
+            RadarKind.section => tr('Radar de velocidade média'),
+            RadarKind.redLight => tr('Radar de avanço de sinal'),
           },
-          kmh != null && kmh > 0 ? 'limite $kmh km/h' : 'limite não informado',
+          kmh != null && kmh > 0 ? tr('limite {0} km/h', [kmh]) : tr('limite não informado'),
         ].join(' · '),
         speech: radarSpeech(r, d, roadLimit: roadKmh),
         // Some logo depois de passar pelo radar (antes: só ~200 m depois do
@@ -1008,8 +1009,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _stretchAnnounced.add(s.id);
       _announceRadar(
         emoji: '🚔',
-        text: 'Trecho com radar portátil da PRF · BR-${s.br} '
-            'km ${s.kmFrom.round()}–${s.kmTo.round()}',
+        text: tr('Trecho com radar portátil da PRF · BR-{0} km {1}–{2}', [s.br, s.kmFrom.round(), s.kmTo.round()]),
         speech: prfStretchSpeech(s, n.meters),
         // Some ao sair do trecho (ou se não chegar a entrar nele).
         passed: (q) =>
@@ -1099,11 +1099,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               formatMoney,
               osmMotoFree: poi.kind == PoiKind.tollMotoFree);
       final speech = bump
-          ? 'Lombada a ${spokenDistance(d)}'
+          ? tr('Lombada a {0}', [spokenDistance(d)])
           : toll
-              ? 'Praça de pedágio a ${spokenDistance(d)}'
-                  '${tollNote.isEmpty ? '' : '. $tollNote'}'
-              : 'Posto policial a ${spokenDistance(d)}';
+              ? tr('Praça de pedágio a {0}{1}', [spokenDistance(d), tollNote.isEmpty ? '' : '. $tollNote'])
+              : tr('Posto policial a {0}', [spokenDistance(d)]);
       if (done > 0) {
         if (_voice.alertsOn.value) _voice.alert(speech);
         return;
@@ -1115,10 +1114,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 ? '🛣️'
                 : '🚔',
         text: bump
-            ? 'Lombada à frente'
+            ? tr('Lombada à frente')
             : toll
-                ? 'Pedágio à frente${tollNote.isEmpty ? '' : ' · $tollNote'}'
-                : 'Posto policial à frente',
+                ? tr('Pedágio à frente{0}', [tollNote.isEmpty ? '' : ' · $tollNote'])
+                : tr('Posto policial à frente'),
         speech: speech,
         speak: !bump || prefs.bumps == AlertMode.voice,
         passed: (q) =>
@@ -1139,8 +1138,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (pr.along < w.length / 2) return;
     _halfwaySaid = true;
     final left = formatDistance((w.length - pr.along).round());
-    _voice.alert('Você chegou à metade do trajeto. Faltam $left');
-    _showTrafficBanner('🏁 Metade do trajeto! Faltam $left');
+    _voice.alert(tr('Você chegou à metade do trajeto. Faltam {0}', [left]));
+    _showTrafficBanner(tr('🏁 Metade do trajeto! Faltam {0}', [left]));
   }
 
   /// Chuva à frente, a cada 10 km pela rota (até 50 km), conferida a cada
@@ -1180,7 +1179,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _lastRainAlert = DateTime.now();
       _voice.alert(rainSpeech(levels[i], dists[i].toDouble()));
       _showTrafficBanner(
-          '🌧️ ${rainWord(levels[i])} a ~${dists[i] ~/ 1000} km à frente');
+          tr('🌧️ {0} a ~{1} km à frente', [rainWord(levels[i]), dists[i] ~/ 1000]));
       return;
     }
   }
@@ -1192,18 +1191,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
-            title: Text('Voz', style: Theme.of(ctx).textTheme.titleLarge),
-            subtitle: const Text(
-                'Sai pelo alto-falante ou pelo intercomunicador Bluetooth. '
-                'A música abaixa enquanto o app fala.'),
+            title: Text(tr('Voz'), style: Theme.of(ctx).textTheme.titleLarge),
+            subtitle: Text(
+                tr('Sai pelo alto-falante ou pelo intercomunicador Bluetooth. A música abaixa enquanto o app fala.')),
           ),
           ValueListenableBuilder<bool>(
             valueListenable: _voice.alertsOn,
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.campaign),
-              title: const Text('Avisos falados'),
-              subtitle: const Text(
-                  'Radares (a 1 km), perigos na pista, SOS do grupo e paradas do roteiro'),
+              title: Text(tr('Avisos falados')),
+              subtitle: Text(
+                  tr('Radares (a 1 km), perigos na pista, SOS do grupo e paradas do roteiro')),
               value: on,
               onChanged: _voice.setAlerts,
             ),
@@ -1212,30 +1210,29 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             valueListenable: _voice.narrationOn,
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.turn_right),
-              title: const Text('Narração do trajeto'),
+              title: Text(tr('Narração do trajeto')),
               subtitle: Text(_nav == null
-                  ? 'Sem rota com instruções. '
-                      '${_isLeader ? 'Abra o Roteiro e recalcule a rota.' : 'Peça ao líder para montar o roteiro.'}'
-                  : 'Curva a curva, como no GPS: "Em 300 metros, vire à direita"'),
+                  ? tr('Sem rota com instruções. {0}', [_isLeader ? tr('Abra o Roteiro e recalcule a rota.') : tr('Peça ao líder para montar o roteiro.')])
+                  : tr('Curva a curva, como no GPS: "Em 300 metros, vire à direita"')),
               value: on,
               onChanged: (v) {
                 _voice.setNarration(v);
                 _navSynced = false;
                 if (v && _nav == null) {
-                  _snack('O roteiro ainda não tem as instruções de navegação');
+                  _snack(tr('O roteiro ainda não tem as instruções de navegação'));
                 }
               },
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.record_voice_over),
-            title: const Text('Testar voz'),
-            onTap: () => _voice.test(hazardSpeech('radar móvel', 1000)),
+            leading: Icon(Icons.record_voice_over),
+            title: Text(tr('Testar voz')),
+            onTap: () => _voice.test(hazardSpeech(tr('radar móvel'), 1000)),
           ),
           ListTile(
-            leading: const Icon(Icons.settings),
-            title: const Text('Mais configurações'),
-            subtitle: const Text('Tela sempre ligada, preferências de rota'),
+            leading: Icon(Icons.settings),
+            title: Text(tr('Mais configurações')),
+            subtitle: Text(tr('Tela sempre ligada, preferências de rota')),
             onTap: () {
               Navigator.pop(ctx);
               Navigator.of(context).push(MaterialPageRoute(
@@ -1248,10 +1245,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               dense: true,
               leading: const Icon(Icons.info_outline),
               title: Text(idx == null
-                  ? 'Base de radares ainda não baixada'
-                  : '${idx.radarCount} radares fixos · '
-                      '${idx.stretchCount} trechos da PRF'
-                      '${idx.prfLabel.isEmpty ? '' : ' (${idx.prfLabel.toLowerCase()})'}'),
+                  ? tr('Base de radares ainda não baixada')
+                  : tr('{0} radares fixos · {1} trechos da PRF{2}', [idx.radarCount, idx.stretchCount, idx.prfLabel.isEmpty ? '' : ' (${idx.prfLabel.toLowerCase()})'])),
               subtitle: Text(idx?.attribution ?? ''),
             ),
           ),
@@ -1362,8 +1357,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _showReportSheet() async {
     if (!await requireAccount(
         context,
-        'Para reportar alertas para todos, entre com sua conta. Isso evita '
-        'alertas falsos e protege a comunidade.')) {
+        tr('Para reportar alertas para todos, entre com sua conta. Isso evita alertas falsos e protege a comunidade.'))) {
       return;
     }
     if (!mounted) return;
@@ -1373,7 +1367,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('O que tem na pista?',
+            Text(tr('O que tem na pista?'),
                 style: Theme.of(ctx).textTheme.titleLarge),
             const SizedBox(height: 16),
             GridView.count(
@@ -1412,7 +1406,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 12),
             Text(
-              'O alerta é marcado na sua posição atual e aparece para todos os usuários do app.',
+              tr('O alerta é marcado na sua posição atual e aparece para todos os usuários do app.'),
               textAlign: TextAlign.center,
               style: Theme.of(ctx).textTheme.bodySmall,
             ),
@@ -1427,8 +1421,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _quickRadar() async {
     if (!await requireAccount(
         context,
-        'Para avisar radares para todos, entre com sua conta. Isso evita '
-        'alertas falsos e protege a comunidade.')) {
+        tr('Para avisar radares para todos, entre com sua conta. Isso evita alertas falsos e protege a comunidade.'))) {
       return;
     }
     if (mounted) _reportHazard(HazardType.radar);
@@ -1450,27 +1443,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           if (h.createdBy != widget.uid && _voted.add(h.id)) {
             _hazardSvc.confirm(h);
           }
-          _snack('${t.emoji} Esse alerta já existia aqui. Confirmado!');
-          _voice.alert('Alerta de ${t.spoken} confirmado. Obrigado!');
+          _snack(tr('{0} Esse alerta já existia aqui. Confirmado!', [t.emoji]));
+          _voice.alert(tr('Alerta de {0} confirmado. Obrigado!', [t.spoken]));
           return;
         }
       }
       // Confirma só quando o servidor gravar; sem internet, fica na fila.
       var sent = false;
       // Fala na hora (mesmo sem internet o alerta fica na fila).
-      _voice.alert('Alerta de ${t.spoken} enviado. Obrigado por avisar a comunidade!');
+      _voice.alert(tr('Alerta de {0} enviado. Obrigado por avisar a comunidade!', [t.spoken]));
       _hazardSvc.report(t, p.latitude, p.longitude, widget.uid).then((_) {
         sent = true;
-        _snack('${t.emoji} ${t.label} enviado para todos. Obrigado!');
-      }, onError: (e) => _snack('Não foi possível enviar o alerta: $e'));
+        _snack(tr('{0} {1} enviado para todos. Obrigado!', [t.emoji, t.label]));
+      }, onError: (e) => _snack(tr('Não foi possível enviar o alerta: {0}', [e])));
       Future.delayed(const Duration(seconds: 6), () {
         if (!sent && mounted) {
-          _snack('${t.emoji} ${t.label} salvo. Será enviado quando houver '
-              'internet.');
+          _snack(tr('{0} {1} salvo. Será enviado quando houver internet.', [t.emoji, t.label]));
         }
       });
     } catch (e) {
-      _snack('Não foi possível obter sua posição: $e');
+      _snack(tr('Não foi possível obter sua posição: {0}', [e]));
     }
   }
 
@@ -1487,7 +1479,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _shownHazard = null;
       if (_askHazard?.id == h.id) _askHazard = null;
     });
-    _snack('Obrigado por ajudar a comunidade!');
+    _snack(tr('Obrigado por ajudar a comunidade!'));
   }
 
   /// Comando de voz reconhecido (mãos livres, para quem está de luva):
@@ -1499,9 +1491,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     switch (cmd) {
       case ReportCommand(:final type):
         if (_sim != null) {
-          _voice.reply('Na simulação os alertas não são enviados.');
+          _voice.reply(tr('Na simulação os alertas não são enviados.'));
         } else if (AuthService.isAnonymous) {
-          _voice.reply('Para marcar alertas, entre com sua conta no app.');
+          _voice.reply(tr('Para marcar alertas, entre com sua conta no app.'));
         } else {
           final p = _me;
           if (p != null) {
@@ -1517,19 +1509,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         }
       case GroupRequestCommand(:final request):
         if (!_isExpedition) {
-          _voice.reply('Os pedidos ao grupo funcionam dentro da expedição.');
+          _voice.reply(tr('Os pedidos ao grupo funcionam dentro da expedição.'));
         } else {
           await _sendGroupRequest(request);
         }
       case CancelStopCommand():
         final s = _nextSoloStop;
         if (_isExpedition) {
-          _voice.reply('Na expedição, as paradas são do líder ou do capitão.');
+          _voice.reply(tr('Na expedição, as paradas são do líder ou do capitão.'));
         } else if (s == null) {
-          _voice.reply('Não há parada no caminho para cancelar.');
+          _voice.reply(tr('Não há parada no caminho para cancelar.'));
         } else {
           _pendingCancelStop = s;
-          _voice.reply('Cancelar a parada ${s.name}? Diga sim ou não.');
+          _voice.reply(tr('Cancelar a parada {0}? Diga sim ou não.', [s.name]));
         }
       case CancelCommand():
         final last = _lastVoiceReport;
@@ -1547,11 +1539,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           }
         }
         if (mine == null) {
-          _voice.reply('Não encontrei um alerta seu para cancelar.');
+          _voice.reply(tr('Não encontrei um alerta seu para cancelar.'));
         } else {
           _hazardSvc.dismiss(mine, force: true);
           _lastVoiceReport = null;
-          _voice.reply('Alerta de ${mine.type.spoken} cancelado.');
+          _voice.reply(tr('Alerta de {0} cancelado.', [mine.type.spoken]));
         }
       case GoToCommand(:final saved):
         await _voiceGoTo(saved: saved);
@@ -1573,7 +1565,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           if (yes) {
             await _removeSoloStop(cancel);
           } else {
-            _voice.reply('Parada mantida.');
+            _voice.reply(tr('Parada mantida.'));
           }
           return;
         }
@@ -1581,7 +1573,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         final ack = _pendingAck;
         if (ack != null && yes) {
           await _ackRequest(ack);
-          _voice.reply('Confirmado para ${ack.name}.');
+          _voice.reply(tr('Confirmado para {0}.', [ack.name]));
           return;
         }
         // Resposta a "Adicionar como parada?" (procurar posto...).
@@ -1597,7 +1589,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 : null);
         if (h == null) return; // nada perguntado agora: ignora
         _voteHazard(h, yes);
-        _voice.reply(yes ? 'Confirmado. Obrigado!' : 'Certo, vou avisar que não está mais. Obrigado!');
+        _voice.reply(yes ? tr('Confirmado. Obrigado!') : tr('Certo, vou avisar que não está mais. Obrigado!'));
     }
   }
 
@@ -1627,8 +1619,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _askedHazards.add(h.id);
         _passedNear.remove(h.id);
         HapticFeedback.mediumImpact();
-        _voice.alert('Você passou pelo alerta de ${h.type.spoken}. '
-            '${_voiceCmd.enabled.value ? 'Ainda está lá? Diga sim ou não.' : 'Ainda está lá? Responda na tela.'}');
+        _voice.alert(tr('Você passou pelo alerta de {0}. {1}', [h.type.spoken, _voiceCmd.enabled.value ? tr('Ainda está lá? Diga sim ou não.') : tr('Ainda está lá? Responda na tela.')]));
         setState(() {
           _askHazard = h;
           if (_shownHazard?.id == h.id) _shownHazard = null;
@@ -1671,13 +1662,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             Text(h.type.emoji, style: const TextStyle(fontSize: 30)),
             const SizedBox(width: 10),
             Expanded(
-              child: Text('${h.type.label} ainda está lá?',
+              child: Text(tr('{0} ainda está lá?', [h.type.label]),
                   style: white.copyWith(
                       fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             IconButton(
               icon: const Icon(Icons.close, color: Colors.white),
-              tooltip: 'Não sei',
+              tooltip: tr('Não sei'),
               onPressed: () {
                 _askTimer?.cancel();
                 setState(() => _askHazard = null);
@@ -1688,9 +1679,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: Row(children: [
-              big('👍 Sim', true, Colors.green.shade700),
+              big(tr('👍 Sim'), true, Colors.green.shade700),
               const SizedBox(width: 8),
-              big('👎 Não está', false, Colors.red.shade700),
+              big(tr('👎 Não está'), false, Colors.red.shade700),
             ]),
           ),
         ]),
@@ -1745,14 +1736,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 Expanded(
                   child: FilledButton.tonal(
                     onPressed: () => _voteHazard(h, true),
-                    child: const Text('👍 Ainda está lá'),
+                    child: Text(tr('👍 Ainda está lá')),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton.tonal(
                     onPressed: () => _voteHazard(h, false),
-                    child: const Text('👎 Não está mais'),
+                    child: Text(tr('👎 Não está mais')),
                   ),
                 ),
               ]),
@@ -1768,7 +1759,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     _hazards = [for (final x in _hazards) if (x.id != h.id) x];
                   });
                 },
-                child: const Text('REMOVER MEU ALERTA', style: white),
+                child: Text(tr('REMOVER MEU ALERTA'), style: white),
               ),
             ),
         ]),
@@ -1837,7 +1828,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           _expeditionOffRoute(p);
         } else if (_offRouteCount == 3 && !_offRoute) {
           _offRoute = true;
-          say('Você saiu da rota planejada');
+          say(tr('Você saiu da rota planejada'));
         }
         return;
       }
@@ -1846,7 +1837,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (_offRoute && d < 40) {
         _offRoute = false;
         nav.syncTo(p.latitude, p.longitude);
-        say('Você voltou para a rota');
+        say(tr('Você voltou para a rota'));
       }
     }
     // Na simulação acelerada a moto "pula" muitos metros por leitura: as
@@ -1874,7 +1865,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     setState(() => _rerouting = true);
     _lastReroute = DateTime.now();
     // Sem internet da última vez: não repete "Recalculando" a cada tentativa.
-    if (!_rerouteOffline) _voice.narrate('Recalculando a rota');
+    if (!_rerouteOffline) _voice.narrate(tr('Recalculando a rota'));
     var next = 1;
     while (next < trip.stops.length - 1 &&
         _stopArrived.contains(trip.stops[next].id)) {
@@ -1888,9 +1879,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // Sem internet: avisa uma vez, segue com a rota que já está no celular
       // e tenta de novo a cada 20 s (antes: tentava a cada leitura do GPS).
       if (!_rerouteOffline) {
-        _voice.alert('Sem internet: volte para a rota. '
-            'Recalculo quando a conexão voltar.');
-        _showTrafficBanner('📵 Sem internet: siga para a rota azul');
+        _voice.alert(tr('Sem internet: volte para a rota. Recalculo quando a conexão voltar.'));
+        _showTrafficBanner(tr('📵 Sem internet: siga para a rota azul'));
       }
       _rerouteOffline = true;
       _lastReroute = DateTime.now().add(const Duration(seconds: 10));
@@ -1968,8 +1958,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final saving = remainingNowS - nt.durationS;
     if (otherWay && saving >= 300) {
       final mins = (saving / 60).round();
-      _voice.alert('Rota mais rápida encontrada: economia de $mins minutos');
-      _showTrafficBanner('🚀 Rota mais rápida: economia de $mins min');
+      _voice.alert(tr('Rota mais rápida encontrada: economia de {0} minutos', [mins]));
+      _showTrafficBanner(tr('🚀 Rota mais rápida: economia de {0} min', [mins]));
       _applyTrip(nt);
       return;
     }
@@ -1983,8 +1973,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           mins >= _lastDelayMin + 5) {
         _lastDelayAlert = now;
         _lastDelayMin = mins;
-        _voice.alert('Trânsito intenso na rota: mais $mins minutos');
-        _showTrafficBanner('🚗 Trânsito intenso na rota: +$mins min');
+        _voice.alert(tr('Trânsito intenso na rota: mais {0} minutos', [mins]));
+        _showTrafficBanner(tr('🚗 Trânsito intenso na rota: +{0} min', [mins]));
       }
     }
   }
@@ -2090,7 +2080,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final remaining = _stops.sublist(next);
     setState(() => _rerouting = true);
     if (_isCaptain) {
-      _voice.narrate('Recalculando a rota da expedição');
+      _voice.narrate(tr('Recalculando a rota da expedição'));
       final ok = await _svc.rerouteFromCaptain(_code, exp.plan, p.latitude,
           p.longitude, remaining, _stops.sublist(1, next));
       if (!mounted) return;
@@ -2098,11 +2088,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (!ok) _lastReroute = DateTime.fromMillisecondsSinceEpoch(0);
       return;
     }
-    _voice.narrate('Você saiu da rota da expedição. Recalculando para você voltar.');
+    _voice.narrate(tr('Você saiu da rota da expedição. Recalculando para você voltar.'));
     final nt = await TripService.build(
       title: exp.name,
       points: [
-        TripPoint('Sua posição', p.latitude, p.longitude, type: StopType.meet),
+        TripPoint(tr('Sua posição'), p.latitude, p.longitude, type: StopType.meet),
         for (final s in remaining) TripPoint(s.name, s.lat, s.lng, type: s.type),
       ],
       avoidTolls: exp.plan.avoidTolls,
@@ -2137,7 +2127,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _routeSig = '';
         _navSig = '';
         _onStops(_stops);
-        _voice.alert('Você chegou até ${help.name}. Ao seguir, volto para a rota da expedição.');
+        _voice.alert(tr('Você chegou até {0}. Ao seguir, volto para a rota da expedição.', [help.name]));
       }
       return;
     }
@@ -2150,7 +2140,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _routeSig = '';
     _navSig = '';
     _onStops(_stops);
-    _voice.narrate('Você voltou para a rota da expedição');
+    _voice.narrate(tr('Você voltou para a rota da expedição'));
   }
 
   /// Colega que pediu ajuda (SOS) e para onde o piloto está indo.
@@ -2161,21 +2151,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _goHelp(String name, double lat, double lng) async {
     final p = _me;
     if (p == null) {
-      _snack('Ainda sem a sua posição pelo GPS');
+      _snack(tr('Ainda sem a sua posição pelo GPS'));
       return;
     }
     setState(() => _rerouting = true);
     final nt = await TripService.build(
-      title: 'Ajuda: $name',
+      title: tr('Ajuda: {0}', [name]),
       points: [
-        TripPoint('Sua posição', p.latitude, p.longitude, type: StopType.meet),
+        TripPoint(tr('Sua posição'), p.latitude, p.longitude, type: StopType.meet),
         TripPoint(name, lat, lng, type: StopType.destination),
       ],
     );
     if (!mounted) return;
     setState(() => _rerouting = false);
     if (nt == null) {
-      _snack('Não foi possível traçar a rota até $name. Confira a internet.');
+      _snack(tr('Não foi possível traçar a rota até {0}. Confira a internet.', [name]));
       return;
     }
     _helpTarget = (name: name, lat: lat, lng: lng);
@@ -2189,18 +2179,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _nav = _buildNav([for (final s in nt.stops.skip(1)) ...s.steps]);
     _navSynced = false;
     if (!_navigating) _startNavigation();
-    _voice.alert('Rota até $name. ${formatDistance(nt.distanceM)}.');
+    _voice.alert(tr('Rota até {0}. {1}.', [name, formatDistance(nt.distanceM)]));
   }
 
   /// Trocou o capitão: avisa todo mundo (e por voz quem virou capitão).
   void _onCaptainChanged(String uid) {
     if (uid == widget.uid) {
-      _voice.narrate('Agora você é o capitão da expedição');
-      _snack('Agora você é o capitão: o seu desvio recalcula a rota de todos.');
+      _voice.narrate(tr('Agora você é o capitão da expedição'));
+      _snack(tr('Agora você é o capitão: o seu desvio recalcula a rota de todos.'));
       return;
     }
-    final name = _members.where((m) => m.uid == uid).firstOrNull?.name ?? 'Outro piloto';
-    _snack('$name agora é o capitão da expedição.');
+    final name = _members.where((m) => m.uid == uid).firstOrNull?.name ?? tr('Outro piloto');
+    _snack(tr('{0} agora é o capitão da expedição.', [name]));
   }
 
   /// O capitão passa a capitania para outro membro.
@@ -2215,13 +2205,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           if (m.hasLocation)
             ListTile(
               leading: const Icon(Icons.my_location),
-              title: const Text('Ver no mapa'),
+              title: Text(tr('Ver no mapa')),
               onTap: () => Navigator.pop(ctx, 'map'),
             ),
           ListTile(
-            leading: const Icon(Icons.flag),
-            title: const Text('Passar a capitania'),
-            subtitle: const Text('O desvio dele passa a recalcular a rota de todos'),
+            leading: Icon(Icons.flag),
+            title: Text(tr('Passar a capitania')),
+            subtitle: Text(tr('O desvio dele passa a recalcular a rota de todos')),
             onTap: () => Navigator.pop(ctx, 'captain'),
           ),
         ]),
@@ -2235,12 +2225,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Passar a capitania para ${m.name}?'),
-        content: const Text('Você deixa de ser o capitão. O desvio do novo capitão '
-            'é que passa a recalcular a rota de todos.'),
+        title: Text(tr('Passar a capitania para {0}?', [m.name])),
+        content: Text(tr('Você deixa de ser o capitão. O desvio do novo capitão é que passa a recalcular a rota de todos.')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Passar')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Passar'))),
         ],
       ),
     );
@@ -2248,7 +2237,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     try {
       await _svc.setRoles(_code, m.uid, [...exp.sweepers]..remove(m.uid));
     } catch (e) {
-      _snack('Não foi possível salvar: $e');
+      _snack(tr('Não foi possível salvar: {0}', [e]));
     }
   }
 
@@ -2270,22 +2259,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           if (m.hasLocation)
             ListTile(
               leading: const Icon(Icons.my_location),
-              title: const Text('Ver no mapa'),
+              title: Text(tr('Ver no mapa')),
               onTap: () => Navigator.pop(ctx, 'map'),
             ),
           ListTile(
-            leading: const Icon(Icons.flag),
-            title: const Text('Tornar capitão'),
-            subtitle: const Text('Puxa o comboio: só o desvio dele recalcula a rota de todos'),
+            leading: Icon(Icons.flag),
+            title: Text(tr('Tornar capitão')),
+            subtitle: Text(tr('Puxa o comboio: só o desvio dele recalcula a rota de todos')),
             enabled: exp.captainId != m.uid,
             onTap: () => Navigator.pop(ctx, 'captain'),
           ),
           ListTile(
-            leading: const Icon(Icons.shield_moon),
-            title: Text(sweeper ? 'Deixar de ser ferrolho' : 'Tornar ferrolho'),
+            leading: Icon(Icons.shield_moon),
+            title: Text(sweeper ? tr('Deixar de ser ferrolho') : tr('Tornar ferrolho')),
             subtitle: Text(sweeper
-                ? 'Volta a ser membro'
-                : 'Fecha o comboio (até ${Expedition.maxSweepers})'),
+                ? tr('Volta a ser membro')
+                : tr('Fecha o comboio (até {0})', [Expedition.maxSweepers])),
             enabled: sweeper || exp.sweepers.length < Expedition.maxSweepers,
             onTap: () => Navigator.pop(ctx, 'sweeper'),
           ),
@@ -2311,7 +2300,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     try {
       await _svc.setRoles(_code, captain, sweepers);
     } catch (e) {
-      _snack('Não foi possível salvar: $e');
+      _snack(tr('Não foi possível salvar: {0}', [e]));
     }
   }
 
@@ -2319,8 +2308,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   String? _roleOf(String uid) {
     final exp = _exp;
     if (exp == null) return null;
-    if (exp.captainId == uid) return 'Capitão';
-    if (exp.sweepers.contains(uid)) return 'Ferrolho';
+    if (exp.captainId == uid) return tr('Capitão');
+    if (exp.sweepers.contains(uid)) return tr('Ferrolho');
     return null;
   }
 
@@ -2459,11 +2448,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (_canAck && r.ackName == null) {
         // Capitão/líder: pede o OK (toque ou "sim").
         _pendingAck = r;
-        _voice.alert('$text. Diga sim para confirmar.');
+        _voice.alert(tr('{0}. Diga sim para confirmar.', [text]));
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           duration: const Duration(seconds: 30),
           content: Text('${r.kind.emoji} $text'),
-          action: SnackBarAction(label: 'OK 👍', onPressed: () => _ackRequest(r)),
+          action: SnackBarAction(label: tr('OK 👍'), onPressed: () => _ackRequest(r)),
         ));
       } else {
         _voice.alert(text);
@@ -2473,10 +2462,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     for (final r in acked) {
       if (_pendingAck?.id == r.id) _pendingAck = null;
       if (r.uid == widget.uid) {
-        _voice.alert('${r.ackName} viu seu pedido.');
-        _showTrafficBanner('👍 ${r.ackName} viu seu pedido: ${r.kind.label}');
+        _voice.alert(tr('{0} viu seu pedido.', [r.ackName]));
+        _showTrafficBanner(tr('👍 {0} viu seu pedido: {1}', [r.ackName, r.kind.label]));
       } else if (!_canAck) {
-        _showTrafficBanner('👍 ${r.ackName} confirmou o pedido de ${r.name}');
+        _showTrafficBanner(tr('👍 {0} confirmou o pedido de {1}', [r.ackName, r.name]));
       }
     }
   }
@@ -2486,7 +2475,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (_pendingAck?.id == r.id) _pendingAck = null;
     try {
       await _svc.ackRequest(_code, r.id, widget.uid, widget.userName);
-      _snack('👍 Confirmado para ${r.name}');
+      _snack(tr('👍 Confirmado para {0}', [r.name]));
     } catch (_) {
       // Outro (capitão ou líder) já confirmou.
     }
@@ -2499,10 +2488,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _svc.sendRequest(
           _code, widget.uid, widget.userName, kind, p.latitude, p.longitude);
       AnalyticsService.event('group_request', {'kind': kind.name});
-      _voice.reply('Pedido enviado ao grupo: ${kind.label}.');
-      _snack('${kind.emoji} Enviado ao grupo: ${kind.label}');
+      _voice.reply(tr('Pedido enviado ao grupo: {0}.', [kind.label]));
+      _snack(tr('{0} Enviado ao grupo: {1}', [kind.emoji, kind.label]));
     } catch (e) {
-      _snack('Não foi possível enviar: $e');
+      _snack(tr('Não foi possível enviar: {0}', [e]));
     }
   }
 
@@ -2513,11 +2502,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
-            title: Text('Pedido ao grupo',
+            title: Text(tr('Pedido ao grupo'),
                 style: Theme.of(ctx).textTheme.titleLarge),
-            subtitle: const Text(
-                'Só os pilotos desta expedição recebem (voz e notificação). '
-                'Também por voz: "UauGo, preciso abastecer".'),
+            subtitle: Text(
+                tr('Só os pilotos desta expedição recebem (voz e notificação). Também por voz: "UauGo, preciso abastecer".')),
           ),
           for (final r in GroupRequest.values)
             ListTile(
@@ -2550,7 +2538,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         backgroundColor: Colors.red.shade700,
         duration: const Duration(seconds: 8),
-        content: const Text('🚨 SOS enviado aos pilotos da expedição'),
+        content: Text(tr('🚨 SOS enviado aos pilotos da expedição')),
         action: SnackBarAction(
           label: 'CANCELAR',
           textColor: Colors.white,
@@ -2561,35 +2549,35 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // (WhatsApp), como fora da expedição.
       _showEmergency();
     } catch (e) {
-      _snack('Não foi possível obter sua posição: $e');
+      _snack(tr('Não foi possível obter sua posição: {0}', [e]));
     }
   }
 
   /// Segurou no mapa: adiciona uma parada ali (expedição).
   Future<void> _addStopAt(LatLng pos) async {
     if (!_isLeader) {
-      _snack('Só o líder altera o roteiro');
+      _snack(tr('Só o líder altera o roteiro'));
       return;
     }
     final ctrl = TextEditingController();
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nova parada'),
+        title: Text(tr('Nova parada')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-              hintText: 'Ex: Posto, almoço, mirante, pernoite'),
+          decoration: InputDecoration(
+              hintText: tr('Ex: Posto, almoço, mirante, pernoite')),
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+              onPressed: () => Navigator.pop(ctx), child: Text(tr('Cancelar'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text),
-              child: const Text('Adicionar')),
+              child: Text(tr('Adicionar'))),
         ],
       ),
     );
@@ -2603,7 +2591,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       lat: pos.latitude,
       lng: pos.longitude,
     );
-    if (!ok) _snack('Parada salva, mas a rota não pôde ser recalculada');
+    if (!ok) _snack(tr('Parada salva, mas a rota não pôde ser recalculada'));
   }
 
   /// Opções de uma parada (navegar até ela, ver no mapa).
@@ -2618,8 +2606,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             subtitle: Text(_dist(s.lat, s.lng).replaceFirst(' · ', '')),
           ),
           ListTile(
-            leading: const Icon(Icons.navigation),
-            title: const Text('Navegar até aqui (Google Maps)'),
+            leading: Icon(Icons.navigation),
+            title: Text(tr('Navegar até aqui (Google Maps)')),
             onTap: () {
               Navigator.pop(ctx);
               _navigate(s.lat, s.lng);
@@ -2628,7 +2616,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           if (_isExpedition)
             ListTile(
               leading: const Icon(Icons.route),
-              title: Text(_isLeader ? 'Editar no roteiro' : 'Ver roteiro'),
+              title: Text(_isLeader ? tr('Editar no roteiro') : tr('Ver roteiro')),
               onTap: () {
                 Navigator.pop(ctx);
                 _openPlan();
@@ -2638,8 +2626,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           if (_canCancelSoloStop(s))
             ListTile(
               leading: const Icon(Icons.wrong_location_outlined, color: Colors.red),
-              title: const Text('Cancelar esta parada'),
-              subtitle: const Text('A rota é recalculada sem ela'),
+              title: Text(tr('Cancelar esta parada')),
+              subtitle: Text(tr('A rota é recalculada sem ela')),
               onTap: () {
                 Navigator.pop(ctx);
                 _removeSoloStop(s);
@@ -2670,7 +2658,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     } else if (_view == _MapView.convoy) {
       setState(() => _showAll = !_showAll);
       _lastFit = DateTime.fromMillisecondsSinceEpoch(0);
-      _snack(_showAll ? 'Mostrando o grupo todo' : 'Mostrando a sua moto');
+      _snack(_showAll ? tr('Mostrando o grupo todo') : tr('Mostrando a sua moto'));
     }
     final p = _me;
     if (p != null) _updateCamera(p, force: true);
@@ -2867,9 +2855,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final key = '${now.year}-${now.month}-${now.day}-${now.hour < 12}';
     if (_rodizioSaid == key) return;
     _rodizioSaid = key;
-    _voice.alert('Atenção: rodízio. Placa final $d não pode circular no centro '
-        'expandido agora.');
-    _showTrafficBanner('🚫 Rodízio: placa final $d no centro expandido agora');
+    _voice.alert(tr('Atenção: rodízio. Placa final {0} não pode circular no centro expandido agora.', [d]));
+    _showTrafficBanner(tr('🚫 Rodízio: placa final {0} no centro expandido agora', [d]));
   }
 
   // ---- Perfil do limite ao longo da rota (de 1 km atrás a 6 km à frente)
@@ -2956,8 +2943,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final key =
         '${found.$1}_${(p.latitude * 100).round()}_${(p.longitude * 100).round()}';
     if (_reducedAnnounced.add(key) && found.$2 >= 200) {
-      _voice.alert('Atenção: velocidade reduzida para ${found.$1} '
-          'em ${found.$2} metros');
+      _voice.alert(tr('Atenção: velocidade reduzida para {0} em {1} metros', [found.$1, found.$2]));
     }
   }
 
@@ -2977,17 +2963,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Velocidade',
+                  Text(tr('Velocidade'),
                       style: Theme.of(ctx).textTheme.titleLarge),
                   const SizedBox(height: 4),
-                  const Text(
-                      'O velocímetro fica vermelho ao passar do limite da via '
-                      '(âmbar quando o limite é estimado).'),
+                  Text(
+                      tr('O velocímetro fica vermelho ao passar do limite da via (âmbar quando o limite é estimado).')),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Avisar por voz ao passar do limite'),
-                    subtitle: const Text(
-                        'Só para limites de placa (não para os estimados)'),
+                    title: Text(tr('Avisar por voz ao passar do limite')),
+                    subtitle: Text(
+                        tr('Só para limites de placa (não para os estimados)')),
                     value: s.roadAlert,
                     onChanged: (v) => save(SpeedAlertSettings(
                         roadAlert: v,
@@ -2995,11 +2980,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         personalMax: s.personalMax)),
                   ),
                   if (s.roadAlert) ...[
-                    const Text('Avisar a partir de'),
+                    Text(tr('Avisar a partir de')),
                     Wrap(spacing: 8, children: [
                       for (final t in const [0, 5, 10])
                         ChoiceChip(
-                          label: Text(t == 0 ? 'Limite exato' : '+$t km/h'),
+                          label: Text(t == 0 ? tr('Limite exato') : tr('+{0} km/h', [t])),
                           selected: s.tolerance == t,
                           onSelected: (_) => save(SpeedAlertSettings(
                               roadAlert: true,
@@ -3009,16 +2994,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     ]),
                   ],
                   const SizedBox(height: 16),
-                  const Text('Alerta de velocidade máxima'),
-                  const Text(
-                      'Avisa por voz quando você passar desta velocidade, '
-                      'em qualquer via.',
+                  Text(tr('Alerta de velocidade máxima')),
+                  Text(
+                      tr('Avisa por voz quando você passar desta velocidade, em qualquer via.'),
                       style: TextStyle(fontSize: 12)),
                   const SizedBox(height: 6),
                   Wrap(spacing: 8, runSpacing: 4, children: [
                     for (final v in const [0, 60, 80, 100, 110, 120, 140])
                       ChoiceChip(
-                        label: Text(v == 0 ? 'Desligado' : '$v km/h'),
+                        label: Text(v == 0 ? tr('Desligado') : '$v km/h'),
                         selected: s.personalMax == v,
                         onSelected: (_) => save(SpeedAlertSettings(
                             roadAlert: s.roadAlert,
@@ -3028,10 +3012,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ]),
                   const SizedBox(height: 16),
                   Text(
-                    'Limites das vias: projeto Pardal (ODbL) – ANTT, DERs e '
-                    '© colaboradores do OpenStreetMap. Onde não há placa '
-                    'mapeada, o limite é estimado pelo tipo de via. Respeite '
-                    'sempre a sinalização.',
+                    tr('Limites das vias: projeto Pardal (ODbL) – ANTT, DERs e © colaboradores do OpenStreetMap. Onde não há placa mapeada, o limite é estimado pelo tipo de via. Respeite sempre a sinalização.'),
                     style: Theme.of(ctx).textTheme.bodySmall,
                   ),
                 ],
@@ -3050,22 +3031,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       context: context,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.warning_amber, color: Colors.red, size: 48),
-        title: const Text('SOS no comboio'),
-        content: Text('${a.name} pediu ajuda!${_dist(a.lat, a.lng)}'),
+        title: Text(tr('SOS no comboio')),
+        content: Text(tr('{0} pediu ajuda!{1}', [a.name, _dist(a.lat, a.lng)])),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               _focus(a.lat, a.lng);
             },
-            child: const Text('Ver no mapa'),
+            child: Text(tr('Ver no mapa')),
           ),
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
               _goHelp(a.name, a.lat, a.lng);
             },
-            child: const Text('Ir até lá'),
+            child: Text(tr('Ir até lá')),
           ),
         ],
       ),
@@ -3083,14 +3064,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           constraints:
               BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
           child: ListView(shrinkWrap: true, children: [
-            _sheetTitle('Pilotos (${sorted.length})'),
+            _sheetTitle(tr('Pilotos ({0})', [sorted.length])),
             if (_isLeader || _isCaptain)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                 child: Text(
                     _isLeader
-                        ? 'Toque no piloto para escolher o capitão e os ferrolhos.'
-                        : 'Você é o capitão: toque num piloto para passar a capitania.',
+                        ? tr('Toque no piloto para escolher o capitão e os ferrolhos.')
+                        : tr('Você é o capitão: toque num piloto para passar a capitania.'),
                     style: Theme.of(context).textTheme.bodySmall),
               ),
             for (final m in sorted)
@@ -3107,7 +3088,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 ),
                 title: Text(
                   [
-                    m.uid == widget.uid ? '${m.name} (você)' : m.name,
+                    m.uid == widget.uid ? tr('{0} (você)', [m.name]) : m.name,
                     if (_roleOf(m.uid) case final r?) r,
                     if (m.bike.displayName.isNotEmpty) m.bike.displayName,
                   ].join(' · '),
@@ -3116,7 +3097,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 trailing: _isLeader || (_isCaptain && m.uid != widget.uid)
                     ? IconButton(
                         icon: const Icon(Icons.manage_accounts),
-                        tooltip: _isLeader ? 'Capitão / ferrolho' : 'Passar a capitania',
+                        tooltip: _isLeader ? tr('Capitão / ferrolho') : tr('Passar a capitania'),
                         onPressed: () {
                           Navigator.pop(ctx);
                           _editRoles(m);
@@ -3126,9 +3107,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         ? const Icon(Icons.priority_high, color: Colors.amber)
                         : null),
                 subtitle: Text(!m.hasLocation
-                    ? 'Sem localização ainda'
+                    ? tr('Sem localização ainda')
                     : m.isStale
-                        ? 'Sem sinal · última posição ${_ago(m.updatedAt)}'
+                        ? tr('Sem sinal · última posição {0}', [_ago(m.updatedAt)])
                         : '${(m.speed * 3.6).round()} km/h${_dist(m.lat!, m.lng!)}'),
                 onTap: _isLeader || (_isCaptain && m.uid != widget.uid)
                     ? () {
@@ -3142,10 +3123,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                           }
                         : null,
               ),
-            _sheetTitle('Paradas (${_stops.length})'),
+            _sheetTitle(tr('Paradas ({0})', [_stops.length])),
             if (_stops.isEmpty)
-              const ListTile(
-                  title: Text('Toque e segure no mapa para adicionar')),
+              ListTile(
+                  title: Text(tr('Toque e segure no mapa para adicionar'))),
             for (var i = 0; i < _stops.length; i++)
               ListTile(
                 leading: CircleAvatar(
@@ -3173,7 +3154,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Copia o código da expedição para enviar ao grupo.
   Future<void> _copyCode() async {
     await Clipboard.setData(ClipboardData(text: _code));
-    _snack('Código $_code copiado. Envie para o grupo!');
+    _snack(tr('Código {0} copiado. Envie para o grupo!', [_code]));
   }
 
   /// Sair da expedição (ou, para o líder, encerrar para todos).
@@ -3183,25 +3164,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(_isLeader ? 'Sair ou encerrar?' : 'Sair da expedição?'),
+        title: Text(_isLeader ? tr('Sair ou encerrar?') : tr('Sair da expedição?')),
         content: Text(_isLeader
-            ? 'Sair: só você deixa o comboio.\n\nEncerrar para todos: a '
-                'expedição acaba e é apagada do servidor. A viagem fica salva '
-                'em "Minhas viagens" no celular de cada piloto.'
-            : 'Você deixará de compartilhar sua localização com o grupo. A '
-                'viagem fica salva em "Minhas viagens".'),
+            ? tr('Sair: só você deixa o comboio.\n\nEncerrar para todos: a expedição acaba e é apagada do servidor. A viagem fica salva em "Minhas viagens" no celular de cada piloto.')
+            : tr('Você deixará de compartilhar sua localização com o grupo. A viagem fica salva em "Minhas viagens".')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Ficar')),
+              child: Text(tr('Ficar'))),
           if (_isLeader)
             TextButton(
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
                 onPressed: () => Navigator.pop(ctx, 'end'),
-                child: const Text('Encerrar para todos')),
+                child: Text(tr('Encerrar para todos'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, 'leave'),
-              child: const Text('Sair')),
+              child: Text(tr('Sair'))),
         ],
       ),
     );
@@ -3216,7 +3194,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       try {
         await _svc.endExpedition(_code);
       } catch (e) {
-        _snack('Não foi possível encerrar: $e');
+        _snack(tr('Não foi possível encerrar: {0}', [e]));
       }
     } else {
       await _svc.leave(_code, widget.uid).catchError((_) {});
@@ -3280,8 +3258,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       id: id,
       expedition: _isExpedition,
       title: _isExpedition
-          ? (_exp?.name ?? 'Expedição $_code')
-          : (_trip?.title ?? 'Só dirigir'),
+          ? (_exp?.name ?? tr('Expedição {0}', [_code]))
+          : (_trip?.title ?? tr('Só dirigir')),
       code: _isExpedition ? _code : null,
       startedAt: _recordStart,
       endedAt: DateTime.now(),
@@ -3306,9 +3284,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Expedição encerrada'),
-        content: const Text('O líder encerrou a expedição. A sua viagem '
-            'ficou salva em "Minhas viagens".'),
+        title: Text(tr('Expedição encerrada')),
+        content: Text(tr('O líder encerrou a expedição. A sua viagem ficou salva em "Minhas viagens".')),
         actions: [
           FilledButton(
               onPressed: () => Navigator.pop(ctx),
@@ -3333,8 +3310,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (t == null) return 'agora';
     final d = DateTime.now().difference(t);
     if (d.inMinutes < 1) return 'agora';
-    if (d.inMinutes < 60) return 'há ${d.inMinutes} min';
-    return 'há ${d.inHours} h';
+    if (d.inMinutes < 60) return tr('há {0} min', [d.inMinutes]);
+    return tr('há {0} h', [d.inHours]);
   }
 
   /// Retorna " · 2,3 km" (distância até você) ou "" se sem GPS.
@@ -3345,7 +3322,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final txt = m < 1000
         ? '${m.round()} m'
         : '${(m / 1000).toStringAsFixed(1).replaceAll('.', ',')} km';
-    return ' · $txt de você';
+    return tr(' · {0} de você', [txt]);
   }
 
   // O GPS atualiza a cada segundo. Para não reenviar todos os marcadores ao
@@ -3439,7 +3416,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         anchor: icon != null ? bikeMarkerAnchor : const Offset(0.5, 1),
         icon: icon ??
             BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow: const InfoWindow(title: 'Você'),
+        infoWindow: InfoWindow(title: tr('Você')),
       ),
     };
   }
@@ -3464,8 +3441,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             patterns: [PatternItem.dash(24), PatternItem.gap(10)],
             consumeTapEvents: true,
             onTap: () => _snack(
-                '🚔 Trecho com possível radar portátil da PRF: BR-${s.br}, '
-                'km ${s.kmFrom.round()} a ${s.kmTo.round()}'),
+                tr('🚔 Trecho com possível radar portátil da PRF: BR-{0}, km {1} a {2}', [s.br, s.kmFrom.round(), s.kmTo.round()])),
           ),
       };
     }
@@ -3509,7 +3485,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
         infoWindow: InfoWindow(
           title: '${i + 1}. ${s.type.emoji} ${s.name}',
-          snippet: 'Toque para opções',
+          snippet: tr('Toque para opções'),
           onTap: () => _stopOptions(s),
         ),
       ));
@@ -3533,8 +3509,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ? m.name
               : '${m.name} · ${m.bike.displayName}',
           snippet: m.isStale
-              ? 'Sem sinal · ${_ago(m.updatedAt)}'
-              : '${(m.speed * 3.6).round()} km/h · ${_ago(m.updatedAt)}',
+              ? tr('Sem sinal · {0}', [_ago(m.updatedAt)])
+              : tr('{0} km/h · {1}', [(m.speed * 3.6).round(), _ago(m.updatedAt)]),
         ),
       ));
     }
@@ -3545,8 +3521,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         zIndex: 10,
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         infoWindow: InfoWindow(
-          title: '🚨 SOS: ${a.name}',
-          snippet: 'Toque para traçar rota',
+          title: tr('🚨 SOS: {0}', [a.name]),
+          snippet: tr('Toque para traçar rota'),
           onTap: () => _navigate(a.lat, a.lng),
         ),
       ));
@@ -3562,11 +3538,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         icon: icon,
         infoWindow: InfoWindow(
           title: switch (r.kind) {
-            RadarKind.fixed => 'Radar fixo',
-            RadarKind.section => 'Radar de velocidade média',
-            RadarKind.redLight => 'Radar de avanço de sinal',
+            RadarKind.fixed => tr('Radar fixo'),
+            RadarKind.section => tr('Radar de velocidade média'),
+            RadarKind.redLight => tr('Radar de avanço de sinal'),
           },
-          snippet: r.limit > 0 ? 'Limite ${r.limit} km/h' : null,
+          snippet: r.limit > 0 ? tr('Limite {0} km/h', [r.limit]) : null,
         ),
       ));
     }
@@ -3618,10 +3594,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           children: [
             Text(
                 _isExpedition
-                    ? (_exp?.name ?? 'Expedição')
+                    ? (_exp?.name ?? tr('Expedição'))
                     : widget.simulate
-                        ? 'Simulação: ${_trip?.title ?? ''}'
-                        : (_trip?.title ?? 'Navegação'),
+                        ? tr('Simulação: {0}', [_trip?.title ?? ''])
+                        : (_trip?.title ?? tr('Navegação')),
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
             const SizedBox(height: 2),
@@ -3638,19 +3614,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             : [
           IconButton(
               icon: const Icon(Icons.route),
-              tooltip: 'Roteiro',
+              tooltip: tr('Roteiro'),
               onPressed: _openPlan),
           IconButton(
               icon: Icon(_myBike.style.icon),
-              tooltip: 'Meu veículo',
+              tooltip: tr('Meu veículo'),
               onPressed: _editBike),
           IconButton(
               icon: const Icon(Icons.share),
-              tooltip: 'Copiar código',
+              tooltip: tr('Copiar código'),
               onPressed: _copyCode),
           IconButton(
               icon: const Icon(Icons.logout),
-              tooltip: 'Sair da expedição',
+              tooltip: tr('Sair da expedição'),
               onPressed: _leave),
         ],
       ),
@@ -3719,7 +3695,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   color: Colors.blue.shade700,
                   elevation: 6,
                   borderRadius: BorderRadius.circular(12),
-                  child: const Padding(
+                  child: Padding(
                     padding: EdgeInsets.all(12),
                     child: Row(children: [
                       SizedBox(
@@ -3728,7 +3704,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                           child: CircularProgressIndicator(
                               strokeWidth: 3, color: Colors.white)),
                       SizedBox(width: 12),
-                      Text('Recalculando a rota...',
+                      Text(tr('Recalculando a rota...'),
                           style: TextStyle(
                               color: Colors.white,
                               fontSize: 17,
@@ -3816,8 +3792,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '${a.uid == widget.uid ? 'Você' : a.name} pediu ajuda · '
-                            '${_ago(a.createdAt)}${_dist(a.lat, a.lng)}',
+                            tr('{0} pediu ajuda · {1}{2}', [a.uid == widget.uid ? tr('Você') : a.name, _ago(a.createdAt), _dist(a.lat, a.lng)]),
                             style: white,
                           ),
                         ),
@@ -3879,7 +3854,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        '${_passingSuggestion!.name}, do seu clube, está em ${_passingSuggestion!.city} (~${_passingSuggestion!.distanceKm} km). Avisar que você está passando?',
+                        tr('{0}, do seu clube, está em {1} (~{2} km). Avisar que você está passando?', [_passingSuggestion!.name, _passingSuggestion!.city, _passingSuggestion!.distanceKm]),
                         style: white,
                       ),
                     ),
@@ -3911,8 +3886,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.route),
-                  title: const Text('Monte o roteiro da viagem'),
-                  subtitle: const Text('Saída, paradas, pernoites e destino'),
+                  title: Text(tr('Monte o roteiro da viagem')),
+                  subtitle: Text(tr('Saída, paradas, pernoites e destino')),
                   onTap: _openPlan,
                 ),
               ),
@@ -3943,7 +3918,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ),
                   onPressed: _recenter,
                   icon: const Icon(Icons.navigation),
-                  label: const Text('Recentralizar',
+                  label: Text(tr('Recentralizar'),
                       style: TextStyle(fontWeight: FontWeight.w800)),
                 ),
               ),
@@ -3965,7 +3940,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               if (_sim == null) ...[
                 FloatingActionButton(
                   heroTag: 'radar',
-                  tooltip: 'Avisar radar móvel aqui',
+                  tooltip: tr('Avisar radar móvel aqui'),
                   backgroundColor: HazardType.radar.color,
                   foregroundColor: Colors.white,
                   onPressed: _quickRadar,
@@ -3978,14 +3953,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               // nunca fica atrás dele nem dos botões da direita).
               FloatingActionButton.small(
                 heroTag: 'zoomIn',
-                tooltip: 'Aproximar',
+                tooltip: tr('Aproximar'),
                 onPressed: () => _zoom(1),
                 child: const Icon(Icons.add, size: 28),
               ),
               const SizedBox(height: 6),
               FloatingActionButton.small(
                 heroTag: 'zoomOut',
-                tooltip: 'Afastar',
+                tooltip: tr('Afastar'),
                 onPressed: () => _zoom(-1),
                 child: const Icon(Icons.remove, size: 28),
               ),
@@ -4002,7 +3977,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     border: Border.all(color: Colors.indigo, width: 3),
                   ),
                   child: Text(
-                      '${r.emoji} ${r.kmh ?? ''}${r.kmh != null ? ' ' : ''}em ${r.m} m',
+                      tr('{0} {1}{2}em {3} m', [r.emoji, r.kmh ?? '', r.kmh != null ? ' ' : '', r.m]),
                       textScaler: TextScaler.noScaling,
                       style: const TextStyle(
                           color: Colors.black,
@@ -4020,7 +3995,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: Colors.red, width: 3),
                   ),
-                  child: Text('↓ $lim em $m m',
+                  child: Text(tr('↓ {0} em {1} m', [lim, m]),
                       style: const TextStyle(
                           color: Colors.black,
                           fontWeight: FontWeight.w900,
@@ -4062,7 +4037,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           child: Center(
             child: FloatingActionButton.extended(
               heroTag: 'view',
-              tooltip: 'Trocar visualização',
+              tooltip: tr('Trocar visualização'),
               onPressed: _toggleView,
               icon: Icon(_view == _MapView.convoy
                   ? Icons.groups_2
@@ -4084,7 +4059,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             height: 74,
             child: FloatingActionButton(
               heroTag: 'hazard',
-              tooltip: 'Reportar perigo',
+              tooltip: tr('Reportar perigo'),
               backgroundColor: Colors.amber,
               foregroundColor: Colors.black,
               onPressed: _showReportSheet,
@@ -4103,7 +4078,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               FloatingActionButton(
                 heroTag: 'club',
                 onPressed: _showClubActions,
-                tooltip: 'Clube',
+                tooltip: tr('Clube'),
                 backgroundColor: Colors.teal,
                 child: const Icon(Icons.shield, color: Colors.white),
               ),
@@ -4113,7 +4088,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               valueListenable: _voice.alertsOn,
               builder: (_, on, __) => FloatingActionButton.small(
                 heroTag: 'voice',
-                tooltip: 'Voz',
+                tooltip: tr('Voz'),
                 onPressed: _showVoiceSettings,
                 child: Icon(on ? Icons.volume_up : Icons.volume_off),
               ),
@@ -4122,7 +4097,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             if (_canAddSoloStop) ...[
               FloatingActionButton.small(
                 heroTag: 'addStop',
-                tooltip: 'Adicionar parada (ou segure no mapa)',
+                tooltip: tr('Adicionar parada (ou segure no mapa)'),
                 onPressed: _addSoloStopBySearch,
                 child: const Icon(Icons.add_location_alt),
               ),
@@ -4131,7 +4106,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             if (_canStartRoute) ...[
               FloatingActionButton.small(
                 heroTag: 'newRoute',
-                tooltip: 'Traçar rota (ou segure no mapa)',
+                tooltip: tr('Traçar rota (ou segure no mapa)'),
                 onPressed: _startRouteBySearch,
                 child: const Icon(Icons.directions),
               ),
@@ -4140,7 +4115,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             if (_watchesGroup) ...[
               FloatingActionButton.small(
                 heroTag: 'groupGrid',
-                tooltip: _groupGrid ? 'Ver os pilotos no mapa' : 'Ver em grade (apelidos)',
+                tooltip: _groupGrid ? tr('Ver os pilotos no mapa') : tr('Ver em grade (apelidos)'),
                 onPressed: () => setState(() => _groupGrid = !_groupGrid),
                 child: Badge(
                   isLabelVisible: _members.any(_memberOffRoute),
@@ -4156,7 +4131,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               FloatingActionButton(
                 heroTag: 'group',
                 onPressed: _showGroup,
-                tooltip: 'Grupo e paradas',
+                tooltip: tr('Grupo e paradas'),
                 child: Badge(
                   label: Text('${_members.length}'),
                   child: const Icon(Icons.groups),
@@ -4168,10 +4143,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               heroTag: 'me',
               onPressed: _centerOnMe,
               tooltip: !_follow
-                  ? 'Voltar a acompanhar'
+                  ? tr('Voltar a acompanhar')
                   : _view == _MapView.convoy
-                      ? (_showAll ? (_myBike.style.isCar ? 'Mostrar só o meu carro' : 'Mostrar só a minha moto') : 'Mostrar o grupo todo')
-                      : 'Acompanhando',
+                      ? (_showAll ? (_myBike.style.isCar ? tr('Mostrar só o meu carro') : tr('Mostrar só a minha moto')) : tr('Mostrar o grupo todo'))
+                      : tr('Acompanhando'),
               child: Icon(!_follow
                   ? Icons.my_location
                   : _view == _MapView.convoy
@@ -4183,7 +4158,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               // Pedidos ao grupo ("Preciso abastecer"...), acima do SOS.
               FloatingActionButton(
                 heroTag: 'requests',
-                tooltip: 'Pedidos ao grupo',
+                tooltip: tr('Pedidos ao grupo'),
                 backgroundColor: Colors.orange.shade700,
                 foregroundColor: Colors.white,
                 onPressed: _showGroupRequests,
@@ -4197,8 +4172,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             GestureDetector(
               onLongPress: _isExpedition ? _sendSos : _showEmergency,
               onTap: () => _snack(_isExpedition
-                  ? 'Segure o botão para enviar o SOS'
-                  : 'Segure o botão para ver os telefones de emergência'),
+                  ? tr('Segure o botão para enviar o SOS')
+                  : tr('Segure o botão para ver os telefones de emergência')),
               child: Container(
                 width: 88,
                 height: 88,
@@ -4240,10 +4215,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     String? text;
     if (cat == null) {
       // Fora da lista ("procurar pizzaria"...): ouve o pedido livre.
-      final said = await _voiceCmd.listenFree('O que você procura? Fale agora');
+      final said = await _voiceCmd.listenFree(tr('O que você procura? Fale agora'));
       if (!mounted) return;
       if (said == null || said.trim().isEmpty) {
-        _voice.reply('Não entendi. Diga, por exemplo: $voiceWakeDisplay, procurar posto.');
+        _voice.reply(tr('Não entendi. Diga, por exemplo: {0}, procurar posto.', [voiceWakeDisplay]));
         return;
       }
       // A IA (Gemini) entende o pedido; sem internet, usa o texto como está.
@@ -4266,17 +4241,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       }
     }
     if (_sim != null) {
-      _voice.reply('Na simulação a busca de lugares fica desligada.');
+      _voice.reply(tr('Na simulação a busca de lugares fica desligada.'));
       return;
     }
     final p = _me;
     if (p == null) {
-      _voice.reply('Ainda sem a sua posição pelo GPS.');
+      _voice.reply(tr('Ainda sem a sua posição pelo GPS.'));
       return;
     }
     final what = '${cat?.spoken ?? text}${cheap ? ' barato' : ''}';
     _lastFindSpoken = cat?.spoken;
-    _voice.reply('Procurando $what.');
+    _voice.reply(tr('Procurando {0}.', [what]));
     final trip = _trip, w = _walker, pr = _proj;
     final onRoute = _navigating && trip != null && w != null && pr != null &&
         pr.offset < 250 && trip.plan.polyline.isNotEmpty;
@@ -4288,7 +4263,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         polyline: onRoute ? trip.plan.polyline : null);
     if (!mounted) return;
     if (r.limit) {
-      _voice.reply('Limite de buscas de hoje atingido. Tente amanhã.');
+      _voice.reply(tr('Limite de buscas de hoje atingido. Tente amanhã.'));
       return;
     }
     final ranked = rankFound(r.places,
@@ -4303,7 +4278,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             distanceMeters(p.latitude, p.longitude, la, lo));
     if (ranked.isEmpty) {
       _voice.reply(
-          'Não encontrei $what ${onRoute ? 'à frente na rota' : 'por perto'}.');
+          tr('Não encontrei {0} {1}.', [what, onRoute ? tr('à frente na rota') : tr('por perto')]));
       return;
     }
     setState(() {
@@ -4325,7 +4300,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _nextFound() {
     if (_foundIdx + 1 >= _found.length) {
       setState(() => _found = []);
-      _voice.reply('Sem mais opções.');
+      _voice.reply(tr('Sem mais opções.'));
       return;
     }
     setState(() => _foundIdx++);
@@ -4337,7 +4312,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _addFoundStop(FoundPlace f) async {
     setState(() => _found = []);
     if (_isExpedition) {
-      _voice.reply('No comboio, combine a parada com o líder.');
+      _voice.reply(tr('No comboio, combine a parada com o líder.'));
       return;
     }
     final trip = _trip, p = _me;
@@ -4375,7 +4350,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final nt = await TripService.build(
       title: trip.title,
       points: [
-        TripPoint('Sua posição', p.latitude, p.longitude, type: StopType.meet),
+        TripPoint(tr('Sua posição'), p.latitude, p.longitude, type: StopType.meet),
         TripPoint(name, lat, lng, type: type),
         for (final s in trip.stops.skip(next))
           TripPoint(s.name, s.lat, s.lng, type: s.type),
@@ -4386,11 +4361,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _rerouting = false);
     if (nt == null) {
-      _voice.reply('Não consegui incluir a parada. Confira a internet.');
+      _voice.reply(tr('Não consegui incluir a parada. Confira a internet.'));
       return;
     }
     _applyTrip(nt);
-    _voice.reply('Parada incluída: $name.');
+    _voice.reply(tr('Parada incluída: {0}.', [name]));
   }
 
   /// Parada do meio da rota normal, ainda não visitada: dá para cancelar.
@@ -4428,7 +4403,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final nt = await TripService.build(
       title: trip.title,
       points: [
-        TripPoint('Sua posição', p.latitude, p.longitude, type: StopType.meet),
+        TripPoint(tr('Sua posição'), p.latitude, p.longitude, type: StopType.meet),
         for (final x in rest) TripPoint(x.name, x.lat, x.lng, type: x.type),
       ],
       avoidTolls: trip.plan.avoidTolls,
@@ -4437,11 +4412,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _rerouting = false);
     if (nt == null) {
-      _voice.reply('Não consegui tirar a parada. Confira a internet.');
+      _voice.reply(tr('Não consegui tirar a parada. Confira a internet.'));
       return;
     }
     _applyTrip(nt);
-    _voice.reply('Parada cancelada: ${s.name}.');
+    _voice.reply(tr('Parada cancelada: {0}.', [s.name]));
   }
 
   /// Rota normal em andamento (sozinho): dá para incluir paradas.
@@ -4460,7 +4435,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       fullscreenDialog: true,
       builder: (_) => PlaceSearchPage(
           near: p == null ? null : LatLng(p.latitude, p.longitude),
-          title: 'Para onde?'),
+          title: tr('Para onde?')),
     ));
     if (picked == null || !mounted) return;
     await _openRouteTo(picked.name, picked.lat, picked.lng);
@@ -4471,16 +4446,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Traçar rota até aqui?'),
-        content: const Text('Na prévia dá para incluir paradas antes de iniciar.'),
+        title: Text(tr('Traçar rota até aqui?')),
+        content: Text(tr('Na prévia dá para incluir paradas antes de iniciar.')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Traçar rota')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Traçar rota'))),
         ],
       ),
     );
     if (ok != true || !mounted) return;
-    await _openRouteTo('Ponto no mapa', pos.latitude, pos.longitude);
+    await _openRouteTo(tr('Ponto no mapa'), pos.latitude, pos.longitude);
   }
 
   /// Sai do "Só dirigir" e a tela inicial abre a prévia da rota até o lugar.
@@ -4499,7 +4474,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       fullscreenDialog: true,
       builder: (_) => PlaceSearchPage(
           near: p == null ? null : LatLng(p.latitude, p.longitude),
-          title: 'Parada no caminho'),
+          title: tr('Parada no caminho')),
     ));
     if (picked == null || !mounted) return;
     await _insertSoloStop(picked.name, picked.lat, picked.lng, StopType.waypoint);
@@ -4511,19 +4486,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Parada aqui'),
+        title: Text(tr('Parada aqui')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(hintText: 'Nome (ex.: posto, almoço)'),
+          decoration: InputDecoration(hintText: tr('Nome (ex.: posto, almoço)')),
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Cancelar'))),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim().isEmpty ? 'Parada' : ctrl.text),
-              child: const Text('Incluir na rota')),
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim().isEmpty ? tr('Parada') : ctrl.text),
+              child: Text(tr('Incluir na rota'))),
         ],
       ),
     );
@@ -4579,10 +4554,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _myStoppedAlert = id;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Você está parado: quem vem atrás vê "veículo parado".'),
+        content: Text(tr('Você está parado: quem vem atrás vê "veículo parado".')),
         duration: const Duration(seconds: 8),
         action: SnackBarAction(
-          label: 'Não avisar',
+          label: tr('Não avisar'),
           onPressed: () {
             _hazardSvc.removeMine(id);
             _myStoppedAlert = 'removido'; // não marca de novo nesta parada
@@ -4601,7 +4576,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// tela inicial já pesquisando. Navegando, pergunta antes de trocar a rota.
   Future<void> _voiceGoTo({String? saved}) async {
     if (_isExpedition) {
-      _voice.reply('No comboio, o destino segue o roteiro do grupo.');
+      _voice.reply(tr('No comboio, o destino segue o roteiro do grupo.'));
       return;
     }
     // "UauGo, ir para casa": local salvo (não precisa da pesquisa por voz).
@@ -4610,8 +4585,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final p = SavedPlacesService.instance.get(saved);
       if (!mounted) return;
       if (p == null) {
-        _voice.reply('Você ainda não salvou ${saved == savedHome ? 'casa' : 'o trabalho'}. '
-            'Salve na tela inicial.');
+        _voice.reply(tr('Você ainda não salvou {0}. Salve na tela inicial.', [saved == savedHome ? tr('casa') : tr('o trabalho')]));
         return;
       }
       if (_confirmExit && !await _confirmNewRoute(p.name)) return;
@@ -4625,13 +4599,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       return;
     }
     if (!_voiceCmd.routeByVoice.value) {
-      _voice.reply('Ligue a pesquisa de trajeto por voz nas configurações.');
+      _voice.reply(tr('Ligue a pesquisa de trajeto por voz nas configurações.'));
       return;
     }
     final text = (await _voiceCmd.recognizeDestination())?.trim();
     if (!mounted) return;
     if (text == null || text.isEmpty) {
-      _voice.reply('Não entendi o destino.');
+      _voice.reply(tr('Não entendi o destino.'));
       return;
     }
     await _goToSpoken(text);
@@ -4641,7 +4615,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// pergunta antes de trocar).
   Future<void> _goToSpoken(String text) async {
     if (_isExpedition) {
-      _voice.reply('No comboio, o destino segue o roteiro do grupo.');
+      _voice.reply(tr('No comboio, o destino segue o roteiro do grupo.'));
       return;
     }
     if (_confirmExit && !await _confirmNewRoute(text)) return;
@@ -4657,21 +4631,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// "Trocar a rota para X?" (aceita "sim"/"não" por voz).
   Future<bool> _confirmNewRoute(String text) async {
     {
-      _voice.reply('Trocar a rota para $text? Diga sim ou não.');
+      _voice.reply(tr('Trocar a rota para {0}? Diga sim ou não.', [text]));
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) {
           _voiceConfirmCtx = ctx;
           return AlertDialog(
-            title: const Text('Trocar a rota?'),
-            content: Text('Novo destino: "$text".\nA rota atual será encerrada.'),
+            title: Text(tr('Trocar a rota?')),
+            content: Text(tr('Novo destino: "{0}".\nA rota atual será encerrada.', [text])),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Não')),
+                  child: Text(tr('Não'))),
               FilledButton(
                   onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Sim, trocar')),
+                  child: Text(tr('Sim, trocar'))),
             ],
           );
         },
@@ -4695,12 +4669,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(children: [
               Expanded(
-                child: Text('Encontrados ${_isExpedition ? '' : '(toque para incluir)'}',
+                child: Text(tr('Encontrados {0}', [_isExpedition ? '' : tr('(toque para incluir)')]),
                     style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
               IconButton(
                 icon: const Icon(Icons.close),
-                tooltip: 'Fechar',
+                tooltip: tr('Fechar'),
                 onPressed: () => setState(() => _found = []),
               ),
             ]),
@@ -4713,7 +4687,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text([
                   formatDistance(_found[i].meters.round()),
-                  if (_found[i].onRoute) 'no caminho',
+                  if (_found[i].onRoute) tr('no caminho'),
                   if (_found[i].price == 'PRICE_LEVEL_INEXPENSIVE') 'barato',
                   if (_found[i].open == true) 'aberto',
                 ].join(' · ')),
@@ -4721,7 +4695,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     ? null
                     : FilledButton.tonal(
                         onPressed: () => _addFoundStop(_found[i]),
-                        child: const Text('Incluir')),
+                        child: Text(tr('Incluir'))),
               ),
           ]),
         ),
@@ -4768,7 +4742,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       eta: DateTime.now().add(Duration(seconds: (left / speed).round())),
       alert: pill == null
           ? null
-          : '${pill.emoji} ${pill.kmh ?? ''}${pill.kmh != null ? ' ' : ''}em ${pill.m} m',
+          : tr('{0} {1}{2}em {3} m', [pill.emoji, pill.kmh ?? '', pill.kmh != null ? ' ' : '', pill.m]),
       // Faixa amarela (igual à do celular): radar/polícia/perigo à frente.
       banner: _radarBanner != null
           ? '${_radarBanner!.emoji} ${_radarBanner!.text}'
@@ -4786,13 +4760,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     switch (a) {
       case 'radar':
         await _reportHazard(HazardType.radar);
-        CarService.instance.toast('Alerta enviado: radar móvel');
+        CarService.instance.toast(tr('Alerta enviado: radar móvel'));
       case 'hazard':
         await _reportHazard(HazardType.danger);
-        CarService.instance.toast('Alerta enviado: perigo na pista');
+        CarService.instance.toast(tr('Alerta enviado: perigo na pista'));
       case 'stop':
         if (!_navigating) {
-          CarService.instance.toast('Nenhuma navegação em andamento');
+          CarService.instance.toast(tr('Nenhuma navegação em andamento'));
           return;
         }
         await _voice.stop();
@@ -4824,19 +4798,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Sair da navegação?'),
+        title: Text(tr('Sair da navegação?')),
         content: Text(_isExpedition
-            ? 'A navegação até o destino será encerrada. Você continua no '
-                'comboio e pode voltar ao mapa pela tela inicial.'
-            : 'A rota até o destino será encerrada.'),
+            ? tr('A navegação até o destino será encerrada. Você continua no comboio e pode voltar ao mapa pela tela inicial.')
+            : tr('A rota até o destino será encerrada.')),
         actions: [
           FilledButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Continuar navegando')),
+              child: Text(tr('Continuar navegando'))),
           TextButton(
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Sair')),
+              child: Text(tr('Sair'))),
         ],
       ),
     );
@@ -4853,8 +4826,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     AnalyticsService.event('expedition_start');
     if (_nav == null) {
       _snack(_isLeader
-          ? 'Monte o roteiro primeiro (botão de rota no topo)'
-          : 'O líder ainda não montou o roteiro');
+          ? tr('Monte o roteiro primeiro (botão de rota no topo)')
+          : tr('O líder ainda não montou o roteiro'));
       return;
     }
     setState(() {
@@ -4889,16 +4862,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final sim = _sim;
     if (sim != null) {
       sim.paused.value = true;
-      _voice.narrate('Você chegou ao destino: ${s.name}. Fim da simulação.',
+      _voice.narrate(tr('Você chegou ao destino: {0}. Fim da simulação.', [s.name]),
           force: true);
       return;
     }
     if (_isExpedition) {
-      _voice.alert('Você chegou ao destino: ${s.name}. Navegação encerrada.');
-      _snack('🏁 Chegada! A navegação foi encerrada; você continua no comboio.');
+      _voice.alert(tr('Você chegou ao destino: {0}. Navegação encerrada.', [s.name]));
+      _snack(tr('🏁 Chegada! A navegação foi encerrada; você continua no comboio.'));
       return;
     }
-    _voice.alert('Você chegou ao destino: ${s.name}. Viagem encerrada.');
+    _voice.alert(tr('Você chegou ao destino: {0}. Viagem encerrada.', [s.name]));
     await _saveRecord();
     _stopGps();
     if (!mounted) return;
@@ -4913,17 +4886,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       builder: (ctx) {
         dialogCtx = ctx;
         return AlertDialog(
-          title: const Text('🏁 Você chegou!'),
-          content: Text('${s.name}\n\nA navegação foi encerrada e a viagem '
-              'ficou salva em "Minhas viagens".\n\nEsta tela fecha sozinha '
-              'em 20 segundos.'),
+          title: Text(tr('🏁 Você chegou!')),
+          content: Text(tr('{0}\n\nA navegação foi encerrada e a viagem ficou salva em "Minhas viagens".\n\nEsta tela fecha sozinha em 20 segundos.', [s.name])),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx, 'stay'),
-                child: const Text('Ficar no mapa')),
+                child: Text(tr('Ficar no mapa'))),
             FilledButton(
                 onPressed: () => Navigator.pop(ctx, 'close'),
-                child: const Text('Fechar')),
+                child: Text(tr('Fechar'))),
           ],
         );
       },
@@ -4944,19 +4915,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Encerrar navegação?'),
+        title: Text(tr('Encerrar navegação?')),
         content: Text(_isExpedition
-            ? 'A narração e o painel de manobras param. Você continua no '
-                'comboio, compartilhando a posição com o grupo.'
-            : 'A navegação será encerrada.'),
+            ? tr('A narração e o painel de manobras param. Você continua no comboio, compartilhando a posição com o grupo.')
+            : tr('A navegação será encerrada.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Continuar')),
+              child: Text(tr('Continuar'))),
           FilledButton(
               style: FilledButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Encerrar')),
+              child: Text(tr('Encerrar'))),
         ],
       ),
     );
@@ -4996,14 +4966,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14)),
         onPressed: _startSimulation,
         icon: const Icon(Icons.play_arrow, size: 28),
-        label: const Text('Iniciar simulação',
+        label: Text(tr('Iniciar simulação'),
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
       );
     }
     if (_navigating) {
       // Pequeno, só o ícone de sair (pede confirmação ao tocar).
       return IconButton.filled(
-        tooltip: 'Encerrar navegação',
+        tooltip: tr('Encerrar navegação'),
         style: IconButton.styleFrom(
             backgroundColor: Colors.red.shade700,
             foregroundColor: Colors.white,
@@ -5020,7 +4990,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12)),
         onPressed: _startNavigation,
         icon: const Icon(Icons.navigation),
-        label: const Text('Iniciar',
+        label: Text(tr('Iniciar'),
             style: TextStyle(fontWeight: FontWeight.w800)),
       );
     }
@@ -5030,15 +5000,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// "Chegada 10:43 · faltam 85 km" (navegação sozinho e simulação).
   String _etaText() {
     final w = _walker, p = _me, trip = _trip;
-    if (w == null || trip == null) return 'Radares, perigos e velocidade';
+    if (w == null || trip == null) return tr('Radares, perigos e velocidade');
     final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
     final km = formatDistance(left.round());
-    if (widget.simulate) return 'Faltam $km';
+    if (widget.simulate) return tr('Faltam {0}', [km]);
     // Com o trânsito conferido, usa a velocidade efetiva de agora.
     final secs = (left / (_etaSpeed ?? trip.averageSpeed)).round();
     final eta = DateTime.now().add(Duration(seconds: secs));
     final cost = _expCost == null ? '' : ' · ~${formatMoney(_expCost!)}';
-    return 'Chegada ${formatTime(eta)} · ${formatDuration(secs)}\nFaltam $km$cost';
+    return tr('Chegada {0} · {1}\nFaltam {2}{3}', [formatTime(eta), formatDuration(secs), km, cost]);
   }
 
   /// Expedição: navegando, chegada e quanto falta pela rota do grupo (mesmo
@@ -5051,19 +5021,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       dur += s.legDurationS;
     }
     final cost = _expCost == null ? '' : ' · ~${formatMoney(_expCost!)}';
-    if (w == null || _arrivedAtDestination) return 'Código: $_code';
+    if (w == null || _arrivedAtDestination) return tr('Código: {0}', [_code]);
     if (!_navigating) {
       // Antes de iniciar: o roteiro todo (km, tempo e custo estimado).
-      if (dist <= 0) return 'Código: $_code';
-      return '${formatDistance(dist)} · ${formatDuration(dur)}$cost\nCódigo $_code';
+      if (dist <= 0) return tr('Código: {0}', [_code]);
+      return tr('{0} · {1}{2}\nCódigo {3}', [formatDistance(dist), formatDuration(dur), cost, _code]);
     }
     final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
     // Velocidade: a do trânsito conferido ou a média planejada do roteiro.
     final speed = _etaSpeed ?? (dur > 0 ? dist / dur : 16.7);
     final secs = (left / speed).round();
     final eta = DateTime.now().add(Duration(seconds: secs));
-    return 'Chegada ${formatTime(eta)} · ${formatDuration(secs)}\n'
-        'Faltam ${formatDistance(left.round())}$cost · código $_code';
+    return tr('Chegada {0} · {1}\nFaltam {2}{3} · código {4}', [formatTime(eta), formatDuration(secs), formatDistance(left.round()), cost, _code]);
   }
 
   /// Custo estimado da viagem para o MEU veículo: combustível (se o
@@ -5107,7 +5076,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             final left = along - (pr?.along ?? 0);
             if (left > 0) {
               final eta = DateTime.now().add(Duration(seconds: (left / speed).round()));
-              sub = '${formatDistance(left.round())} · chegada ${formatTime(eta)}';
+              sub = tr('{0} · chegada {1}', [formatDistance(left.round()), formatTime(eta)]);
             }
           }
           return ListTile(
@@ -5116,7 +5085,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             title: Text(s.name,
                 style: TextStyle(
                     decoration: done ? TextDecoration.lineThrough : null)),
-            subtitle: Text(done ? 'Visitada' : sub),
+            subtitle: Text(done ? tr('Visitada') : sub),
             onTap: () => _focus(s.lat, s.lng),
           );
         }),
@@ -5155,30 +5124,30 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
             title: Text(
-                _isExpedition ? (_exp?.name ?? 'Expedição') : (_trip?.title ?? 'Viagem'),
+                _isExpedition ? (_exp?.name ?? tr('Expedição')) : (_trip?.title ?? tr('Viagem')),
                 style: Theme.of(ctx).textTheme.titleLarge),
-            subtitle: const Text('Resumo da viagem'),
+            subtitle: Text(tr('Resumo da viagem')),
           ),
-          row(Icons.straighten, 'Distância total', formatDistance(totalM)),
-          if (totalS > 0) row(Icons.timer_outlined, 'Tempo total previsto', formatDuration(totalS)),
+          row(Icons.straighten, tr('Distância total'), formatDistance(totalM)),
+          if (totalS > 0) row(Icons.timer_outlined, tr('Tempo total previsto'), formatDuration(totalS)),
           if (_navigating) ...[
-            row(Icons.flag, 'Falta', formatDistance(left.round())),
-            row(Icons.hourglass_bottom, 'Tempo restante', formatDuration(secs)),
-            row(Icons.schedule, 'Chegada prevista', formatTime(eta)),
+            row(Icons.flag, tr('Falta'), formatDistance(left.round())),
+            row(Icons.hourglass_bottom, tr('Tempo restante'), formatDuration(secs)),
+            row(Icons.schedule, tr('Chegada prevista'), formatTime(eta)),
           ],
-          row(Icons.local_gas_station, 'Combustível',
-              _fuelCost != null ? formatMoney(_fuelCost!) : (f.ready ? '—' : 'informe em Meu veículo')),
-          row(Icons.toll, 'Pedágios',
-              tolls == null ? '—' : (tolls.plazas == 0 ? 'sem pedágio' : formatMoney(tolls.total))),
+          row(Icons.local_gas_station, tr('Combustível'),
+              _fuelCost != null ? formatMoney(_fuelCost!) : (f.ready ? '—' : tr('informe em Meu veículo'))),
+          row(Icons.toll, tr('Pedágios'),
+              tolls == null ? '—' : (tolls.plazas == 0 ? tr('sem pedágio') : formatMoney(tolls.total))),
           if (_expCost != null)
-            row(Icons.payments, 'Custo estimado', formatMoney(_expCost!)),
+            row(Icons.payments, tr('Custo estimado'), formatMoney(_expCost!)),
           // Paradas da rota (as que faltam e as já visitadas), com a distância
           // daqui e a hora prevista de chegada em cada uma.
           if (_stops.length > 1) ...[
             const Divider(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-              child: Text('Paradas', style: Theme.of(ctx).textTheme.titleMedium),
+              child: Text(tr('Paradas'), style: Theme.of(ctx).textTheme.titleMedium),
             ),
             ..._stopRows(),
           ],
@@ -5188,7 +5157,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.play_circle_outline),
-                label: const Text('Simular esta viagem'),
+                label: Text(tr('Simular esta viagem')),
                 onPressed: () {
                   Navigator.pop(ctx);
                   Navigator.of(context).push(MaterialPageRoute(
@@ -5277,7 +5246,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               valueListenable: sim.paused,
               builder: (_, paused, __) => IconButton.filled(
                 iconSize: 32,
-                tooltip: paused ? 'Continuar' : 'Pausar',
+                tooltip: paused ? tr('Continuar') : tr('Pausar'),
                 onPressed: () {
                   if (!_simStarted) {
                     _startSimulation();
@@ -5314,7 +5283,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
             ),
             IconButton(
-              tooltip: _view == _MapView.convoy ? 'Ver em primeira pessoa' : 'Ver de cima',
+              tooltip: _view == _MapView.convoy ? tr('Ver em primeira pessoa') : tr('Ver de cima'),
               onPressed: _toggleView,
               icon: Icon(_view == _MapView.convoy
                   ? Icons.visibility
@@ -5328,7 +5297,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.close),
-                label: const Text('Encerrar simulação',
+                label: Text(tr('Encerrar simulação'),
                     style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
@@ -5369,16 +5338,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const ListTile(
+          ListTile(
             leading: Icon(Icons.emergency, color: Colors.red, size: 36),
-            title: Text('Emergência',
+            title: Text(tr('Emergência'),
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           ),
-          for (final (num, label) in const [
-            ('192', 'SAMU (ambulância)'),
-            ('193', 'Bombeiros (resgate)'),
-            ('191', 'PRF (rodovias federais)'),
-            ('190', 'Polícia Militar'),
+          for (final (num, label) in [
+            ('192', tr('SAMU (ambulância)')),
+            ('193', tr('Bombeiros (resgate)')),
+            ('191', tr('PRF (rodovias federais)')),
+            ('190', tr('Polícia Militar')),
           ])
             ListTile(
               leading: const Icon(Icons.call),
@@ -5392,9 +5361,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               final num = fone.startsWith('55') && fone.length >= 12 ? fone : '55$fone';
               return ListTile(
                 leading: const Icon(Icons.contact_emergency, color: Color(0xFF25D366), size: 30),
-                title: Text('Avisar $nome pelo WhatsApp',
+                title: Text(tr('Avisar {0} pelo WhatsApp', [nome]),
                     style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Mensagem pronta com a sua localização'),
+                subtitle: Text(tr('Mensagem pronta com a sua localização')),
                 onTap: () => launchUrl(
                     Uri.parse('https://wa.me/$num?text=${Uri.encodeComponent(_sosText(p))}'),
                     mode: LaunchMode.externalApplication),
@@ -5405,7 +5374,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // compartilhar do Android às vezes nem mostra o WhatsApp.
             ListTile(
               leading: const Icon(Icons.chat, color: Color(0xFF25D366)),
-              title: const Text('Enviar minha localização pelo WhatsApp'),
+              title: Text(tr('Enviar minha localização pelo WhatsApp')),
               onTap: () async {
                 final text = _sosText(p);
                 final ok = await launchUrl(
@@ -5416,7 +5385,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ),
             ListTile(
               leading: const Icon(Icons.share_location),
-              title: const Text('Enviar por outro app (SMS, Telegram...)'),
+              title: Text(tr('Enviar por outro app (SMS, Telegram...)')),
               onTap: () => SharePlus.instance.share(ShareParams(text: _sosText(p))),
             ),
           ],

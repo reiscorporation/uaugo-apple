@@ -197,13 +197,13 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             .setOnClickListener {
                 // Sem o app rodando no celular, avisa em vez de ficar mudo.
                 val sink = CarState.actionSink
-                if (sink == null) toast("Abra o UauGo no celular") else sink(code)
+                if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink(code)
             }
             .build()
         val strip = ActionStrip.Builder()
             .addAction(action("Radar", "radar"))
-            .addAction(action("Perigo", "hazard"))
-            .addAction(action("Encerrar", "stop"))
+            .addAction(action(if (CarState.en) "Hazard" else "Perigo", "hazard"))
+            .addAction(action(if (CarState.en) "End" else "Encerrar", "stop"))
             .build()
         val b = NavigationTemplate.Builder().setActionStrip(strip)
         // A manobra, a chegada e os avisos são desenhados no mapa (CarOverlay),

@@ -13,6 +13,7 @@ import '../logic/costs.dart';
 import '../models/trip_record.dart';
 import '../services/app_settings.dart';
 import '../services/history_service.dart';
+import '../l10n/i18n.dart';
 
 /// Gastos de uma viagem de "Minhas viagens": estimativa de combustível,
 /// gastos registrados, total (e por pessoa, na expedição) e consumo real.
@@ -39,21 +40,19 @@ class TripExpensesCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Text('Gastos da viagem', style: theme.textTheme.titleMedium),
+                  Text(tr('Gastos da viagem'), style: theme.textTheme.titleMedium),
                   const Spacer(),
                   TextButton.icon(
                     onPressed: () => _add(context, t),
                     icon: const Icon(Icons.add),
-                    label: const Text('Registrar'),
+                    label: Text(tr('Registrar')),
                   ),
                 ]),
                 if (fuel.ready)
                   Text(
-                      '⛽ Estimado: ${formatDecimal(fuelLiters(t.distanceM, fuel.kmPerLiter))} L'
-                      ' · ${formatMoney(fuelCost(t.distanceM, fuel.kmPerLiter, fuel.pricePerLiter))}'
-                      ' (${formatDecimal(fuel.kmPerLiter)} km/l)'),
+                      tr('⛽ Estimado: {0} L · {1} ({2} km/l)', [formatDecimal(fuelLiters(t.distanceM, fuel.kmPerLiter)), formatMoney(fuelCost(t.distanceM, fuel.kmPerLiter, fuel.pricePerLiter)), formatDecimal(fuel.kmPerLiter)])),
                 if (real != null)
-                  Text('📊 Consumo real: ${formatDecimal(real)} km/l',
+                  Text(tr('📊 Consumo real: {0} km/l', [formatDecimal(real)]),
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                 for (final e in t.expenses)
                   ListTile(
@@ -69,7 +68,7 @@ class TripExpensesCard extends StatelessWidget {
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                       Text(formatMoney(e.value)),
                       IconButton(
-                        tooltip: 'Remover',
+                        tooltip: tr('Remover'),
                         icon: const Icon(Icons.close, size: 18),
                         onPressed: () => HistoryService.instance.save(t.copyWith(
                             expenses: [...t.expenses]..remove(e))),
@@ -78,18 +77,15 @@ class TripExpensesCard extends StatelessWidget {
                   ),
                 if (t.expenses.isNotEmpty) ...[
                   const Divider(),
-                  Text('Total: ${formatMoney(total)}',
+                  Text(tr('Total: {0}', [formatMoney(total)]),
                       style: theme.textTheme.titleMedium
                           ?.copyWith(fontWeight: FontWeight.bold)),
                   if (t.expedition && t.riders > 1)
-                    Text('Por pessoa (${t.riders} pilotos): '
-                        '${formatMoney(total / t.riders)}'),
+                    Text(tr('Por pessoa ({0} pilotos): {1}', [t.riders, formatMoney(total / t.riders)])),
                 ],
                 if (t.expenses.isEmpty && !fuel.ready)
-                  const Text(
-                      'Registre abastecimentos, pedágios e outros gastos. Para '
-                      'a estimativa de combustível, preencha o consumo em '
-                      '"Meu veículo".',
+                  Text(
+                      tr('Registre abastecimentos, pedágios e outros gastos. Para a estimativa de combustível, preencha o consumo em "Meu veículo".'),
                       style: TextStyle(fontSize: 12)),
               ],
             ),
@@ -109,7 +105,7 @@ class TripExpensesCard extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, set) => AlertDialog(
-          title: const Text('Registrar gasto'),
+          title: Text(tr('Registrar gasto')),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Wrap(spacing: 6, runSpacing: 6, children: [
@@ -126,32 +122,32 @@ class TripExpensesCard extends StatelessWidget {
                 autofocus: true,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                    labelText: 'Valor', prefixText: 'R\$ '),
+                decoration: InputDecoration(
+                    labelText: tr('Valor'), prefixText: 'R\$ '),
               ),
               if (kind == ExpenseKind.fuel)
                 TextField(
                   controller: liters,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                      labelText: 'Litros (para o consumo real)',
+                  decoration: InputDecoration(
+                      labelText: tr('Litros (para o consumo real)'),
                       suffixText: 'L'),
                 ),
               TextField(
                 controller: note,
                 decoration:
-                    const InputDecoration(labelText: 'Observação (opcional)'),
+                    InputDecoration(labelText: tr('Observação (opcional)')),
               ),
             ]),
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar')),
+                child: Text(tr('Cancelar'))),
             FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Salvar')),
+                child: Text(tr('Salvar'))),
           ],
         ),
       ),

@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/privacy.dart';
 import 'auth_service.dart';
 import 'notification_service.dart';
+import '../l10n/i18n.dart';
 
 /// Autorizações, cidade base, telefone e clube do usuário.
 ///
@@ -189,7 +190,7 @@ class UserService {
     return BaseLocation(
       lat: round(p.latitude),
       lng: round(p.longitude),
-      city: city.isEmpty ? 'Cidade não identificada' : city,
+      city: city.isEmpty ? tr('Cidade não identificada') : city,
     );
   }
 }

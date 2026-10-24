@@ -12,6 +12,7 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import '../l10n/i18n.dart';
 
 /// Tipo do veículo: define o ícone genérico usado quando não há foto e a
 /// categoria no pedágio.
@@ -49,12 +50,14 @@ enum BikeStyle {
   /// Marcas sugeridas para o tipo.
   List<String> get brands => isMoto ? bikeBrands : (isHeavy ? heavyBrands : carBrands);
 
-  const BikeStyle(this.label, this.icon, this.noun);
-  final String label;
+  const BikeStyle(this._label, this.icon, this._noun);
+  final String _label;
+  String get label => tr(_label);
   final IconData icon;
 
   /// Para as frases do app: "sua moto", "seu caminhão"...
-  final String noun;
+  final String _noun;
+  String get noun => tr(_noun);
 
   /// Lê o tipo salvo pelo nome (desconhecido = Big trail).
   static BikeStyle fromName(String? name) {

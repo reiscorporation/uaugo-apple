@@ -21,6 +21,7 @@ import '../logic/navigation.dart';
 import '../logic/radars.dart' show nearestOnLine;
 import 'app_settings.dart';
 import 'hazard_service.dart';
+import '../l10n/i18n.dart';
 
 /// Trecho entre dois pontos consecutivos do roteiro.
 class RouteLeg {
@@ -141,6 +142,7 @@ class DirectionsService {
       prefs0.preference.name,
       prefs0.liveTraffic,
       risks.length,
+      I18n.lang.value, // manobras faladas no idioma do app
     ].join('|');
     final hit = _cache[key];
     final ttl = prefs0.liveTraffic
@@ -191,6 +193,7 @@ class DirectionsService {
         'avoid': avoid,
         'alternatives': wantAlternatives && mids.isEmpty,
         'traffic': prefs.liveTraffic,
+        'lang': I18n.isEn ? 'en' : 'pt',
       });
       // Converte o mapa da função para Map<String, dynamic>.
       final body =

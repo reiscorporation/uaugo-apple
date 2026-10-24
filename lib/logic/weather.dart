@@ -1,3 +1,4 @@
+import '../l10n/i18n.dart';
 /// Classificação da chuva (códigos WMO do Open-Meteo), função pura.
 enum RainLevel { none, light, moderate, heavy, storm }
 
@@ -33,16 +34,15 @@ RainLevel rainConsensus(int weatherCode, List<double> mmPer15minByModel) {
 
 /// Nome do nível para mostrar e falar.
 String rainWord(RainLevel l) => switch (l) {
-      RainLevel.storm => 'Tempestade',
-      RainLevel.heavy => 'Chuva forte',
-      RainLevel.moderate => 'Chuva',
-      RainLevel.light => 'Chuva fraca',
+      RainLevel.storm => tr('Tempestade'),
+      RainLevel.heavy => tr('Chuva forte'),
+      RainLevel.moderate => tr('Chuva'),
+      RainLevel.light => tr('Chuva fraca'),
       RainLevel.none => '',
     };
 
 /// "Chuva forte a aproximadamente 4 quilômetros à frente".
 String rainSpeech(RainLevel l, double meters) {
   final km = (meters / 1000).round();
-  return '${rainWord(l)} a aproximadamente '
-      '${km <= 1 ? 'um quilômetro' : '$km quilômetros'} à frente';
+  return tr('{0} a aproximadamente {1} à frente', [rainWord(l), km <= 1 ? tr('um quilômetro') : tr('{0} quilômetros', [km])]);
 }

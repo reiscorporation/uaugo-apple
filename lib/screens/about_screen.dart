@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 
 import '../brand.dart';
+import '../l10n/i18n.dart';
 
 /// Sobre o app: autoria (HelpAITech) e créditos das fontes de dados.
 class AboutScreen extends StatelessWidget {
@@ -29,7 +30,7 @@ class AboutScreen extends StatelessWidget {
         );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sobre')),
+      appBar: AppBar(title: Text(tr('Sobre'))),
       body: SafeArea(
         top: false,
         child: ListView(padding: const EdgeInsets.all(20), children: [
@@ -46,7 +47,7 @@ class AboutScreen extends StatelessWidget {
               textAlign: TextAlign.center,
               style: theme.textTheme.headlineSmall
                   ?.copyWith(fontWeight: FontWeight.bold)),
-          Text('$appSlogan\nVersão $version',
+          Text(tr('{0}\nVersão {1}', [appSlogan, version]),
               textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
           const SizedBox(height: 28),
 
@@ -56,7 +57,7 @@ class AboutScreen extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(children: [
-                const Text('Desenvolvido por',
+                Text(tr('Desenvolvido por'),
                     style: TextStyle(color: Colors.black54)),
                 const SizedBox(height: 8),
                 Image.asset('assets/branding/helpaitech_logo.png', height: 110),
@@ -82,19 +83,18 @@ class AboutScreen extends StatelessWidget {
                   ),
                 ]),
                 const SizedBox(height: 10),
-                const Text('Ricardo Reis',
+                Text(tr('Ricardo Reis'),
                     style: TextStyle(
                         color: Colors.black,
                         fontSize: 18,
                         fontWeight: FontWeight.bold)),
-                const Text('Fundador da HelpAITech · proprietário do UauGo',
+                Text(tr('Fundador da HelpAITech · proprietário do UauGo'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         color: Colors.black87, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                const Text(
-                    '© 2026 HelpAITech e Ricardo Reis. Todos os direitos '
-                    'reservados.',
+                Text(
+                    tr('© 2026 HelpAITech e Ricardo Reis. Todos os direitos reservados.'),
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.black54, fontSize: 12)),
               ]),
@@ -103,17 +103,15 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 24),
 
           // Créditos das fontes de dados (exigidos pelas licenças)
-          Text('Dados e serviços', style: theme.textTheme.titleMedium),
+          Text(tr('Dados e serviços'), style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          credit('Mapas, rotas e busca de lugares', 'Google Maps Platform'),
-          credit('Radares fixos e limites de velocidade',
-              'Projeto Pardal (ODbL) – DNIT, ANTT, DERs, prefeituras e '
-                  '© colaboradores do OpenStreetMap'),
-          credit('Trechos de fiscalização por radar portátil',
-              'Polícia Rodoviária Federal (lista oficial, Res. CONTRAN 798/20); '
-                  'traçado das rodovias: DNIT/SNV'),
-          credit('Alertas da comunidade',
-              'Reportados pelos próprios pilotos do UauGo'),
+          credit(tr('Mapas, rotas e busca de lugares'), tr('Google Maps Platform')),
+          credit(tr('Radares fixos e limites de velocidade'),
+              tr('Projeto Pardal (ODbL) – DNIT, ANTT, DERs, prefeituras e © colaboradores do OpenStreetMap')),
+          credit(tr('Trechos de fiscalização por radar portátil'),
+              tr('Polícia Rodoviária Federal (lista oficial, Res. CONTRAN 798/20); traçado das rodovias: DNIT/SNV')),
+          credit(tr('Alertas da comunidade'),
+              tr('Reportados pelos próprios pilotos do UauGo')),
         ]),
       ),
     );

@@ -30,6 +30,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../logic/voice_commands.dart';
 import 'voice_service.dart';
+import '../l10n/i18n.dart';
 
 /// Situação da função, para a tela de configurações.
 enum VoiceCmdStatus { off, downloading, ready, error }
@@ -97,9 +98,9 @@ class VoiceCommandService {
   /// Liga a função: pede o microfone e baixa o modelo (se ainda não tiver).
   /// Devolve uma mensagem de erro, ou null se deu certo.
   Future<String?> enable() async {
-    if (!supported) return 'Disponível por enquanto só no Android.';
+    if (!supported) return tr('Disponível por enquanto só no Android.');
     final mic = await _method.invokeMethod<bool>('requestMic') ?? false;
-    if (!mic) return 'Sem permissão do microfone, os comandos de voz não funcionam.';
+    if (!mic) return tr('Sem permissão do microfone, os comandos de voz não funcionam.');
     if (!await _modelReady()) {
       status.value = VoiceCmdStatus.downloading;
       progress.value = 0;
@@ -115,8 +116,7 @@ class VoiceCommandService {
         await zip.delete();
       } catch (e) {
         status.value = VoiceCmdStatus.error;
-        return 'Não foi possível baixar o reconhecimento de voz. '
-            'Confira a internet e tente de novo.';
+        return tr('Não foi possível baixar o reconhecimento de voz. Confira a internet e tente de novo.');
       }
     }
     status.value = VoiceCmdStatus.ready;
@@ -140,7 +140,7 @@ class VoiceCommandService {
   }
 
   /// O que a faixa do mapa diz enquanto ouve a frase livre.
-  final destPrompt = ValueNotifier<String>('Ouvindo destino… fale agora');
+  final destPrompt = ValueNotifier<String>(tr('Ouvindo destino… fale agora'));
 
   /// Ouve uma frase livre (destino ou "o que você procura?") logo após um
   /// bipe, dentro do app. O Vosk solta o microfone durante a escuta e volta
@@ -156,7 +156,7 @@ class VoiceCommandService {
     destListening.value = true;
     try {
       return await _method.invokeMethod<String>('listenDestination', {
-        'language': 'pt-BR',
+        'language': I18n.ttsLang,
       });
     } catch (e) {
       debugPrint('Frase livre por voz: $e');
@@ -171,7 +171,7 @@ class VoiceCommandService {
   /// solta o microfone durante a escuta e volta depois. Devolve o texto
   /// falado, ou null se nada foi entendido.
   Future<String?> recognizeDestination() async {
-    destPrompt.value = 'Ouvindo destino… fale agora';
+    destPrompt.value = tr('Ouvindo destino… fale agora');
     final wasListening = _listening;
     await stop();
     _method.setMethodCallHandler((call) async {
@@ -184,7 +184,7 @@ class VoiceCommandService {
     destListening.value = true;
     try {
       final text = await _method.invokeMethod<String>('listenDestination', {
-        'language': 'pt-BR',
+        'language': I18n.ttsLang,
       });
       return text == null ? null : cleanDestination(text);
     } catch (e) {

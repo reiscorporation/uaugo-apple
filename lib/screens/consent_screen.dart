@@ -16,6 +16,7 @@ import '../services/club_service.dart';
 import '../services/location_service.dart';
 import '../services/user_service.dart';
 import 'startup_gate.dart';
+import '../l10n/i18n.dart';
 
 /// Tela de autorizações. Aparece obrigatoriamente no primeiro uso
 /// (cadastro) e depois em "Privacidade e autorizações".
@@ -67,13 +68,13 @@ class _ConsentScreenState extends State<ConsentScreen> {
     setState(() => _detecting = true);
     try {
       if (!await LocationService.ensurePermission()) {
-        _snack('Permita o acesso à localização para definir sua cidade');
+        _snack(tr('Permita o acesso à localização para definir sua cidade'));
         return;
       }
       final b = await UserService.detectBase();
       if (mounted) setState(() => _base = b);
     } catch (e) {
-      _snack('Não foi possível obter sua cidade: $e');
+      _snack(tr('Não foi possível obter sua cidade: {0}', [e]));
     } finally {
       if (mounted) setState(() => _detecting = false);
     }
@@ -82,11 +83,11 @@ class _ConsentScreenState extends State<ConsentScreen> {
   /// Salva as autorizações (celular e servidor) e segue para o app.
   Future<void> _save() async {
     if (!_c.shareLiveLocation) {
-      _snack('A primeira autorização é necessária para usar o UauGo');
+      _snack(tr('A primeira autorização é necessária para usar o UauGo'));
       return;
     }
     if (_c.findable && _base == null) {
-      _snack('Defina sua cidade base para ser encontrado pelo clube');
+      _snack(tr('Defina sua cidade base para ser encontrado pelo clube'));
       return;
     }
     setState(() => _saving = true);
@@ -107,7 +108,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
         Navigator.pop(context, true);
       }
     } catch (e) {
-      _snack('Não foi possível salvar: $e');
+      _snack(tr('Não foi possível salvar: {0}', [e]));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -119,17 +120,17 @@ class _ConsentScreenState extends State<ConsentScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.delete_forever, color: Colors.red, size: 40),
-        title: const Text('Excluir todos os meus dados?'),
-        content: const Text(
-            'Vamos apagar seu perfil, autorizações, cidade base, foto da moto, sua participação em expedições e no clube. Alertas de perigo que você reportou continuam visíveis, mas sem ligação com você. Essa ação não pode ser desfeita.'),
+        title: Text(tr('Excluir todos os meus dados?')),
+        content: Text(
+            tr('Vamos apagar seu perfil, autorizações, cidade base, foto da moto, sua participação em expedições e no clube. Alertas de perigo que você reportou continuam visíveis, mas sem ligação com você. Essa ação não pode ser desfeita.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
+              child: Text(tr('Cancelar'))),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Excluir tudo'),
+            child: Text(tr('Excluir tudo')),
           ),
         ],
       ),
@@ -144,9 +145,9 @@ class _ConsentScreenState extends State<ConsentScreen> {
         (_) => false,
       );
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Seus dados foram excluídos.')));
+          SnackBar(content: Text(tr('Seus dados foram excluídos.'))));
     } catch (e) {
-      _snack('Não foi possível excluir agora (verifique a conexão): $e');
+      _snack(tr('Não foi possível excluir agora (verifique a conexão): {0}', [e]));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -167,7 +168,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Autorizações'),
+        title: Text(tr('Autorizações')),
         automaticallyImplyLeading: !widget.firstTime,
       ),
       body: _loading
@@ -177,26 +178,26 @@ class _ConsentScreenState extends State<ConsentScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Text(
                   widget.firstTime
-                      ? 'Antes de começar, escolha o que você autoriza. Nada é ativado sem a sua permissão, e você pode mudar tudo depois em "Privacidade e autorizações".'
-                      : 'Você pode ativar ou revogar cada autorização quando quiser. As mudanças valem na hora.',
+                      ? tr('Antes de começar, escolha o que você autoriza. Nada é ativado sem a sua permissão, e você pode mudar tudo depois em "Privacidade e autorizações".')
+                      : tr('Você pode ativar ou revogar cada autorização quando quiser. As mudanças valem na hora.'),
                   style: theme.textTheme.bodyMedium,
                 ),
               ),
-              _section('Uso do app'),
+              _section(tr('Uso do app')),
               SwitchListTile(
                 value: _c.shareLiveLocation,
                 onChanged: (v) =>
                     setState(() => _c = _c.copyWith(shareLiveLocation: v)),
-                title: const Text(
-                    'Compartilhar minha localização em tempo real com o comboio'),
-                subtitle: const Text(
-                    'Obrigatório. Só os pilotos das expedições em que você entrar veem sua posição, e só enquanto a expedição estiver aberta.'),
+                title: Text(
+                    tr('Compartilhar minha localização em tempo real com o comboio')),
+                subtitle: Text(
+                    tr('Obrigatório. Só os pilotos das expedições em que você entrar veem sua posição, e só enquanto a expedição estiver aberta.')),
               ),
-              _section('Clube'),
+              _section(tr('Clube')),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  'Membros do seu clube podem pedir ajuda ou avisar que estão passando pela sua cidade. Essas autorizações são opcionais.',
+                  tr('Membros do seu clube podem pedir ajuda ou avisar que estão passando pela sua cidade. Essas autorizações são opcionais.'),
                   style: theme.textTheme.bodySmall,
                 ),
               ),
@@ -206,18 +207,18 @@ class _ConsentScreenState extends State<ConsentScreen> {
                   setState(() => _c = _c.copyWith(findable: v));
                   if (v && _base == null) _detect();
                 },
-                title: const Text('Ser encontrado por membros do meu clube'),
-                subtitle: const Text(
-                    'Eles veem apenas seu nome, sua cidade base e a distância aproximada, nunca sua localização exata.'),
+                title: Text(tr('Ser encontrado por membros do meu clube')),
+                subtitle: Text(
+                    tr('Eles veem apenas seu nome, sua cidade base e a distância aproximada, nunca sua localização exata.')),
               ),
               SwitchListTile(
                 value: _c.receiveHelp,
                 onChanged: _c.findable
                     ? (v) => setState(() => _c = _c.copyWith(receiveHelp: v))
                     : null,
-                title: const Text('Receber pedidos de ajuda de membros próximos'),
-                subtitle: const Text(
-                    'Se um membro precisar de ajuda perto da sua cidade, você recebe uma notificação com a localização dele.'),
+                title: Text(tr('Receber pedidos de ajuda de membros próximos')),
+                subtitle: Text(
+                    tr('Se um membro precisar de ajuda perto da sua cidade, você recebe uma notificação com a localização dele.')),
               ),
               SwitchListTile(
                 value: _c.receivePassing,
@@ -225,16 +226,16 @@ class _ConsentScreenState extends State<ConsentScreen> {
                     ? (v) =>
                         setState(() => _c = _c.copyWith(receivePassing: v))
                     : null,
-                title: const Text('Receber avisos de membros de passagem'),
-                subtitle: const Text(
-                    'Um membro do clube pode avisar que está passando pela sua cidade.'),
+                title: Text(tr('Receber avisos de membros de passagem')),
+                subtitle: Text(
+                    tr('Um membro do clube pode avisar que está passando pela sua cidade.')),
               ),
               if (_c.findable)
                 ListTile(
                   leading: const Icon(Icons.location_city),
-                  title: Text(_base?.city ?? 'Cidade base não definida'),
-                  subtitle: const Text(
-                      'Posição aproximada (~1 km). Use onde você mora ou costuma estar.'),
+                  title: Text(_base?.city ?? tr('Cidade base não definida')),
+                  subtitle: Text(
+                      tr('Posição aproximada (~1 km). Use onde você mora ou costuma estar.')),
                   trailing: _detecting
                       ? const SizedBox(
                           width: 20,
@@ -242,19 +243,19 @@ class _ConsentScreenState extends State<ConsentScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : TextButton(
                           onPressed: _detect,
-                          child: const Text('Usar local atual')),
+                          child: Text(tr('Usar local atual'))),
                 ),
-              _section('Contato'),
+              _section(tr('Contato')),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: TextField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Telefone / WhatsApp (opcional)',
+                  decoration: InputDecoration(
+                    labelText: tr('Telefone / WhatsApp (opcional)'),
                     hintText: '+55 48 99999-9999',
                     helperText:
-                        'Fica só no seu celular. É enviado apenas quando você pede ajuda ou avisa alguém e marca essa opção.',
+                        tr('Fica só no seu celular. É enviado apenas quando você pede ajuda ou avisa alguém e marca essa opção.'),
                     helperMaxLines: 3,
                     border: OutlineInputBorder(),
                   ),
@@ -272,14 +273,14 @@ class _ConsentScreenState extends State<ConsentScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.verified_user),
                   label: Text(widget.firstTime
-                      ? 'Concordo e continuar'
-                      : 'Salvar autorizações'),
+                      ? tr('Concordo e continuar')
+                      : tr('Salvar autorizações')),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
-                  'Ao revogar "ser encontrado", sua cidade é apagada do servidor e você deixa de aparecer nas buscas do clube imediatamente.',
+                  tr('Ao revogar "ser encontrado", sua cidade é apagada do servidor e você deixa de aparecer nas buscas do clube imediatamente.'),
                   style: theme.textTheme.bodySmall,
                   textAlign: TextAlign.center,
                 ),
@@ -296,7 +297,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                     ),
                     onPressed: _saving ? null : _deleteAll,
                     icon: const Icon(Icons.delete_forever),
-                    label: const Text('Excluir todos os meus dados'),
+                    label: Text(tr('Excluir todos os meus dados')),
                   ),
                 ),
               ],

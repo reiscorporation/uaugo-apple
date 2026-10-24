@@ -24,6 +24,7 @@ import '../widgets/trip_expenses.dart';
 import '../widgets/trip_preview_sheet.dart';
 import '../widgets/trip_share.dart';
 import 'map_screen.dart';
+import '../l10n/i18n.dart';
 
 /// Data curta: "05/10/2026".
 String _date(DateTime d) =>
@@ -54,17 +55,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Minhas viagens')),
+      appBar: AppBar(title: Text(tr('Minhas viagens'))),
       body: ValueListenableBuilder<List<TripRecord>>(
         valueListenable: _svc.trips,
         builder: (_, trips, __) {
           if (trips.isEmpty) {
-            return const Center(
+            return Center(
               child: Padding(
                 padding: EdgeInsets.all(32),
                 child: Text(
-                  'Nenhuma viagem ainda.\n\nAs viagens (expedições e '
-                  'navegação) ficam guardadas aqui, só no seu celular.',
+                  tr('Nenhuma viagem ainda.\n\nAs viagens (expedições e navegação) ficam guardadas aqui, só no seu celular.'),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -76,10 +76,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 bottom: MediaQuery.of(context).viewPadding.bottom + 16),
             children: [
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(16),
                 child: Text(
-                  '${trips.length} ${trips.length == 1 ? 'viagem' : 'viagens'} · '
-                  '${formatDistance(totalKm.round())} no total',
+                  tr('{0} {1} · {2} no total', [trips.length, trips.length == 1 ? tr('viagem') : tr('viagens'), formatDistance(totalKm.round())]),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -121,7 +120,7 @@ class _TripDetail extends StatelessWidget {
   Future<void> _simulate(BuildContext context) async {
     if (trip.stops.length < 2) return;
     ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Calculando a rota...')));
+        .showSnackBar(SnackBar(content: Text(tr('Calculando a rota...'))));
     final t = await TripService.build(
       title: trip.title,
       points: [
@@ -133,8 +132,8 @@ class _TripDetail extends StatelessWidget {
     );
     if (!context.mounted) return;
     if (t == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Não foi possível calcular a rota agora')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Não foi possível calcular a rota agora'))));
       return;
     }
     await Navigator.of(context).push(MaterialPageRoute(
@@ -151,8 +150,8 @@ class _TripDetail extends StatelessWidget {
     if (stops.isEmpty) return;
     if (!await LocationService.ensurePermission()) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Ative o GPS e permita o acesso à localização')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(tr('Ative o GPS e permita o acesso à localização'))));
       }
       return;
     }
@@ -166,15 +165,15 @@ class _TripDetail extends StatelessWidget {
     }
     if (!context.mounted) return;
     if (me == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Não foi possível obter sua posição pelo GPS')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Não foi possível obter sua posição pelo GPS'))));
       return;
     }
     StopType typeOf(String t) =>
         StopType.values.firstWhere((x) => x.name == t, orElse: () => StopType.waypoint);
     final dest = stops.last;
     final res = await TripPreviewSheet.show(context, title: trip.title, points: [
-      TripPoint('Sua posição', me.latitude, me.longitude, type: StopType.meet),
+      TripPoint(tr('Sua posição'), me.latitude, me.longitude, type: StopType.meet),
       if (!destinationOnly)
         for (final s in stops.sublist(1, stops.length - 1))
           TripPoint(s.name, s.lat, s.lng, type: typeOf(s.type)),
@@ -195,16 +194,16 @@ class _TripDetail extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Excluir esta viagem?'),
-        content: const Text('Ela será apagada do seu celular.'),
+        title: Text(tr('Excluir esta viagem?')),
+        content: Text(tr('Ela será apagada do seu celular.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
+              child: Text(tr('Cancelar'))),
           FilledButton(
               style: FilledButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Excluir')),
+              child: Text(tr('Excluir'))),
         ],
       ),
     );
@@ -247,11 +246,11 @@ class _TripDetail extends StatelessWidget {
         title: Text(trip.title, overflow: TextOverflow.ellipsis),
         actions: [
           IconButton(
-              tooltip: 'Compartilhar',
+              tooltip: tr('Compartilhar'),
               icon: const Icon(Icons.share),
               onPressed: () => shareTrip(context, trip, _map.value)),
           IconButton(
-              tooltip: 'Excluir',
+              tooltip: tr('Excluir'),
               icon: const Icon(Icons.delete_outline),
               onPressed: () => _delete(context)),
         ],
@@ -306,27 +305,26 @@ class _TripDetail extends StatelessWidget {
           Expanded(
             child: ListView(children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: Text(
-                  '${_date(trip.startedAt)} · ${formatTime(trip.startedAt)} às '
-                  '${formatTime(trip.endedAt)}',
+                  tr('{0} · {1} às {2}', [_date(trip.startedAt), formatTime(trip.startedAt), formatTime(trip.endedAt)]),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: EdgeInsets.symmetric(vertical: 12),
                 child: Row(children: [
                   stat(Icons.straighten, formatDistance(trip.distanceM.round()),
                       'percorridos'),
                   stat(Icons.timer_outlined, formatDuration(trip.movingS),
-                      'em movimento'),
-                  stat(Icons.speed, '${trip.avgKmh.round()} km/h', 'média'),
-                  stat(Icons.bolt, '${trip.maxKmh.round()} km/h', 'máxima'),
+                      tr('em movimento')),
+                  stat(Icons.speed, '${trip.avgKmh.round()} km/h', tr('média')),
+                  stat(Icons.bolt, '${trip.maxKmh.round()} km/h', tr('máxima')),
                 ]),
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                    'Azul escuro: caminho feito · Azul claro: rota planejada',
+                    tr('Azul escuro: caminho feito · Azul claro: rota planejada'),
                     style: TextStyle(fontSize: 12)),
               ),
               TripExpensesCard(tripId: trip.id),
@@ -337,7 +335,7 @@ class _TripDetail extends StatelessWidget {
                   child: FilledButton.icon(
                     onPressed: () => shareTrip(context, trip, _map.value),
                     icon: const Icon(Icons.share),
-                    label: const Text('Salvar imagem e compartilhar'),
+                    label: Text(tr('Salvar imagem e compartilhar')),
                   ),
                 ),
               ),
@@ -351,8 +349,8 @@ class _TripDetail extends StatelessWidget {
                         onPressed: () => _redo(context),
                         icon: const Icon(Icons.replay),
                         label: Text(trip.stops.length > 2
-                            ? 'Fazer esta rota de novo (com as paradas)'
-                            : 'Fazer esta rota de novo'),
+                            ? tr('Fazer esta rota de novo (com as paradas)')
+                            : tr('Fazer esta rota de novo')),
                       ),
                     ),
                     if (trip.stops.length > 2)
@@ -361,7 +359,7 @@ class _TripDetail extends StatelessWidget {
                         child: OutlinedButton.icon(
                           onPressed: () => _redo(context, destinationOnly: true),
                           icon: const Icon(Icons.flag),
-                          label: Text('Ir só ao destino: ${trip.stops.last.name}',
+                          label: Text(tr('Ir só ao destino: {0}', [trip.stops.last.name]),
                               overflow: TextOverflow.ellipsis),
                         ),
                       ),
@@ -370,7 +368,7 @@ class _TripDetail extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: () => _simulate(context),
                         icon: const Icon(Icons.play_circle_outline),
-                        label: const Text('Simular este trajeto de novo'),
+                        label: Text(tr('Simular este trajeto de novo')),
                       ),
                     ),
                   ]),

@@ -22,6 +22,7 @@ import '../services/profile_service.dart';
 import '../services/user_service.dart';
 import '../widgets/club_nearby_sheet.dart';
 import 'consent_screen.dart';
+import '../l10n/i18n.dart';
 
 /// Tela do clube: entrar com convite, ativar como administrador, convidar,
 /// gerenciar membros, sair.
@@ -123,16 +124,16 @@ class _ClubScreenState extends State<ClubScreen> {
   /// Executa uma ação mostrando "carregando" e o erro, se houver.
   Future<void> _run(Future<void> Function() action) async {
     if (widget.userName.isEmpty) {
-      _snack('Informe seu nome de piloto na tela inicial');
+      _snack(tr('Informe seu nome de piloto na tela inicial'));
       return;
     }
     setState(() => _busy = true);
     try {
       await action();
     } on FirebaseFunctionsException catch (e) {
-      _snack(e.message ?? 'Não foi possível concluir. Tente de novo.');
+      _snack(e.message ?? tr('Não foi possível concluir. Tente de novo.'));
     } catch (e) {
-      _snack('Erro: $e');
+      _snack(tr('Erro: {0}', [e]));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -144,7 +145,7 @@ class _ClubScreenState extends State<ClubScreen> {
   void _activate() => _run(() async {
         final code = _activationCtrl.text.trim();
         if (code.isEmpty) {
-          _snack('Digite o código de ativação');
+          _snack(tr('Digite o código de ativação'));
           return;
         }
         final (city, bike) = await _cityAndBike();
@@ -156,15 +157,14 @@ class _ClubScreenState extends State<ClubScreen> {
           bike: bike,
         );
         await _entered(club);
-        _snack('Você é administrador do ${club.name}. Agora gere convites '
-            'para os membros.');
+        _snack(tr('Você é administrador do {0}. Agora gere convites para os membros.', [club.name]));
       });
 
   /// Membro: entra com o convite de uso único recebido de um administrador.
   void _join() => _run(() async {
         final code = _codeCtrl.text.trim();
         if (code.isEmpty) {
-          _snack('Digite o convite recebido de um administrador do clube');
+          _snack(tr('Digite o convite recebido de um administrador do clube'));
           return;
         }
         final (city, bike) = await _cityAndBike();
@@ -181,37 +181,33 @@ class _ClubScreenState extends State<ClubScreen> {
         final inv = await _svc.createInvite(_clubId!);
         if (!mounted) return;
         final d = inv.expiresAt;
-        final msg = 'Convite para entrar no clube $_clubName no app '
-            'UauGo: ${inv.display}\n(vale para UMA pessoa, até '
-            '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')})';
+        final msg = tr('Convite para entrar no clube {0} no app UauGo: {1}\n(vale para UMA pessoa, até {2}/{3})', [_clubName, inv.display, d.day.toString().padLeft(2, '0'), d.month.toString().padLeft(2, '0')]);
         await showDialog<void>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Convite de uso único'),
+            title: Text(tr('Convite de uso único')),
             content: Column(mainAxisSize: MainAxisSize.min, children: [
               SelectableText(inv.display,
                   style: Theme.of(ctx).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold, letterSpacing: 2)),
               const SizedBox(height: 12),
-              const Text('Envie para UM membro. Ele digita em Clube → '
-                  '"Entrar no meu clube". Depois de usado, o convite não vale '
-                  'mais. Vale por 7 dias.'),
+              Text(tr('Envie para UM membro. Ele digita em Clube → "Entrar no meu clube". Depois de usado, o convite não vale mais. Vale por 7 dias.')),
             ]),
             actions: [
               TextButton(
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: msg));
                     Navigator.pop(ctx);
-                    _snack('Convite copiado');
+                    _snack(tr('Convite copiado'));
                   },
-                  child: const Text('Copiar')),
+                  child: Text(tr('Copiar'))),
               FilledButton.icon(
                   onPressed: () {
                     Navigator.pop(ctx);
                     SharePlus.instance.share(ShareParams(text: msg));
                   },
                   icon: const Icon(Icons.share),
-                  label: const Text('Enviar')),
+                  label: Text(tr('Enviar'))),
             ],
           ),
         );
@@ -222,8 +218,8 @@ class _ClubScreenState extends State<ClubScreen> {
         await _svc.setAdmin(_clubId!, m.uid, !m.isAdmin);
         await _refreshAdmins();
         _snack(m.isAdmin
-            ? '${m.name} não é mais administrador'
-            : '${m.name} agora é administrador');
+            ? tr('{0} não é mais administrador', [m.name])
+            : tr('{0} agora é administrador', [m.name]));
       });
 
   /// Administrador: remove um membro (com confirmação). Se ele for
@@ -232,15 +228,15 @@ class _ClubScreenState extends State<ClubScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Remover ${m.name} do clube?'),
-        content: const Text('Para voltar, ele vai precisar de um novo convite.'),
+        title: Text(tr('Remover {0} do clube?', [m.name])),
+        content: Text(tr('Para voltar, ele vai precisar de um novo convite.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
+              child: Text(tr('Cancelar'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Remover')),
+              child: Text(tr('Remover'))),
         ],
       ),
     );
@@ -249,7 +245,7 @@ class _ClubScreenState extends State<ClubScreen> {
       if (m.isAdmin) await _svc.setAdmin(_clubId!, m.uid, false);
       await _svc.removeMember(_clubId!, m.uid);
       await _refreshAdmins();
-      _snack('${m.name} foi removido do clube');
+      _snack(tr('{0} foi removido do clube', [m.name]));
     });
   }
 
@@ -258,19 +254,17 @@ class _ClubScreenState extends State<ClubScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Sair do clube?'),
+        title: Text(tr('Sair do clube?')),
         content: Text(_isAdmin
-            ? 'Você é administrador. Se for o único, promova outro membro '
-                'antes de sair. Para voltar, você precisará de um convite.'
-            : 'Para voltar, você precisará de um novo convite de um '
-                'administrador.'),
+            ? tr('Você é administrador. Se for o único, promova outro membro antes de sair. Para voltar, você precisará de um convite.')
+            : tr('Para voltar, você precisará de um novo convite de um administrador.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Ficar')),
+              child: Text(tr('Ficar'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Sair')),
+              child: Text(tr('Sair'))),
         ],
       ),
     );
@@ -308,7 +302,7 @@ class _ClubScreenState extends State<ClubScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Clube')),
+      appBar: AppBar(title: Text(tr('Clube'))),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : AbsorbPointer(
@@ -323,7 +317,7 @@ class _ClubScreenState extends State<ClubScreen> {
         padding: const EdgeInsets.all(20),
         children: [
           Text(
-            'Faça parte do seu clube no app para pedir ajuda ao membro mais próximo ou avisar quando passar pela cidade de alguém.',
+            tr('Faça parte do seu clube no app para pedir ajuda ao membro mais próximo ou avisar quando passar pela cidade de alguém.'),
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 20),
@@ -333,23 +327,22 @@ class _ClubScreenState extends State<ClubScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Entrar no meu clube',
+                    Text(tr('Entrar no meu clube'),
                         style: theme.textTheme.titleMedium),
                     const SizedBox(height: 4),
                     Text(
-                        'Peça a um administrador do seu clube um convite. '
-                        'Cada convite vale para uma pessoa só.',
+                        tr('Peça a um administrador do seu clube um convite. Cada convite vale para uma pessoa só.'),
                         style: theme.textTheme.bodySmall),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _codeCtrl,
                       textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(
-                          labelText: 'Convite (ex.: ABCD-2345)',
+                      decoration: InputDecoration(
+                          labelText: tr('Convite (ex.: ABCD-2345)'),
                           border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
-                    FilledButton(onPressed: _join, child: const Text('Entrar')),
+                    FilledButton(onPressed: _join, child: Text(tr('Entrar'))),
                   ]),
             ),
           ),
@@ -360,7 +353,7 @@ class _ClubScreenState extends State<ClubScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Sou administrador do clube',
+                    Text(tr('Sou administrador do clube'),
                         style: theme.textTheme.titleMedium),
                     const SizedBox(height: 4),
                     Text(
@@ -372,23 +365,23 @@ class _ClubScreenState extends State<ClubScreen> {
                     TextField(
                       controller: _activationCtrl,
                       textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(
-                          labelText: 'Código de ativação',
+                      decoration: InputDecoration(
+                          labelText: tr('Código de ativação'),
                           border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _nameCtrl,
                       textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                          labelText: 'Nome do clube (só se for um clube novo)',
+                      decoration: InputDecoration(
+                          labelText: tr('Nome do clube (só se for um clube novo)'),
                           helperText:
-                              'Se o seu clube já está cadastrado, deixe em branco.',
+                              tr('Se o seu clube já está cadastrado, deixe em branco.'),
                           border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton(
-                        onPressed: _activate, child: const Text('Ativar')),
+                        onPressed: _activate, child: Text(tr('Ativar'))),
                   ]),
             ),
           ),
@@ -408,7 +401,7 @@ class _ClubScreenState extends State<ClubScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(_clubName ?? '', style: theme.textTheme.titleLarge),
-                    Text(_isAdmin ? 'Você é administrador' : 'Membro oficial',
+                    Text(_isAdmin ? tr('Você é administrador') : tr('Membro oficial'),
                         style: theme.textTheme.bodySmall),
                   ]),
             ),
@@ -420,21 +413,21 @@ class _ClubScreenState extends State<ClubScreen> {
                   minimumSize: const Size.fromHeight(48)),
               onPressed: _invite,
               icon: const Icon(Icons.person_add_alt_1),
-              label: const Text('Convidar membro (convite de uso único)'),
+              label: Text(tr('Convidar membro (convite de uso único)')),
             ),
           ],
           const SizedBox(height: 16),
-          Text('Suas autorizações', style: theme.textTheme.titleSmall),
+          Text(tr('Suas autorizações'), style: theme.textTheme.titleSmall),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 4, children: [
-            _status(_consents.findable, 'Ser encontrado'),
-            _status(_consents.receiveHelp, 'Pedidos de ajuda'),
-            _status(_consents.receivePassing, 'Avisos de passagem'),
+            _status(_consents.findable, tr('Ser encontrado')),
+            _status(_consents.receiveHelp, tr('Pedidos de ajuda')),
+            _status(_consents.receivePassing, tr('Avisos de passagem')),
           ]),
           TextButton.icon(
             onPressed: _editConsents,
             icon: const Icon(Icons.privacy_tip_outlined),
-            label: const Text('Alterar autorizações'),
+            label: Text(tr('Alterar autorizações')),
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
@@ -445,7 +438,7 @@ class _ClubScreenState extends State<ClubScreen> {
             onPressed: () => showClubNearbySheet(context,
                 clubId: _clubId!, purpose: ClubPurpose.help),
             icon: const Icon(Icons.sos),
-            label: const Text('Pedir ajuda ao membro mais próximo'),
+            label: Text(tr('Pedir ajuda ao membro mais próximo')),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
@@ -454,10 +447,10 @@ class _ClubScreenState extends State<ClubScreen> {
             onPressed: () => showClubNearbySheet(context,
                 clubId: _clubId!, purpose: ClubPurpose.passing),
             icon: const Icon(Icons.waving_hand_outlined),
-            label: const Text('Avisar membros que estou passando'),
+            label: Text(tr('Avisar membros que estou passando')),
           ),
           const SizedBox(height: 24),
-          Text('Membros', style: theme.textTheme.titleSmall),
+          Text(tr('Membros'), style: theme.textTheme.titleSmall),
           StreamBuilder<List<ClubMember>>(
             stream: _svc.members(_clubId!),
             builder: (ctx, snap) {
@@ -470,27 +463,27 @@ class _ClubScreenState extends State<ClubScreen> {
                         child: Text(
                             m.name.isEmpty ? '?' : m.name[0].toUpperCase())),
                     title: Text([
-                      m.uid == _uid ? '${m.name} (você)' : m.name,
-                      if (m.isAdmin) '· administrador',
+                      m.uid == _uid ? tr('{0} (você)', [m.name]) : m.name,
+                      if (m.isAdmin) tr('· administrador'),
                     ].join(' ')),
                     subtitle: Text([
-                      m.city.isEmpty ? 'Cidade não compartilhada' : m.city,
+                      m.city.isEmpty ? tr('Cidade não compartilhada') : m.city,
                       if (m.bike.isNotEmpty) m.bike,
                     ].join(' · ')),
                     trailing: _isAdmin && m.uid != _uid
                         ? PopupMenuButton<String>(
-                            tooltip: 'Gerenciar membro',
+                            tooltip: tr('Gerenciar membro'),
                             onSelected: (v) =>
                                 v == 'admin' ? _toggleAdmin(m) : _remove(m),
                             itemBuilder: (_) => [
                               PopupMenuItem(
                                   value: 'admin',
                                   child: Text(m.isAdmin
-                                      ? 'Tirar função de administrador'
-                                      : 'Tornar administrador')),
-                              const PopupMenuItem(
+                                      ? tr('Tirar função de administrador')
+                                      : tr('Tornar administrador'))),
+                              PopupMenuItem(
                                   value: 'remove',
-                                  child: Text('Remover do clube')),
+                                  child: Text(tr('Remover do clube'))),
                             ],
                           )
                         : null,
@@ -499,7 +492,7 @@ class _ClubScreenState extends State<ClubScreen> {
             },
           ),
           const SizedBox(height: 16),
-          TextButton(onPressed: _leave, child: const Text('Sair do clube')),
+          TextButton(onPressed: _leave, child: Text(tr('Sair do clube'))),
         ],
       );
 }

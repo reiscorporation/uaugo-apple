@@ -11,6 +11,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../l10n/i18n.dart';
 
 /// Voz do app (sintetizador do próprio celular: funciona sem internet).
 ///
@@ -53,7 +54,9 @@ class VoiceService {
     alertsOn.value = prefs.getBool(_kAlerts) ?? true;
     narrationOn.value = prefs.getBool(_kNarration) ?? false;
     try {
-      await _tts.setLanguage('pt-BR');
+      await _tts.setLanguage(I18n.ttsLang);
+      // Trocou o idioma do app: a voz acompanha.
+      I18n.lang.addListener(() => _tts.setLanguage(I18n.ttsLang));
       await _tts.setSpeechRate(0.5);
       await _tts.setVolume(1);
       await _tts.awaitSpeakCompletion(true);

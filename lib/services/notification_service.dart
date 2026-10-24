@@ -11,6 +11,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../l10n/i18n.dart';
 
 /// - Expedições: cada uma é um "tópico" (push de SOS e novas paradas).
 /// - Clube: push direto para o aparelho do membro (token salvo em
@@ -94,7 +95,7 @@ class NotificationService {
         icon: Icon(isHelp ? Icons.sos : Icons.two_wheeler,
             color: isHelp ? Colors.red : Colors.teal, size: 40),
         title: Text(m.notification?.title ??
-            (isHelp ? 'Pedido de ajuda do clube' : 'Membro de passagem')),
+            (isHelp ? tr('Pedido de ajuda do clube') : tr('Membro de passagem'))),
         content: Text(m.notification?.body ?? ''),
         actions: [
           if (phone.isNotEmpty)
@@ -107,7 +108,7 @@ class NotificationService {
           if (phone.isNotEmpty)
             TextButton(
               onPressed: () => launchUrl(Uri.parse('tel:$phone')),
-              child: const Text('Ligar'),
+              child: Text(tr('Ligar')),
             ),
           if (lat != null && lng != null)
             FilledButton(
@@ -115,10 +116,10 @@ class NotificationService {
                   Uri.parse(
                       'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng'),
                   mode: LaunchMode.externalApplication),
-              child: const Text('Ir até lá'),
+              child: Text(tr('Ir até lá')),
             ),
           TextButton(
-              onPressed: () => Navigator.pop(c), child: const Text('Fechar')),
+              onPressed: () => Navigator.pop(c), child: Text(tr('Fechar'))),
         ],
       ),
     );

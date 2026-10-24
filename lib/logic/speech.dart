@@ -1,3 +1,4 @@
+import '../l10n/i18n.dart';
 // Frases faladas pelo app (funções puras, para facilitar os testes).
 // Escritas por extenso onde a voz do celular costuma ler mal ("km", "1,5").
 
@@ -6,14 +7,14 @@ String spokenDistance(double meters) {
   if (meters < 950) {
     final step = meters < 300 ? 50 : 100;
     final m = ((meters / step).round() * step).clamp(50, 900);
-    return '$m metros';
+    return tr('{0} metros', [m]);
   }
   final halves = (meters / 500).round(); // arredonda para 0,5 km
   final whole = halves ~/ 2;
   final half = halves.isOdd;
-  final unit = whole == 1 && !half ? 'quilômetro' : 'quilômetros';
+  final unit = whole == 1 && !half ? tr('quilômetro') : tr('quilômetros');
   if (!half) return '$whole $unit';
-  return whole == 1 ? '1 quilômetro e meio' : '$whole quilômetros e meio';
+  return whole == 1 ? tr('1 quilômetro e meio') : tr('{0} quilômetros e meio', [whole]);
 }
 
 /// Distâncias em que o aviso é falado: [meters] dividido igualmente pelo
@@ -38,17 +39,17 @@ int? nextAlert(double d, int done, List<double> thresholds) {
 
 /// "Atenção: buraco a 400 metros".
 String hazardSpeech(String spokenName, double meters) =>
-    'Atenção: $spokenName a ${spokenDistance(meters)}';
+    tr('Atenção: {0} a {1}', [spokenName, spokenDistance(meters)]);
 
 /// Frase do SOS de um membro do grupo (com a distância, se souber).
 String sosSpeech(String name, double? meters) => meters == null
-    ? 'S O S: $name pediu ajuda'
-    : 'S O S: $name pediu ajuda, a ${spokenDistance(meters)}';
+    ? tr('S O S: {0} pediu ajuda', [name])
+    : tr('S O S: {0} pediu ajuda, a {1}', [name, spokenDistance(meters)]);
 
 /// Aviso de que a próxima parada está chegando.
 String nextStopSpeech(String name, double meters) =>
-    'Próxima parada: $name, a ${spokenDistance(meters)}';
+    tr('Próxima parada: {0}, a {1}', [name, spokenDistance(meters)]);
 
 /// Chegou numa parada (ou no destino final).
 String arrivalSpeech(String name, {required bool isDestination}) =>
-    isDestination ? 'Você chegou ao destino: $name' : 'Chegando em $name';
+    isDestination ? tr('Você chegou ao destino: {0}', [name]) : tr('Chegando em {0}', [name]);

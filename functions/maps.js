@@ -55,6 +55,9 @@ const FIND = {
 };
 const POLYLINE = /^[\x3f-\x7e]{2,100000}$/; // caracteres de polilinha codificada
 
+/** Idioma pedido pelo app ("en" ou português, o padrão). */
+const langOf = (data) => (data && data.lang === "en" ? "en" : "pt-BR");
+
 const COORD = /^-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?$/;
 const key = () => process.env.MAPS_SERVER_KEY || "";
 
@@ -96,7 +99,7 @@ async function directions(req) {
   await countUse(uid, "directions");
 
   const p = new URLSearchParams({
-    origin, destination, mode: "driving", language: "pt-BR", key: key(),
+    origin, destination, mode: "driving", language: langOf(req.data), key: key(),
   });
   if (wps.length) p.set("waypoints", wps.join("|"));
   if (av.length) p.set("avoid", av.join("|"));
@@ -175,7 +178,7 @@ async function places(req) {
     if (typeof input !== "string" || input.trim().length < 2 || input.length > 120) {
       throw new HttpsError("invalid-argument", "Busca inválida.");
     }
-    const body = { input: input.trim(), languageCode: "pt-BR", sessionToken: session };
+    const body = { input: input.trim(), languageCode: langOf(req.data), sessionToken: session };
     if (typeof lat === "number" && typeof lng === "number" &&
         Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
       body.locationBias = {
@@ -196,7 +199,7 @@ async function places(req) {
     if (typeof placeId !== "string" || !/^[\w-]{10,300}$/.test(placeId)) {
       throw new HttpsError("invalid-argument", "Lugar inválido.");
     }
-    const q = new URLSearchParams({ languageCode: "pt-BR" });
+    const q = new URLSearchParams({ languageCode: langOf(req.data) });
     if (session) q.set("sessionToken", session);
     const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}?${q}`, {
       headers: {

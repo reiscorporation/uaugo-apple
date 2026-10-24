@@ -12,6 +12,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../services/club_service.dart';
 import '../services/user_service.dart';
+import '../l10n/i18n.dart';
 
 /// Lista os membros do clube próximos que autorizaram o contato.
 Future<void> showClubNearbySheet(
@@ -47,22 +48,22 @@ Future<void> confirmAndNotify(
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setD) => AlertDialog(
         title: Text(isHelp
-            ? 'Pedir ajuda a ${member.name}?'
-            : 'Avisar ${member.name}?'),
+            ? tr('Pedir ajuda a {0}?', [member.name])
+            : tr('Avisar {0}?', [member.name])),
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(isHelp
-                ? 'Sua localização exata será enviada para ${member.name} (${member.city}).'
-                : '${member.name} vai saber que você está passando por ${member.city}. Sua localização exata não é enviada.'),
+                ? tr('Sua localização exata será enviada para {0} ({1}).', [member.name, member.city])
+                : tr('{0} vai saber que você está passando por {1}. Sua localização exata não é enviada.', [member.name, member.city])),
             const SizedBox(height: 12),
             TextField(
               controller: msgCtrl,
               maxLength: 140,
               decoration: InputDecoration(
-                labelText: 'Mensagem (opcional)',
+                labelText: tr('Mensagem (opcional)'),
                 hintText: isHelp
-                    ? 'Pneu furado, preciso de borracharia'
-                    : 'Bora um café?',
+                    ? tr('Pneu furado, preciso de borracharia')
+                    : tr('Bora um café?'),
                 border: const OutlineInputBorder(),
               ),
             ),
@@ -71,17 +72,17 @@ Future<void> confirmAndNotify(
                 contentPadding: EdgeInsets.zero,
                 value: includePhone,
                 onChanged: (v) => setD(() => includePhone = v ?? false),
-                title: Text('Enviar meu telefone ($phone)'),
+                title: Text(tr('Enviar meu telefone ({0})', [phone])),
               ),
           ]),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
+              child: Text(tr('Cancelar'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: Text(isHelp ? 'Pedir ajuda' : 'Avisar')),
+              child: Text(isHelp ? tr('Pedir ajuda') : tr('Avisar'))),
         ],
       ),
     ),
@@ -101,12 +102,12 @@ Future<void> confirmAndNotify(
       phone: includePhone ? phone : null,
     );
     messenger.showSnackBar(
-        SnackBar(content: Text('Enviado para ${member.name}')));
+        SnackBar(content: Text(tr('Enviado para {0}', [member.name]))));
   } on FirebaseFunctionsException catch (e) {
     messenger.showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Não foi possível enviar')));
+        SnackBar(content: Text(e.message ?? tr('Não foi possível enviar'))));
   } catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text('Não foi possível enviar: $e')));
+    messenger.showSnackBar(SnackBar(content: Text(tr('Não foi possível enviar: {0}', [e]))));
   }
 }
 
@@ -156,12 +157,12 @@ class _NearbySheetState extends State<_NearbySheet> {
           padding: const EdgeInsets.all(16),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(
-              isHelp ? 'Pedir ajuda ao clube' : 'Avisar membros próximos',
+              isHelp ? tr('Pedir ajuda ao clube') : tr('Avisar membros próximos'),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 4),
             Text(
-              'Aparecem só os membros que autorizaram esse contato, até 300 km.',
+              tr('Aparecem só os membros que autorizaram esse contato, até 300 km.'),
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.center,
             ),
@@ -179,15 +180,15 @@ class _NearbySheetState extends State<_NearbySheet> {
                   if (snap.hasError) {
                     final e = snap.error;
                     return Text(e is FirebaseFunctionsException
-                        ? (e.message ?? 'Erro ao buscar membros')
-                        : 'Sem conexão para buscar membros agora.');
+                        ? (e.message ?? tr('Erro ao buscar membros'))
+                        : tr('Sem conexão para buscar membros agora.'));
                   }
                   final list = snap.data ?? [];
                   if (list.isEmpty) {
-                    return const Padding(
+                    return Padding(
                       padding: EdgeInsets.all(16),
                       child: Text(
-                          'Nenhum membro do clube autorizou contato nessa região.',
+                          tr('Nenhum membro do clube autorizou contato nessa região.'),
                           textAlign: TextAlign.center),
                     );
                   }
@@ -208,7 +209,7 @@ class _NearbySheetState extends State<_NearbySheet> {
                               position: _pos),
                           icon: const Icon(Icons.sos),
                           label: Text(
-                              'Pedir ao mais próximo: ${nearest.name} (~${nearest.distanceKm} km)'),
+                              tr('Pedir ao mais próximo: {0} (~{1} km)', [nearest.name, nearest.distanceKm])),
                         ),
                       ),
                     for (final m in list)
@@ -220,7 +221,7 @@ class _NearbySheetState extends State<_NearbySheet> {
                         title: Text(m.name),
                         subtitle: Text([
                           m.city,
-                          '~${m.distanceKm} km',
+                          tr('~{0} km', [m.distanceKm]),
                           if (m.bike.isNotEmpty) m.bike,
                         ].join(' · ')),
                         trailing: FilledButton.tonal(
@@ -229,7 +230,7 @@ class _NearbySheetState extends State<_NearbySheet> {
                               member: m,
                               purpose: widget.purpose,
                               position: _pos),
-                          child: Text(isHelp ? 'Pedir' : 'Avisar'),
+                          child: Text(isHelp ? tr('Pedir') : tr('Avisar')),
                         ),
                       ),
                   ]);

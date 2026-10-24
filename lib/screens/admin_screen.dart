@@ -16,6 +16,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../services/club_service.dart';
+import '../l10n/i18n.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -43,7 +44,7 @@ class _AdminScreenState extends State<AdminScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _clubs = const []);
-        _snack('Não foi possível carregar os clubes: $e');
+        _snack(tr('Não foi possível carregar os clubes: {0}', [e]));
       }
     }
   }
@@ -57,7 +58,7 @@ class _AdminScreenState extends State<AdminScreen> {
     try {
       return await f();
     } catch (e) {
-      _snack('Erro: $e');
+      _snack(tr('Erro: {0}', [e]));
       return null;
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -69,28 +70,28 @@ class _AdminScreenState extends State<AdminScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Cadastrar clube'),
+        title: Text(tr('Cadastrar clube')),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
             controller: name,
             autofocus: true,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Nome do clube'),
+            decoration: InputDecoration(labelText: tr('Nome do clube')),
           ),
           TextField(
             controller: uf,
             textCapitalization: TextCapitalization.characters,
             maxLength: 2,
-            decoration: const InputDecoration(labelText: 'Estado (UF)'),
+            decoration: InputDecoration(labelText: tr('Estado (UF)')),
           ),
         ]),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
+              child: Text(tr('Cancelar'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Cadastrar')),
+              child: Text(tr('Cadastrar'))),
         ],
       ),
     );
@@ -99,7 +100,7 @@ class _AdminScreenState extends State<AdminScreen> {
     if (r == null || !mounted) return;
     await _load();
     if (!mounted) return;
-    _snack('Clube "${r.name}" cadastrado. Gere o código do presidente.');
+    _snack(tr('Clube "{0}" cadastrado. Gere o código do presidente.', [r.name]));
   }
 
   Future<void> _actions(AdminClub c) async {
@@ -109,20 +110,18 @@ class _AdminScreenState extends State<AdminScreen> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
             title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('${c.admins} administrador(es) · ${c.members} membro(s)'
-                '${c.status == 'reserved' ? ' · ainda não ativado' : ''}'),
+            subtitle: Text(tr('{0} administrador(es) · {1} membro(s){2}', [c.admins, c.members, c.status == 'reserved' ? tr(' · ainda não ativado') : ''])),
           ),
           ListTile(
             leading: const Icon(Icons.admin_panel_settings),
-            title: const Text('Código de administrador'),
-            subtitle: const Text('Para o presidente ou diretor: ele ativa o clube '
-                'e passa a convidar os membros.'),
+            title: Text(tr('Código de administrador')),
+            subtitle: Text(tr('Para o presidente ou diretor: ele ativa o clube e passa a convidar os membros.')),
             onTap: () => Navigator.pop(ctx, 'admin'),
           ),
           ListTile(
             leading: const Icon(Icons.person_add),
-            title: const Text('Convite de membro'),
-            subtitle: const Text('Uma pessoa entra no clube (vale 7 dias, um uso).'),
+            title: Text(tr('Convite de membro')),
+            subtitle: Text(tr('Uma pessoa entra no clube (vale 7 dias, um uso).')),
             onTap: () => Navigator.pop(ctx, 'member'),
           ),
         ]),
@@ -133,19 +132,18 @@ class _AdminScreenState extends State<AdminScreen> {
       final r = await _run(() => _svc.adminActivationCode(c.id));
       if (r != null && mounted) {
         await _showCode(r.code,
-            title: 'Código de administrador',
+            title: tr('Código de administrador'),
             club: c.name,
-            how: 'No UauGo: Clube → "Sou administrador do clube" → digite o código → Ativar.');
+            how: tr('No UauGo: Clube → "Sou administrador do clube" → digite o código → Ativar.'));
         await _load();
       }
     } else {
       final r = await _run(() => _svc.adminMemberInvite(c.id));
       if (r != null && mounted) {
         await _showCode(r.code,
-            title: 'Convite de membro',
+            title: tr('Convite de membro'),
             club: c.name,
-            how: 'No UauGo: Clube → "Entrar no meu clube" → digite o convite → Entrar. '
-                'Vale 7 dias e para uma pessoa.');
+            how: tr('No UauGo: Clube → "Entrar no meu clube" → digite o convite → Entrar. Vale 7 dias e para uma pessoa.'));
       }
     }
   }
@@ -157,8 +155,7 @@ class _AdminScreenState extends State<AdminScreen> {
         ? '${code.substring(0, 4)}-${code.substring(4, 8)}-${code.substring(8)}'
         : '${code.substring(0, 4)}-${code.substring(4)}';
     final link = 'https://helpaitechcomboio.web.app/clube?c=$code';
-    final message = '$title do clube $club no UauGo: $shown\n$how\n'
-        'Abrir direto no app: $link';
+    final message = tr('{0} do clube {1} no UauGo: {2}\n{3}\nAbrir direto no app: {4}', [title, club, shown, how, link]);
     return showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -178,17 +175,17 @@ class _AdminScreenState extends State<AdminScreen> {
               child: QrImageView(data: link, size: 200),
             ),
             const SizedBox(height: 8),
-            Text('Aponte a câmera do celular para o QR code.\n$how',
+            Text(tr('Aponte a câmera do celular para o QR code.\n{0}', [how]),
                 textAlign: TextAlign.center,
                 style: Theme.of(ctx).textTheme.bodySmall),
           ]),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fechar')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Fechar'))),
           FilledButton.icon(
             onPressed: () => SharePlus.instance.share(ShareParams(text: message)),
             icon: const Icon(Icons.share),
-            label: const Text('Enviar'),
+            label: Text(tr('Enviar')),
           ),
         ],
       ),
@@ -204,7 +201,7 @@ class _AdminScreenState extends State<AdminScreen> {
         .toList();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Administração UauGo'),
+        title: Text(tr('Administração UauGo')),
         bottom: _busy
             ? const PreferredSize(
                 preferredSize: Size.fromHeight(4), child: LinearProgressIndicator())
@@ -213,7 +210,7 @@ class _AdminScreenState extends State<AdminScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _busy ? null : _newClub,
         icon: const Icon(Icons.add),
-        label: const Text('Cadastrar clube'),
+        label: Text(tr('Cadastrar clube')),
       ),
       body: list == null
           ? const Center(child: CircularProgressIndicator())
@@ -221,9 +218,9 @@ class _AdminScreenState extends State<AdminScreen> {
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: TextField(
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                       prefixIcon: Icon(Icons.search),
-                      hintText: 'Buscar clube',
+                      hintText: tr('Buscar clube'),
                       border: OutlineInputBorder()),
                   onChanged: (v) => setState(() => _filter = v),
                 ),
@@ -245,7 +242,7 @@ class _AdminScreenState extends State<AdminScreen> {
                           if (c.uf.isNotEmpty) c.uf,
                           '${c.admins} adm',
                           '${c.members} membros',
-                          if (c.status == 'reserved') 'não ativado',
+                          if (c.status == 'reserved') tr('não ativado'),
                         ].join(' · ')),
                         trailing: const Icon(Icons.qr_code),
                         onTap: _busy ? null : () => _actions(c),

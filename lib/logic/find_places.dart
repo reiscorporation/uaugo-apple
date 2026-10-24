@@ -13,6 +13,7 @@
 // ============================================================================
 
 import '../models/expedition.dart' show StopType;
+import '../l10n/i18n.dart';
 
 /// O que dá para procurar.
 enum FindCategory {
@@ -37,10 +38,11 @@ enum FindCategory {
   parking('estacionamento', StopType.waypoint),
   carwash('lava-rápido', StopType.waypoint);
 
-  const FindCategory(this.spoken, this.stopType);
+  const FindCategory(this._spoken, this.stopType);
 
   /// Como a voz fala ("posto de combustível").
-  final String spoken;
+  final String _spoken;
+  String get spoken => tr(_spoken);
 
   /// Tipo da parada ao incluir na rota.
   final StopType stopType;

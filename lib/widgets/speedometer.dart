@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 
 import '../logic/speed.dart';
+import '../l10n/i18n.dart';
 
 /// Velocímetro: velocidade atual e a placa do limite da via.
 /// Muda de cor ao passar do limite (âmbar se o limite for estimado).
@@ -81,8 +82,8 @@ class Speedometer extends StatelessWidget {
               top: 0,
               child: Tooltip(
                 message: limit!.estimated
-                    ? 'Limite estimado pelo tipo de via'
-                    : 'Limite da via',
+                    ? tr('Limite estimado pelo tipo de via')
+                    : tr('Limite da via'),
                 child: Container(
                   width: 44,
                   height: 44,

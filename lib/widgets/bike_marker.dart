@@ -14,6 +14,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/bike.dart';
+import '../l10n/i18n.dart';
 
 final Map<String, ui.Image> _photoCache = {};
 
@@ -94,7 +95,7 @@ Future<BitmapDescriptor> bikeMarker({
   // Etiqueta: nome + modelo
   final title = TextPainter(
     text: TextSpan(
-      text: isMe ? 'Você' : name,
+      text: isMe ? tr('Você') : name,
       style: const TextStyle(
           color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
     ),

@@ -17,6 +17,7 @@ import 'package:geolocator/geolocator.dart';
 import '../models/hazard.dart';
 import 'auth_service.dart';
 import 'hazard_service.dart';
+import '../l10n/i18n.dart';
 
 class CarService {
   CarService._();
@@ -68,11 +69,11 @@ class CarService {
       _ => null,
     };
     if (type == null) {
-      toast('Nenhuma navegação em andamento');
+      toast(tr('Nenhuma navegação em andamento'));
       return;
     }
     if (AuthService.isAnonymous) {
-      toast('Entre na sua conta no celular para marcar alertas');
+      toast(tr('Entre na sua conta no celular para marcar alertas'));
       return;
     }
     try {
@@ -81,9 +82,9 @@ class CarService {
       final uid = AuthService.user?.uid;
       if (uid == null) return;
       await HazardService.instance.report(type, p.latitude, p.longitude, uid);
-      toast('Alerta enviado: ${type.label}');
+      toast(tr('Alerta enviado: {0}', [type.label]));
     } catch (_) {
-      toast('Não foi possível marcar o alerta');
+      toast(tr('Não foi possível marcar o alerta'));
     }
   }
 
@@ -113,6 +114,7 @@ class CarService {
       'bearing': bearing,
       'speedKmh': speedKmh,
       'limitKmh': limitKmh,
+      'lang': I18n.lang.value, // textos da tela do carro
       // Valem com ou sem rota (Só dirigir): contagem do radar, faixa amarela
       // de aviso e o ícone do veículo.
       if (alert != null) 'alert': alert,

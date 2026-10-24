@@ -10,6 +10,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../l10n/i18n.dart';
 
 /// Tipos de alerta, com emoji, cor, quanto tempo ficam no mapa se ninguém
 /// confirmar, a distância em que o piloto é avisado e o nome falado.
@@ -53,9 +54,10 @@ enum HazardType {
   /// na 3ª confirmação, ou já ao serem marcados por um usuário Gold.
   bool get canBePermanent => this == bump || this == fixedRadar || this == signal;
 
-  const HazardType(this.label, this.emoji, this.color, this.lifetime,
-      this.alertMeters, this.spoken);
-  final String label;
+  const HazardType(this._label, this.emoji, this.color, this.lifetime,
+      this.alertMeters, this._spoken);
+  final String _label;
+  String get label => tr(_label);
   final String emoji;
   final Color color;
   final Duration lifetime;
@@ -64,7 +66,8 @@ enum HazardType {
   final double alertMeters;
 
   /// Como a voz fala o alerta ("Atenção: buraco a 400 metros").
-  final String spoken;
+  final String _spoken;
+  String get spoken => tr(_spoken);
 
   /// Lê o tipo salvo pelo nome; null se for um tipo que o app não conhece.
   static HazardType? fromName(String? name) {

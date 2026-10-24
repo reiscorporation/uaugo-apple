@@ -12,6 +12,7 @@ import '../logic/navigation.dart';
 import '../models/expedition.dart';
 import '../models/trip.dart';
 import 'directions_service.dart';
+import '../l10n/i18n.dart';
 
 /// Um ponto da viagem sozinho (saída, parada ou destino).
 class TripPoint {
@@ -82,7 +83,7 @@ class TripService {
     return build(
       title: trip.title,
       points: [
-        TripPoint('Sua posição', lat, lng, type: StopType.meet),
+        TripPoint(tr('Sua posição'), lat, lng, type: StopType.meet),
         for (final s in rest) TripPoint(s.name, s.lat, s.lng, type: s.type),
       ],
       avoidTolls: trip.plan.avoidTolls,

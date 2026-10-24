@@ -113,7 +113,7 @@ class CarOverlay(private val ctx: Context) {
             val h = secs / 3600; val min = (secs % 3600) / 60
             val time = if (h > 0) "${h}h${"%02d".format(min)}" else "$min min"
             val eta = if (n.etaMillis > 0) SimpleDateFormat("HH:mm", Locale("pt", "BR")).format(Date(n.etaMillis)) else ""
-            info.text = "Chegada $eta · $time · ${dist(n.remainingM)}"
+            info.text = "${if (CarState.en) "Arrival" else "Chegada"} $eta · $time · ${dist(n.remainingM)}"
         }
         val b = CarState.banner
         banner.visibility = if (b.isNullOrBlank()) View.GONE else View.VISIBLE

@@ -42,6 +42,7 @@ import 'profile_screen.dart';
 import 'about_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
+import '../l10n/i18n.dart';
 
 /// Tela inicial do app.
 class HomeScreen extends StatefulWidget {
@@ -103,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Em outra tela (ex.: navegando): não interrompe o que está acontecendo.
     if (!(ModalRoute.of(context)?.isCurrent ?? true) || _busy) {
       SharedPlaceService.instance.take();
-      _snack('Endereço recebido. Volte à tela inicial e abra de novo.');
+      _snack(tr('Endereço recebido. Volte à tela inicial e abra de novo.'));
       return;
     }
     final raw = SharedPlaceService.instance.take()!;
@@ -120,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (place == null) {
-      _snack('Não consegui entender o endereço recebido');
+      _snack(tr('Não consegui entender o endereço recebido'));
       return;
     }
     await _whereTo(shared: place, byVoice: byVoice);
@@ -195,20 +196,19 @@ class _HomeScreenState extends State<HomeScreen> {
       {bool planFirst = false}) async {
     final userName = _nameCtrl.text.trim();
     if (userName.isEmpty) {
-      _snack('Informe seu nome de piloto');
+      _snack(tr('Informe seu nome de piloto'));
       return;
     }
     // Expedição exige conta: o grupo precisa saber quem é quem.
     if (!await requireAccount(
         context,
-        'Para criar ou entrar numa expedição, entre com sua conta. Assim o '
-        'grupo sabe quem é você e você pode usar o app em outro celular.')) {
+        tr('Para criar ou entrar numa expedição, entre com sua conta. Assim o grupo sabe quem é você e você pode usar o app em outro celular.'))) {
       return;
     }
     setState(() => _busy = true);
     try {
       if (!await LocationService.ensurePermission()) {
-        _snack('Ative o GPS e permita o acesso à localização');
+        _snack(tr('Ative o GPS e permita o acesso à localização'));
         return;
       }
       final uid = await AuthService.ensureSignedIn();
@@ -251,7 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       await _loadPrefs();
     } catch (e) {
-      _snack('Erro: $e');
+      _snack(tr('Erro: {0}', [e]));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -261,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _create() => _go((uid, userName) {
         final expName = _expNameCtrl.text.trim();
         return _svc.create(
-          name: expName.isEmpty ? 'Expedição de $userName' : expName,
+          name: expName.isEmpty ? tr('Expedição de {0}', [userName]) : expName,
           uid: uid,
           userName: userName,
         );
@@ -271,12 +271,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void _join([String? code]) => _go((uid, userName) async {
         final c = (code ?? _codeCtrl.text).trim().toUpperCase();
         if (c.isEmpty) {
-          _snack('Digite o código da expedição');
+          _snack(tr('Digite o código da expedição'));
           return null;
         }
         final exp = await _svc.find(c);
         if (exp == null) {
-          _snack('Expedição "$c" não encontrada');
+          _snack(tr('Expedição "{0}" não encontrada', [c]));
           return null;
         }
         await _svc.join(code: c, uid: uid, userName: userName);
@@ -293,7 +293,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Abre o clube.
   Future<void> _openClub() async {
     if (!await requireAccount(context,
-        'O clube é para membros identificados: entre com sua conta.')) {
+        tr('O clube é para membros identificados: entre com sua conta.'))) {
       return;
     }
     if (!mounted) return;
@@ -315,18 +315,18 @@ class _HomeScreenState extends State<HomeScreen> {
   // ------------------------------------------------------------ sozinho
 
   String get _riderName =>
-      _nameCtrl.text.trim().isEmpty ? 'Você' : _nameCtrl.text.trim();
+      _nameCtrl.text.trim().isEmpty ? tr('Você') : _nameCtrl.text.trim();
 
   /// Permissão de GPS + login (para baixar radares e limites).
   Future<String?> _prepareAlone() async {
     if (!await LocationService.ensurePermission()) {
-      _snack('Ative o GPS e permita o acesso à localização');
+      _snack(tr('Ative o GPS e permita o acesso à localização'));
       return null;
     }
     try {
       return await AuthService.ensureSignedIn();
     } catch (e) {
-      _snack('Sem conexão: $e');
+      _snack(tr('Sem conexão: {0}', [e]));
       return null;
     }
   }
@@ -358,7 +358,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _busy = false);
     if (uid == null || !mounted) return;
     if (me == null) {
-      _snack('Não foi possível obter sua posição pelo GPS');
+      _snack(tr('Não foi possível obter sua posição pelo GPS'));
       return;
     }
     // Texto recebido: com um só resultado na busca vai direto para a rota;
@@ -370,16 +370,16 @@ class _HomeScreenState extends State<HomeScreen> {
         : null;
     if (!mounted) return;
     if (byVoice && single == null) {
-      _snack('Não encontrei "${shared?.query}". Escolha na lista.');
+      _snack(tr('Não encontrei "{0}". Escolha na lista.', [shared?.query]));
     }
     final picked = shared != null && shared.hasCoords
-        ? PickedPlace(shared.label ?? 'Local recebido', '', shared.lat!, shared.lng!)
+        ? PickedPlace(shared.label ?? tr('Local recebido'), '', shared.lat!, shared.lng!)
         : single ?? await Navigator.of(context).push<PickedPlace>(
             MaterialPageRoute(
               fullscreenDialog: true,
               builder: (_) => PlaceSearchPage(
                   near: LatLng(me!.latitude, me.longitude),
-                  title: 'Para onde',
+                  title: tr('Para onde'),
                   initialText: shared?.query ?? shared?.label),
             ),
           );
@@ -388,7 +388,7 @@ class _HomeScreenState extends State<HomeScreen> {
         autoStart: byVoice,
         title: picked.name,
         points: [
-          TripPoint('Sua posição', me.latitude, me.longitude,
+          TripPoint(tr('Sua posição'), me.latitude, me.longitude,
               type: StopType.meet),
           TripPoint(picked.name, picked.lat, picked.lng,
               type: StopType.destination),
@@ -419,7 +419,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Viagens planejadas',
+                    Text(tr('Viagens planejadas'),
                         style: Theme.of(context).textTheme.titleSmall),
                     for (final t in list.take(4))
                       Card(
@@ -429,10 +429,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           leading: const Icon(Icons.event_available),
                           title: Text(t.title, overflow: TextOverflow.ellipsis),
                           subtitle: Text(
-                              'Saída ${formatDay(t.departAt)} ${formatTime(t.departAt)}'),
+                              tr('Saída {0} {1}', [formatDay(t.departAt), formatTime(t.departAt)])),
                           onTap: () => _openPlanned(t),
                           trailing: IconButton(
-                            tooltip: 'Apagar',
+                            tooltip: tr('Apagar'),
                             icon: const Icon(Icons.close),
                             onPressed: () =>
                                 PlannedTripsService.instance.remove(t.id),
@@ -457,8 +457,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (!mounted) return;
     final pts = [...t.points];
-    if (me != null && pts.isNotEmpty && pts.first.name == 'Sua posição') {
-      pts[0] = TripPoint('Sua posição', me.latitude, me.longitude, type: StopType.meet);
+    if (me != null && pts.isNotEmpty &&
+        (pts.first.name == 'Sua posição' || pts.first.name == 'Your location')) {
+      pts[0] = TripPoint(tr('Sua posição'), me.latitude, me.longitude, type: StopType.meet);
     }
     final res = await TripPreviewSheet.show(context, title: t.title, points: pts);
     if (res == null || !mounted) return;
@@ -480,14 +481,14 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_, list, __) => Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Wrap(spacing: 8, runSpacing: 4, children: [
-            _savedChip(savedHome, 'Casa', Icons.home),
-            _savedChip(savedWork, 'Trabalho', Icons.work),
+            _savedChip(savedHome, tr('Casa'), Icons.home),
+            _savedChip(savedWork, tr('Trabalho'), Icons.work),
             for (final p in list)
               if (p.key != savedHome && p.key != savedWork)
                 _savedChip(p.key, p.name, Icons.star),
             ActionChip(
               avatar: const Icon(Icons.add, size: 18),
-              label: const Text('Salvar local'),
+              label: Text(tr('Salvar local')),
               onPressed: _addSavedPlace,
             ),
           ]),
@@ -522,7 +523,7 @@ class _HomeScreenState extends State<HomeScreen> {
     await SavedPlacesService.instance.save(SavedPlace(key, name,
         picked.address.isEmpty ? picked.name : picked.address, picked.lat, picked.lng));
     _snack(key == savedHome || key == savedWork
-        ? '$name salvo. Toque no atalho ou diga "UauGo, ir para ${key == savedHome ? 'casa' : 'o trabalho'}".'
+        ? tr('{0} salvo. Toque no atalho ou diga "UauGo, ir para {1}".', [name, key == savedHome ? 'casa' : 'o trabalho'])
         : '$name salvo.');
   }
 
@@ -532,19 +533,19 @@ class _HomeScreenState extends State<HomeScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nome do local'),
+        title: Text(tr('Nome do local')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(hintText: 'Ex.: Casa da mãe, Oficina'),
+          decoration: InputDecoration(hintText: tr('Ex.: Casa da mãe, Oficina')),
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Cancelar'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text),
-              child: const Text('Escolher endereço')),
+              child: Text(tr('Escolher endereço'))),
         ],
       ),
     );
@@ -565,12 +566,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.edit_location_alt),
-            title: const Text('Trocar endereço'),
+            title: Text(tr('Trocar endereço')),
             onTap: () => Navigator.pop(ctx, 'edit'),
           ),
           ListTile(
             leading: const Icon(Icons.delete_outline),
-            title: const Text('Remover'),
+            title: Text(tr('Remover')),
             onTap: () => Navigator.pop(ctx, 'remove'),
           ),
         ]),
@@ -637,7 +638,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         : Icons.account_circle),
                     label: Text(
                       AuthService.isAnonymous
-                          ? 'Entrar'
+                          ? tr('Entrar')
                           // Sem nome na conta: só a parte do e-mail antes do @.
                           : AuthService.displayName.split(' ').first.split('@').first,
                       overflow: TextOverflow.ellipsis,
@@ -646,7 +647,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 )),
                 IconButton(
-                  tooltip: 'Configurações',
+                  tooltip: tr('Configurações'),
                   icon: const Icon(Icons.settings),
                   onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute(
@@ -690,7 +691,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Icon(Icons.search,
                           color: theme.colorScheme.onPrimaryContainer),
                       const SizedBox(width: 12),
-                      Text('Para onde?',
+                      Text(tr('Para onde?'),
                           style: theme.textTheme.titleMedium?.copyWith(
                               color: theme.colorScheme.onPrimaryContainer)),
                     ]),
@@ -709,17 +710,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(28)),
                 ),
-                child: const Row(children: [
+                child: Row(children: [
                   Icon(Icons.speed, size: 32),
                   SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('DIRIGIR AGORA',
+                        Text(tr('DIRIGIR AGORA'),
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.w800)),
-                        Text('radares e velocidade',
+                        Text(tr('radares e velocidade'),
                             style: TextStyle(fontSize: 13)),
                       ],
                     ),
@@ -733,8 +734,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 // mapa (isso derrubava o app: o mapa sendo fechado mudava de tamanho).
                 onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                 textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Seu nome de piloto',
+                decoration: InputDecoration(
+                  labelText: tr('Seu nome de piloto'),
                   prefixIcon: Icon(Icons.person),
                   border: OutlineInputBorder(),
                 ),
@@ -744,27 +745,27 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: _editBike,
                 icon: Icon(_bike.style.icon),
                 label: Text(_bike.isEmpty
-                    ? 'Configurar meu veículo'
-                    : 'Meu veículo: ${_bike.displayName.isEmpty ? 'com foto' : _bike.displayName}'),
+                    ? tr('Configurar meu veículo')
+                    : tr('Meu veículo: {0}', [_bike.displayName.isEmpty ? tr('com foto') : _bike.displayName])),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: _openHistory,
                 icon: const Icon(Icons.history),
-                label: const Text('Minhas viagens'),
+                label: Text(tr('Minhas viagens')),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: _openClub,
                 icon: const Icon(Icons.shield_outlined),
                 label: Text(_clubName == null
-                    ? 'Clube'
-                    : 'Clube: $_clubName'),
+                    ? tr('Clube')
+                    : tr('Clube: {0}', [_clubName])),
               ),
               if (_myExps.isNotEmpty) ...[
                 const SizedBox(height: 24),
                 _Section(
-                  title: 'Minhas expedições',
+                  title: tr('Minhas expedições'),
                   children: [
                     for (final (code, name) in _myExps.take(5))
                       Padding(
@@ -783,20 +784,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 FilledButton.tonalIcon(
                   onPressed: () => _join(_lastCode),
                   icon: const Icon(Icons.replay),
-                  label: Text('Voltar para a expedição $_lastCode'),
+                  label: Text(tr('Voltar para a expedição {0}', [_lastCode])),
                 ),
               ],
               const SizedBox(height: 24),
               _Section(
-                title: 'Nova expedição',
+                title: tr('Nova expedição'),
                 children: [
                   TextField(
                     controller: _expNameCtrl,
                     // Tocar fora fecha o teclado: assim ele não volta sozinho ao sair do
                     // mapa (isso derrubava o app: o mapa sendo fechado mudava de tamanho).
                     onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-                    decoration: const InputDecoration(
-                      labelText: 'Nome (ex: Serra do Rio do Rastro)',
+                    decoration: InputDecoration(
+                      labelText: tr('Nome (ex: Serra do Rio do Rastro)'),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -804,13 +805,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   FilledButton.icon(
                     onPressed: _create,
                     icon: const Icon(Icons.add_road),
-                    label: const Text('Criar e planejar roteiro'),
+                    label: Text(tr('Criar e planejar roteiro')),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
               _Section(
-                title: 'Entrar em uma expedição',
+                title: tr('Entrar em uma expedição'),
                 children: [
                   TextField(
                     controller: _codeCtrl,
@@ -818,8 +819,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     // mapa (isso derrubava o app: o mapa sendo fechado mudava de tamanho).
                     onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                     textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: 'Código do convite',
+                    decoration: InputDecoration(
+                      labelText: tr('Código do convite'),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -827,7 +828,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   FilledButton.icon(
                     onPressed: _join,
                     icon: const Icon(Icons.login),
-                    label: const Text('Entrar no comboio'),
+                    label: Text(tr('Entrar no comboio')),
                   ),
                 ],
               ),
@@ -839,7 +840,7 @@ class _HomeScreenState extends State<HomeScreen> {
               TextButton.icon(
                 onPressed: _openPrivacy,
                 icon: const Icon(Icons.privacy_tip_outlined),
-                label: const Text('Privacidade e autorizações'),
+                label: Text(tr('Privacidade e autorizações')),
               ),
               const SizedBox(height: 8),
               // Autoria: HelpAITech (toque para ver "Sobre").
@@ -850,7 +851,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Column(children: [
-                    Text('Desenvolvido por',
+                    Text(tr('Desenvolvido por'),
                         style: theme.textTheme.bodySmall),
                     const SizedBox(height: 6),
                     Container(

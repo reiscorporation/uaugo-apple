@@ -9,6 +9,7 @@
 // ============================================================================
 
 import '../logic/costs.dart';
+import '../l10n/i18n.dart';
 
 /// Uma viagem feita, guardada SÓ no celular ("Minhas viagens").
 class TripRecord {
@@ -96,7 +97,7 @@ class TripRecord {
       return TripRecord(
         id: j['id'] as String,
         expedition: j['exp'] == true,
-        title: (j['title'] ?? 'Viagem') as String,
+        title: (j['title'] ?? tr('Viagem')) as String,
         code: j['code'] as String?,
         startedAt:
             DateTime.fromMillisecondsSinceEpoch((j['start'] as num).toInt()),

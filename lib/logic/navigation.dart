@@ -12,6 +12,7 @@
 import 'dart:math';
 
 import 'speech.dart';
+import '../l10n/i18n.dart';
 
 // Narração do trajeto, curva a curva (funções puras, para os testes).
 // As manobras vêm do Google Directions quando o líder calcula a rota e ficam
@@ -123,8 +124,7 @@ const _ordinalsWords = [
   '', 'primeiro', 'segundo', 'terceiro', 'quarto', 'quinto', 'sexto',
   'sétimo', 'oitavo', 'nono', 'décimo',
 ];
-const _months = 'janeiro|fevereiro|março|abril|maio|junho|julho|agosto|'
-    'setembro|outubro|novembro|dezembro';
+const _months = 'janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro';
 
 /// Número romano (I a XLIX) -> valor; null se não for romano válido.
 int? _roman(String s) {
@@ -199,7 +199,7 @@ String _tidyExit(String t) {
   if (num != null) {
     t = t
         .replaceAll(RegExp(' em direção (?:a|à|ao) $num\\b'), '')
-        .replaceFirst('saída $num ', 'saída $num, ');
+        .replaceFirst('saída $num ', tr('saída {0}, ', [num]));
   }
   return t.replaceAll(RegExp(r',\s*,'), ',').replaceAll(RegExp(r',$'), '').trim();
 }
@@ -231,7 +231,7 @@ class TurnByTurn {
 
   /// Frase da manobra (com "no semáforo", quando há um na esquina).
   String _say(NavStep s) => s.isTurn && (signalAt?.call(s.lat, s.lng) ?? false)
-      ? 'No semáforo, ${_lowerFirst(s.text)}'
+      ? tr('No semáforo, {0}', [_lowerFirst(s.text)])
       : s.text;
   int _next = 0;
   bool _farSaid = false;
@@ -337,11 +337,11 @@ class TurnByTurn {
         d <= 2000 + jump &&
         d > farAt + 300 &&
         _earlyDone.add(j)) {
-      return 'Em ${spokenDistance(d)}, ${_lowerFirst(_say(s))}';
+      return tr('Em {0}, {1}', [spokenDistance(d), _lowerFirst(_say(s))]);
     }
     if (!_farDone.contains(j) && d <= farAt && d > nearAt) {
       _farDone.add(j);
-      return 'Em ${spokenDistance(d)}, ${_lowerFirst(_say(s))}';
+      return tr('Em {0}, {1}', [spokenDistance(d), _lowerFirst(_say(s))]);
     }
     return null;
   }
@@ -383,7 +383,7 @@ class TurnByTurn {
       }
       if (!_farSaid && d <= farAt && d > nearAt) {
         _farSaid = true;
-        return 'Em ${spokenDistance(d)}, ${_lowerFirst(_say(s))}';
+        return tr('Em {0}, {1}', [spokenDistance(d), _lowerFirst(_say(s))]);
       }
       return null;
     }

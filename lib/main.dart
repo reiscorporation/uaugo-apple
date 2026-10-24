@@ -35,6 +35,7 @@ import 'services/shared_place_service.dart';
 import 'services/car_service.dart';
 import 'services/expedition_service.dart';
 import 'services/analytics_service.dart';
+import 'l10n/i18n.dart';
 
 /// Paleta da marca: azul-marinho (confiança, segurança, tecnologia) como base,
 /// laranja só no que chama ação (iniciar, alertas, a marca) e verde-água para
@@ -209,13 +210,15 @@ class ComboioApp extends StatelessWidget {
     // Troca de aparência (Configurações) vale na hora.
     final s = AppSettings.instance;
     return ListenableBuilder(
-        listenable: Listenable.merge([s.cleanTheme, s.accent]),
+        listenable: Listenable.merge([s.cleanTheme, s.accent, I18n.lang]),
         builder: (_, __) => MaterialApp(
+      // Trocar o idioma refaz as telas (volta ao início) já no novo idioma.
+      key: ValueKey(I18n.lang.value),
       title: 'UauGo',
       debugShowCheckedModeBanner: false,
-      // Calendário, relógio e botões do sistema em português.
-      locale: const Locale('pt', 'BR'),
-      supportedLocales: const [Locale('pt', 'BR')],
+      // Calendário, relógio e botões do sistema no idioma do app.
+      locale: I18n.isEn ? const Locale('en', 'US') : const Locale('pt', 'BR'),
+      supportedLocales: const [Locale('pt', 'BR'), Locale('en', 'US')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       navigatorKey: NotificationService.navigatorKey,
       theme: _theme(schemeFor(s.cleanTheme.value, s.accent.value)),

@@ -17,6 +17,7 @@ import '../models/bike.dart';
 import '../services/app_settings.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
+import '../l10n/i18n.dart';
 
 /// "Meu veículo": foto, marca, modelo, tipo, eixos/reboque e cor do marcador.
 class ProfileScreen extends StatefulWidget {
@@ -100,7 +101,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Não foi possível salvar: $e')));
+            SnackBar(content: Text(tr('Não foi possível salvar: {0}', [e]))));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -121,7 +122,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-          title: const Text('Meu veículo')),
+          title: Text(tr('Meu veículo'))),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(padding: const EdgeInsets.all(20), children: [
@@ -154,12 +155,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   OutlinedButton.icon(
                     onPressed: () => _pick(ImageSource.camera),
                     icon: const Icon(Icons.photo_camera),
-                    label: const Text('Câmera'),
+                    label: Text(tr('Câmera')),
                   ),
                   OutlinedButton.icon(
                     onPressed: () => _pick(ImageSource.gallery),
                     icon: const Icon(Icons.photo_library),
-                    label: const Text('Galeria'),
+                    label: Text(tr('Galeria')),
                   ),
                   if (photo != null)
                     TextButton(
@@ -167,17 +168,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _newPhoto = null;
                         _bike = _bike.copyWith(clearPhoto: true);
                       }),
-                      child: const Text('Remover foto'),
+                      child: Text(tr('Remover foto')),
                     ),
                 ],
               ),
               Text(
-                'Use uma foto do seu veículo. Ela aparece no mapa para todo o comboio.',
+                tr('Use uma foto do seu veículo. Ela aparece no mapa para todo o comboio.'),
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: 24),
-              Text('Tipo (vira o ícone quando não há foto e define o pedágio)',
+              Text(tr('Tipo (vira o ícone quando não há foto e define o pedágio)'),
                   style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               Wrap(spacing: 8, runSpacing: 8, children: [
@@ -193,7 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Pedágio: pesados pagam pelo nº de eixos; carro, pelo reboque.
               if (_bike.style.isHeavy) ...[
                 const SizedBox(height: 20),
-                Text('Eixos (contando o reboque, se houver)',
+                Text(tr('Eixos (contando o reboque, se houver)'),
                     style: theme.textTheme.titleSmall),
                 const SizedBox(height: 8),
                 Wrap(spacing: 8, runSpacing: 8, children: [
@@ -207,10 +208,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ]),
               ] else if (_bike.style.isCar) ...[
                 const SizedBox(height: 20),
-                Text('Reboque', style: theme.textTheme.titleSmall),
+                Text(tr('Reboque'), style: theme.textTheme.titleSmall),
                 const SizedBox(height: 8),
                 Wrap(spacing: 8, runSpacing: 8, children: [
-                  for (final (n, label) in const [(0, 'Sem reboque'), (1, '1 eixo'), (2, '2 eixos')])
+                  for (final (n, label) in [(0, tr('Sem reboque')), (1, tr('1 eixo')), (2, tr('2 eixos'))])
                     ChoiceChip(
                       label: Text(label),
                       selected: _bike.trailerAxles == n,
@@ -220,7 +221,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ]),
               ],
               const SizedBox(height: 20),
-              Text('Marca', style: theme.textTheme.titleSmall),
+              Text(tr('Marca'), style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               Wrap(spacing: 8, runSpacing: 8, children: [
                 for (final b in _bike.style.brands)
@@ -235,9 +236,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               TextField(
                 controller: _modelCtrl,
                 textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Modelo',
-                  hintText: 'Versys 650',
+                decoration: InputDecoration(
+                  labelText: tr('Modelo'),
+                  hintText: tr('Versys 650'),
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -245,17 +246,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               TextField(
                 controller: _plateCtrl,
                 textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: 'Placa (opcional)',
+                decoration: InputDecoration(
+                  labelText: tr('Placa (opcional)'),
                   hintText: 'ABC1D23',
-                  helperText: 'Fica só no seu celular. Serve para avisar do rodízio '
-                      'de São Paulo quando a rota passar pelo centro expandido.',
+                  helperText: tr('Fica só no seu celular. Serve para avisar do rodízio de São Paulo quando a rota passar pelo centro expandido.'),
                   helperMaxLines: 2,
                   border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 20),
-              Text('Cor do marcador', style: theme.textTheme.titleSmall),
+              Text(tr('Cor do marcador'), style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               Wrap(spacing: 10, runSpacing: 10, children: [
                 for (final c in bikeColors)
@@ -282,10 +282,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Consumo e gastos (opcional).
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Calcular consumo e gastos da viagem'),
-                subtitle: const Text(
-                    'Mostra o combustível estimado de cada rota e permite '
-                    'registrar abastecimentos e gastos. Fica só no seu celular.'),
+                title: Text(tr('Calcular consumo e gastos da viagem')),
+                subtitle: Text(
+                    tr('Mostra o combustível estimado de cada rota e permite registrar abastecimentos e gastos. Fica só no seu celular.')),
                 value: _fuelOn,
                 onChanged: (v) => setState(() => _fuelOn = v),
               ),
@@ -296,8 +295,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       controller: _kmlCtrl,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Consumo médio',
+                      decoration: InputDecoration(
+                        labelText: tr('Consumo médio'),
                         suffixText: 'km/l',
                         border: OutlineInputBorder(),
                       ),
@@ -309,8 +308,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       controller: _priceCtrl,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Preço do litro',
+                      decoration: InputDecoration(
+                        labelText: tr('Preço do litro'),
                         prefixText: 'R\$ ',
                         border: OutlineInputBorder(),
                       ),
@@ -326,7 +325,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.check),
-                label: const Text('Salvar'),
+                label: Text(tr('Salvar')),
               ),
             ]),
     );

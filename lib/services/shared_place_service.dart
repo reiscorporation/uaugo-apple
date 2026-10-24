@@ -15,6 +15,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 
 import '../logic/shared_place.dart';
+import '../l10n/i18n.dart';
 
 class SharedPlaceService {
   SharedPlaceService._();
@@ -100,6 +101,6 @@ class SharedPlaceService {
         if (name.isNotEmpty) return name;
       }
     } catch (_) {}
-    return 'Local recebido';
+    return tr('Local recebido');
   }
 }

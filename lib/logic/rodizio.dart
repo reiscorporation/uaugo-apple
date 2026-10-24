@@ -13,6 +13,7 @@
 // ============================================================================
 
 import '../models/bike.dart';
+import '../l10n/i18n.dart';
 
 /// Contorno APROXIMADO do Centro Expandido (Minianel Viário): marginais
 /// Tietê e Pinheiros, Av. dos Bandeirantes, Complexo Maria Maluf, Av.
@@ -60,9 +61,9 @@ int rodizioWeekday(int digit) => switch (digit) {
     };
 
 /// Nome do dia ("segunda-feira"...).
-String rodizioDayName(int weekday) => const {
+String rodizioDayName(int weekday) => {
       DateTime.monday: 'segunda-feira',
-      DateTime.tuesday: 'terça-feira',
+      DateTime.tuesday: tr('terça-feira'),
       DateTime.wednesday: 'quarta-feira',
       DateTime.thursday: 'quinta-feira',
       DateTime.friday: 'sexta-feira',
@@ -121,7 +122,5 @@ String? rodizioWarning({
   final d = plateDigit(plate);
   if (d == null || !subjectToRodizio(style) || !rodizioDay(d, when)) return null;
   if (!routeCrossesCentro(route)) return null;
-  return 'Rodízio em São Paulo: placa final $d não pode circular no centro '
-      'expandido ${rodizioDayName(rodizioWeekday(d))} das 7h às 10h e das '
-      '17h às 20h, e esta rota passa por lá.';
+  return tr('Rodízio em São Paulo: placa final {0} não pode circular no centro expandido {1} das 7h às 10h e das 17h às 20h, e esta rota passa por lá.', [d, rodizioDayName(rodizioWeekday(d))]);
 }

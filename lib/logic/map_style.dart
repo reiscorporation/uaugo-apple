@@ -9,6 +9,7 @@
 // ============================================================================
 
 import 'dart:math';
+import '../l10n/i18n.dart';
 
 /// Tema do mapa: automático (pelo pôr do sol), sempre claro ou sempre escuro.
 enum MapTheme {
@@ -16,8 +17,9 @@ enum MapTheme {
   day('Sempre claro'),
   night('Sempre escuro');
 
-  const MapTheme(this.label);
-  final String label;
+  const MapTheme(this._label);
+  final String _label;
+  String get label => tr(_label);
 }
 
 /// É noite em (lat, lng) agora? Calcula a altura do Sol (fórmula da NOAA,

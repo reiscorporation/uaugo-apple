@@ -10,6 +10,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import '../l10n/i18n.dart';
 
 /// GPS do celular.
 class LocationService {
@@ -67,7 +68,7 @@ class LocationService {
         intervalDuration: interval,
         foregroundNotificationConfig: background
             ? ForegroundNotificationConfig(
-                notificationTitle: 'UauGo ativo',
+                notificationTitle: tr('UauGo ativo'),
                 notificationText: notificationText,
                 enableWakeLock: false,
               )

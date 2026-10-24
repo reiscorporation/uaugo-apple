@@ -23,6 +23,7 @@ import 'admin_screen.dart';
 import '../services/club_service.dart';
 import 'login_screen.dart';
 import 'terms_screen.dart';
+import '../l10n/i18n.dart';
 
 /// Escolher estados e baixar os dados para usar sem internet.
 class _OfflineScreen extends StatefulWidget {
@@ -77,20 +78,14 @@ class _OfflineScreenState extends State<_OfflineScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Usar sem internet')),
+      appBar: AppBar(title: Text(tr('Usar sem internet'))),
       body: SafeArea(
         top: false,
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : ListView(padding: const EdgeInsets.all(16), children: [
-                const Text(
-                    'Escolha os estados por onde vai passar. Os dados ficam no '
-                    'celular e são usados mesmo sem sinal: limites de '
-                    'velocidade, lombadas e postos policiais. A rota calculada '
-                    'antes de sair, a narração e os radares também funcionam '
-                    'sem internet.\n\n'
-                    'O mapa do Google não pode ser baixado (regra do Google): '
-                    'sem sinal, ele mostra só as áreas vistas recentemente.'),
+                Text(
+                    tr('Escolha os estados por onde vai passar. Os dados ficam no celular e são usados mesmo sem sinal: limites de velocidade, lombadas e postos policiais. A rota calculada antes de sair, a narração e os radares também funcionam sem internet.\n\nO mapa do Google não pode ser baixado (regra do Google): sem sinal, ele mostra só as áreas vistas recentemente.')),
                 const SizedBox(height: 16),
                 Wrap(spacing: 6, runSpacing: 6, children: [
                   for (final uf in _ufs)
@@ -117,12 +112,11 @@ class _OfflineScreenState extends State<_OfflineScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.download),
                   label: Text(_busy != null
-                      ? 'Baixando $_busy...'
-                      : 'Baixar ${_selected.length} '
-                          '${_selected.length == 1 ? 'estado' : 'estados'}'),
+                      ? tr('Baixando {0}...', [_busy])
+                      : tr('Baixar {0} {1}', [_selected.length, _selected.length == 1 ? tr('estado') : tr('estados')])),
                 ),
                 const SizedBox(height: 8),
-                const Text('✓ = já baixado e atualizado',
+                Text(tr('✓ = já baixado e atualizado'),
                     style: TextStyle(fontSize: 12)),
               ]),
       ),
@@ -142,10 +136,9 @@ class _AccountTile extends StatelessWidget {
         if (AuthService.isAnonymous) {
           return ListTile(
             leading: const Icon(Icons.account_circle_outlined, size: 32),
-            title: const Text('Entrar ou criar conta'),
-            subtitle: const Text(
-                'Necessária para expedições, alertas e clube. Navegar '
-                'sozinho funciona sem conta.'),
+            title: Text(tr('Entrar ou criar conta')),
+            subtitle: Text(
+                tr('Necessária para expedições, alertas e clube. Navegar sozinho funciona sem conta.')),
             onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const LoginScreen())),
           );
@@ -157,46 +150,44 @@ class _AccountTile extends StatelessWidget {
             subtitle: Text(AuthService.email),
           ),
           if (AuthService.needsVerification) ...[
-            const ListTile(
+            ListTile(
               leading: Icon(Icons.mark_email_unread_outlined,
                   color: Colors.amber),
-              title: Text('Confirme seu e-mail'),
+              title: Text(tr('Confirme seu e-mail')),
               subtitle: Text(
-                  'Enviamos um link para o seu e-mail. Depois de confirmar, '
-                  'toque em "Já confirmei".'),
+                  tr('Enviamos um link para o seu e-mail. Depois de confirmar, toque em "Já confirmei".')),
             ),
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(left: 56),
               child: Wrap(children: [
                 TextButton(
                   onPressed: AuthService.resendVerification,
-                  child: Text('Reenviar'),
+                  child: Text(tr('Reenviar')),
                 ),
                 TextButton(
                   onPressed: AuthService.reload,
-                  child: Text('Já confirmei'),
+                  child: Text(tr('Já confirmei')),
                 ),
               ]),
             ),
           ],
           ListTile(
             leading: const Icon(Icons.logout),
-            title: const Text('Sair da conta'),
+            title: Text(tr('Sair da conta')),
             onTap: () async {
               final ok = await showDialog<bool>(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: const Text('Sair da conta?'),
-                  content: const Text(
-                      'Você pode entrar de novo quando quiser. Navegar sozinho '
-                      'continua funcionando sem conta.'),
+                  title: Text(tr('Sair da conta?')),
+                  content: Text(
+                      tr('Você pode entrar de novo quando quiser. Navegar sozinho continua funcionando sem conta.')),
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancelar')),
+                        child: Text(tr('Cancelar'))),
                     FilledButton(
                         onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Sair')),
+                        child: Text(tr('Sair'))),
                   ],
                 ),
               );
@@ -247,7 +238,7 @@ class _AlertPicker extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 6),
-        const Text('Primeiro aviso a'),
+        Text(tr('Primeiro aviso a')),
         Wrap(spacing: 6, children: [
           for (final m in _distances)
             ChoiceChip(
@@ -259,7 +250,7 @@ class _AlertPicker extends StatelessWidget {
             ),
         ]),
         const SizedBox(height: 4),
-        const Text('Quantas vezes avisar até o ponto'),
+        Text(tr('Quantas vezes avisar até o ponto')),
         Wrap(spacing: 6, children: [
           for (final r in const [1, 2, 3])
             ChoiceChip(
@@ -268,7 +259,7 @@ class _AlertPicker extends StatelessWidget {
               onSelected: (_) => onChanged(meters, r),
             ),
         ]),
-        Text('Avisa a: $at',
+        Text(tr('Avisa a: {0}', [at]),
             style: TextStyle(
                 color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.bold)),
@@ -288,28 +279,28 @@ class SettingsScreen extends StatelessWidget {
     final r = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Contato de emergência'),
+        title: Text(tr('Contato de emergência')),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
             controller: name,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Nome (ex.: Ana)'),
+            decoration: InputDecoration(labelText: tr('Nome (ex.: Ana)')),
           ),
           TextField(
             controller: phone,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-                labelText: 'WhatsApp com DDD', hintText: '(16) 99999-9999'),
+            decoration: InputDecoration(
+                labelText: tr('WhatsApp com DDD'), hintText: '(16) 99999-9999'),
           ),
           const SizedBox(height: 8),
-          const Text('Fica só no seu celular. Usado apenas quando você toca no SOS.',
+          Text(tr('Fica só no seu celular. Usado apenas quando você toca no SOS.'),
               style: TextStyle(fontSize: 12)),
         ]),
         actions: [
           if (c != null)
-            TextButton(onPressed: () => Navigator.pop(ctx, 'apagar'), child: const Text('Apagar')),
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, 'salvar'), child: const Text('Salvar')),
+            TextButton(onPressed: () => Navigator.pop(ctx, 'apagar'), child: Text(tr('Apagar'))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Cancelar'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, 'salvar'), child: Text(tr('Salvar'))),
         ],
       ),
     );
@@ -336,21 +327,20 @@ class SettingsScreen extends StatelessWidget {
         );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Configurações')),
+      appBar: AppBar(title: Text(tr('Configurações'))),
       body: SafeArea(
         top: false,
         child: ListView(children: [
-          section('Conta'),
+          section(tr('Conta')),
           const _AccountTile(),
-          section('Tela'),
+          section(tr('Tela')),
           ValueListenableBuilder<bool>(
             valueListenable: s.keepScreenOn,
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.brightness_high),
-              title: const Text('Manter a tela ligada no mapa'),
-              subtitle: const Text(
-                  'A tela não apaga enquanto o mapa estiver aberto. Navegando, '
-                  'ela fica sempre ligada. Use com o carregador da moto.'),
+              title: Text(tr('Manter a tela ligada no mapa')),
+              subtitle: Text(
+                  tr('A tela não apaga enquanto o mapa estiver aberto. Navegando, ela fica sempre ligada. Use com o carregador da moto.')),
               value: on,
               onChanged: s.setKeepScreenOn,
             ),
@@ -359,11 +349,10 @@ class SettingsScreen extends StatelessWidget {
             valueListenable: s.emergencyContact,
             builder: (ctx, c, __) => ListTile(
               leading: const Icon(Icons.contact_emergency_outlined),
-              title: const Text('Contato de emergência'),
+              title: Text(tr('Contato de emergência')),
               subtitle: Text(c == null
-                  ? 'Ninguém cadastrado. No SOS, um toque avisa essa pessoa pelo '
-                      'WhatsApp com a sua localização.'
-                  : '${c.$1} · ${c.$2}\nNo SOS: "Avisar ${c.$1} pelo WhatsApp".'),
+                  ? tr('Ninguém cadastrado. No SOS, um toque avisa essa pessoa pelo WhatsApp com a sua localização.')
+                  : tr('{0} · {1}\nNo SOS: "Avisar {2} pelo WhatsApp".', [c.$1, c.$2, c.$1])),
               isThreeLine: c != null,
               trailing: const Icon(Icons.edit_outlined),
               onTap: () => _editEmergency(ctx, c),
@@ -373,11 +362,9 @@ class SettingsScreen extends StatelessWidget {
             valueListenable: s.lightModeChoice,
             builder: (_, choice, __) => SwitchListTile(
               secondary: const Icon(Icons.speed_outlined),
-              title: const Text('Modo leve'),
+              title: Text(tr('Modo leve')),
               subtitle: Text(
-                  'Mapa sem prédios 3D e sem a camada de trânsito: o app fica mais '
-                  'rápido e gasta menos memória e bateria. '
-                  '${choice == null ? (s.lightMode ? 'Ligado automaticamente (celular com ${(s.deviceMemMb / 1024).toStringAsFixed(1)} GB de RAM).' : 'Automático: liga em celulares com menos de 4,5 GB de RAM.') : ''}'),
+                  tr('Mapa sem prédios 3D e sem a camada de trânsito: o app fica mais rápido e gasta menos memória e bateria. {0}', [choice == null ? (s.lightMode ? tr('Ligado automaticamente (celular com {0} GB de RAM).', [(s.deviceMemMb / 1024).toStringAsFixed(1)]) : tr('Automático: liga em celulares com menos de 4,5 GB de RAM.')) : ''])),
               value: s.lightMode,
               onChanged: s.setLightMode,
             ),
@@ -386,11 +373,9 @@ class SettingsScreen extends StatelessWidget {
             valueListenable: s.shareStats,
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.insights),
-              title: const Text('Compartilhar estatísticas de uso'),
-              subtitle: const Text(
-                  'Anônimas: quantas pessoas usam, quais recursos e os erros '
-                  'do app (modelo do celular e versão), para melhorar o UauGo. '
-                  'Sem localização exata, nome ou e-mail.'),
+              title: Text(tr('Compartilhar estatísticas de uso')),
+              subtitle: Text(
+                  tr('Anônimas: quantas pessoas usam, quais recursos e os erros do app (modelo do celular e versão), para melhorar o UauGo. Sem localização exata, nome ou e-mail.')),
               value: on,
               onChanged: s.setShareStats,
             ),
@@ -399,13 +384,32 @@ class SettingsScreen extends StatelessWidget {
             valueListenable: s.backgroundShare,
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.share_location),
-              title: const Text('Compartilhar posição em segundo plano'),
-              subtitle: const Text(
-                  'Só no comboio: o grupo continua vendo você com o app fora '
-                  'da tela (notificação "UauGo ativo"). Desligado, o GPS para '
-                  'ao sair do app. Ligar aumenta o consumo de bateria.'),
+              title: Text(tr('Compartilhar posição em segundo plano')),
+              subtitle: Text(
+                  tr('Só no comboio: o grupo continua vendo você com o app fora da tela (notificação "UauGo ativo"). Desligado, o GPS para ao sair do app. Ligar aumenta o consumo de bateria.')),
               value: on,
               onChanged: s.setBackgroundShare,
+            ),
+          ),
+          // Idioma: o do celular ou escolhido (por enquanto português e inglês).
+          ValueListenableBuilder<String>(
+            valueListenable: s.language,
+            builder: (_, lang, __) => ListTile(
+              leading: const Icon(Icons.translate),
+              title: Text(tr('Idioma')),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: SegmentedButton<String>(
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment(value: 'auto', label: Text(tr('Automático'))),
+                    const ButtonSegment(value: 'pt', label: Text('Português')),
+                    const ButtonSegment(value: 'en', label: Text('English')),
+                  ],
+                  selected: {lang},
+                  onSelectionChanged: (v) => s.setLanguage(v.first),
+                ),
+              ),
             ),
           ),
           ListenableBuilder(
@@ -415,23 +419,23 @@ class SettingsScreen extends StatelessWidget {
               final cur = s.accent.value;
               return ListTile(
               leading: const Icon(Icons.palette_outlined),
-              title: const Text('Aparência'),
+              title: Text(tr('Aparência')),
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('Padrão')),
-                        ButtonSegment(value: true, label: Text('Clean (claro)')),
+                      segments: [
+                        ButtonSegment(value: false, label: Text(tr('Padrão'))),
+                        ButtonSegment(value: true, label: Text(tr('Clean (claro)'))),
                       ],
                       selected: {clean},
                       onSelectionChanged: (v) => s.setCleanTheme(v.first),
                     ),
                     if (clean) ...[
                     const SizedBox(height: 10),
-                    const Text('Cor dos botões'),
+                    Text(tr('Cor dos botões')),
                     const SizedBox(height: 6),
                     Wrap(spacing: 10, runSpacing: 8, children: [
                       for (final a in AppAccent.values)
@@ -460,9 +464,8 @@ class SettingsScreen extends StatelessWidget {
                     ],
                     const SizedBox(height: 6),
                     Text(clean
-                        ? 'Tudo claro, botões em ${cur.label.toLowerCase()}. '
-                            'Alertas, SOS e radares mantêm as cores de segurança.'
-                        : 'Cores originais do UauGo.'),
+                        ? tr('Tudo claro, botões em {0}. Alertas, SOS e radares mantêm as cores de segurança.', [cur.label.toLowerCase()])
+                        : tr('Cores originais do UauGo.')),
                   ],
                 ),
               ),
@@ -473,10 +476,9 @@ class SettingsScreen extends StatelessWidget {
             valueListenable: s.showTraffic,
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.traffic),
-              title: const Text('Mostrar trânsito no mapa'),
-              subtitle: const Text(
-                  'Vias em verde, laranja e vermelho conforme o trânsito '
-                  'agora (do Google, sem custo)'),
+              title: Text(tr('Mostrar trânsito no mapa')),
+              subtitle: Text(
+                  tr('Vias em verde, laranja e vermelho conforme o trânsito agora (do Google, sem custo)')),
               value: on,
               onChanged: s.setShowTraffic,
             ),
@@ -485,7 +487,7 @@ class SettingsScreen extends StatelessWidget {
             valueListenable: s.mapTheme,
             builder: (_, t, __) => ListTile(
               leading: const Icon(Icons.dark_mode),
-              title: const Text('Mapa noturno'),
+              title: Text(tr('Mapa noturno')),
               subtitle: Wrap(spacing: 6, children: [
                 for (final m in MapTheme.values)
                   ChoiceChip(
@@ -500,13 +502,12 @@ class SettingsScreen extends StatelessWidget {
             valueListenable: s.batterySaver,
             builder: (_, b, __) => ListTile(
               leading: const Icon(Icons.battery_saver),
-              title: const Text('Economia de bateria'),
+              title: Text(tr('Economia de bateria')),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                      'GPS a cada 2 s em vez de 1 s, mapa sem prédios 3D e sem '
-                      'trânsito. Os avisos (radar, voz, curvas) continuam.'),
+                  Text(
+                      tr('GPS a cada 2 s em vez de 1 s, mapa sem prédios 3D e sem trânsito. Os avisos (radar, voz, curvas) continuam.')),
                   const SizedBox(height: 6),
                   Wrap(spacing: 6, runSpacing: 6, children: [
                     for (final m in BatteryMode.values)
@@ -520,12 +521,11 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ),
-          section('Rotas'),
-          const Padding(
+          section(tr('Rotas')),
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-                'A rota é calculada pelo Google Maps. Aqui você escolhe as '
-                'preferências usadas na navegação sozinho e nas novas expedições.'),
+                tr('A rota é calculada pelo Google Maps. Aqui você escolhe as preferências usadas na navegação sozinho e nas novas expedições.')),
           ),
           ValueListenableBuilder<RoutePrefs>(
             valueListenable: s.route,
@@ -544,53 +544,48 @@ class SettingsScreen extends StatelessWidget {
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.toll),
-                title: const Text('Evitar pedágios'),
+                title: Text(tr('Evitar pedágios')),
                 value: r.avoidTolls,
                 onChanged: (v) => s.setRoute(r.copyWith(avoidTolls: v)),
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.add_road),
-                title: const Text('Evitar rodovias'),
-                subtitle: const Text('Prefere estradas secundárias'),
+                title: Text(tr('Evitar rodovias')),
+                subtitle: Text(tr('Prefere estradas secundárias')),
                 value: r.avoidHighways,
                 onChanged: (v) => s.setRoute(r.copyWith(avoidHighways: v)),
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.directions_boat),
-                title: const Text('Evitar balsas'),
+                title: Text(tr('Evitar balsas')),
                 value: r.avoidFerries,
                 onChanged: (v) => s.setRoute(r.copyWith(avoidFerries: v)),
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.traffic),
-                title: const Text('Considerar o trânsito do momento'),
-                subtitle: const Text(
-                    'Chegada com o trânsito atual. Navegando sozinho, avisa '
-                    'trânsito intenso e troca para uma rota mais rápida (consulta '
-                    'a cada 5 min, só com rota traçada). Aumenta o consumo de '
-                    'dados e de bateria.'),
+                title: Text(tr('Considerar o trânsito do momento')),
+                subtitle: Text(
+                    tr('Chegada com o trânsito atual. Navegando sozinho, avisa trânsito intenso e troca para uma rota mais rápida (consulta a cada 5 min, só com rota traçada). Aumenta o consumo de dados e de bateria.')),
                 value: r.liveTraffic,
                 onChanged: (v) => s.setRoute(r.copyWith(liveTraffic: v)),
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.gpp_maybe),
-                title: const Text('Evitar locais de risco'),
-                subtitle: const Text(
-                    'Entre as rotas possíveis, escolhe a que passa longe das '
-                    'áreas com relatos de assalto reportadas pelos usuários '
-                    '(alerta "Área de risco / assalto").'),
+                title: Text(tr('Evitar locais de risco')),
+                subtitle: Text(
+                    tr('Entre as rotas possíveis, escolhe a que passa longe das áreas com relatos de assalto reportadas pelos usuários (alerta "Área de risco / assalto").')),
                 value: r.avoidRisk,
                 onChanged: (v) => s.setRoute(r.copyWith(avoidRisk: v)),
               ),
             ]),
           ),
-          section('Avisos de radar e polícia'),
+          section(tr('Avisos de radar e polícia')),
           ValueListenableBuilder<AlertPrefs>(
             valueListenable: s.alerts,
             builder: (_, a, __) => Column(children: [
               _AlertPicker(
                 icon: Icons.camera_alt,
-                title: 'Radares (fixos e móveis)',
+                title: tr('Radares (fixos e móveis)'),
                 meters: a.radarMeters,
                 repeats: a.radarRepeats,
                 onChanged: (m, r) =>
@@ -598,7 +593,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               _AlertPicker(
                 icon: Icons.local_police,
-                title: 'Polícia na pista e postos policiais',
+                title: tr('Polícia na pista e postos policiais'),
                 meters: a.policeMeters,
                 repeats: a.policeRepeats,
                 onChanged: (m, r) =>
@@ -606,28 +601,26 @@ class SettingsScreen extends StatelessWidget {
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.local_police_outlined),
-                title: const Text('Avisar postos policiais rodoviários'),
-                subtitle: const Text('PRF e polícia rodoviária estadual '
-                    '(OpenStreetMap), na distância acima'),
+                title: Text(tr('Avisar postos policiais rodoviários')),
+                subtitle: Text(tr('PRF e polícia rodoviária estadual (OpenStreetMap), na distância acima')),
                 value: a.policePosts,
                 onChanged: (v) => s.setAlerts(a.copyWith(policePosts: v)),
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: Text(
-                    'Radar de avanço de sinal (cruzamentos) avisa uma vez, '
-                    'a no máximo 300 m. Todo aviso de radar fala a velocidade.',
+                    tr('Radar de avanço de sinal (cruzamentos) avisa uma vez, a no máximo 300 m. Todo aviso de radar fala a velocidade.'),
                     style: TextStyle(fontSize: 12)),
               ),
             ]),
           ),
-          section('Outros avisos'),
+          section(tr('Outros avisos')),
           ValueListenableBuilder<AlertPrefs>(
             valueListenable: s.alerts,
             builder: (_, a, __) => Column(children: [
               ListTile(
                 leading: const Icon(Icons.speed),
-                title: const Text('Lombadas e faixas elevadas'),
+                title: Text(tr('Lombadas e faixas elevadas')),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -639,67 +632,62 @@ class SettingsScreen extends StatelessWidget {
                           onSelected: (_) => s.setAlerts(a.copyWith(bumps: m)),
                         ),
                     ]),
-                    const Text(
-                        'Opcional: as lombadas do estado só são baixadas se '
-                        'você ligar o aviso.',
+                    Text(
+                        tr('Opcional: as lombadas do estado só são baixadas se você ligar o aviso.'),
                         style: TextStyle(fontSize: 12)),
                   ],
                 ),
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.traffic),
-                title: const Text('Semáforo nas curvas'),
-                subtitle: const Text(
-                    'A voz diz "No semáforo, vire à direita". Opcional: os '
-                    'semáforos do estado só são baixados se você ligar.'),
+                title: Text(tr('Semáforo nas curvas')),
+                subtitle: Text(
+                    tr('A voz diz "No semáforo, vire à direita". Opcional: os semáforos do estado só são baixados se você ligar.')),
                 value: a.signals,
                 onChanged: (v) => s.setAlerts(a.copyWith(signals: v)),
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.trending_down),
-                title: const Text('Velocidade reduzida à frente'),
-                subtitle: const Text(
-                    '"Velocidade reduzida para 60 em 300 metros"'),
+                title: Text(tr('Velocidade reduzida à frente')),
+                subtitle: Text(
+                    tr('"Velocidade reduzida para 60 em 300 metros"')),
                 value: a.reducedSpeed,
                 onChanged: (v) => s.setAlerts(a.copyWith(reducedSpeed: v)),
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.umbrella),
-                title: const Text('Chuva à frente'),
-                subtitle: const Text(
-                    'Com rota traçada, confere a previsão a cada 5 min, a cada '
-                    '10 km pela rota (até 50 km à frente; Open-Meteo). Aumenta o '
-                    'consumo de dados e de bateria.'),
+                title: Text(tr('Chuva à frente')),
+                subtitle: Text(
+                    tr('Com rota traçada, confere a previsão a cada 5 min, a cada 10 km pela rota (até 50 km à frente; Open-Meteo). Aumenta o consumo de dados e de bateria.')),
                 value: a.rain,
                 onChanged: (v) => s.setAlerts(a.copyWith(rain: v)),
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.flag_circle),
-                title: const Text('Metade do trajeto'),
-                subtitle: const Text('Avisa quando chegar a 50% da viagem'),
+                title: Text(tr('Metade do trajeto')),
+                subtitle: Text(tr('Avisa quando chegar a 50% da viagem')),
                 value: a.halfway,
                 onChanged: (v) => s.setAlerts(a.copyWith(halfway: v)),
               ),
             ]),
           ),
-          section('Usar sem internet'),
+          section(tr('Usar sem internet')),
           ListTile(
             leading: const Icon(Icons.download_for_offline),
-            title: const Text('Baixar dados dos estados da viagem'),
-            subtitle: const Text(
-                'Limites de velocidade, lombadas e postos policiais ficam no '
-                'celular. Radares já são baixados para o Brasil todo.'),
+            title: Text(tr('Baixar dados dos estados da viagem')),
+            subtitle: Text(
+                tr('Limites de velocidade, lombadas e postos policiais ficam no celular. Radares já são baixados para o Brasil todo.')),
             onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const _OfflineScreen())),
           ),
-          section('Voz'),
+          section(tr('Voz')),
           ValueListenableBuilder<bool>(
             valueListenable: voice.alertsOn,
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.campaign),
-              title: const Text('Avisos falados'),
-              subtitle: const Text(
-                  'Radares, perigos na pista, SOS do grupo e paradas'),
+              title: Text(tr('Avisos falados')),
+              subtitle: Text(
+                  tr('Radares, perigos na pista, SOS do grupo e paradas')),
               value: on,
               onChanged: voice.setAlerts,
             ),
@@ -708,13 +696,13 @@ class SettingsScreen extends StatelessWidget {
             valueListenable: voice.narrationOn,
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.turn_right),
-              title: const Text('Narração das curvas na navegação'),
+              title: Text(tr('Narração das curvas na navegação')),
               value: on,
               onChanged: voice.setNarration,
             ),
           ),
           if (VoiceCommandService.supported) ...[
-            section('Acessibilidade'),
+            section(tr('Acessibilidade')),
             const _VoiceCommandsTile(),
           ],
           // Só para a administração da plataforma (HelpAITech).
@@ -723,35 +711,35 @@ class SettingsScreen extends StatelessWidget {
             builder: (_, snap) => snap.data != true
                 ? const SizedBox.shrink()
                 : Column(children: [
-                    section('Administração'),
+                    section(tr('Administração')),
                     ListTile(
                       leading: const Icon(Icons.admin_panel_settings),
-                      title: const Text('Administração UauGo'),
-                      subtitle: const Text(
-                          'Cadastrar clubes e gerar códigos e convites (QR code)'),
+                      title: Text(tr('Administração UauGo')),
+                      subtitle: Text(
+                          tr('Cadastrar clubes e gerar códigos e convites (QR code)')),
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => const AdminScreen())),
                     ),
                   ]),
           ),
-          section('Sobre'),
+          section(tr('Sobre')),
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('Sobre o UauGo'),
-            subtitle: const Text('Desenvolvido por HelpAITech · créditos'),
+            title: Text(tr('Sobre o UauGo')),
+            subtitle: Text(tr('Desenvolvido por HelpAITech · créditos')),
             onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const AboutScreen())),
           ),
           ListTile(
-            leading: const Icon(Icons.gavel),
-            title: const Text('Termos de Uso'),
-            subtitle: const Text('Versão ${TermsService.version}'),
+            leading: Icon(Icons.gavel),
+            title: Text(tr('Termos de Uso')),
+            subtitle: Text(tr('Versão {0}', [TermsService.version])),
             onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const TermsScreen())),
           ),
           ListTile(
-            leading: const Icon(Icons.privacy_tip_outlined),
-            title: const Text('Política de Privacidade'),
+            leading: Icon(Icons.privacy_tip_outlined),
+            title: Text(tr('Política de Privacidade')),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => const TermsScreen.privacy())),
           ),
@@ -787,7 +775,7 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
     setState(() => _busy = false);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(error ??
-            'Comandos de voz ligados. Funcionam com o mapa aberto na tela.')));
+            tr('Comandos de voz ligados. Funcionam com o mapa aberto na tela.'))));
   }
 
   @override
@@ -799,11 +787,9 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
       builder: (_, on, __) => Column(children: [
         SwitchListTile(
           secondary: const Icon(Icons.mic),
-          title: const Text('Comandos de voz (mãos livres)'),
-          subtitle: const Text(
-              'Para quem está de luva: marque alertas e responda às perguntas '
-              'falando, sem tocar na tela. O reconhecimento é feito no próprio '
-              'celular: o áudio não sai do aparelho.'),
+          title: Text(tr('Comandos de voz (mãos livres)')),
+          subtitle: Text(
+              tr('Para quem está de luva: marque alertas e responda às perguntas falando, sem tocar na tela. O reconhecimento é feito no próprio celular: o áudio não sai do aparelho.')),
           value: on,
           onChanged: _busy ? null : _toggle,
         ),
@@ -813,7 +799,7 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
             builder: (_, p, __) => Padding(
               padding: const EdgeInsets.fromLTRB(72, 0, 16, 8),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Baixando o reconhecimento de voz (~31 MB, só uma vez)…',
+                Text(tr('Baixando o reconhecimento de voz (~31 MB, só uma vez)…'),
                     style: theme.textTheme.bodySmall),
                 const SizedBox(height: 6),
                 LinearProgressIndicator(value: p > 0 ? p : null),
@@ -822,17 +808,9 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
           ),
         if (on)
           Padding(
-            padding: const EdgeInsets.fromLTRB(72, 0, 16, 8),
+            padding: EdgeInsets.fromLTRB(72, 0, 16, 8),
             child: Text(
-              'Diga "$voiceWakeDisplay" e o alerta: $words.\n'
-              'Exemplo: "$voiceWakeDisplay, radar". Para desfazer: "$voiceWakeDisplay, cancelar". '
-              'Quando o app perguntar "ainda está lá?", responda "sim" ou "não".\n'
-              'Locais salvos: "$voiceWakeDisplay, ir para casa" ou "... para o trabalho".\n'
-              'Para achar algo no caminho: "$voiceWakeDisplay, procurar posto" '
-              '(também restaurante, restaurante barato, lanche, café, padaria, '
-              'pousada, hotel, oficina, pneu, farmácia, hospital, banco, '
-              'mercado).\n'
-              'Funciona com o mapa aberto na tela (use "Manter a tela ligada").',
+              tr('Diga "{0}" e o alerta: {1}.\nExemplo: "{2}, radar". Para desfazer: "{3}, cancelar". Quando o app perguntar "ainda está lá?", responda "sim" ou "não".\nLocais salvos: "{4}, ir para casa" ou "... para o trabalho".\nPara achar algo no caminho: "{5}, procurar posto" (também restaurante, restaurante barato, lanche, café, padaria, pousada, hotel, oficina, pneu, farmácia, hospital, banco, mercado).\nFunciona com o mapa aberto na tela (use "Manter a tela ligada").', [voiceWakeDisplay, words, voiceWakeDisplay, voiceWakeDisplay, voiceWakeDisplay, voiceWakeDisplay]),
               style: theme.textTheme.bodySmall,
             ),
           ),
@@ -841,12 +819,9 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
             valueListenable: _svc.routeByVoice,
             builder: (_, route, __) => SwitchListTile(
               secondary: const Icon(Icons.record_voice_over),
-              title: const Text('Pesquisa de trajeto por voz'),
+              title: Text(tr('Pesquisa de trajeto por voz')),
               subtitle: Text(
-                  'Diga "$voiceWakeDisplay, ir para", espere o bipe e fale o '
-                  'destino. Usa o reconhecimento do próprio celular quando ele '
-                  'oferece; senão, o do Google (precisa de internet e o áudio '
-                  'dessa frase vai para o Google).'),
+                  tr('Diga "{0}, ir para", espere o bipe e fale o destino. Usa o reconhecimento do próprio celular quando ele oferece; senão, o do Google (precisa de internet e o áudio dessa frase vai para o Google).', [voiceWakeDisplay])),
               value: route,
               onChanged: _svc.setRouteByVoice,
             ),
