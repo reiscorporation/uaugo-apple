@@ -15,6 +15,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../services/places_service.dart';
 import '../services/recent_places_service.dart';
+import '../services/saved_places_service.dart';
 
 /// Busca de lugares por nome (como no Google Maps), com opção de usar a
 /// localização atual. Devolve um [PickedPlace] ao fechar.
@@ -183,6 +184,37 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
             title: Text('Busca indisponível nesta versão (sem chave de API).'
                 ' Toque e segure no mapa para escolher o ponto.'),
           ),
+        // Casa e Trabalho (os salvos na tela inicial), também durante a
+        // navegação: um toque e pronto.
+        ValueListenableBuilder<List<SavedPlace>>(
+          valueListenable: SavedPlacesService.instance.places,
+          builder: (_, __, ___) {
+            final fixed = [
+              for (final (k, icon) in const [
+                (savedHome, Icons.home),
+                (savedWork, Icons.work),
+              ])
+                if (SavedPlacesService.instance.get(k) case final sp?) (sp, icon),
+            ];
+            if (fixed.isEmpty || _ctrl.text.trim().isNotEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+              child: Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final (sp, icon) in fixed)
+                  ActionChip(
+                    avatar: Icon(icon, size: 18),
+                    label: Text(sp.name),
+                    onPressed: _loading
+                        ? null
+                        : () => Navigator.pop(context,
+                            PickedPlace(sp.name, sp.address, sp.lat, sp.lng)),
+                  ),
+              ]),
+            );
+          },
+        ),
         const Divider(height: 1),
         for (final p in RecentPlacesService.matching(_recents, _ctrl.text)
             .take(_ctrl.text.trim().isEmpty ? 8 : 3))

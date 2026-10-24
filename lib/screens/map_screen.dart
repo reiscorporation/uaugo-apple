@@ -3953,7 +3953,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
         // Velocímetro (toque para configurar os alertas de velocidade)
         Positioned(
-          left: 12,
+          left: 6,
           top: landscape ? 8 : null,
           bottom: _sim != null ? 196 : (landscape ? 120 : 136),
           child: _landscapeFit(landscape, Alignment.bottomLeft, Column(
@@ -4076,7 +4076,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Botão de reportar perigo (canto esquerdo)
         if (_sim == null)
         Positioned(
-          left: 16,
+          left: 6,
           bottom: 24,
           // Um pouco menor que antes (era o "large", 96 px).
           child: SizedBox(
@@ -4095,7 +4095,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
         // Botões
         Positioned(
-          right: 16,
+          right: 6,
           top: landscape ? 8 : null,
           bottom: _sim != null ? 196 : 24,
           child: _landscapeFit(landscape, Alignment.bottomRight, Column(mainAxisSize: MainAxisSize.min, children: [
@@ -5001,15 +5001,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       );
     }
     if (_navigating) {
-      return FilledButton.icon(
-        style: FilledButton.styleFrom(
+      // Pequeno, só o ícone de sair (pede confirmação ao tocar).
+      return IconButton.filled(
+        tooltip: 'Encerrar navegação',
+        style: IconButton.styleFrom(
             backgroundColor: Colors.red.shade700,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12)),
+            minimumSize: const Size(44, 44)),
         onPressed: _stopNavigation,
-        icon: const Icon(Icons.stop),
-        label: const Text('Encerrar',
-            style: TextStyle(fontWeight: FontWeight.w800)),
+        icon: const Icon(Icons.logout, size: 22),
       );
     }
     if (_isExpedition && _routeRecs.length >= 2) {

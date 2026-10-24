@@ -177,41 +177,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: 24),
-              Text('Marca', style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final b in _bike.style.brands)
-                  ChoiceChip(
-                    label: Text(b),
-                    selected: _bike.brand == b,
-                    onSelected: (_) =>
-                        setState(() => _bike = _bike.copyWith(brand: b)),
-                  ),
-              ]),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _modelCtrl,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Modelo',
-                  hintText: 'Versys 650',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _plateCtrl,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: 'Placa (opcional)',
-                  hintText: 'ABC1D23',
-                  helperText: 'Fica só no seu celular. Serve para avisar do rodízio '
-                      'de São Paulo quando a rota passar pelo centro expandido.',
-                  helperMaxLines: 2,
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 20),
               Text('Tipo (vira o ícone quando não há foto e define o pedágio)',
                   style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
@@ -254,6 +219,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                 ]),
               ],
+              const SizedBox(height: 20),
+              Text('Marca', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final b in _bike.style.brands)
+                  ChoiceChip(
+                    label: Text(b),
+                    selected: _bike.brand == b,
+                    onSelected: (_) =>
+                        setState(() => _bike = _bike.copyWith(brand: b)),
+                  ),
+              ]),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _modelCtrl,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Modelo',
+                  hintText: 'Versys 650',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _plateCtrl,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Placa (opcional)',
+                  hintText: 'ABC1D23',
+                  helperText: 'Fica só no seu celular. Serve para avisar do rodízio '
+                      'de São Paulo quando a rota passar pelo centro expandido.',
+                  helperMaxLines: 2,
+                  border: OutlineInputBorder(),
+                ),
+              ),
               const SizedBox(height: 20),
               Text('Cor do marcador', style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
