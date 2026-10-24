@@ -5267,15 +5267,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Navegando, o "Encerrar" fica no canto de cima (_exitNavButton).
     if (_navigating) return null;
     if (_isExpedition && _routeRecs.length >= 2) {
+      // Compacto: não encosta no perigo/radar móvel do canto esquerdo.
       return FilledButton.icon(
         style: FilledButton.styleFrom(
             backgroundColor: Colors.green.shade700,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12)),
+            visualDensity: VisualDensity.compact,
+            minimumSize: const Size(0, 40),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
         onPressed: _startNavigation,
-        icon: const Icon(Icons.navigation),
+        icon: const Icon(Icons.navigation, size: 18),
         label: Text(tr('Iniciar'),
-            style: TextStyle(fontWeight: FontWeight.w800)),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
       );
     }
     return null;
