@@ -186,7 +186,7 @@ const en3 = <String, String>{
   'Conta': 'Account',
   'Tela': 'Screen',
   'Manter a tela ligada no mapa': 'Keep the screen on in the map',
-  'A tela não apaga enquanto o mapa estiver aberto. Navegando, ela fica sempre ligada. Use com o carregador da moto.': 'The screen does not turn off while the map is open. When navigating, it always stays on. Use it with the vehicle charger.',
+  'A tela não apaga enquanto o mapa estiver aberto. Navegando, ela fica sempre ligada. Use com o carregador do veículo.': 'The screen does not turn off while the map is open. When navigating, it always stays on. Use it with the vehicle charger.',
   'Ninguém cadastrado. No SOS, um toque avisa essa pessoa pelo WhatsApp com a sua localização.': 'No one set. In SOS, one tap notifies this person on WhatsApp with your location.',
   '{0} · {1}\nNo SOS: "Avisar {2} pelo WhatsApp".': '{0} · {1}\nIn SOS: "Notify {2} on WhatsApp".',
   'Modo leve': 'Lite mode',

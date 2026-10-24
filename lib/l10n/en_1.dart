@@ -149,7 +149,7 @@ const en1 = <String, String>{
   'Defina sua cidade base para ser encontrado pelo clube': 'Set your home city to be found by the club',
   'Não foi possível salvar: {0}': 'Could not save: {0}',
   'Excluir todos os meus dados?': 'Delete all my data?',
-  'Vamos apagar seu perfil, autorizações, cidade base, foto da moto, sua participação em expedições e no clube. Alertas de perigo que você reportou continuam visíveis, mas sem ligação com você. Essa ação não pode ser desfeita.': 'We will delete your profile, permissions, home city, vehicle photo, and your participation in expeditions and in the club. Hazard alerts you reported remain visible, but no longer linked to you. This cannot be undone.',
+  'Vamos apagar seu perfil, autorizações, cidade base, foto do veículo, sua participação em expedições e no clube. Alertas de perigo que você reportou continuam visíveis, mas sem ligação com você. Essa ação não pode ser desfeita.': 'We will delete your profile, permissions, home city, vehicle photo, and your participation in expeditions and in the club. Hazard alerts you reported remain visible, but no longer linked to you. This cannot be undone.',
   'Excluir tudo': 'Delete everything',
   'Seus dados foram excluídos.': 'Your data was deleted.',
   'Não foi possível excluir agora (verifique a conexão): {0}': 'Could not delete now (check your connection): {0}',

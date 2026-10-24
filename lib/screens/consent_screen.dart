@@ -122,7 +122,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
         icon: const Icon(Icons.delete_forever, color: Colors.red, size: 40),
         title: Text(tr('Excluir todos os meus dados?')),
         content: Text(
-            tr('Vamos apagar seu perfil, autorizações, cidade base, foto da moto, sua participação em expedições e no clube. Alertas de perigo que você reportou continuam visíveis, mas sem ligação com você. Essa ação não pode ser desfeita.')),
+            tr('Vamos apagar seu perfil, autorizações, cidade base, foto do veículo, sua participação em expedições e no clube. Alertas de perigo que você reportou continuam visíveis, mas sem ligação com você. Essa ação não pode ser desfeita.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),

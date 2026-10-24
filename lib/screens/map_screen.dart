@@ -2680,14 +2680,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Botão de câmera: volta a acompanhar; no modo comboio, já acompanhando,
-  /// alterna entre "só a minha moto" e "o grupo todo".
+  /// alterna entre "só o meu veículo" e "o grupo todo".
   void _centerOnMe() {
     if (!_follow) {
       setState(() => _follow = true);
     } else if (_view == _MapView.convoy) {
       setState(() => _showAll = !_showAll);
       _lastFit = DateTime.fromMillisecondsSinceEpoch(0);
-      _snack(_showAll ? tr('Mostrando o grupo todo') : tr('Mostrando a sua moto'));
+      _snack(_showAll ? tr('Mostrando o grupo todo') : tr('Mostrando {0}', [_myBike.style.noun]));
     }
     final p = _me;
     if (p != null) _updateCamera(p, force: true);
@@ -4247,7 +4247,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               tooltip: !_follow
                   ? tr('Voltar a acompanhar')
                   : _view == _MapView.convoy
-                      ? (_showAll ? (_myBike.style.isCar ? tr('Mostrar só o meu carro') : tr('Mostrar só a minha moto')) : tr('Mostrar o grupo todo'))
+                      ? (_showAll ? tr('Mostrar só {0}', [_myBike.style.noun]) : tr('Mostrar o grupo todo'))
                       : tr('Acompanhando'),
               child: Icon(!_follow
                   ? Icons.my_location

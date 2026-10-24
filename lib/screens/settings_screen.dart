@@ -341,7 +341,7 @@ class SettingsScreen extends StatelessWidget {
               secondary: const Icon(Icons.brightness_high),
               title: Text(tr('Manter a tela ligada no mapa')),
               subtitle: Text(
-                  tr('A tela não apaga enquanto o mapa estiver aberto. Navegando, ela fica sempre ligada. Use com o carregador da moto.')),
+                  tr('A tela não apaga enquanto o mapa estiver aberto. Navegando, ela fica sempre ligada. Use com o carregador do veículo.')),
               value: on,
               onChanged: s.setKeepScreenOn,
             ),
