@@ -69,7 +69,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
       maxHeight: 600,
       imageQuality: 80,
     );
-    if (x != null) setState(() => _newPhoto = File(x.path));
+    if (x == null) return;
+    setState(() => _newPhoto = File(x.path));
+    await _savePhotoNow();
+  }
+
+  /// A foto vale na hora (não precisa tocar em Salvar): envia a nova (ou
+  /// apaga, se removida) e grava só a foto no perfil salvo.
+  Future<void> _savePhotoNow() async {
+    setState(() => _saving = true);
+    try {
+      final saved = await ProfileService.load();
+      String? url;
+      if (_newPhoto != null) {
+        final uid = await AuthService.ensureSignedIn();
+        url = await ProfileService.uploadPhoto(uid, _newPhoto!,
+            oldUrl: saved.photoUrl);
+      } else if (saved.photoUrl != null) {
+        await ProfileService.deletePhoto(saved.photoUrl);
+      }
+      await ProfileService.save(
+          saved.copyWith(photoUrl: url, clearPhoto: url == null));
+      if (!mounted) return;
+      setState(() {
+        _bike = _bike.copyWith(photoUrl: url, clearPhoto: url == null);
+        _newPhoto = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(url == null ? tr('Foto removida') : tr('Foto salva'))));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(tr('Não foi possível salvar: {0}', [e]))));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   /// Salva o veículo (envia a foto nova e apaga a antiga) e o consumo.
@@ -165,10 +200,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   if (photo != null)
                     TextButton(
-                      onPressed: () => setState(() {
-                        _newPhoto = null;
-                        _bike = _bike.copyWith(clearPhoto: true);
-                      }),
+                      onPressed: _saving
+                          ? null
+                          : () {
+                              setState(() {
+                                _newPhoto = null;
+                                _bike = _bike.copyWith(clearPhoto: true);
+                              });
+                              _savePhotoNow();
+                            },
                       child: Text(tr('Remover foto')),
                     ),
                 ],

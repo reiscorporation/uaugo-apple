@@ -63,4 +63,6 @@ const en5 = <String, String>{
   'Rota {0}': 'Route {0}',
   'via {0}': 'via {0}',
   'indicada': 'recommended',
+  'Foto salva': 'Photo saved',
+  'Foto removida': 'Photo removed',
 };

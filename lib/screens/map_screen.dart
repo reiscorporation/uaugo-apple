@@ -2838,21 +2838,28 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       PoiService.instance.ensureFor(p.latitude, p.longitude);
     }
     // Velocidade do GPS; se o aparelho não informar, calcula pelo deslocamento.
+    // Parado, o GPS "treme" alguns metros: isso não pode virar velocidade
+    // (aparecia 5–12 km/h com o veículo parado).
     final prev = _prevPos;
     _prevPos = p;
+    double raw;
     if (p.speed > 0.5) {
-      _speedMs = p.speed;
-    } else if (prev != null) {
+      raw = p.speed;
+    } else if (p.speedAccuracy > 0 || prev == null) {
+      // O aparelho mede a velocidade e diz que está parado: vale zero.
+      raw = 0;
+    } else {
       final dt =
           p.timestamp.difference(prev.timestamp).inMilliseconds / 1000.0;
-      if (dt >= 0.5 && dt <= 10) {
-        _speedMs = distanceMeters(
-                prev.latitude, prev.longitude, p.latitude, p.longitude) /
-            dt;
-      } else if (dt > 10) {
-        _speedMs = 0;
-      }
+      final moved =
+          distanceMeters(prev.latitude, prev.longitude, p.latitude, p.longitude);
+      // Deslocamento menor que o erro do GPS = tremor, não movimento.
+      raw = dt >= 0.5 && dt <= 10 && moved > max(8.0, p.accuracy)
+          ? moved / dt
+          : 0;
     }
+    // Abaixo de ~3 km/h mostra 0; acima, suaviza um pouco os saltos.
+    _speedMs = raw < 0.8 ? 0 : (_speedMs < 0.8 ? raw : _speedMs * 0.3 + raw * 0.7);
     final kmh = _speedMs * 3.6;
     // Em cima da rota: só vale o limite de pontos da rota (não a marginal).
     final w = _walker, pr = _proj;
