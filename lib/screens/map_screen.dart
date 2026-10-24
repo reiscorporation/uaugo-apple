@@ -3997,25 +3997,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         Positioned(
           left: 6,
           top: landscape ? 8 : null,
-          bottom: _sim != null ? 196 : (landscape ? 120 : 136),
+          bottom: _sim != null ? 196 : (landscape ? 96 : 104),
           child: _landscapeFit(landscape, Alignment.bottomLeft, Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Radar móvel com UM toque: é o alerta mais útil para todos e
-              // precisa ser rápido de marcar. Fica no topo desta coluna.
-              if (_sim == null) ...[
-                FloatingActionButton(
-                  heroTag: 'radar',
-                  tooltip: tr('Avisar radar móvel aqui'),
-                  backgroundColor: HazardType.radar.color,
-                  foregroundColor: Colors.white,
-                  onPressed: _quickRadar,
-                  child: Text(HazardType.radar.emoji,
-                      style: const TextStyle(fontSize: 28)),
-                ),
-                const SizedBox(height: 10),
-              ],
               // Sentido do mapa (como nos outros apps): seguindo a direção ou
               // norte para cima.
               ValueListenableBuilder<bool>(
@@ -4115,26 +4101,40 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             child: _groupGridPanel(),
           ),
 
-        // Modo de visualização: Comboio (de cima) x Solo (primeira pessoa)
-        if (_sim == null)
-        // Botão de reportar perigo (canto esquerdo)
+        // Canto de baixo, à esquerda: reportar perigo e, ao lado, o radar
+        // móvel com UM toque (o alerta mais usado, precisa ser rápido).
         if (_sim == null)
         Positioned(
           left: 6,
           bottom: 24,
-          // Um pouco menor que antes (era o "large", 96 px).
-          child: SizedBox(
-            width: 74,
-            height: 74,
-            child: FloatingActionButton(
-              heroTag: 'hazard',
-              tooltip: tr('Reportar perigo'),
-              backgroundColor: Colors.amber,
-              foregroundColor: Colors.black,
-              onPressed: _showReportSheet,
-              child: const Icon(Icons.warning_amber_rounded, size: 38),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            SizedBox(
+              width: 62,
+              height: 62,
+              child: FloatingActionButton(
+                heroTag: 'hazard',
+                tooltip: tr('Reportar perigo'),
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+                onPressed: _showReportSheet,
+                child: const Icon(Icons.warning_amber_rounded, size: 32),
+              ),
             ),
-          ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 62,
+              height: 62,
+              child: FloatingActionButton(
+                heroTag: 'radar',
+                tooltip: tr('Avisar radar móvel aqui'),
+                backgroundColor: HazardType.radar.color,
+                foregroundColor: Colors.white,
+                onPressed: _quickRadar,
+                child: Text(HazardType.radar.emoji,
+                    style: const TextStyle(fontSize: 26)),
+              ),
+            ),
+          ]),
         ),
 
         // Botões
