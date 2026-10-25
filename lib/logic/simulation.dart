@@ -38,6 +38,18 @@ class RouteWalker {
     return out;
   }
 
+  /// O traçado que falta a partir de [meters] (o 1º ponto é a posição
+  /// exata nesse ponto): usado para apagar o trecho já percorrido.
+  List<(double, double)> pointsAfter(double meters) {
+    if (points.length < 2) return points;
+    final here = at(meters);
+    var i = 0;
+    while (i < _cum.length && _cum[i] <= meters) {
+      i++;
+    }
+    return [(here.lat, here.lng), ...points.skip(i)];
+  }
+
   /// Posição e direção a [meters] do início (limitado ao traçado).
   ({double lat, double lng, double bearing}) at(double meters) {
     if (points.isEmpty) return (lat: 0, lng: 0, bearing: 0);

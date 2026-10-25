@@ -393,14 +393,15 @@ class TurnByTurn {
 
 // ------------------------------------------------------------ chegada
 
-/// Chegada numa parada/destino: até 80 m PELA ROTA (o que falta de estrada),
-/// e no máximo 400 m em linha reta (proteção contra traçados que passam
-/// perto de si mesmos, como em serras e retornos).
-const arriveRouteMeters = 80.0;
-const arriveRouteMaxStraight = 400.0;
+/// Chegada numa parada/destino: até 40 m PELA ROTA (o que falta de estrada),
+/// e no máximo 120 m em linha reta (proteção contra traçados que passam
+/// perto de si mesmos, como em serras e retornos). Antes (80/400 m) dava
+/// "você chegou" ainda a caminho, em ruas que contornam o destino.
+const arriveRouteMeters = 40.0;
+const arriveRouteMaxStraight = 120.0;
 
 /// Fora da rota (ou sem traçado): só em linha reta, bem mais perto.
-const arriveStraightMeters = 120.0;
+const arriveStraightMeters = 60.0;
 
 /// O piloto está "na rota" se estiver a menos disto do traçado.
 const onRouteMaxOffset = 150.0;

@@ -50,6 +50,27 @@ class CarMapView(private val context: Context) {
     private var map: GoogleMap? = null
     private var routeLine: Polyline? = null
     private var routeSig = 0
+    private var trimIdx = 0
+
+    /** Apaga da linha o trecho já percorrido (como no celular). */
+    private fun trimPassed(pts: List<DoubleArray>, pos: LatLng) {
+        val line = routeLine ?: return
+        if (pts.size < 2) return
+        val k = Math.cos(Math.toRadians(pos.latitude))
+        var best = trimIdx
+        var bestD = Double.MAX_VALUE
+        val end = minOf(pts.size, trimIdx + 400)
+        for (i in trimIdx until end) {
+            val dy = (pts[i][0] - pos.latitude) * 111320.0
+            val dx = (pts[i][1] - pos.longitude) * 111320.0 * k
+            val d = dx * dx + dy * dy
+            if (d < bestD) { bestD = d; best = i }
+        }
+        // Só avança perto da rota (até 60 m) e de alguns pontos em diante.
+        if (bestD > 60.0 * 60.0 || best < trimIdx + 2) return
+        trimIdx = best
+        line.points = listOf(pos) + pts.subList(best + 1, pts.size).map { LatLng(it[0], it[1]) }
+    }
     private var me: Marker? = null
     private var overlay: CarOverlay? = null
     private var meIcon = ""
@@ -134,6 +155,7 @@ class CarMapView(private val context: Context) {
         if (sig != routeSig) {
             routeSig = sig
             routeLine?.remove()
+            trimIdx = 0
             routeLine = if (pts.size >= 2) g.addPolyline(
                 PolylineOptions()
                     .addAll(pts.map { LatLng(it[0], it[1]) })
@@ -144,6 +166,7 @@ class CarMapView(private val context: Context) {
         overlay?.update()
         if (!CarState.hasPosition) return
         val pos = LatLng(CarState.lat, CarState.lng)
+        trimPassed(pts, pos)
         if (meIcon != CarState.vehicle) {
             me?.remove()
             me = null
@@ -156,11 +179,12 @@ class CarMapView(private val context: Context) {
         m?.position = pos
         // Ícone em pé (o mapa gira com o piloto).
         // Mais longe na rodovia, mais perto na cidade.
-        val zoom = when {
-            CarState.speedKmh >= 90 -> 14.6f
-            CarState.speedKmh >= 50 -> 15.4f
-            else -> 16.2f
-        }
+        // Mais afastado que antes (pedido do Ricardo); +/− do motorista somam.
+        val zoom = (when {
+            CarState.speedKmh >= 90 -> 13.4f
+            CarState.speedKmh >= 50 -> 14.2f
+            else -> 15.0f
+        } + CarState.zoomOffset).coerceIn(10f, 19f)
         g.animateCamera(
             CameraUpdateFactory.newCameraPosition(
                 CameraPosition.Builder().target(pos).zoom(zoom)

@@ -39,6 +39,9 @@ import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.CarIcon
 import androidx.car.app.model.DateTimeWithZone
 import androidx.car.app.model.Distance
+import androidx.car.app.model.ItemList
+import androidx.car.app.model.ListTemplate
+import androidx.car.app.model.Row
 import androidx.car.app.model.Template
 import androidx.car.app.navigation.NavigationManager
 import androidx.car.app.navigation.NavigationManagerCallback
@@ -200,12 +203,30 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink(code)
             }
             .build()
+        fun icon(res: Int) = CarIcon.Builder(IconCompat.createWithResource(carContext, res)).build()
+        // Alerta (como no Google Maps): abre a lista de alertas para escolher.
+        val alert = Action.Builder()
+            .setIcon(icon(R.drawable.car_alert))
+            .setOnClickListener { screenManager.push(AlertListScreen(carContext)) }
+            .build()
         val strip = ActionStrip.Builder()
+            .addAction(alert)
             .addAction(action("Radar", "radar"))
-            .addAction(action(if (CarState.en) "Hazard" else "Perigo", "hazard"))
             .addAction(action(if (CarState.en) "End" else "Encerrar", "stop"))
             .build()
-        val b = NavigationTemplate.Builder().setActionStrip(strip)
+        // Zoom do mapa do carro: o motorista escolhe (+/−).
+        fun zoom(res: Int, step: Float) = Action.Builder()
+            .setIcon(icon(res))
+            .setOnClickListener {
+                CarState.zoomOffset = (CarState.zoomOffset + step).coerceIn(-4f, 3f)
+                if (carMap.running) carMap.update()
+            }
+            .build()
+        val mapStrip = ActionStrip.Builder()
+            .addAction(zoom(R.drawable.car_zoom_in, 1f))
+            .addAction(zoom(R.drawable.car_zoom_out, -1f))
+            .build()
+        val b = NavigationTemplate.Builder().setActionStrip(strip).setMapActionStrip(mapStrip)
         // A manobra, a chegada e os avisos são desenhados no mapa (CarOverlay),
         // com o visual do celular; o Android Auto mostra só os botões.
         return b.build()
@@ -312,5 +333,45 @@ class MapRenderer {
         } finally {
             s.unlockCanvasAndPost(canvas)
         }
+    }
+}
+
+/** Lista de alertas na tela do carro (aberta pelo botão ⚠). */
+class AlertListScreen(ctx: CarContext) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val en = CarState.en
+        // Mesmo nome dos tipos do app (HazardType no Dart).
+        val types = listOf(
+            Triple("radar", "📷", if (en) "Mobile speed camera" else "Radar móvel"),
+            Triple("police", "🚓", if (en) "Police" else "Polícia"),
+            Triple("accident", "💥", if (en) "Accident" else "Acidente"),
+            Triple("pothole", "🕳️", if (en) "Pothole" else "Buraco"),
+            Triple("danger", "⚠️", if (en) "Road hazard" else "Perigo na pista"),
+            Triple("animal", "🐄", if (en) "Animal on the road" else "Animal na pista"),
+            Triple("oil", "🛢️", if (en) "Oil / sand" else "Óleo / areia"),
+            Triple("fog", "🌫️", if (en) "Fog" else "Neblina"),
+        )
+        val list = ItemList.Builder()
+        for ((code, emoji, label) in types) {
+            list.addItem(Row.Builder()
+                .setTitle("$emoji  $label")
+                .setOnClickListener {
+                    val sink = CarState.actionSink
+                    if (sink == null) {
+                        CarToast.makeText(carContext,
+                            if (en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+                            CarToast.LENGTH_SHORT).show()
+                    } else {
+                        sink("hazard:$code")
+                    }
+                    screenManager.pop()
+                }
+                .build())
+        }
+        return ListTemplate.Builder()
+            .setTitle(if (en) "Report on the road" else "O que tem na pista?")
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
     }
 }

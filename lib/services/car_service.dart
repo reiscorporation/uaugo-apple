@@ -66,6 +66,8 @@ class CarService {
     final type = switch (a) {
       'radar' => HazardType.radar,
       'hazard' => HazardType.danger,
+      // Lista de alertas do carro: "hazard:police", "hazard:pothole"...
+      final x when x.startsWith('hazard:') => HazardType.fromName(x.substring(7)),
       _ => null,
     };
     if (type == null) {

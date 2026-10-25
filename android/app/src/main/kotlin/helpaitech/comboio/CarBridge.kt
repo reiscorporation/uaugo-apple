@@ -41,6 +41,8 @@ object CarState {
     @Volatile var vehicle = "🏍️"
     /** Textos da tela do carro em inglês (idioma do app, vem do celular). */
     @Volatile var en = java.util.Locale.getDefault().language != "pt"
+    /** Zoom escolhido pelo motorista nos botões +/− do carro (passos). */
+    @Volatile var zoomOffset = 0f
 
     /** A tela do carro está aberta (o Dart mantém o GPS e a voz). */
     @Volatile var connected = false

@@ -10,11 +10,15 @@ void main() {
           isFalse);
     });
 
-    test('a 50 m pela rota -> chegou', () {
+    test('a 35 m pela rota -> chegou; a 70 m ainda não', () {
       expect(
           hasArrived(
-              straight: 45, riderAlong: 9950, riderOffset: 8, stopAlong: 10000),
+              straight: 30, riderAlong: 9965, riderOffset: 8, stopAlong: 10000),
           isTrue);
+      expect(
+          hasArrived(
+              straight: 60, riderAlong: 9930, riderOffset: 8, stopAlong: 10000),
+          isFalse);
     });
 
     test('passou um pouco do ponto -> conta como chegada', () {
@@ -35,12 +39,14 @@ void main() {
       expect(hasArrived(straight: 300, riderAlong: 9000, riderOffset: 400, stopAlong: 10000),
           isFalse);
       expect(hasArrived(straight: 100, riderAlong: 9000, riderOffset: 400, stopAlong: 10000),
+          isFalse);
+      expect(hasArrived(straight: 50, riderAlong: 9000, riderOffset: 400, stopAlong: 10000),
           isTrue);
     });
 
-    test('sem traçado: linha reta a até 120 m', () {
-      expect(hasArrived(straight: 150), isFalse);
-      expect(hasArrived(straight: 110), isTrue);
+    test('sem traçado: linha reta a até 60 m', () {
+      expect(hasArrived(straight: 110), isFalse);
+      expect(hasArrived(straight: 50), isTrue);
     });
 
     test('distância para o aviso "faltam 2 km" também é pela rota', () {

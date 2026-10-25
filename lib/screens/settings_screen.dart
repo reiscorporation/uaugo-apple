@@ -365,7 +365,7 @@ class SettingsScreen extends StatelessWidget {
               secondary: const Icon(Icons.speed_outlined),
               title: Text(tr('Modo leve')),
               subtitle: Text(
-                  tr('Mapa sem prédios 3D e sem a camada de trânsito: o app fica mais rápido e gasta menos memória e bateria. {0}', [choice == null ? (s.lightMode ? tr('Ligado automaticamente (celular com {0} GB de RAM).', [(s.deviceMemMb / 1024).toStringAsFixed(1)]) : tr('Automático: liga em celulares com menos de 4,5 GB de RAM.')) : ''])),
+                  tr('Mapa sem prédios 3D: o app fica mais rápido e gasta menos memória e bateria. {0}', [choice == null ? (s.lightMode ? tr('Ligado automaticamente (celular com {0} GB de RAM).', [(s.deviceMemMb / 1024).toStringAsFixed(1)]) : tr('Automático: liga em celulares com menos de 4,5 GB de RAM.')) : ''])),
               value: s.lightMode,
               onChanged: s.setLightMode,
             ),

@@ -581,6 +581,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _blinkTimer?.cancel();
     MediaService.instance.stop();
     _glideTimer?.cancel();
     for (final s in [..._subs, ..._fireSubs]) {
@@ -854,6 +855,32 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   double? _activeRadarLast; // última distância (sem rota: detectar que passou)
   ({String emoji, int? kmh, int m})? _radarPill;
 
+  /// Radar a que a faixa amarela se refere (mesmo emoji): a distância vai
+  /// na faixa.
+  ({String emoji, int? kmh, int m})? get _bannerRadar {
+    final b = _radarBanner, r = _radarPill;
+    return b != null && r != null && b.emoji == r.emoji ? r : null;
+  }
+
+  /// Faixa piscando (acima do limite do radar): fase vermelha agora?
+  bool _bannerBlinkRed = false;
+  Timer? _blinkTimer;
+
+  /// Liga/desliga o pisca da faixa conforme a velocidade e o radar.
+  void _updateBannerBlink() {
+    final r = _bannerRadar;
+    final over = r != null && r.kmh != null && r.m <= 1000 && _speedMs * 3.6 > r.kmh! + 2;
+    if (over) {
+      _blinkTimer ??= Timer.periodic(const Duration(milliseconds: 500), (_) {
+        if (mounted) setState(() => _bannerBlinkRed = !_bannerBlinkRed);
+      });
+    } else if (_blinkTimer != null) {
+      _blinkTimer!.cancel();
+      _blinkTimer = null;
+      if (_bannerBlinkRed) setState(() => _bannerBlinkRed = false);
+    }
+  }
+
   /// Atualiza a distância até o radar avisado (e some ao passar por ele).
   void _updateRadarPill(Position p) {
     final r = _activeRadar;
@@ -876,6 +903,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (d == null) {
       _activeRadar = null;
       if (_radarPill != null) setState(() => _radarPill = null);
+      _updateBannerBlink();
       return;
     }
     final m = (d / 10).round() * 10;
@@ -886,6 +914,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     };
     final pill = (emoji: emoji, kmh: _activeRadarKmh, m: m);
     if (pill != _radarPill) setState(() => _radarPill = pill);
+    _updateBannerBlink();
   }
 
   void _checkRadars(Position p) {
@@ -3499,21 +3528,47 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   List<Polyline>? _routeLines;
-  /// Rota azul com borda escura (refeita só quando a rota muda).
+
+  /// Rota que falta: navegando na rota, o trecho já percorrido some (como
+  /// no Waze/Google). Refeito a cada ~20 m andados.
+  List<LatLng> get _visibleRoute {
+    final w = _walker, pr = _proj;
+    if ((!_navigating && _sim == null) || w == null || pr == null ||
+        pr.offset > 60 || _offRoute) {
+      return _route;
+    }
+    final step = (pr.along / 20).floor();
+    final cached = _trimmedRoute;
+    if (cached != null && step == _trimStep && identical(_trimBase, _route)) {
+      return cached;
+    }
+    _trimStep = step;
+    _trimBase = _route;
+    return _trimmedRoute = [
+      for (final (la, lo) in w.pointsAfter(pr.along)) LatLng(la, lo)
+    ];
+  }
+
+  List<LatLng>? _trimmedRoute;
+  List<LatLng>? _trimBase;
+  int _trimStep = -1;
+
+  /// Rota azul com borda escura (refeita só quando muda).
   List<Polyline> _routePolylines() {
     final l = _routeLines;
-    if (l != null && identical(l.first.points, _route)) return l;
+    final pts = _visibleRoute;
+    if (l != null && identical(l.first.points, pts)) return l;
     return _routeLines = [
       Polyline(
         polylineId: const PolylineId('route_border'),
-        points: _route,
+        points: pts,
         width: 9,
         color: MapScreen.routeBorder,
         zIndex: 1,
       ),
       Polyline(
         polylineId: const PolylineId('route'),
-        points: _route,
+        points: pts,
         width: 6,
         color: MapScreen.routeBlue,
         zIndex: 2,
@@ -3709,9 +3764,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           // Na economia de bateria, sem trânsito e sem prédios 3D (menos
           // trabalho para o processador gráfico).
           // Modo leve (celulares mais simples): sem trânsito e sem prédios 3D.
-          trafficEnabled: AppSettings.instance.showTraffic.value &&
-              !_saving &&
-              !AppSettings.instance.lightMode,
+          // Trânsito (grátis, do Google) fica mesmo no modo leve: é o que
+          // mostra a lentidão na rota, como no Waze.
+          trafficEnabled: AppSettings.instance.showTraffic.value && !_saving,
           buildingsEnabled: !_saving && !AppSettings.instance.lightMode,
           // Mapa escuro à noite (ou sempre, conforme Configurações).
           style: _darkMap ? darkMapStyle : null,
@@ -3875,9 +3930,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               const SizedBox(height: 8),
               Material(
                 // Amarelo: aviso de radar/velocidade/polícia chama atenção.
-                color: Colors.amber,
+                // Radar perto (400 m): borda vermelha; acima do limite dele:
+                // pisca vermelho/amarelo.
+                color: _bannerBlinkRed ? Colors.red.shade600 : Colors.amber,
                 elevation: 6,
-                borderRadius: BorderRadius.circular(12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: (_bannerRadar?.m ?? 99999) <= 400
+                      ? BorderSide(color: Colors.red.shade700, width: 4)
+                      : BorderSide.none,
+                ),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
                   child: Row(children: [
@@ -3886,11 +3948,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(_radarBanner!.text,
-                          style: const TextStyle(
-                              color: Colors.black,
+                          style: TextStyle(
+                              color: _bannerBlinkRed ? Colors.white : Colors.black,
                               fontSize: 16,
                               fontWeight: FontWeight.bold)),
                     ),
+                    // Distância até o radar, contando (antes ficava embaixo).
+                    if (_bannerRadar case final r?)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Text(formatDistance(r.m),
+                            textScaler: TextScaler.noScaling,
+                            style: TextStyle(
+                                color: _bannerBlinkRed ? Colors.white : Colors.black,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900)),
+                      ),
                     IconButton(
                       icon: const Icon(Icons.close, color: Colors.black),
                       onPressed: () => setState(() => _radarBanner = null),
@@ -4045,7 +4118,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 child: const Icon(Icons.remove, size: 28),
               ),
               const SizedBox(height: 12),
-              // Radar à frente: distância até ele (some ao passar).
+              // Radar à frente: distância até ele (some ao passar). Com a
+              // faixa amarela na tela, a distância vai nela.
+              if (_bannerRadar == null)
               if (_radarPill case final r?)
                 Container(
                   margin: const EdgeInsets.only(bottom: 6),
@@ -4856,6 +4931,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       case 'hazard':
         await _reportHazard(HazardType.danger);
         CarService.instance.toast(tr('Alerta enviado: perigo na pista'));
+      // Lista de alertas do carro: "hazard:police", "hazard:pothole"...
+      case final x when x.startsWith('hazard:'):
+        final t = HazardType.fromName(x.substring(7));
+        if (t == null) return;
+        await _reportHazard(t);
+        CarService.instance.toast(tr('Alerta enviado: {0}', [t.label]));
       case 'stop':
         if (!_navigating) {
           CarService.instance.toast(tr('Nenhuma navegação em andamento'));

@@ -190,7 +190,7 @@ const en3 = <String, String>{
   'Ninguém cadastrado. No SOS, um toque avisa essa pessoa pelo WhatsApp com a sua localização.': 'No one set. In SOS, one tap notifies this person on WhatsApp with your location.',
   '{0} · {1}\nNo SOS: "Avisar {2} pelo WhatsApp".': '{0} · {1}\nIn SOS: "Notify {2} on WhatsApp".',
   'Modo leve': 'Lite mode',
-  'Mapa sem prédios 3D e sem a camada de trânsito: o app fica mais rápido e gasta menos memória e bateria. {0}': 'Map without 3D buildings and without the traffic layer: the app gets faster and uses less memory and battery. {0}',
+  'Mapa sem prédios 3D: o app fica mais rápido e gasta menos memória e bateria. {0}': 'Map without 3D buildings: the app gets faster and uses less memory and battery. {0}',
   'Compartilhar estatísticas de uso': 'Share usage statistics',
   'Anônimas: quantas pessoas usam, quais recursos e os erros do app (modelo do celular e versão), para melhorar o UauGo. Sem localização exata, nome ou e-mail.': 'Anonymous: how many people use it, which features and the app errors (phone model and version), to improve UauGo. No exact location, name or email.',
   'Compartilhar posição em segundo plano': 'Share position in the background',

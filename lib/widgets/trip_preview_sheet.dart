@@ -436,7 +436,8 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
           initialChildSize: 0.6,
           minChildSize: 0.16,
           maxChildSize: 0.95,
-          snap: true,
+          // Para onde o piloto soltar (não pula para cima/baixo).
+          snap: false,
           // No mínimo, só baixa (mostra o mapa); não fecha a prévia.
           shouldCloseOnMinExtent: false,
           builder: (ctx, scroll) => Material(
