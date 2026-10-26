@@ -51,6 +51,116 @@ class CarMapView(private val context: Context) {
     private var routeLine: Polyline? = null
     private var routeSig = 0
     private var trimIdx = 0
+    private var poiSig = 0
+    private val poiMarkers = mutableListOf<com.google.android.gms.maps.model.Marker>()
+    private val poiIcons = HashMap<Int, com.google.android.gms.maps.model.BitmapDescriptor>()
+
+    /** Pins de radares e postos policiais (só redesenha quando mudam). */
+    private fun drawPois(g: com.google.android.gms.maps.GoogleMap) {
+        val list = CarState.pois
+        val sig = list.size * 31 + (list.firstOrNull()?.contentHashCode() ?: 0)
+        if (sig == poiSig) return
+        poiSig = sig
+        poiMarkers.forEach { it.remove() }
+        poiMarkers.clear()
+        for (p in list) {
+            val kind = p[2].toInt()
+            val icon = poiIcons.getOrPut(kind) {
+                val (emoji, color) = when (kind) {
+                    1 -> "📸" to Color.rgb(211, 47, 47)
+                    2 -> "⏱️" to Color.rgb(211, 47, 47)
+                    3 -> "🚦" to Color.rgb(211, 47, 47)
+                    else -> "🚔" to Color.rgb(21, 101, 192)
+                }
+                BitmapDescriptorFactory.fromBitmap(pinBitmap(emoji, color))
+            }
+            g.addMarker(MarkerOptions().position(LatLng(p[0], p[1])).anchor(0.5f, 0.5f)
+                .icon(icon).zIndex(4f))?.let { poiMarkers.add(it) }
+        }
+    }
+
+    private fun pinBitmap(emoji: String, ring: Int): Bitmap {
+        val px = 64
+        val b = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+        val c = Canvas(b)
+        c.drawCircle(px / 2f, px / 2f, px / 2f - 3, Paint().apply { color = Color.WHITE; isAntiAlias = true })
+        c.drawCircle(px / 2f, px / 2f, px / 2f - 3, Paint().apply {
+            color = ring; style = Paint.Style.STROKE; strokeWidth = 5f; isAntiAlias = true
+        })
+        c.drawText(emoji, px / 2f, px / 2f + 12f, Paint().apply { textSize = 34f; textAlign = Paint.Align.CENTER; isAntiAlias = true })
+        return b
+    }
+
+    /** Apaga da linha o trecho já percorrido (como no celular). A rota do
+     *  carro vem com pontos espaçados (até centenas de metros na estrada):
+     *  mede a distância até cada TRECHO, não até os pontos. */
+    private fun trimPassed(pts: List<DoubleArray>, pos: LatLng) {
+        val line = routeLine ?: return
+        if (pts.size < 2) return
+        val k = Math.cos(Math.toRadians(pos.latitude))
+        var best = -1
+        var bestD = Double.MAX_VALUE
+        val end = minOf(pts.size - 1, trimIdx + 300)
+        for (i in trimIdx until end) {
+            // Trecho i -> i+1 em metros, com o piloto na origem.
+            val ax = (pts[i][1] - pos.longitude) * 111320.0 * k
+            val ay = (pts[i][0] - pos.latitude) * 111320.0
+            val bx = (pts[i + 1][1] - pos.longitude) * 111320.0 * k
+            val by = (pts[i + 1][0] - pos.latitude) * 111320.0
+            val dx = bx - ax
+            val dy = by - ay
+            val len2 = dx * dx + dy * dy
+            val t = if (len2 == 0.0) 0.0 else (-(ax * dx + ay * dy) / len2).coerceIn(0.0, 1.0)
+            val px = ax + t * dx
+            val py = ay + t * dy
+            val d = px * px + py * py
+            if (d < bestD) { bestD = d; best = i }
+        }
+        // Só apaga com o piloto na rota (até 60 m do trecho).
+        if (best < 0 || bestD > 60.0 * 60.0) return
+        trimIdx = best
+        line.points = listOf(pos) + pts.subList(best + 1, pts.size).map { LatLng(it[0], it[1]) }
+    }
+
+    private var poiSig = 0
+    private val poiMarkers = mutableListOf<com.google.android.gms.maps.model.Marker>()
+    private val poiIcons = HashMap<Int, com.google.android.gms.maps.model.BitmapDescriptor>()
+
+    /** Pins de radares e postos policiais (só redesenha quando mudam). */
+    private fun drawPois(g: com.google.android.gms.maps.GoogleMap) {
+        val list = CarState.pois
+        val sig = list.size * 31 + (list.firstOrNull()?.contentHashCode() ?: 0)
+        if (sig == poiSig) return
+        poiSig = sig
+        poiMarkers.forEach { it.remove() }
+        poiMarkers.clear()
+        for (p in list) {
+            val kind = p[2].toInt()
+            val icon = poiIcons.getOrPut(kind) {
+                val (emoji, color) = when (kind) {
+                    1 -> "📸" to Color.rgb(211, 47, 47)
+                    2 -> "⏱️" to Color.rgb(211, 47, 47)
+                    3 -> "🚦" to Color.rgb(211, 47, 47)
+                    else -> "🚔" to Color.rgb(21, 101, 192)
+                }
+                BitmapDescriptorFactory.fromBitmap(pinBitmap(emoji, color))
+            }
+            g.addMarker(MarkerOptions().position(LatLng(p[0], p[1])).anchor(0.5f, 0.5f)
+                .icon(icon).zIndex(4f))?.let { poiMarkers.add(it) }
+        }
+    }
+
+    private fun pinBitmap(emoji: String, ring: Int): Bitmap {
+        val px = 64
+        val b = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+        val c = Canvas(b)
+        c.drawCircle(px / 2f, px / 2f, px / 2f - 3, Paint().apply { color = Color.WHITE; isAntiAlias = true })
+        c.drawCircle(px / 2f, px / 2f, px / 2f - 3, Paint().apply {
+            color = ring; style = Paint.Style.STROKE; strokeWidth = 5f; isAntiAlias = true
+        })
+        c.drawText(emoji, px / 2f, px / 2f + 12f, Paint().apply { textSize = 34f; textAlign = Paint.Align.CENTER; isAntiAlias = true })
+        return b
+    }
 
     /** Apaga da linha o trecho já percorrido (como no celular). */
     private fun trimPassed(pts: List<DoubleArray>, pos: LatLng) {
@@ -137,6 +247,8 @@ class CarMapView(private val context: Context) {
         display = null
         map = null
         routeLine = null
+        poiMarkers.clear()
+        poiSig = 0
         me = null
         overlay = null
         meIcon = ""
@@ -164,6 +276,7 @@ class CarMapView(private val context: Context) {
                     .zIndex(2f)) else null
         }
         overlay?.update()
+        drawPois(g)
         if (!CarState.hasPosition) return
         val pos = LatLng(CarState.lat, CarState.lng)
         trimPassed(pts, pos)
@@ -180,11 +293,14 @@ class CarMapView(private val context: Context) {
         // Ícone em pé (o mapa gira com o piloto).
         // Mais longe na rodovia, mais perto na cidade.
         // Mais afastado que antes (pedido do Ricardo); +/− do motorista somam.
+        // Perto de uma saída/conversão (até 400 m), aproxima sozinho.
+        val n = CarState.nav
+        val nearTurn = n != null && n.meters < 400 && n.maneuver.isNotEmpty && n.maneuver != "straight"
         val zoom = (when {
             CarState.speedKmh >= 90 -> 13.4f
             CarState.speedKmh >= 50 -> 14.2f
             else -> 15.0f
-        } + CarState.zoomOffset).coerceIn(10f, 19f)
+        } + CarState.zoomOffset + (if (nearTurn) 1.2f else 0f)).coerceIn(10f, 19f)
         g.animateCamera(
             CameraUpdateFactory.newCameraPosition(
                 CameraPosition.Builder().target(pos).zoom(zoom)

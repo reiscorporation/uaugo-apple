@@ -82,7 +82,26 @@ class UauGoSession : Session() {
         lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onDestroy(owner: LifecycleOwner) = CarState.updateConnected(false)
         })
+        handleNavigate(intent)
         return NavScreen(carContext)
+    }
+
+    // Já aberto no carro e o motorista pede outro destino ao Assistente.
+    override fun onNewIntent(intent: Intent) = handleNavigate(intent)
+
+    /** "Navegue até X" (Assistente/Gemini): manda o destino para o celular,
+     *  que traça a rota e inicia sozinho (como o "UauGo, ir para"). */
+    private fun handleNavigate(intent: Intent) {
+        if (intent.action != CarContext.ACTION_NAVIGATE) return
+        val geo = intent.dataString ?: return
+        val sink = CarState.actionSink
+        if (sink != null) {
+            sink("navigate:$geo")
+        } else {
+            CarToast.makeText(carContext,
+                if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+                CarToast.LENGTH_LONG).show()
+        }
     }
 }
 
@@ -169,14 +188,14 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             m.startsWith("roundabout") -> Maneuver.TYPE_ROUNDABOUT_ENTER_AND_EXIT_CW to R.drawable.car_turn_right
             m == "turn-sharp-left" -> Maneuver.TYPE_TURN_SHARP_LEFT to R.drawable.car_turn_left
             m == "turn-sharp-right" -> Maneuver.TYPE_TURN_SHARP_RIGHT to R.drawable.car_turn_right
-            m == "turn-slight-left" -> Maneuver.TYPE_TURN_SLIGHT_LEFT to R.drawable.car_turn_left
-            m == "turn-slight-right" -> Maneuver.TYPE_TURN_SLIGHT_RIGHT to R.drawable.car_turn_right
-            m == "ramp-left" -> Maneuver.TYPE_ON_RAMP_SLIGHT_LEFT to R.drawable.car_turn_left
-            m == "ramp-right" -> Maneuver.TYPE_ON_RAMP_SLIGHT_RIGHT to R.drawable.car_turn_right
-            m == "fork-left" -> Maneuver.TYPE_FORK_LEFT to R.drawable.car_turn_left
-            m == "fork-right" -> Maneuver.TYPE_FORK_RIGHT to R.drawable.car_turn_right
-            m == "keep-left" -> Maneuver.TYPE_KEEP_LEFT to R.drawable.car_turn_left
-            m == "keep-right" -> Maneuver.TYPE_KEEP_RIGHT to R.drawable.car_turn_right
+            m == "turn-slight-left" -> Maneuver.TYPE_TURN_SLIGHT_LEFT to R.drawable.car_slight_left
+            m == "turn-slight-right" -> Maneuver.TYPE_TURN_SLIGHT_RIGHT to R.drawable.car_slight_right
+            m == "ramp-left" -> Maneuver.TYPE_ON_RAMP_SLIGHT_LEFT to R.drawable.car_slight_left
+            m == "ramp-right" -> Maneuver.TYPE_ON_RAMP_SLIGHT_RIGHT to R.drawable.car_slight_right
+            m == "fork-left" -> Maneuver.TYPE_FORK_LEFT to R.drawable.car_slight_left
+            m == "fork-right" -> Maneuver.TYPE_FORK_RIGHT to R.drawable.car_slight_right
+            m == "keep-left" -> Maneuver.TYPE_KEEP_LEFT to R.drawable.car_slight_left
+            m == "keep-right" -> Maneuver.TYPE_KEEP_RIGHT to R.drawable.car_slight_right
             m == "merge" -> Maneuver.TYPE_MERGE_SIDE_UNSPECIFIED to R.drawable.car_straight
             m.contains("left") -> Maneuver.TYPE_TURN_NORMAL_LEFT to R.drawable.car_turn_left
             m.contains("right") -> Maneuver.TYPE_TURN_NORMAL_RIGHT to R.drawable.car_turn_right

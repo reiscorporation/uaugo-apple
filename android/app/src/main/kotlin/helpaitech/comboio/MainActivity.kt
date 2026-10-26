@@ -30,6 +30,10 @@ class MainActivity : FlutterActivity() {
                     val mi = ActivityManager.MemoryInfo()
                     am.getMemoryInfo(mi)
                     result.success((mi.totalMem / (1024 * 1024)).toInt())
+                } else if (call.method == "minimize") {
+                    // "Minimizar": o app vai para trás e a rota continua.
+                    moveTaskToBack(true)
+                    result.success(null)
                 } else if (call.method == "addToCalendar") {
                     // Abre o app de agenda já preenchido: quem salva é a
                     // agenda (o UauGo não pede permissão nem lê a agenda).

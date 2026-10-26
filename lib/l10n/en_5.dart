@@ -65,4 +65,10 @@ const en5 = <String, String>{
   'indicada': 'recommended',
   'Foto salva': 'Photo saved',
   'Foto removida': 'Photo removed',
+  'Posto policial': 'Police station',
+  'Navegação encerrada': 'Navigation ended',
+  'Minimizar mantém os avisos de radar, perigos e velocidade. Encerrar desliga tudo.': 'Minimize keeps speed camera, hazard and speed warnings. End turns everything off.',
+  'Minimizar mantém a rota e o comboio. Encerrar para a navegação (você continua no comboio).': 'Minimize keeps the route and the convoy. End stops navigation (you stay in the convoy).',
+  'Minimizar mantém a rota: ao abrir o UauGo você volta para ela. Encerrar apaga a rota.': 'Minimize keeps the route: when you open UauGo you go back to it. End deletes the route.',
+  'Minimizar': 'Minimize',
 };

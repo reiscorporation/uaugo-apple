@@ -648,25 +648,33 @@ exports.onTollReport = onDocumentWritten(
       }
       return undefined;
     };
-    const car = agree("car");
-    const moto = agree("moto");
+    let car = agree("car");
+    let moto = agree("moto");
+    // Administração do UauGo: o valor informado vale para todos na hora.
+    const mine = event.data?.after?.data();
+    const isAdmin = mine && (await db.doc(`platformAdmins/${event.params.uid}`).get()).exists;
+    if (isAdmin) {
+      if (mine.car != null) car = mine.car;
+      if (mine.moto != null) moto = mine.moto;
+    }
     if (car === undefined && moto === undefined) return;
     const data = await readTollTable();
     const row = data.p.find((r) => plazaKey(r) === key.replace(/_/g, "/"));
     if (!row) return;
     const ref = db.doc(`tollPrices/${key}`);
     const cur = (await ref.get()).data();
-    if (!cur && row[2] != null) return; // preço oficial (ANTT)
-    const newCar = car ?? cur?.car ?? null;
+    // Praça com preço oficial (ANTT) também pode ser corrigida (o valor
+    // publicado às vezes está defasado); vale com 2 pilotos ou a administração.
+    const newCar = car ?? cur?.car ?? row[2] ?? null;
     if (!(newCar > 0)) return;
     await ref.set({
       car: newCar,
       moto: moto !== undefined ? moto : (cur?.moto ?? null),
       found: true,
-      method: "usuarios",
+      method: isAdmin ? "admin" : "usuarios",
       estimated: false,
       name: cur?.name || "",
-      source: "Confirmado por pilotos no UauGo",
+      source: isAdmin ? "Informado pela administração do UauGo" : "Confirmado por pilotos no UauGo",
       checkedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     await applyTollPrices(data);
@@ -699,7 +707,7 @@ async function applyTollPrices(data) {
     if (!t || !(t.car > 0)) continue;
     row[2] = Math.round(t.car * 100) / 100;
     row[3] = t.moto === 0 ? 0 : (t.moto > 0 ? Math.round((t.moto / t.car) * 100) / 100 : null);
-    data.s[key] = t.method === "usuarios" ? "u" : "e";
+    data.s[key] = t.method === "usuarios" || t.method === "admin" ? "u" : "e";
     if (t.name) data.n[key] = String(t.name).slice(0, 60);
     n++;
   }
@@ -797,7 +805,7 @@ exports.tollPrices = onHttpRequest({ region, invoker: "public", timeoutSeconds: 
     // Valores da planilha conferida ou confirmados pelos usuários não são
     // trocados pela rotina automática.
     const locked = new Set((await db.collection("tollPrices")
-      .where("method", "in", ["planilha", "usuarios"]).get()).docs.map((d) => d.id));
+      .where("method", "in", ["planilha", "usuarios", "admin"]).get()).docs.map((d) => d.id));
     for (const it of items) {
       const key = String(it?.key || "");
       if (!keys.has(key) || locked.has(key.replace(/\//g, "_"))) continue;

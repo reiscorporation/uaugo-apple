@@ -28,6 +28,8 @@ object CarState {
 
     @Volatile var nav: Nav? = null
     @Volatile var route: List<DoubleArray> = emptyList() // [lat, lng]
+    /** Radares (1–3) e postos policiais (4) perto: [lat, lng, tipo]. */
+    @Volatile var pois: List<DoubleArray> = emptyList()
     @Volatile var lat = 0.0
     @Volatile var lng = 0.0
     @Volatile var bearing = 0.0
@@ -123,6 +125,22 @@ class CarBridge(messenger: BinaryMessenger) {
                     result.success(null)
                 }
                 "connected" -> result.success(CarState.connected)
+                "pois" -> {
+                    // Pins de radares e postos policiais: [lat, lng, tipo, ...].
+                    val flat = (call.arguments as? List<*>)?.mapNotNull { (it as? Number)?.toDouble() }
+                        ?: emptyList()
+                    CarState.pois = flat.chunked(3).filter { it.size == 3 }
+                        .map { doubleArrayOf(it[0], it[1], it[2]) }
+                    CarState.changed()
+                    result.success(null)
+                }
+                "clearNav" -> {
+                    // Navegação encerrada: some a manobra e a rota da tela do carro.
+                    CarState.nav = null
+                    CarState.route = emptyList()
+                    CarState.changed()
+                    result.success(null)
+                }
                 "toast" -> {
                     val t = call.arguments as? String
                     if (t != null) CarState.toastSink?.let { s -> Handler(Looper.getMainLooper()).post { s(t) } }

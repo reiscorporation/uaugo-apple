@@ -18,6 +18,7 @@ import '../models/hazard.dart';
 import 'auth_service.dart';
 import 'hazard_service.dart';
 import '../l10n/i18n.dart';
+import 'shared_place_service.dart';
 
 class CarService {
   CarService._();
@@ -49,13 +50,39 @@ class CarService {
           _handleWithoutMap(a);
         }
       }
-      if (c.method == 'connected') connected.value = c.arguments == true;
+      if (c.method == 'connected') {
+        // Carro (re)conectado: manda a rota e os pins de novo (a tela do
+        // carro pode ter sido recriada e ficava sem o trajeto).
+        if (c.arguments == true) {
+          _routeSig = '';
+          _poisSig = '';
+        }
+        connected.value = c.arguments == true;
+      }
     });
     _ch.invokeMethod<bool>('connected').then((v) => connected.value = v == true,
         onError: (_) {});
   }
 
   /// Aviso curto na tela do carro.
+  String _poisSig = '';
+
+  /// Pins de radares/postos policiais perto: (lat, lng, tipo).
+  void pois(List<(double, double, int)> list) {
+    final sig = list.map((e) => '${e.$1},${e.$2}').join(';');
+    if (sig == _poisSig) return;
+    _poisSig = sig;
+    _ch.invokeMethod('pois', [
+      for (final (la, lo, k) in list) ...[la, lo, k.toDouble()]
+    ]).catchError((_) => null);
+  }
+
+  /// Some a navegação da tela do carro (rota, manobra, chegada) na hora.
+  void clearNavigation() {
+    _routeSig = '';
+    _ch.invokeMethod('clearNav').catchError((_) => null);
+  }
+
   void toast(String text) =>
       _ch.invokeMethod('toast', text).catchError((_) => null);
 
@@ -63,6 +90,13 @@ class CarService {
   /// Radar/Perigo marcam o alerta na posição atual; Encerrar não tem o que
   /// encerrar.
   Future<void> _handleWithoutMap(String a) async {
+    // Destino pedido ao Assistente/Gemini no carro: a tela inicial traça a
+    // rota e inicia sozinha.
+    if (a.startsWith('navigate:')) {
+      SharedPlaceService.instance.fromVoice = true;
+      SharedPlaceService.instance.pending.value = a.substring(9);
+      return;
+    }
     final type = switch (a) {
       'radar' => HazardType.radar,
       'hazard' => HazardType.danger,

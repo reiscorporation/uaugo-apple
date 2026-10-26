@@ -41,8 +41,9 @@ class TollPlaza {
   String get key =>
       '${pts.first.$1.toStringAsFixed(5)},${pts.first.$2.toStringAsFixed(5)}';
 
-  /// Valor que dá para confirmar/corrigir (não é o oficial da ANTT).
-  bool get editable => source != TollSource.official || car == null;
+  /// Todo valor pode ser confirmado/corrigido pelo piloto (até o da ANTT,
+  /// que às vezes está defasado); vale com 2 pilotos ou a administração.
+  bool get editable => true;
 
   /// Moto em R\$ (null = não informado).
   double? get motoValue => moto == null || car == null ? (moto == 0 ? 0 : null) : _round(car! * moto!);

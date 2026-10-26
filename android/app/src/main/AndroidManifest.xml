@@ -104,6 +104,12 @@
                 <action android:name="androidx.car.app.CarAppService"/>
                 <category android:name="androidx.car.app.category.NAVIGATION"/>
             </intent-filter>
+            <!-- "Navegue até..." pelo Assistente/Gemini no Android Auto. -->
+            <intent-filter>
+                <action android:name="androidx.car.app.action.NAVIGATE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="geo"/>
+            </intent-filter>
         </service>
         <meta-data
             android:name="com.google.android.gms.car.application"

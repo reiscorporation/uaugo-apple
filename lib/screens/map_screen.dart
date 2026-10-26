@@ -321,6 +321,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   DateTime _lastRadarAlert = DateTime.fromMillisecondsSinceEpoch(0);
   final Set<int> _stretchAnnounced = {};
   final Map<RadarKind, BitmapDescriptor> _radarIcons = {};
+
+  /// Postos policiais rodoviários perto (pins no mapa, como os radares).
+  List<Poi> _policeMarkers = [];
+  BitmapDescriptor? _policeIcon;
   ({String emoji, String text, bool Function(Position) passed})? _radarBanner;
 
   // ---- Visualização do mapa
@@ -458,6 +462,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _subs.add(_voiceCmd.commands.listen(_onVoiceCommand));
     // Botões da tela do carro (Android Auto).
     _subs.add(CarService.instance.actions.listen(_onCarAction));
+    CarService.instance.connected.addListener(_onCarConnected);
     _voiceCmd.start();
     _radarSvc.index.addListener(_onRadarIndex);
     _radarSvc.init();
@@ -581,6 +586,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    CarService.instance.connected.removeListener(_onCarConnected);
     _blinkTimer?.cancel();
     MediaService.instance.stop();
     _glideTimer?.cancel();
@@ -684,17 +690,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     // Minimizado / tela apagada: guarda a posição sem redesenhar a tela
     // (a voz, os avisos e a gravação continuam).
+    // Posição na rota: calculada uma vez por leitura e usada pela voz,
+    // radares, limite da via e avisos à frente.
+    _proj = _walker?.project(p.latitude, p.longitude,
+        around: (_proj?.offset ?? 1e9) < 200 ? _proj!.along : null);
     if (_inBackground) {
       _me = p;
     } else {
       setState(() => _me = p);
       _lead = _leadMeters(p);
-      _glideMeTo(_ahead(p.latitude, p.longitude, _bearing, _lead));
+      _glideMeTo(_shownPoint(p));
     }
-    // Posição na rota: calculada uma vez por leitura e usada pela voz,
-    // radares, limite da via e avisos à frente.
-    _proj = _walker?.project(p.latitude, p.longitude,
-        around: (_proj?.offset ?? 1e9) < 200 ? _proj!.along : null);
     _updateSpeed(p);
     _checkPois(p);
     _checkHalfway();
@@ -813,6 +819,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _radarIcons[RadarKind.fixed] = await emojiMarker('📸', radarRed);
     _radarIcons[RadarKind.section] = await emojiMarker('⏱️', radarRed);
     _radarIcons[RadarKind.redLight] = await emojiMarker('🚦', radarRed);
+    _policeIcon = await emojiMarker('🚔', Colors.blue.shade800);
     if (mounted) setState(() {});
   }
 
@@ -840,10 +847,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       for (final r in _radarsAround)
         (r, distanceMeters(p.latitude, p.longitude, r.lat, r.lng))
     ]..sort((a, b) => a.$2.compareTo(b.$2));
-    setState(() => _radarMarkers = [
-          for (final (r, d) in withDist.take(80))
-            if (d <= 10000) r
-        ]);
+    setState(() {
+      _radarMarkers = [
+        for (final (r, d) in withDist.take(80))
+          if (d <= 10000) r
+      ];
+      _policeMarkers = [
+        for (final q in PoiService.instance.near(p.latitude, p.longitude, 10000))
+          if (q.kind == PoiKind.policePost) q
+      ].take(30).toList();
+    });
+    _sendPoisToCar();
   }
 
   /// Radares à frente: na pista e no sentido do piloto, nas distâncias
@@ -1123,7 +1137,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (next == null) continue;
       _poiSpoken[poi.id] = next;
       final plaza = toll && _tollTable != null
-          ? nearestPlaza(_tollTable!, poi.lat, poi.lng)
+          ? _routePlazaNear(poi.lat, poi.lng) ??
+              nearestPlaza(_tollTable!, poi.lat, poi.lng)
           : null;
       // Valor estimado (a confirmar): guarda para conferir na chegada; na
       // simulação, já oferece conferir agora.
@@ -1169,6 +1184,25 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       );
       return; // um aviso por vez
     }
+  }
+
+  /// A praça da rota (a mesma usada no custo do planejamento) mais perto
+  /// do ponto: evita pegar a praça do outro sentido ou a vizinha (o aviso
+  /// dizia R$ 10,20 e o planejamento R$ 8,80).
+  TollPlaza? _routePlazaNear(double lat, double lng) {
+    final list = _tollEst?.list ?? const <TollPlaza>[];
+    TollPlaza? best;
+    var bestD = 1500.0;
+    for (final p in list) {
+      for (final (a, b) in p.pts) {
+        final d = distanceMeters(lat, lng, a, b);
+        if (d < bestD) {
+          bestD = d;
+          best = p;
+        }
+      }
+    }
+    return best;
   }
 
   /// Praças com valor a confirmar por onde o piloto passou nesta viagem.
@@ -2777,8 +2811,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           from.latitude, from.longitude, p.latitude, p.longitude);
       _bearingFrom = p;
     }
+    // Em cima da rota: direção da própria via (não "dança" com o erro do
+    // GPS, que piora sem internet).
+    final w0 = _walker, pr0 = _proj;
+    final snapped = (_navigating || _sim != null) && w0 != null && pr0 != null &&
+        pr0.offset <= 25 && !_offRoute;
+    if (snapped && _speedMs > 1.5) _bearing = w0.at(pr0.along).bearing;
     if (_map == null || (!_follow && !force)) return;
-    final here = _ahead(p.latitude, p.longitude, _bearing, _lead);
+    final here = _shownPoint(p);
 
     if (_view == _MapView.solo && AppSettings.instance.northUp.value) {
       // Norte para cima: mapa plano, sem girar, centrado no piloto.
@@ -2793,11 +2833,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
     if (_view == _MapView.solo) {
       // Primeira pessoa: moto na parte de baixo da tela, olhando a estrada.
-      final zoom = (18 + _zoomOffset).clamp(12.0, 20.0);
+      // Perto de uma saída/conversão (até 400 m), aproxima sozinho para o
+      // piloto ver por onde sair; depois volta.
+      final turn = _navigating ? _upcomingTurn(p) : null;
+      final nearTurn = turn != null && turn.meters < 400 && !turn.step.isSilent &&
+          turn.step.maneuver.isNotEmpty && turn.step.maneuver != 'straight';
+      final zoom = (18 + _zoomOffset + (nearTurn ? 0.8 : 0)).clamp(12.0, 20.0);
       _moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
         // Quanto mais afastado o zoom, mais à frente fica o centro.
-        target: _ahead(p.latitude, p.longitude, _bearing,
-            90 * pow(2, 18 - zoom).toDouble() + _lead),
+        target: _ahead(here.latitude, here.longitude, _bearing,
+            90 * pow(2, 18 - zoom).toDouble()),
         zoom: zoom,
         tilt: 65,
         bearing: _bearing,
@@ -3432,6 +3477,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return (v * secs).clamp(0.0, 40.0).toDouble();
   }
 
+  /// Onde desenhar o "Você": navegando e a até 25 m da rota, EM CIMA da
+  /// rota (o GPS do celular erra 10–30 m; sem internet, mais), já adiantado
+  /// pelo tempo do deslize. Longe da rota (saiu dela), a posição do GPS.
+  LatLng _shownPoint(Position p) {
+    final w = _walker, pr = _proj;
+    if ((_navigating || _sim != null) && w != null && pr != null &&
+        pr.offset <= 25 && !_offRoute) {
+      final q = w.at(pr.along + _lead);
+      return LatLng(q.lat, q.lng);
+    }
+    return _ahead(p.latitude, p.longitude, _bearing, _lead);
+  }
+
   void _glideMeTo(LatLng to) {
     final from = _shownMe;
     // 1ª posição ou salto grande (> 300 m, ex.: GPS voltou): vai direto.
@@ -3470,6 +3528,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       identityHashCode(_alerts),
       identityHashCode(_hazards),
       identityHashCode(_radarMarkers),
+      identityHashCode(_policeMarkers),
+      _policeIcon != null,
       _bikeIcons.length,
       _hazardIcons.length,
       _radarIcons.length,
@@ -3628,6 +3688,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           onTap: () => _navigate(a.lat, a.lng),
         ),
       ));
+    }
+    if (_policeIcon case final icon?) {
+      for (final q in _policeMarkers) {
+        markers.add(Marker(
+          markerId: MarkerId('police_${q.id}'),
+          position: LatLng(q.lat, q.lng),
+          anchor: const Offset(0.5, 0.5),
+          zIndex: 4,
+          icon: icon,
+          infoWindow: InfoWindow(title: tr('Posto policial')),
+        ));
+      }
     }
     for (final r in _radarMarkers) {
       final icon = _radarIcons[r.kind];
@@ -3790,9 +3862,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
         // Botões e faixas ficam acima da barra de navegação do Android
         // (no Samsung o app vai até a borda da tela).
-        // Laterais sem folga (deitado, a folga da câmera afastava os botões
-        // da borda); só a de baixo (barra do Android) é respeitada.
-        Positioned.fill(child: SafeArea(top: false, left: false, right: false, child: Stack(children: [
+        // Embaixo e nas laterais respeita a barra do Android (deitado ela
+        // fica de lado e escondia o alerta e o velocímetro). Folgas pequenas
+        // (câmera/cantos arredondados) são ignoradas para colar na borda.
+        Positioned.fill(child: Padding(
+          padding: EdgeInsets.only(
+            left: _sideInset(MediaQuery.viewPaddingOf(context).left),
+            right: _sideInset(MediaQuery.viewPaddingOf(context).right),
+            bottom: MediaQuery.viewPaddingOf(context).bottom,
+          ),
+          child: Stack(children: [
 
         // Faixas no topo: SOS do grupo + alerta de perigo próximo
         Positioned(
@@ -4055,18 +4134,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             if (!_follow && _me != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
+                // Compacto: não cobre o perigo/radar móvel do canto.
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.blue.shade700,
                     foregroundColor: Colors.white,
+                    visualDensity: VisualDensity.compact,
+                    minimumSize: const Size(0, 38),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
+                        horizontal: 12, vertical: 6),
                     elevation: 6,
                   ),
                   onPressed: _recenter,
-                  icon: const Icon(Icons.navigation),
+                  icon: const Icon(Icons.navigation, size: 18),
                   label: Text(tr('Recentralizar'),
-                      style: TextStyle(fontWeight: FontWeight.w800)),
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                 ),
               ),
             if (_tripButton() case final btn?) btn,
@@ -4888,6 +4970,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return (step: s, meters: d);
   }
 
+  /// Pins da tela do carro: radares (1 fixo, 2 média, 3 sinal) e postos
+  /// policiais (4), como no celular.
+  void _sendPoisToCar() {
+    if (!CarService.instance.connected.value) return;
+    CarService.instance.pois([
+      for (final r in _radarMarkers.take(40))
+        (r.lat, r.lng, switch (r.kind) {
+          RadarKind.fixed => 1,
+          RadarKind.section => 2,
+          RadarKind.redLight => 3,
+        }),
+      for (final q in _policeMarkers.take(20)) (q.lat, q.lng, 4),
+    ]);
+  }
+
   /// Manda para a tela do carro a manobra, a chegada, o radar e a posição.
   void _sendToCar(Position p) {
     if (!CarService.instance.connected.value) return;
@@ -4921,9 +5018,34 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Carro conectou (ou reconectou): reenvia a rota e os pins.
+  void _onCarConnected() {
+    if (!mounted || !CarService.instance.connected.value) return;
+    if (_routeRecs.length >= 2) CarService.instance.route(_routeRecs);
+    _sendPoisToCar();
+  }
+
   /// Botão da tela do carro.
   Future<void> _onCarAction(String a) async {
     if (!mounted) return;
+    // Destino pedido ao Assistente/Gemini no carro: rota nova, inicia sozinha.
+    if (a.startsWith('navigate:')) {
+      if (_isExpedition) {
+        CarService.instance.toast(tr('No comboio, o destino segue o roteiro do grupo.'));
+        return;
+      }
+      await _voice.stop();
+      CarService.instance.clearNavigation();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      // Depois de fechar a tela (a inicial só aceita quando está na frente).
+      final geo = a.substring(9);
+      Future.delayed(const Duration(milliseconds: 700), () {
+        SharedPlaceService.instance.fromVoice = true;
+        SharedPlaceService.instance.pending.value = geo;
+      });
+      return;
+    }
     switch (a) {
       case 'radar':
         await _reportHazard(HazardType.radar);
@@ -4942,7 +5064,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           CarService.instance.toast(tr('Nenhuma navegação em andamento'));
           return;
         }
+        // Para já (voz, narração e tela do carro), mesmo com o celular
+        // bloqueado: antes só encerrava ao desbloquear o celular.
+        setState(() {
+          _navigating = false;
+          _applyWakelock();
+        });
         await _voice.stop();
+        CarService.instance.clearNavigation();
+        CarService.instance.toast(tr('Navegação encerrada'));
         if (!mounted) return;
         if (_isExpedition) {
           setState(() {
@@ -4971,28 +5101,38 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// "Voltar" durante a navegação: pergunta se quer mesmo sair (a rota é
   /// encerrada). Na expedição, sair do mapa não tira do comboio.
   Future<void> _askExitNavigation() async {
-    final ok = await showDialog<bool>(
+    // "Voltar" não encerra a rota sozinho: minimizar mantém tudo como
+    // está (ao abrir o app, volta para cá); encerrar só se o piloto pedir.
+    final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(_justDriving ? tr('Sair do Dirigir agora?') : tr('Sair da navegação?')),
         content: Text(_justDriving
-            ? tr('Os avisos de radar, perigos e velocidade param.')
+            ? tr('Minimizar mantém os avisos de radar, perigos e velocidade. Encerrar desliga tudo.')
             : _isExpedition
-                ? tr('A navegação até o destino será encerrada. Você continua no comboio e pode voltar ao mapa pela tela inicial.')
-                : tr('A rota até o destino será encerrada.')),
+                ? tr('Minimizar mantém a rota e o comboio. Encerrar para a navegação (você continua no comboio).')
+                : tr('Minimizar mantém a rota: ao abrir o UauGo você volta para ela. Encerrar apaga a rota.')),
         actions: [
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(tr('Continuar navegando'))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, 'stay'),
+              child: Text(tr('Continuar'))),
           TextButton(
               style: TextButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(tr('Sair'))),
+              onPressed: () => Navigator.pop(ctx, 'end'),
+              child: Text(tr('Encerrar'))),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'min'),
+              child: Text(tr('Minimizar'))),
         ],
       ),
     );
-    if (ok != true || !mounted) return;
+    if (!mounted || choice == null || choice == 'stay') return;
+    if (choice == 'min') {
+      await const MethodChannel('uaugo/device').invokeMethod('minimize');
+      return;
+    }
     await _voice.stop();
+    CarService.instance.clearNavigation();
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -5173,6 +5313,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 ),
         ),
       );
+
+  /// Folga lateral: só a da barra de navegação do Android (≥ 40 px); a da
+  /// câmera/canto (menor) não afasta os botões da borda.
+  static double _sideInset(double v) => v >= 40 ? v : 0;
 
   /// Botão de música: sem a opção ou sem o acesso do Android, explica e leva
   /// à liberação; liberado e nada tocando, abre o app de música.
@@ -5375,8 +5519,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Com o trânsito conferido, usa a velocidade efetiva de agora.
     final secs = (left / (_etaSpeed ?? trip.averageSpeed)).round();
     final eta = DateTime.now().add(Duration(seconds: secs));
-    final cost = _expCost == null ? '' : ' · ~${formatMoney(_expCost!)}';
-    return tr('Chegada {0} · {1}\nFaltam {2}{3}', [formatTime(eta), formatDuration(secs), km, cost]);
+    return tr('Chegada {0} · {1}\nFaltam {2}{3}', [formatTime(eta), formatDuration(secs), km, '']);
   }
 
   /// Expedição: navegando, chegada e quanto falta pela rota do grupo (mesmo
@@ -5400,7 +5543,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final speed = _etaSpeed ?? (dur > 0 ? dist / dur : 16.7);
     final secs = (left / speed).round();
     final eta = DateTime.now().add(Duration(seconds: secs));
-    return tr('Chegada {0} · {1}\nFaltam {2}{3} · código {4}', [formatTime(eta), formatDuration(secs), formatDistance(left.round()), cost, _code]);
+    return tr('Chegada {0} · {1}\nFaltam {2}{3} · código {4}', [formatTime(eta), formatDuration(secs), formatDistance(left.round()), '', _code]);
   }
 
   /// Custo estimado da viagem para o MEU veículo: combustível (se o
@@ -5563,11 +5706,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final ra = _riderAlong;
     final d = (ra != null ? nav.routeDistanceTo(i, ra) : null) ??
         distanceMeters(p.latitude, p.longitude, s.lat, s.lng);
+    // Seta conforme a curva (suave, normal, fechada, saída, bifurcação...).
     final icon = switch (s.maneuver) {
-      final m when m.contains('left') => Icons.turn_left,
-      final m when m.contains('right') => Icons.turn_right,
+      'turn-slight-left' || 'ramp-left' || 'keep-left' => Icons.turn_slight_left,
+      'turn-slight-right' || 'ramp-right' || 'keep-right' => Icons.turn_slight_right,
+      'turn-sharp-left' => Icons.turn_sharp_left,
+      'turn-sharp-right' => Icons.turn_sharp_right,
+      'fork-left' || 'fork-right' => Icons.fork_right,
+      'uturn-left' => Icons.u_turn_left,
+      'uturn-right' => Icons.u_turn_right,
+      'roundabout-left' => Icons.roundabout_left,
       final m when m.startsWith('roundabout') => Icons.roundabout_right,
       'merge' => Icons.merge,
+      final m when m.contains('left') => Icons.turn_left,
+      final m when m.contains('right') => Icons.turn_right,
       _ => Icons.straight,
     };
     return Padding(

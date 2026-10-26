@@ -91,6 +91,9 @@ class CarOverlay(private val ctx: Context) {
 
     private fun icon(m: String) = when {
         m.startsWith("uturn") -> R.drawable.car_uturn
+        // Curva suave, saída e "mantenha-se": seta menos curvada.
+        m == "turn-slight-left" || m == "ramp-left" || m == "keep-left" || m == "fork-left" -> R.drawable.car_slight_left
+        m == "turn-slight-right" || m == "ramp-right" || m == "keep-right" || m == "fork-right" -> R.drawable.car_slight_right
         m.contains("left") -> R.drawable.car_turn_left
         m.contains("right") -> R.drawable.car_turn_right
         else -> R.drawable.car_straight
