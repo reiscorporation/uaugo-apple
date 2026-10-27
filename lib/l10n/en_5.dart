@@ -71,4 +71,5 @@ const en5 = <String, String>{
   'Minimizar mantém a rota e o comboio. Encerrar para a navegação (você continua no comboio).': 'Minimize keeps the route and the convoy. End stops navigation (you stay in the convoy).',
   'Minimizar mantém a rota: ao abrir o UauGo você volta para ela. Encerrar apaga a rota.': 'Minimize keeps the route: when you open UauGo you go back to it. End deletes the route.',
   'Minimizar': 'Minimize',
+  'Expedição "{0}" não encontrada (ou sem internet para conferir).': 'Expedition "{0}" not found (or no internet to check).',
 };

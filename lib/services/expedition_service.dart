@@ -76,7 +76,18 @@ class ExpeditionService {
 
   /// Procura uma expedição pelo código (null se não existir).
   Future<Expedition?> find(String code) async {
-    final doc = await _exp(code).get();
+    // Sem internet a consulta ao servidor ficava esperando (o app travava
+    // até a conexão voltar): espera no máximo 6 s e usa a cópia do celular.
+    DocumentSnapshot<Map<String, dynamic>> doc;
+    try {
+      doc = await _exp(code).get().timeout(const Duration(seconds: 6));
+    } catch (_) {
+      try {
+        doc = await _exp(code).get(const GetOptions(source: Source.cache));
+      } catch (_) {
+        return null;
+      }
+    }
     return doc.exists ? Expedition.fromDoc(doc) : null;
   }
 
@@ -85,11 +96,13 @@ class ExpeditionService {
     required String code,
     required String uid,
     required String userName,
-  }) {
-    return _exp(code).collection('members').doc(uid).set({
+  }) async {
+    // Não espera o servidor confirmar (sem internet isso travava a tela): o
+    // Firestore guarda e envia quando a conexão voltar.
+    _exp(code).collection('members').doc(uid).set({
       'name': userName,
       'joinedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    }, SetOptions(merge: true)).catchError((_) {});
   }
 
   /// Publica a moto do piloto para o comboio.

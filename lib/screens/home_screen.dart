@@ -220,7 +220,8 @@ class _HomeScreenState extends State<HomeScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('userName', userName);
       await prefs.setString('lastCode', code);
-      await NotificationService.subscribe(code);
+      // Sem esperar: sem internet a inscrição nos avisos ficava presa.
+      NotificationService.subscribe(code).catchError((_) {});
       _svc.updateBike(code, uid, await ProfileService.load());
       await UserService.addExpeditionHistory(code);
       AnalyticsService.event(planFirst ? 'expedition_create' : 'expedition_join');
@@ -277,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         final exp = await _svc.find(c);
         if (exp == null) {
-          _snack(tr('Expedição "{0}" não encontrada', [c]));
+          _snack(tr('Expedição "{0}" não encontrada (ou sem internet para conferir).', [c]));
           return null;
         }
         await _svc.join(code: c, uid: uid, userName: userName);
