@@ -236,7 +236,7 @@ class CarMapView(private val context: Context) {
         // Mais afastado que antes (pedido do Ricardo); +/− do motorista somam.
         // Perto de uma saída/conversão (até 400 m), aproxima sozinho.
         val n = CarState.nav
-        val nearTurn = n != null && n.meters < 400 && n.maneuver.isNotEmpty && n.maneuver != "straight"
+        val nearTurn = n != null && n.meters < 400 && n.maneuver.isNotEmpty() && n.maneuver != "straight"
         val zoom = (when {
             CarState.speedKmh >= 90 -> 13.4f
             CarState.speedKmh >= 50 -> 14.2f
