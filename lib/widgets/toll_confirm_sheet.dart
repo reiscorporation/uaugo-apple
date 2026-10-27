@@ -167,26 +167,28 @@ class _TollConfirmSheetState extends State<TollConfirmSheet> {
                   Text(list[i].car == null
                       ? tr('Valor não informado')
                       : '${tr('carro {0}', [formatMoney(list[i].car!)])} · ${_moto(list[i])}'),
+                  // "Corrigir" fica sempre disponível, mesmo em valor já
+                  // confirmado ou já informado por você: se alguém errou,
+                  // dá para consertar.
                   if (list[i].editable)
-                    _sent.contains(list[i].key)
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Text(tr('✓ Você já informou esta praça'),
-                                style: TextStyle(color: Colors.green.shade700)),
-                          )
-                        : Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                            if (list[i].car != null)
-                              TextButton.icon(
-                                icon: const Icon(Icons.check),
-                                label: Text(tr('Está certo')),
-                                onPressed: () => _send(list[i], list[i].car, list[i].motoValue),
-                              ),
-                            TextButton.icon(
-                              icon: const Icon(Icons.edit),
-                              label: Text(list[i].car == null ? tr('Informar valor') : tr('Corrigir')),
-                              onPressed: () => _correct(list[i]),
-                            ),
-                          ]),
+                    Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                      if (_sent.contains(list[i].key))
+                        Expanded(
+                          child: Text(tr('✓ Você já informou esta praça'),
+                              style: TextStyle(color: Colors.green.shade700)),
+                        )
+                      else if (list[i].car != null)
+                        TextButton.icon(
+                          icon: const Icon(Icons.check),
+                          label: Text(tr('Está certo')),
+                          onPressed: () => _send(list[i], list[i].car, list[i].motoValue),
+                        ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.edit),
+                        label: Text(list[i].car == null ? tr('Informar valor') : tr('Corrigir')),
+                        onPressed: () => _correct(list[i]),
+                      ),
+                    ]),
                 ]),
               ),
             ),
