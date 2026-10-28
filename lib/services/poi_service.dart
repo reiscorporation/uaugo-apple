@@ -151,6 +151,11 @@ class PoiService {
         for (final idx in _loaded.values) ...idx.near(lat, lng, meters),
       ];
 
+  /// Semáforos a até [meters] do piloto (desenhados no mapa).
+  List<(double, double)> signalsNear(double lat, double lng, double meters) => [
+        for (final idx in _loaded.values) ...idx.signalsNear(lat, lng, meters),
+      ];
+
   /// Há semáforo a até [meters] de (lat, lng)? (Voz: "no semáforo, vire".)
   bool signalNear(double lat, double lng, {double meters = 35}) =>
       _loaded.values.any((idx) => idx.signalNear(lat, lng, meters));

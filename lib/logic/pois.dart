@@ -86,6 +86,17 @@ class PoiIndex {
     return false;
   }
 
+  /// Semáforos a até [meters] (máx. ~1 km) de (lat, lng), para o mapa.
+  List<(double, double)> signalsNear(double lat, double lng, double meters) {
+    final la = (lat * 100).floor(), lo = (lng * 100).floor();
+    return [
+      for (var i = -1; i <= 1; i++)
+        for (var j = -1; j <= 1; j++)
+          for (final (a, b) in _signals[_key(la + i, lo + j)] ?? const <(double, double)>[])
+            if (distanceMeters(lat, lng, a, b) <= meters) (a, b),
+    ];
+  }
+
   /// Pontos a até [meters] (máx. ~1 km) de (lat, lng).
   List<Poi> near(double lat, double lng, double meters) {
     final la = (lat * 100).floor(), lo = (lng * 100).floor();

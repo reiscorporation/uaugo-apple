@@ -667,9 +667,9 @@ class SettingsScreen extends StatelessWidget {
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.traffic),
-                title: Text(tr('Semáforo nas curvas')),
+                title: Text(tr('Semáforos')),
                 subtitle: Text(
-                    tr('A voz diz "No semáforo, vire à direita". Opcional: os semáforos do estado só são baixados se você ligar.')),
+                    tr('Mostra os semáforos no mapa e a voz diz "No semáforo, vire à direita". Opcional: os semáforos do estado só são baixados se você ligar.')),
                 value: a.signals,
                 onChanged: (v) => s.setAlerts(a.copyWith(signals: v)),
               ),

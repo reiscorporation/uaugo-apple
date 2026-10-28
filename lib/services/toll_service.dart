@@ -29,6 +29,10 @@ class TollService {
   static const _file = 'pedagios.json.gz';
 
   TollTable? _table;
+
+  /// Valores que este piloto informou nesta sessão (carro, moto), pela chave
+  /// da praça: a tela mostra na hora, antes da tabela nova chegar.
+  final Map<String, (double?, double?)> mine = {};
   Future<TollTable?>? _loading;
 
   /// Última conferência da versão da tabela.
@@ -96,6 +100,13 @@ class TollService {
       'moto': moto,
       'at': FieldValue.serverTimestamp(),
     });
+    mine[key] = (car, moto);
+    // A função refaz a tabela em segundos: busca a nova logo em seguida.
+    Future.delayed(const Duration(seconds: 6), () async {
+      _checkedAt = DateTime.now();
+      final d = await getApplicationSupportDirectory();
+      await _refresh(File('${d.path}/$_file'));
+    }).catchError((_) {});
   }
 }
 

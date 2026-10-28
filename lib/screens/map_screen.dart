@@ -325,6 +325,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Postos policiais rodoviários perto (pins no mapa, como os radares).
   List<Poi> _policeMarkers = [];
   BitmapDescriptor? _policeIcon;
+  /// Semáforos perto do piloto (só com "Semáforos" ligado nas configurações).
+  List<(double, double)> _signalMarkers = [];
+  BitmapDescriptor? _signalIcon;
   ({String emoji, String text, bool Function(Position) passed})? _radarBanner;
 
   // ---- Visualização do mapa
@@ -820,6 +823,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _radarIcons[RadarKind.section] = await emojiMarker('⏱️', radarRed);
     _radarIcons[RadarKind.redLight] = await emojiMarker('🚦', radarRed);
     _policeIcon = await emojiMarker('🚔', Colors.blue.shade800);
+    _signalIcon = await emojiMarker('🚦', Colors.green.shade700);
     if (mounted) setState(() {});
   }
 
@@ -856,6 +860,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         for (final q in PoiService.instance.near(p.latitude, p.longitude, 10000))
           if (q.kind == PoiKind.policePost) q
       ].take(30).toList();
+      _signalMarkers = PoiService.instance
+          .signalsNear(p.latitude, p.longitude, 1500)
+          .take(60)
+          .toList();
     });
     _sendPoisToCar();
   }
@@ -3529,6 +3537,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       identityHashCode(_hazards),
       identityHashCode(_radarMarkers),
       identityHashCode(_policeMarkers),
+      identityHashCode(_signalMarkers),
       _policeIcon != null,
       _bikeIcons.length,
       _hazardIcons.length,
@@ -3698,6 +3707,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           zIndex: 4,
           icon: icon,
           infoWindow: InfoWindow(title: tr('Posto policial')),
+        ));
+      }
+    }
+    if (_signalIcon case final icon?) {
+      for (final (la, lo) in _signalMarkers) {
+        markers.add(Marker(
+          markerId: MarkerId('signal_${la}_$lo'),
+          position: LatLng(la, lo),
+          anchor: const Offset(0.5, 0.5),
+          zIndex: 3,
+          icon: icon,
+          infoWindow: InfoWindow(title: tr('Semáforo')),
         ));
       }
     }
@@ -4126,9 +4147,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
         // Recentralizar (aparece ao arrastar o mapa) + Iniciar / encerrar.
         // Deitado: à esquerda, para não tapar o marcador do piloto no centro.
+        // Em pé, fica entre as colunas de botões das laterais (não cobre).
         Positioned(
-          left: landscape ? 210 : 0,
-          right: landscape ? null : 0,
+          left: landscape ? 210 : 72,
+          right: landscape ? null : 72,
           bottom: _sim != null ? 196 : 28,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             if (!_follow && _me != null)
@@ -4151,7 +4173,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                 ),
               ),
-            if (_tripButton() case final btn?) btn,
+            if (_tripButton() case final btn?)
+              FittedBox(fit: BoxFit.scaleDown, child: btn),
           ]),
         ),
 
@@ -5096,13 +5119,36 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Rota em andamento: sair da tela pede confirmação.
   bool get _confirmExit =>
-      _navigating && _sim == null && !_arrivedAtDestination;
+      _sim != null ? _simStarted : _navigating && !_arrivedAtDestination;
 
   /// "Voltar" durante a navegação: pergunta se quer mesmo sair (a rota é
   /// encerrada). Na expedição, sair do mapa não tira do comboio.
   Future<void> _askExitNavigation() async {
     // "Voltar" não encerra a rota sozinho: minimizar mantém tudo como
     // está (ao abrir o app, volta para cá); encerrar só se o piloto pedir.
+    if (_sim != null) {
+      // Simulação: sair perde o andamento, então pergunta antes.
+      final leave = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(tr('Sair da simulação?')),
+          content: Text(tr('A simulação em andamento será perdida.')),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(tr('Continuar'))),
+            FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(tr('Sair'))),
+          ],
+        ),
+      );
+      if (leave != true || !mounted) return;
+      await _voice.stop();
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
     final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(

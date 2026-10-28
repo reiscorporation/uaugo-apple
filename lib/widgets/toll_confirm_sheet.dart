@@ -73,8 +73,9 @@ class _TollConfirmSheetState extends State<TollConfirmSheet> {
 
   Future<void> _correct(TollPlaza p) async {
     String fmt(double? v) => v == null ? '' : MoneyInputFormatter.format(v);
-    final carCtl = TextEditingController(text: fmt(p.car));
-    final motoCtl = TextEditingController(text: fmt(p.motoValue));
+    final (car0, moto0) = _values(p);
+    final carCtl = TextEditingController(text: fmt(car0));
+    final motoCtl = TextEditingController(text: fmt(moto0));
     double? parse(String s) {
       final t = s.trim().replaceAll(',', '.');
       return t.isEmpty ? null : double.tryParse(t);
@@ -116,9 +117,13 @@ class _TollConfirmSheetState extends State<TollConfirmSheet> {
     await _send(p, car, moto);
   }
 
+  /// Valor informado agora por este piloto (se houver) ou o da tabela.
+  (double?, double?) _values(TollPlaza p) =>
+      TollService.instance.mine[p.key] ?? (p.car, p.motoValue);
+
   String _moto(TollPlaza p) {
-    final m = p.motoValue;
-    if (p.moto == 0) return tr('moto isenta');
+    final m = _values(p).$2;
+    if (m == 0) return tr('moto isenta');
     if (m == null) return tr('moto: não informado');
     return tr('moto {0}', [formatMoney(m)]);
   }
@@ -164,9 +169,9 @@ class _TollConfirmSheetState extends State<TollConfirmSheet> {
                     _status(list[i]),
                   ]),
                   const SizedBox(height: 4),
-                  Text(list[i].car == null
+                  Text(_values(list[i]).$1 == null
                       ? tr('Valor não informado')
-                      : '${tr('carro {0}', [formatMoney(list[i].car!)])} · ${_moto(list[i])}'),
+                      : '${tr('carro {0}', [formatMoney(_values(list[i]).$1!)])} · ${_moto(list[i])}'),
                   // "Corrigir" fica sempre disponível, mesmo em valor já
                   // confirmado ou já informado por você: se alguém errou,
                   // dá para consertar.

@@ -436,13 +436,50 @@ class _PlanScreenState extends State<PlanScreen> {
     final list = [..._stops];
     final s = list.removeAt(oldIndex);
     list.insert(newIndex, s);
+    // A primeira é sempre a partida e a última o destino final: quem foi
+    // para o fim vira destino; o destino antigo, no meio, vira passagem.
+    final retype = <String, StopType>{};
+    for (var i = 0; i < list.length; i++) {
+      final last = i == list.length - 1 && list.length > 1;
+      final x = list[i];
+      final t = last
+          ? StopType.destination
+          : x.type == StopType.destination
+              ? StopType.waypoint
+              : x.type;
+      if (t != x.type) {
+        retype[x.id] = t;
+        list[i] = _withType(x, t);
+      }
+    }
     setState(() => _stops = list);
     await _guard(() async {
       await _svc.reorderStops(widget.code, list.map((x) => x.id).toList());
+      for (final e in retype.entries) {
+        await _svc.updateStop(widget.code, e.key, {'type': e.value.name});
+      }
       return true;
     });
     await _recalc(list);
   }
+
+  /// Cópia de [s] com outro tipo (partida/destino ao reordenar).
+  Stop _withType(Stop s, StopType t) => Stop(
+        id: s.id,
+        name: s.name,
+        lat: s.lat,
+        lng: s.lng,
+        order: s.order,
+        createdBy: s.createdBy,
+        address: s.address,
+        type: t,
+        stayMin: s.stayMin,
+        notes: s.notes,
+        nextDayStart: s.nextDayStart,
+        legDistanceM: s.legDistanceM,
+        legDurationS: s.legDurationS,
+        steps: s.steps,
+      );
 
   /// Remove uma parada (com confirmação) e recalcula.
   Future<void> _remove(Stop s) async {
