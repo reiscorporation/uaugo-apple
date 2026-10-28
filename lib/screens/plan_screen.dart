@@ -35,6 +35,7 @@ import '../logic/find_places.dart';
 import '../logic/simulation.dart' show RouteWalker;
 import '../services/places_service.dart';
 import 'map_screen.dart';
+import 'profile_screen.dart';
 import '../l10n/i18n.dart';
 import '../widgets/toll_confirm_sheet.dart';
 
@@ -903,18 +904,34 @@ class _PlanHeader extends StatelessWidget {
                 s.days.length == 1 ? tr('1 dia') : '${s.days.length} dias'),
           ]),
         // Combustível estimado (opcional: "Minha moto" → consumo e gastos).
-        if (s.stops.length >= 2 && AppSettings.instance.fuel.value.ready)
-          Builder(builder: (_) {
-            final f = AppSettings.instance.fuel.value;
-            final l = fuelLiters(s.totalDistanceM.toDouble(), f.kmPerLiter);
-            return Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                tr('⛽ Seu combustível estimado: {0} L · {1}', [formatDecimal(l), formatMoney(l * f.pricePerLiter)]),
-                textAlign: TextAlign.center,
-              ),
-            );
-          }),
+        // Cada piloto vê o próprio gasto, pelo consumo do SEU veículo
+        // ("Meu veículo", fica no celular); sem consumo, convida a informar.
+        if (s.stops.length >= 2)
+          ValueListenableBuilder<FuelPrefs>(
+            valueListenable: AppSettings.instance.fuel,
+            builder: (context, f, _) {
+              if (!f.ready) {
+                return Center(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                    icon: const Icon(Icons.local_gas_station_outlined, size: 18),
+                    label: Text(tr('Informe o consumo do seu veículo para ver seu gasto')),
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const ProfileScreen())),
+                  ),
+                );
+              }
+              final l = fuelLiters(s.totalDistanceM.toDouble(), f.kmPerLiter);
+              return Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  tr('⛽ Seu combustível estimado: {0} L · {1}', [formatDecimal(l), formatMoney(l * f.pricePerLiter)]) +
+                      tr(' ({0} km/l)', [formatDecimal(f.kmPerLiter)]),
+                  textAlign: TextAlign.center,
+                ),
+              );
+            },
+          ),
         // Pedágios da rota para o seu veículo (estimado) e custo total.
         if (s.stops.length >= 2 && tolls != null)
           Padding(
@@ -935,11 +952,11 @@ class _PlanHeader extends StatelessWidget {
                   onPressed: () => TollConfirmSheet.show(context, tolls!.list),
                 ),
           ),
-        if (s.stops.length >= 2 &&
-            tolls != null &&
-            AppSettings.instance.fuel.value.ready)
-          Builder(builder: (_) {
-            final f = AppSettings.instance.fuel.value;
+        if (s.stops.length >= 2 && tolls != null)
+          ValueListenableBuilder<FuelPrefs>(
+            valueListenable: AppSettings.instance.fuel,
+            builder: (_, f, __) {
+            if (!f.ready) return const SizedBox.shrink();
             final fuel = fuelLiters(s.totalDistanceM.toDouble(), f.kmPerLiter) *
                 f.pricePerLiter;
             return Padding(

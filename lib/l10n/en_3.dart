@@ -229,6 +229,8 @@ const en3 = <String, String>{
   'Semáforos': 'Traffic lights',
   'Mostra os semáforos no mapa e a voz diz "No semáforo, vire à direita". Opcional: os semáforos do estado só são baixados se você ligar.': 'Shows traffic lights on the map and the voice says "At the traffic light, turn right". Optional: traffic lights for the state are only downloaded if you turn it on.',
   'Sair da simulação?': 'Leave the simulation?',
+  'Informe o consumo do seu veículo para ver seu gasto': 'Enter your vehicle consumption to see your cost',
+  ' ({0} km/l)': ' ({0} km/l)',
   'A simulação em andamento será perdida.': 'The simulation in progress will be lost.',
   'A voz diz "No semáforo, vire à direita". Opcional: os semáforos do estado só são baixados se você ligar.': 'The voice says "At the traffic light, turn right". Optional: the state\'s traffic lights are only downloaded if you turn it on.',
   'Velocidade reduzida à frente': 'Reduced speed ahead',
