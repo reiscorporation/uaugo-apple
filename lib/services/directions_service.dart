@@ -21,6 +21,7 @@ import '../logic/navigation.dart';
 import '../logic/radars.dart' show nearestOnLine;
 import 'app_settings.dart';
 import 'hazard_service.dart';
+import 'route_engine_service.dart';
 import '../l10n/i18n.dart';
 
 /// Trecho entre dois pontos consecutivos do roteiro.
@@ -194,6 +195,17 @@ class DirectionsService {
     List<(double, double)> risks = const [],
     bool alternatives = false,
   }) async {
+    // Versão de teste do motor próprio: tenta nele primeiro; se falhar
+    // (fora do Wi-Fi, PC desligado), segue pelo Google.
+    if (RouteEngineService.enabled) {
+      final r = await RouteEngineService.route(points,
+          avoidTolls: avoidTolls,
+          avoidHighways: avoidHighways,
+          avoidFerries: AppSettings.instance.route.value.avoidFerries,
+          alternatives: alternatives);
+      if (r != null) return r;
+      RouteEngineService.lastUsed = false;
+    }
     try {
       final prefs = AppSettings.instance.route.value;
       final mids = points.sublist(1, points.length - 1).map(_fmt).join('|');

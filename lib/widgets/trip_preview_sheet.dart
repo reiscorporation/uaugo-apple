@@ -30,6 +30,7 @@ import '../services/planned_trips_service.dart';
 import '../services/toll_service.dart';
 import '../services/voice_service.dart';
 import '../services/trip_service.dart';
+import '../services/route_engine_service.dart';
 import '../l10n/i18n.dart';
 import 'toll_confirm_sheet.dart';
 import '../services/calendar_service.dart';
@@ -563,6 +564,15 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
+              // Versão de teste do motor próprio: mostra de onde veio a rota.
+              if (RouteEngineService.enabled)
+                Text(
+                    RouteEngineService.lastUsed
+                        ? '🧪 Rota pelo motor UauGo (teste)'
+                        : '🧪 Motor UauGo fora do ar: rota pelo Google',
+                    style: TextStyle(
+                        color: RouteEngineService.lastUsed ? Colors.teal : Colors.orange,
+                        fontWeight: FontWeight.w600)),
               // Outras rotas (ex.: não quer ir pela Anhanguera).
               if (_options.length > 1) ...[
                 const SizedBox(height: 6),
