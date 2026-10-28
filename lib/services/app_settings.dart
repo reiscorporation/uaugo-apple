@@ -162,7 +162,7 @@ class AlertPrefs {
     this.policeRepeats = 1,
     this.policePosts = true,
     this.bumps = AlertMode.off,
-    this.signals = false,
+    this.signals = true,
     this.reducedSpeed = true,
     this.halfway = false,
     this.rain = false,
@@ -356,7 +356,7 @@ class AppSettings {
       bumps: AlertMode.values.firstWhere(
           (m) => m.name == p.getString('alertBumps'),
           orElse: () => AlertMode.off),
-      signals: p.getBool('alertSignals') ?? false,
+      signals: p.getBool('alertSignals2') ?? true,
       reducedSpeed: p.getBool('alertReducedSpeed') ?? true,
       halfway: p.getBool('alertHalfway') ?? false,
       rain: p.getBool('alertRain') ?? false,
@@ -374,7 +374,7 @@ class AppSettings {
     await p.setInt('alertPoliceRepeats', a.policeRepeats);
     await p.setBool('alertPolicePosts', a.policePosts);
     await p.setString('alertBumps', a.bumps.name);
-    await p.setBool('alertSignals', a.signals);
+    await p.setBool('alertSignals2', a.signals);
     await p.setBool('alertReducedSpeed', a.reducedSpeed);
     await p.setBool('alertHalfway', a.halfway);
     await p.setBool('alertRain', a.rain);

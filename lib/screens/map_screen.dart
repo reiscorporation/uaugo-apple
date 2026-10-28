@@ -468,6 +468,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     CarService.instance.connected.addListener(_onCarConnected);
     _voiceCmd.start();
     _radarSvc.index.addListener(_onRadarIndex);
+    PoiService.instance.loaded.addListener(_onPoisLoaded);
     _radarSvc.init();
     _speedSvc.loadSettings();
     // "Minhas viagens": grava o caminho e as estatísticas no celular.
@@ -607,6 +608,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _hazardSub?.cancel();
     _askTimer?.cancel();
     _radarSvc.index.removeListener(_onRadarIndex);
+    PoiService.instance.loaded.removeListener(_onPoisLoaded);
     _sim?.dispose();
     if (_sim != null) {
       _voice.stop();
@@ -806,6 +808,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   // ------------------------------------------------------------ radares
+
+  /// Postos/semáforos de um estado acabaram de carregar: redesenha já
+  /// (sem esperar o piloto andar 200 m).
+  void _onPoisLoaded() {
+    _radarMarkersAt = null;
+    final p = _me;
+    if (p != null) _updateRadarsAround(p);
+  }
 
   /// A base de radares foi (re)carregada: refaz a lista de radares perto.
   void _onRadarIndex() {
@@ -4149,9 +4159,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Deitado: à esquerda, para não tapar o marcador do piloto no centro.
         // Em pé, fica entre as colunas de botões das laterais (não cobre).
         Positioned(
-          left: landscape ? 210 : 72,
-          right: landscape ? null : 72,
-          bottom: _sim != null ? 196 : 28,
+          left: landscape ? 210 : 112,
+          right: landscape ? null : 76,
+          bottom: _sim != null ? 196 : (landscape ? 28 : 104),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             if (!_follow && _me != null)
               Padding(

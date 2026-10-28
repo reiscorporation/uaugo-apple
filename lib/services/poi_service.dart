@@ -40,6 +40,9 @@ class PoiService {
   Future<void>? _metaFuture;
   int _nextId = 0;
 
+  /// Muda quando um estado termina de carregar (o mapa redesenha os pontos).
+  final loaded = ValueNotifier<int>(0);
+
   /// Lê o índice meta/pois (estados disponíveis, versão de cada arquivo).
   Future<void> _loadMeta() async {
     try {
@@ -122,6 +125,7 @@ class PoiService {
       final base = _nextId;
       _nextId += 10000000;
       _loaded[key] = await compute(_parse, (bytes, base));
+      loaded.value++;
       debugPrint('POIs $key: ${_loaded[key]!.length}');
     } catch (e) {
       _failed[key] = version;
