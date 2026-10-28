@@ -1,0 +1,117 @@
+// ============================================================================
+// sim3d_view.dart — Visão 3D da navegação (UauGo v2, só no Galaxy de teste)
+//
+// O que faz: Mostra a estrada da rota em 3D, em primeira pessoa, com o
+//   "tapete" azul na faixa, setas nas conversões e o destino (página em
+//   assets/sim3d/index.html, desenhada com three.js, sem internet). Só ruas,
+//   sem prédios: leve e prático.
+// Quem usa: MapScreen (navegação). Pinça para afastar na visão 3D volta ao
+//   mapa de cima; zoom para perto no mapa volta para o 3D.
+// Onde mexer: o desenho fica na página; aqui só a ponte com o app
+//   (Sim3DController.route / update / dark / active).
+// ============================================================================
+
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+
+import '../logic/navigation.dart';
+
+/// Ponte do app com a página 3D. Guarda o último estado e reenvia quando a
+/// página termina de carregar.
+class Sim3DController {
+  WebViewController? _web;
+  bool _ready = false;
+  String? _routeJson;
+  String? _lastUpdate;
+  bool _dark = false;
+  bool _active = true;
+
+  /// Rota (lat, lng), manobras e nome do destino.
+  void route(List<(double, double)> pts, List<NavStep> steps, String dest) {
+    _routeJson = jsonEncode({
+      'pts': [for (final p in pts) [p.$1, p.$2]],
+      'steps': [
+        for (final s in steps) {'la': s.lat, 'lo': s.lng, 'm': s.maneuver, 't': s.text}
+      ],
+      'dest': dest,
+    });
+    _run('sim3d.setRoute($_routeJson)');
+  }
+
+  /// Posição na rota (metros desde o início), velocidade (m/s) e se saiu
+  /// da rota (o tapete fica apagado).
+  void update(double along, double speedMs, bool offRoute) {
+    final j = jsonEncode({'along': along, 'v': speedMs, 'off': offRoute});
+    if (j == _lastUpdate) return;
+    _lastUpdate = j;
+    _run('sim3d.update($j)');
+  }
+
+  void dark(bool on) {
+    if (on == _dark) return;
+    _dark = on;
+    _run('sim3d.setDark($on)');
+  }
+
+  /// Escondida: para de desenhar (economiza bateria).
+  void active(bool on) {
+    if (on == _active) return;
+    _active = on;
+    _run('sim3d.setActive($on)');
+  }
+
+  void _run(String js) {
+    if (_ready) _web?.runJavaScript(js).catchError((_) {});
+  }
+
+  void _onReady() {
+    _ready = true;
+    _run('sim3d.setDark($_dark)');
+    if (_routeJson != null) _run('sim3d.setRoute($_routeJson)');
+    if (_lastUpdate != null) _run('sim3d.update($_lastUpdate)');
+    _run('sim3d.setActive($_active)');
+  }
+}
+
+class Sim3DView extends StatefulWidget {
+  const Sim3DView({super.key, required this.controller, required this.onBackToMap});
+
+  final Sim3DController controller;
+
+  /// Pinça para afastar: voltar ao mapa de cima.
+  final VoidCallback onBackToMap;
+
+  @override
+  State<Sim3DView> createState() => _Sim3DViewState();
+}
+
+class _Sim3DViewState extends State<Sim3DView> {
+  late final WebViewController _web;
+
+  @override
+  void initState() {
+    super.initState();
+    _web = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFFDBE7EE))
+      ..addJavaScriptChannel('Sim3D', onMessageReceived: (m) {
+        if (m.message == 'ready') widget.controller._onReady();
+        if (m.message == 'map') widget.onBackToMap();
+      })
+      ..loadFlutterAsset('assets/sim3d/index.html');
+    widget.controller._web = _web;
+  }
+
+  @override
+  void dispose() {
+    widget.controller
+      .._web = null
+      .._ready = false;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => WebViewWidget(controller: _web);
+}

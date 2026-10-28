@@ -1,0 +1,466 @@
+<!doctype html>
+<!--
+  sim3d/index.html — Visão 3D da navegação (UauGo v2, só no Galaxy de teste)
+
+  O que faz: Desenha em 3D, em primeira pessoa, a estrada da rota com o
+    "tapete" azul na faixa da direita, setas flutuando antes de cada
+    conversão e o destino com um feixe de luz. Só ruas (sem prédios): leve
+    e prático. A posição vem do app (GPS projetado na rota); entre uma
+    leitura e outra, o carro anda sozinho na velocidade atual (fica suave).
+  Quem usa: lib/widgets/sim3d_view.dart (WebView). O app chama:
+    sim3d.setRoute({pts:[[lat,lng]..], steps:[{la,lo,m,t}], dest})
+    sim3d.update({along, v, off})   along = metros desde o início da rota
+    sim3d.setDark(true|false), sim3d.setActive(true|false)
+  e recebe pelo canal "Sim3D": "ready", "map" (pinça para afastar = volta
+    ao mapa de cima).
+  Funciona sem internet: three.min.js vai junto no app.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+  :root { --sky-top: #5f9fd6; --sky-low: #dbe7ee; }
+  body.dark { --sky-top: #05080f; --sky-low: #16223a; }
+  html, body { margin: 0; height: 100%; overflow: hidden; touch-action: none; }
+  body { background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-low) 58%, var(--sky-low) 100%); }
+  canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<script src="three.min.js"></script>
+<script>
+'use strict';
+const send = m => { try { Sim3D.postMessage(m); } catch (_) {} };
+
+/* ---------- utilidades ---------- */
+const len = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);
+let LAT0 = 0, LON0 = 0, KX = 1, KY = 110540;
+const proj = (lat, lon) => [(lon - LON0) * KX, (lat - LAT0) * KY]; // x leste, y norte (m)
+
+function roundCorners(p) {
+  const out = [p[0]];
+  for (let i = 1; i < p.length - 1; i++) {
+    const a = p[i - 1], b = p[i], c = p[i + 1];
+    const l1 = len(a[0], a[1], b[0], b[1]), l2 = len(b[0], b[1], c[0], c[1]);
+    if (l1 < 0.5 || l2 < 0.5) { out.push(b); continue; }
+    const v1 = [(b[0] - a[0]) / l1, (b[1] - a[1]) / l1], v2 = [(c[0] - b[0]) / l2, (c[1] - b[1]) / l2];
+    if (v1[0] * v2[0] + v1[1] * v2[1] > 0.995) { out.push(b); continue; }
+    const t = Math.min(11, l1 * 0.45, l2 * 0.45);
+    const p1 = [b[0] - v1[0] * t, b[1] - v1[1] * t], p2 = [b[0] + v2[0] * t, b[1] + v2[1] * t];
+    for (let k = 0; k <= 8; k++) {
+      const u = k / 8, w0 = (1 - u) * (1 - u), w1 = 2 * u * (1 - u), w2 = u * u;
+      out.push([w0 * p1[0] + w1 * b[0] + w2 * p2[0], w0 * p1[1] + w1 * b[1] + w2 * p2[1]]);
+    }
+  }
+  out.push(p[p.length - 1]);
+  return out;
+}
+function resample(p, step) {
+  const out = [p[0].slice()];
+  let carry = 0;
+  for (let i = 1; i < p.length; i++) {
+    const a = p[i - 1], b = p[i], l = len(a[0], a[1], b[0], b[1]);
+    if (l === 0) continue;
+    let d = step - carry;
+    while (d <= l) { const u = d / l; out.push([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]); d += step; }
+    carry = l - (d - step);
+  }
+  out.push(p[p.length - 1].slice());
+  return out;
+}
+
+/* ---------- rota ---------- */
+const STEP = 2;      // amostra a cada 2 m (rotas longas cabem na memória)
+const LANE = 1.75;   // mão direita: o carro anda 1,75 m à direita do eixo
+let C = [], P = [], CUM = [0], TOTAL = 0;
+let RAW_CUM = [], RAW_S = []; // distância no traçado original -> no caminho suavizado
+let MAN = [], DEST = '';
+
+function idxAt(s) {
+  let lo = 0, hi = CUM.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (CUM[m] <= s) lo = m; else hi = m; }
+  return lo;
+}
+function at(arr, s) {
+  s = Math.max(0, Math.min(TOTAL, s));
+  const i = Math.min(idxAt(s), arr.length - 2), a = arr[i], b = arr[i + 1];
+  const seg = CUM[i + 1] - CUM[i] || 1, u = (s - CUM[i]) / seg;
+  const j = Math.min(arr.length - 1, i + 3), k = Math.max(0, i - 2);
+  const hl = len(arr[k][0], arr[k][1], arr[j][0], arr[j][1]) || 1;
+  return { x: a[0] + (b[0] - a[0]) * u, y: a[1] + (b[1] - a[1]) * u, dx: (arr[j][0] - arr[k][0]) / hl, dy: (arr[j][1] - arr[k][1]) / hl };
+}
+const posAt = s => at(P, s), centerAt = s => at(C, s);
+
+// metros do app (no traçado original) -> metros no caminho suavizado
+function sFromAlong(a) {
+  if (RAW_CUM.length < 2) return a;
+  let lo = 0, hi = RAW_CUM.length - 1;
+  if (a <= 0) return 0;
+  if (a >= RAW_CUM[hi]) return TOTAL;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (RAW_CUM[m] <= a) lo = m; else hi = m; }
+  const u = (a - RAW_CUM[lo]) / ((RAW_CUM[hi] - RAW_CUM[lo]) || 1);
+  return RAW_S[lo] + (RAW_S[hi] - RAW_S[lo]) * u;
+}
+
+function setRouteData(d) {
+  const pts = d.pts || [];
+  if (pts.length < 2) return false;
+  LAT0 = pts[0][0]; LON0 = pts[0][1]; KX = 111320 * Math.cos(LAT0 * Math.PI / 180);
+  const raw = [];
+  for (const q of pts) {
+    const p = proj(q[0], q[1]);
+    if (!raw.length || len(raw[raw.length - 1][0], raw[raw.length - 1][1], p[0], p[1]) > 0.3) raw.push(p);
+  }
+  if (raw.length < 2) return false;
+  C = resample(roundCorners(raw), STEP);
+  P = C.map((p, i) => {
+    const a = C[Math.max(0, i - 2)], b = C[Math.min(C.length - 1, i + 2)];
+    const l = len(a[0], a[1], b[0], b[1]) || 1, dx = (b[0] - a[0]) / l, dy = (b[1] - a[1]) / l;
+    return [p[0] + dy * LANE, p[1] - dx * LANE];
+  });
+  CUM = [0];
+  for (let i = 1; i < P.length; i++) CUM.push(CUM[i - 1] + len(P[i - 1][0], P[i - 1][1], P[i][0], P[i][1]));
+  TOTAL = CUM[CUM.length - 1];
+  // cada vértice original -> s (busca sempre para frente: rotas com retorno)
+  RAW_CUM = [0]; RAW_S = [];
+  for (let k = 1; k < raw.length; k++) RAW_CUM.push(RAW_CUM[k - 1] + len(raw[k - 1][0], raw[k - 1][1], raw[k][0], raw[k][1]));
+  // o app mede em lat/lng de verdade; corrige a pequena diferença de escala
+  const appLen = (() => {
+    let acc = 0;
+    for (let k = 1; k < pts.length; k++) {
+      const la = (pts[k][0] + pts[k - 1][0]) / 2 * Math.PI / 180;
+      acc += Math.hypot((pts[k][1] - pts[k - 1][1]) * 111320 * Math.cos(la), (pts[k][0] - pts[k - 1][0]) * 110540);
+    }
+    return acc;
+  })();
+  const k0 = appLen > 0 ? RAW_CUM[RAW_CUM.length - 1] / appLen : 1;
+  RAW_CUM = RAW_CUM.map(v => v / k0);
+  let from = 0;
+  for (let k = 0; k < raw.length; k++) {
+    let best = from, bd = 1e12;
+    for (let i = from; i < Math.min(C.length, from + 4000); i++) {
+      const dd = len(raw[k][0], raw[k][1], C[i][0], C[i][1]);
+      if (dd < bd) { bd = dd; best = i; }
+      if (bd < 4 && dd > bd + 60) break;
+    }
+    RAW_S.push(CUM[best]); from = best;
+  }
+  // manobras do app (Google: turn-left, ramp-right, roundabout-left...)
+  MAN = [];
+  let sFrom = 0;
+  for (const st of d.steps || []) {
+    const p = proj(st.la, st.lo);
+    let best = -1, bd = 60;
+    const i0 = idxAt(sFrom);
+    for (let i = i0; i < Math.min(C.length, i0 + 20000); i++) {
+      const dd = len(p[0], p[1], C[i][0], C[i][1]);
+      if (dd < bd) { bd = dd; best = i; }
+      if (best >= 0 && dd > bd + 200) break;
+    }
+    if (best < 0) continue;
+    const m = st.m || '', side = /left/.test(m) ? -1 : /right/.test(m) ? 1 : 0;
+    MAN.push({ s: CUM[best], side, m, t: st.t || '', street: streetOf(st.t || '') });
+    sFrom = CUM[best];
+  }
+  DEST = d.dest || '';
+  return true;
+}
+function streetOf(t) {
+  const m = t.match(/\b(?:na|no|para a|para o|para|em|pela|pelo|on|onto|toward|at)\s+(.+?)(?:\s*(?:\/|,|\(|Passe por|O destino).*)?$/i);
+  const s = (m ? m[1] : '').trim().replace(/[.;:]+$/, '');
+  return s.length > 30 ? s.slice(0, 29) + '…' : s;
+}
+
+/* ---------- cena ---------- */
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+renderer.setClearColor(0x000000, 0);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, 1, 0.4, 900);
+const hemi = new THREE.HemisphereLight(0xdfeeff, 0x8a8f86, 0.85); scene.add(hemi);
+const sunL = new THREE.DirectionalLight(0xfff1dc, 0.65); sunL.position.set(-180, 260, 120); scene.add(sunL);
+scene.fog = new THREE.Fog(0xdbe7ee, 70, 430);
+
+const PAL = {
+  day:   { fog: 0xdbe7ee, ground: 0xa9b1a4, walk: '#b9bdb8', road: '#40464f', white: '#f2f2ec', yellow: '#f2c230', hemi: 0.85, sun: 0.65 },
+  night: { fog: 0x16223a, ground: 0x1d2433, walk: '#3a4250', road: '#262b33', white: '#d9dee6', yellow: '#d7a92a', hemi: 0.55, sun: 0.25 },
+};
+let pal = PAL.day;
+const LV = { ground: 0, walk: 0.08, road: 0.12, mark: 0.15, carpet: 0.2 };
+const toV = (x, h, y) => new THREE.Vector3(x, h, -y);
+const col = h => new THREE.Color(h);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(2400, 2400).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: pal.ground }));
+scene.add(ground);
+
+// Rua em pedaços de 600 m perto do carro (rotas longas não pesam):
+// cada pedaço é desenhado em volta da sua própria origem (precisão do celular).
+const CHUNK = 600;
+const chunks = new Map();
+function flatMat(off) {
+  return new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -off, polygonOffsetUnits: -off, fog: true });
+}
+const MATS = { walk: flatMat(2), road: flatMat(3), mark: flatMat(4) };
+function Flat(ox, oy) { this.p = []; this.c = []; this.ox = ox; this.oy = oy; }
+Flat.prototype.tri = function (a, b, c, k) {
+  for (const v of [a, b, c]) { this.p.push(v[0] - this.ox, v[2], -(v[1] - this.oy)); this.c.push(k.r, k.g, k.b); }
+};
+Flat.prototype.strip = function (pts, hw, h, k, off) {
+  off = off || 0;
+  if (pts.length < 2) return;
+  const L = [], R = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+    let dx = b[0] - a[0], dy = b[1] - a[1]; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    const cx = pts[i][0] + dy * off, cy = pts[i][1] - dx * off;
+    L.push([cx - dy * hw, cy + dx * hw, h]); R.push([cx + dy * hw, cy - dx * hw, h]);
+  }
+  for (let i = 0; i < pts.length - 1; i++) { this.tri(L[i], R[i], L[i + 1], k); this.tri(R[i], R[i + 1], L[i + 1], k); }
+};
+Flat.prototype.mesh = function (mat) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, mat); m.position.set(this.ox, 0, -this.oy);
+  return m;
+};
+const ROAD_HW = 3.7; // rua de 2 faixas (o Google não diz a largura; o motor próprio dirá)
+function buildChunk(n) {
+  const s0 = n * CHUNK, s1 = Math.min(TOTAL, s0 + CHUNK + STEP);
+  if (s0 >= TOTAL) return null;
+  const i0 = idxAt(s0), i1 = Math.min(C.length - 1, idxAt(s1) + 1);
+  const pts = C.slice(i0, i1 + 1);
+  if (pts.length < 2) return null;
+  const o = pts[0], walk = new Flat(o[0], o[1]), road = new Flat(o[0], o[1]), mark = new Flat(o[0], o[1]);
+  const kWalk = col(pal.walk), kRoad = col(pal.road), kWhite = col(pal.white), kYellow = col(pal.yellow);
+  walk.strip(pts, ROAD_HW + 2.4, LV.walk, kWalk);
+  road.strip(pts, ROAD_HW, LV.road, kRoad);
+  // bordas brancas contínuas e eixo amarelo tracejado (3 m pintado, 5 m não)
+  mark.strip(pts, 0.1, LV.mark, kWhite, ROAD_HW - 0.35);
+  mark.strip(pts, 0.1, LV.mark, kWhite, -(ROAD_HW - 0.35));
+  const dashEvery = Math.round(8 / STEP), dashLen = Math.max(1, Math.round(3 / STEP));
+  for (let i = 0; i + dashLen < pts.length; i += dashEvery) {
+    const s = CUM[i0 + i];
+    if (MAN.some(m => Math.abs(m.s - s) < 16)) continue; // nada pintado no cruzamento
+    mark.strip(pts.slice(i, i + dashLen + 1), 0.08, LV.mark, kYellow);
+  }
+  // cruzamentos: a rua continua reto depois da conversão e do outro lado
+  for (const m of MAN) {
+    if (!m.side || m.s < s0 || m.s >= s0 + CHUNK) continue;
+    const before = centerAt(m.s - 16), corner = centerAt(m.s), after = centerAt(m.s + 16);
+    const stub = (x, y, dx, dy, L) => {
+      const q = []; for (let d = -6; d <= L; d += 2) q.push([x + dx * d, y + dy * d]);
+      walk.strip(q, ROAD_HW + 2.4, LV.walk - 0.01, kWalk);
+      road.strip(q, ROAD_HW, LV.road - 0.01, kRoad);
+    };
+    stub(corner.x, corner.y, before.dx, before.dy, 40);       // segue reto
+    stub(corner.x, corner.y, -after.dx, -after.dy, 30);       // a rua transversal do outro lado
+  }
+  const g = new THREE.Group();
+  g.add(walk.mesh(MATS.walk), road.mesh(MATS.road), mark.mesh(MATS.mark));
+  scene.add(g);
+  return g;
+}
+function disposeChunk(g) {
+  scene.remove(g);
+  g.children.forEach(m => m.geometry.dispose());
+}
+function clearChunks() { for (const g of chunks.values()) if (g) disposeChunk(g); chunks.clear(); }
+function updateChunks(s) {
+  const n = Math.floor(s / CHUNK), need = new Set([n - 1, n, n + 1]);
+  for (const [k, g] of chunks) if (!need.has(k)) { if (g) disposeChunk(g); chunks.delete(k); }
+  for (const k of need) if (k >= 0 && !chunks.has(k)) chunks.set(k, buildChunk(k));
+}
+
+/* ---------- tapete azul ---------- */
+const CARPET_N = 120, CARPET_L = 170;
+const carpetGeo = new THREE.BufferGeometry();
+{
+  const uv = new Float32Array((CARPET_N + 1) * 4), idx = [];
+  for (let i = 0; i <= CARPET_N; i++) { uv.set([0, 0, 1, 0], i * 4); if (i < CARPET_N) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } }
+  carpetGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((CARPET_N + 1) * 6), 3));
+  carpetGeo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  carpetGeo.setAttribute('dist', new THREE.BufferAttribute(new Float32Array((CARPET_N + 1) * 2), 1));
+  carpetGeo.setIndex(idx);
+}
+const carpetMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, side: THREE.DoubleSide,
+  polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6,
+  uniforms: { time: { value: 0 }, color: { value: new THREE.Color(0x46dcff) }, far: { value: CARPET_L }, dim: { value: 1 } },
+  vertexShader: 'varying vec2 vUv; varying float vD; attribute float dist; void main(){ vUv = uv; vD = dist; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+  fragmentShader: `uniform float time; uniform vec3 color; uniform float far; uniform float dim; varying vec2 vUv; varying float vD;
+    void main(){
+      float near = smoothstep(0.0, 6.0, vD);
+      float fade = 1.0 - smoothstep(far*0.55, far, vD);
+      float edge = smoothstep(0.36, 0.5, abs(vUv.x - 0.5));
+      float c = fract((vD - abs(vUv.x - 0.5) * 5.0) / 7.0 - time * 1.4);
+      float chev = smoothstep(0.0, 0.06, c) * (1.0 - smoothstep(0.16, 0.24, c));
+      vec3 col = mix(color, vec3(1.0), chev * 0.55 + edge * 0.35);
+      gl_FragColor = vec4(col, (0.5 + chev * 0.25 + edge * 0.3) * near * fade * dim);
+    }`,
+});
+const carpet = new THREE.Mesh(carpetGeo, carpetMat); carpet.renderOrder = 5; carpet.frustumCulled = false; scene.add(carpet);
+function updateCarpet(s) {
+  const pos = carpetGeo.attributes.position.array, dist = carpetGeo.attributes.dist.array;
+  const end = Math.min(TOTAL, s + CARPET_L), hw = 1.5, o = posAt(s);
+  carpet.position.set(o.x, 0, -o.y);
+  for (let i = 0; i <= CARPET_N; i++) {
+    const ss = s + (end - s) * (i / CARPET_N), p = posAt(ss);
+    pos.set([p.x - p.dy * hw - o.x, LV.carpet, -(p.y + p.dx * hw - o.y), p.x + p.dy * hw - o.x, LV.carpet, -(p.y - p.dx * hw - o.y)], i * 6);
+    dist[i * 2] = dist[i * 2 + 1] = ss - s;
+  }
+  carpetGeo.attributes.position.needsUpdate = true; carpetGeo.attributes.dist.needsUpdate = true;
+}
+
+/* ---------- setas nas conversões e destino ---------- */
+const chevGeo = new THREE.ExtrudeGeometry(
+  new THREE.Shape([[-0.55, 1], [0.05, 1], [0.75, 0], [0.05, -1], [-0.55, -1], [0.15, 0]].map(([x, y]) => new THREE.Vector2(x, y))),
+  { depth: 0.14, bevelEnabled: false }).translate(0, 0, -0.07);
+function label(text, sub) {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = sub ? 256 : 160;
+  const g = c.getContext('2d');
+  g.font = '700 80px "Roboto Condensed", "Roboto", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = 'rgba(0,0,0,0.6)'; g.shadowBlur = 14; g.fillStyle = '#fff';
+  g.fillText(text.toUpperCase(), 512, sub ? 92 : 70, 980);
+  g.shadowBlur = 0; g.fillRect(252, sub ? 150 : 130, 520, 5);
+  if (sub) { g.font = '500 50px "Roboto", sans-serif'; g.fillText(sub, 512, 205, 980); }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, fog: false }));
+  sp.scale.set(14, 14 * c.height / 1024, 1);
+  return sp;
+}
+let markers = [], destObjs = [];
+function clearMarkers() {
+  for (const mk of markers) scene.remove(mk.g);
+  for (const o of destObjs) scene.remove(o);
+  markers = []; destObjs = [];
+}
+// as setas só existem perto do carro (rotas com centenas de manobras)
+function markerFor(m) {
+  const g = new THREE.Group(), before = posAt(m.s - 14), at_ = posAt(m.s);
+  const yaw = Math.atan2(-before.dx, before.dy);
+  for (let k = 0; k < 3; k++) {
+    const c = new THREE.Mesh(chevGeo, new THREE.MeshBasicMaterial({ color: 0x3fc6ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, fog: false }));
+    c.scale.set(m.side * 1.25, 1.25, 1.25);
+    const off = (k * 3.6 - 1.2) * m.side;
+    c.position.copy(toV(at_.x + before.dx * 9 + before.dy * off, 2.8, at_.y + before.dy * 9 - before.dx * off));
+    c.rotation.y = yaw; c.userData.k = k; g.add(c);
+  }
+  if (m.street) {
+    const lab = label(m.street);
+    lab.position.copy(toV(at_.x + before.dx * 9 + before.dy * m.side * 3, 5.6, at_.y + before.dy * 9 - before.dx * m.side * 3));
+    g.add(lab);
+  }
+  scene.add(g);
+  return g;
+}
+function updateMarkers(s, time) {
+  for (const m of MAN) {
+    if (!m.side) continue;
+    const d = m.s - s, want = d > -6 && d < 280;
+    let mk = markers.find(x => x.m === m);
+    if (want && !mk) { mk = { m, g: markerFor(m) }; markers.push(mk); }
+    if (!want && mk) { scene.remove(mk.g); markers = markers.filter(x => x !== mk); continue; }
+    if (!mk) continue;
+    const a = Math.min(1, (280 - d) / 60) * Math.min(1, (d + 6) / 8);
+    mk.g.children.forEach(c => {
+      if (c.isSprite) { c.material.opacity = a; return; }
+      const k = c.userData.k, pulse = 0.55 + 0.45 * Math.max(0, Math.sin(time * 5 - k * 0.9));
+      c.material.opacity = a * (0.45 + 0.5 * pulse); c.position.y = 2.8 + Math.sin(time * 2 + k) * 0.15;
+    });
+  }
+}
+function buildDest() {
+  const end = posAt(TOTAL), x = end.x - end.dy * 5, y = end.y + end.dx * 5;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 60, 18, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x46dcff, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+  beam.position.copy(toV(x, 30, y));
+  const pin = label(DEST || 'Destino', 'Destino');
+  pin.position.copy(toV(x, 14, y)); pin.scale.multiplyScalar(1.5);
+  destObjs = [beam, pin];
+  scene.add(beam, pin);
+}
+
+/* ---------- estado vindo do app ---------- */
+let hasRoute = false, active = true;
+let s = 0, v = 0, target = 0, offRoute = false;
+const look = new THREE.Vector3();
+let lookInit = false;
+
+window.sim3d = {
+  setRoute(d) {
+    clearChunks(); clearMarkers();
+    hasRoute = setRouteData(typeof d === 'string' ? JSON.parse(d) : d);
+    if (!hasRoute) return;
+    buildDest();
+    lookInit = false;
+  },
+  update(d) {
+    if (typeof d === 'string') d = JSON.parse(d);
+    if (!hasRoute) return;
+    const ns = sFromAlong(d.along || 0);
+    // salto grande (recálculo, GPS voltou): vai direto; senão, só corrige
+    if (Math.abs(ns - s) > 60) s = ns;
+    target = ns; v = Math.max(0, d.v || 0); offRoute = !!d.off;
+  },
+  setDark(on) {
+    pal = on ? PAL.night : PAL.day;
+    document.body.classList.toggle('dark', !!on);
+    scene.fog.color.setHex(pal.fog); ground.material.color.setHex(pal.ground);
+    hemi.intensity = pal.hemi; sunL.intensity = pal.sun;
+    clearChunks();
+  },
+  setActive(on) {
+    const was = active; active = !!on;
+    if (active && !was) { t0 = performance.now(); requestAnimationFrame(frame); }
+  },
+};
+
+/* ---------- pinça: afastar os dedos ao contrário (zoom para fora) volta ao mapa ---------- */
+let pinch0 = 0, pinchSent = false;
+const tdist = e => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+addEventListener('touchstart', e => { if (e.touches.length === 2) { pinch0 = tdist(e); pinchSent = false; } }, { passive: true });
+addEventListener('touchmove', e => {
+  if (e.touches.length === 2 && pinch0 > 0 && !pinchSent && tdist(e) / pinch0 < 0.72) { pinchSent = true; send('map'); }
+}, { passive: true });
+addEventListener('touchend', () => { pinch0 = 0; }, { passive: true });
+
+/* ---------- desenho ---------- */
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h;
+  camera.fov = w < h ? 72 : 55; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+let t0 = performance.now(), time = 0;
+function frame(now) {
+  if (!active) return;
+  const dt = Math.min(0.1, (now - t0) / 1000); t0 = now; time += dt;
+  if (hasRoute) {
+    // anda na velocidade atual e encosta aos poucos na posição do GPS
+    s += v * dt;
+    s += (target + v * 0.5 - s) * Math.min(1, dt * 1.5);
+    s = Math.max(0, Math.min(TOTAL, s));
+    updateChunks(s);
+    const p = posAt(s), f = posAt(s + 22);
+    ground.position.set(p.x, LV.ground, -p.y);
+    camera.position.copy(toV(p.x, 1.35, p.y));
+    const want = toV(f.x, 0.85, f.y);
+    if (!lookInit) { look.copy(want); lookInit = true; } else look.lerp(want, 1 - Math.exp(-dt * 5));
+    camera.lookAt(look);
+    updateCarpet(s + 1.5);
+    carpetMat.uniforms.time.value = time;
+    carpetMat.uniforms.dim.value += ((offRoute ? 0.25 : 1) - carpetMat.uniforms.dim.value) * Math.min(1, dt * 3);
+    updateMarkers(s, time);
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+send('ready');
+</script>
+</body>
+</html>

@@ -82,6 +82,7 @@ import 'settings_screen.dart';
 import '../l10n/i18n.dart';
 import '../widgets/toll_confirm_sheet.dart';
 import '../services/media_service.dart';
+import '../widgets/sim3d_view.dart';
 
 /// Tela de mapa/navegação. Três usos:
 /// - expedição em grupo: [code] preenchido;
@@ -404,6 +405,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   DateTime _lastReroute = DateTime.fromMillisecondsSinceEpoch(0);
   double _zoomOffset = 0; // botões + e − (somam ao zoom de acompanhamento)
 
+  // v2: estrada em 3D, em primeira pessoa, por cima do mapa. Pinça para
+  // afastar volta ao mapa de cima; zoom bem perto no mapa volta para o 3D.
+  final _sim3d = Sim3DController();
+  bool _show3d = false;
+  String _sim3dSig = '';
+
   /// Navegação ativa (narração, painel de manobras, recálculo). Na
   /// expedição começa desligada e o piloto toca em "Iniciar navegação".
   bool _navigating = false;
@@ -421,6 +428,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // Navegando sozinho, a câmera começa em primeira pessoa e a navegação
       // já está ativa (o piloto tocou em "Iniciar" na prévia).
       _view = _MapView.solo;
+      _show3d = true; // v2: navegação começa na visão 3D
       if (!widget.simulate) {
         _navigating = true;
         if (_trip != null) _voice.setNarration(true);
@@ -710,6 +718,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _checkPois(p);
     _checkHalfway();
     if (!_inBackground) _updateCamera(p);
+    if (!_inBackground) _feed3d();
     // Grava o caminho (só no celular) na expedição ou navegando.
     if (_isExpedition || _navigating) {
       _recorder?.add(p.latitude, p.longitude, _speedMs, p.timestamp);
@@ -3883,6 +3892,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             final p = _me;
             if (p != null) _updateCamera(p, force: true);
           },
+          // v2: zoom bem perto com os dedos (primeira pessoa) volta para o 3D.
+          onCameraMove: (c) {
+            if (!_show3d && !_follow && _canShow3d && c.zoom >= 19.6) {
+              _set3d(true);
+            }
+          },
           onLongPress: _isExpedition
               ? _addStopAt
               : (_canAddSoloStop
@@ -3890,6 +3905,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   : (_canStartRoute ? _startRouteAt : null)),
         ),
         ),
+
+        // v2: estrada em 3D por cima do mapa (os avisos e botões ficam por cima).
+        if (_show3d && _canShow3d)
+          Positioned.fill(
+            child: Sim3DView(
+              controller: _sim3d,
+              onBackToMap: () => _set3d(false),
+            ),
+          ),
 
         // Botões e faixas ficam acima da barra de navegação do Android
         // (no Samsung o app vai até a borda da tela).
@@ -4361,6 +4385,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               child: Icon(_view == _MapView.convoy ? Icons.groups_2 : Icons.visibility),
             ),
             const SizedBox(height: 12),
+            // v2: 3D (estrada em primeira pessoa) ou mapa de cima.
+            if (_canShow3d) ...[
+              FloatingActionButton.small(
+                heroTag: '3d',
+                tooltip: _show3d ? tr('Ver o mapa') : tr('Ver em 3D'),
+                onPressed: () => _set3d(!_show3d),
+                child: Icon(_show3d ? Icons.map : Icons.view_in_ar),
+              ),
+              const SizedBox(height: 12),
+            ],
             ValueListenableBuilder<bool>(
               valueListenable: _voice.alertsOn,
               builder: (_, on, __) => FloatingActionButton.small(
@@ -4989,6 +5023,43 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Próxima manobra "de verdade" (pula "Continue para...") e a distância
   /// até ela (pela rota, quando houver).
+  /// v2: a visão 3D cabe aqui? (sozinho, primeira pessoa, com rota)
+  bool get _canShow3d =>
+      !_isExpedition && _view == _MapView.solo && _routeRecs.length >= 2 &&
+      (_navigating || _sim != null);
+
+  /// v2: liga/desliga a visão 3D. Voltando ao mapa, ele já vem acompanhando.
+  void _set3d(bool on) {
+    if (on == _show3d) return;
+    setState(() {
+      _show3d = on;
+      _follow = true;
+      if (!on) _zoomOffset = 0;
+    });
+    if (on) {
+      _sim3dSig = ''; // página nova: manda a rota de novo
+      WidgetsBinding.instance.addPostFrameCallback((_) => _feed3d());
+    } else if (_me case final p?) {
+      _updateCamera(p, force: true);
+    }
+  }
+
+  /// v2: mantém a visão 3D com a rota, as manobras e a posição atuais.
+  void _feed3d() {
+    if (!_show3d || !_canShow3d) return;
+    final steps = _nav?.steps ?? const <NavStep>[];
+    final sig = '$_routeSig|${steps.length}';
+    if (sig != _sim3dSig) {
+      _sim3dSig = sig;
+      _sim3d.route(_routeRecs, steps, _trip?.title ?? '');
+    }
+    _sim3d.dark(_darkMap);
+    final pr = _proj;
+    if (pr != null) {
+      _sim3d.update(pr.along, _speedMs, _offRoute || pr.offset > 40);
+    }
+  }
+
   ({NavStep step, double meters})? _upcomingTurn(Position p) {
     final nav = _nav;
     if (nav == null || nav.finished) return null;

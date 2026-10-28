@@ -72,4 +72,6 @@ const en5 = <String, String>{
   'Minimizar mantém a rota: ao abrir o UauGo você volta para ela. Encerrar apaga a rota.': 'Minimize keeps the route: when you open UauGo you go back to it. End deletes the route.',
   'Minimizar': 'Minimize',
   'Expedição "{0}" não encontrada (ou sem internet para conferir).': 'Expedition "{0}" not found (or no internet to check).',
+  'Ver o mapa': 'Show the map',
+  'Ver em 3D': 'Show in 3D',
 };
