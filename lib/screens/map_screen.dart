@@ -410,6 +410,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final _sim3d = Sim3DController();
   bool _show3d = false;
   String _sim3dSig = '';
+  /// v2: 3D sempre, só mapa, ou mapa que vira 3D perto de saídas/bifurcações.
+  _Mode3d _mode3d = _Mode3d.always;
+  /// Pinça/zoom do piloto: o modo "nas saídas" não troca sozinho por um tempo.
+  DateTime _manual3dUntil = DateTime(0);
   DateTime _alerts3dAt = DateTime(0);
 
   /// Navegação ativa (narração, painel de manobras, recálculo). Na
@@ -485,6 +489,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Tela: sempre ligada navegando; no resto, pela opção (Configurações → Tela).
     _applyWakelock();
     AppSettings.instance.keepScreenOn.addListener(_applyWakelock);
+    SharedPreferences.getInstance().then((prefs) {
+      final m = _Mode3d.values.where((x) => x.name == prefs.getString('mode3d'));
+      if (m.isNotEmpty && mounted) _setMode3d(m.first, save: false);
+    });
     if (_isExpedition) {
       SharedPreferences.getInstance().then((prefs) {
         if (prefs.getString('mapView') == _MapView.solo.name && mounted) {
@@ -719,6 +727,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _checkPois(p);
     _checkHalfway();
     if (!_inBackground) _updateCamera(p);
+    if (!_inBackground) _autoExit3d(p);
     if (!_inBackground) _feed3d();
     // Grava o caminho (só no celular) na expedição ou navegando.
     if (_isExpedition || _navigating) {
@@ -3896,6 +3905,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           // v2: zoom bem perto com os dedos (primeira pessoa) volta para o 3D.
           onCameraMove: (c) {
             if (!_show3d && !_follow && _canShow3d && c.zoom >= 19.6) {
+              _manual3dUntil = DateTime.now().add(const Duration(seconds: 20));
               _set3d(true);
             }
           },
@@ -3912,7 +3922,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           Positioned.fill(
             child: Sim3DView(
               controller: _sim3d,
-              onBackToMap: () => _set3d(false),
+              onBackToMap: () {
+                _manual3dUntil = DateTime.now().add(const Duration(seconds: 20));
+                _set3d(false);
+              },
             ),
           ),
 
@@ -4390,9 +4403,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             if (_canShow3d) ...[
               FloatingActionButton.small(
                 heroTag: '3d',
-                tooltip: _show3d ? tr('Ver o mapa') : tr('Ver em 3D'),
-                onPressed: () => _set3d(!_show3d),
-                child: Icon(_show3d ? Icons.map : Icons.view_in_ar),
+                tooltip: tr('Escolher a visão'),
+                onPressed: _chooseMode3d,
+                child: Icon(_mode3d.icon),
               ),
               const SizedBox(height: 12),
             ],
@@ -5028,6 +5041,59 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool get _canShow3d =>
       !_isExpedition && _view == _MapView.solo && _routeRecs.length >= 2 &&
       (_navigating || _sim != null);
+
+  /// v2: escolha da visão (3D sempre / mapa / mapa + 3D nas saídas).
+  Future<void> _chooseMode3d() async {
+    final m = await showModalBottomSheet<_Mode3d>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(title: Text(tr('Visão da navegação'), style: Theme.of(ctx).textTheme.titleMedium)),
+          for (final x in _Mode3d.values)
+            ListTile(
+              leading: Icon(x.icon),
+              title: Text(x.label),
+              subtitle: Text(x.hint),
+              trailing: x == _mode3d ? const Icon(Icons.check) : null,
+              onTap: () => Navigator.pop(ctx, x),
+            ),
+        ]),
+      ),
+    );
+    if (m != null && mounted) _setMode3d(m);
+  }
+
+  void _setMode3d(_Mode3d m, {bool save = true}) {
+    setState(() => _mode3d = m);
+    _manual3dUntil = DateTime(0);
+    if (save) SharedPreferences.getInstance().then((p) => p.setString('mode3d', m.name));
+    switch (m) {
+      case _Mode3d.always:
+        _set3d(true);
+      case _Mode3d.map:
+        _set3d(false);
+      case _Mode3d.exits:
+        final p = _me;
+        _set3d(p != null && _nearExit(p));
+    }
+  }
+
+  /// Próxima manobra é saída/bifurcação/"mantenha-se" e está perto (600 m;
+  /// já em 3D, só volta ao mapa depois de passar ou se ficar a mais de 750 m).
+  bool _nearExit(Position p) {
+    if (!_navigating && _sim == null) return false;
+    final turn = _upcomingTurn(p);
+    if (turn == null) return false;
+    final m = turn.step.maneuver;
+    final exit = RegExp('ramp|fork|keep').hasMatch(m) && RegExp('left|right').hasMatch(m);
+    return exit && turn.meters < (_show3d ? 750 : 600);
+  }
+
+  /// Modo "nas saídas": entra no 3D perto de saídas e volta ao mapa depois.
+  void _autoExit3d(Position p) {
+    if (_mode3d != _Mode3d.exits || DateTime.now().isBefore(_manual3dUntil)) return;
+    _set3d(_nearExit(p));
+  }
 
   /// v2: liga/desliga a visão 3D. Voltando ao mapa, ele já vem acompanhando.
   void _set3d(bool on) {
@@ -6091,3 +6157,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
 /// Comboio: vista de cima. Solo: primeira pessoa, olhando a estrada.
 enum _MapView { convoy, solo }
+
+/// v2: como a navegação mostra a estrada 3D.
+enum _Mode3d {
+  always('3D sempre', 'Estrada em 3D o tempo todo', Icons.view_in_ar),
+  map('Mapa', 'Mapa de cima o tempo todo', Icons.map),
+  exits('Mapa + 3D nas saídas', 'Mapa normal; vira 3D perto de saídas e bifurcações', Icons.alt_route);
+
+  const _Mode3d(this._label, this._hint, this.icon);
+  final String _label;
+  final String _hint;
+  final IconData icon;
+  String get label => tr(_label);
+  String get hint => tr(_hint);
+}

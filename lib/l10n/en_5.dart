@@ -74,4 +74,12 @@ const en5 = <String, String>{
   'Expedição "{0}" não encontrada (ou sem internet para conferir).': 'Expedition "{0}" not found (or no internet to check).',
   'Ver o mapa': 'Show the map',
   'Ver em 3D': 'Show in 3D',
+  'Escolher a visão': 'Choose the view',
+  'Visão da navegação': 'Navigation view',
+  '3D sempre': 'Always 3D',
+  'Estrada em 3D o tempo todo': 'Road in 3D all the time',
+  'Mapa': 'Map',
+  'Mapa de cima o tempo todo': 'Top-down map all the time',
+  'Mapa + 3D nas saídas': 'Map + 3D at exits',
+  'Mapa normal; vira 3D perto de saídas e bifurcações': 'Normal map; switches to 3D near exits and forks',
 };

@@ -112,6 +112,7 @@ class _Sim3DViewState extends State<Sim3DView> {
       ..addJavaScriptChannel('Sim3D', onMessageReceived: (m) {
         if (m.message == 'ready') widget.controller._onReady();
         if (m.message == 'map') widget.onBackToMap();
+        if (m.message.startsWith('log:')) debugPrint('Sim3D ${m.message.substring(4)}');
       })
       ..loadFlutterAsset('assets/sim3d/index.html');
     widget.controller._web = _web;
