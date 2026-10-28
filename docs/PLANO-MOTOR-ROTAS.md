@@ -22,6 +22,27 @@ Decisão do Ricardo (24/10/2026): criar o motor próprio, com cuidado para traç
 - Tempos 10–20% maiores (velocidades padrão, sem trânsito): **calibrar velocidades** antes de usar.
 - Moto x carro na Marginal Tietê: inconclusivo; conferir `motorcycle=no` das expressas no OSM.
 
+## Trânsito (decisão 28/10/2026)
+- O motor não tem trânsito. Fonte final: **os próprios usuários** (velocidade real de quem está com o app
+  aberto em cada trecho, anônima) + **horário típico** aprendido com o tempo (ex.: avenida lenta às 18h).
+- **No começo, o Google informa o trânsito** até haver usuários suficientes em cada região: o motor traça o
+  caminho e o Google só diz se há lentidão (e, se houver, oferece a rota dele). Menos chamadas que hoje.
+
+## Teste no Galaxy + comparação ampla (28/10/2026) — `E:/UauGo-motor/comparacao-2026-10-28.md`
+- Galaxy (versão de teste, Wi-Fi de casa) traçou rotas pelo motor. Limite de distância removido
+  (`service_limits.*.max_distance` = 100.000 km no `valhalla.json`; moto vinha com 500 km e recusava a Bahia).
+- Comparação automática: `python E:/UauGo-motor/comparar.py` (41 viagens: estrada, longas, cidade, sem pedágio).
+  - Estrada: distância +3% e tempo +14% em média; erros a corrigir: RP→São Carlos (+24 km),
+    RP→Poços de Caldas (+27 km), RP→Franca (+17 km), RP→BH (+27 km).
+  - Cidade de Ribeirão: o motor escolhe caminhos piores (USP→Ribeirão Shopping +6 km).
+  - Campinas: tempo 70–100% maior (velocidades urbanas baixas demais).
+  - **Evitar pedágio não funciona**: no Brasil o OSM marca a rodovia inteira como pedágio (`toll=yes`, ex.:
+    SP-330), mas só se paga na praça. `exclude_tolls` dá 561 km (Google: 418 km sem pedágio) e
+    `toll_booth_penalty` usa praças do OSM que não batem com as do Google. Caminho: evitar as **nossas praças**
+    (tabela de pedágios do app) com `exclude_locations`, sem penalizar a rodovia.
+  - A coluna "caminho igual" desta rodada usou o resumo do traçado do Google (corta curvas); o script já usa o
+    traçado detalhado nas próximas rodadas.
+
 ## Como montar de novo
 - Mapa: `https://download.geofabrik.de/south-america/brazil-latest.osm.pbf` em `E:\UauGo-motor\dados`.
 - Docker: `ghcr.io/valhalla/valhalla-scripted:latest`, porta 8002, `server_threads=4`
