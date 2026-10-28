@@ -17,7 +17,7 @@
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove"/>
     <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove"/>
     <application
-        android:label="UauGo"
+        android:label="${appLabel}"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <!-- Estatísticas sem publicidade: não coleta o identificador de

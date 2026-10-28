@@ -23,7 +23,9 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "helpaitech.comboio"
+        // v2 (só Galaxy de teste): app separado "UauGo2", convive com o UauGo.
+        applicationId = "helpaitech.comboio.v2"
+        manifestPlaceholders["appLabel"] = "UauGo2"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

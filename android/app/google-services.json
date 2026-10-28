@@ -12,7 +12,52 @@
           "package_name": "helpaitech.comboio"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "400765436328-31bra252uag3sthq0733rfcr0hpspkfq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "helpaitech.comboio",
+            "certificate_hash": "c57a1ab585a8982f829d7f4f109552d37915fa25"
+          }
+        },
+        {
+          "client_id": "400765436328-499hctsmtf27qq88qfb5cqiuud2tiq01.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "helpaitech.comboio",
+            "certificate_hash": "aebb4cdba30892cacc23451a7737aa261d0a52c0"
+          }
+        },
+        {
+          "client_id": "400765436328-6a9v387k81qull3f83mdml75kth2qa79.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "helpaitech.comboio",
+            "certificate_hash": "1ed39b399a099c725155575cffb467a6e1ee35a5"
+          }
+        },
+        {
+          "client_id": "400765436328-8nmjki6hl5dc4710nb9hbkbs44gbmapq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "helpaitech.comboio",
+            "certificate_hash": "4c7e93811c63107a89d0d7bb7e22bd71b782915a"
+          }
+        },
+        {
+          "client_id": "400765436328-kcn0s5nipjr6irrs2k1dhoo0f0m08nes.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "helpaitech.comboio",
+            "certificate_hash": "45ed61390cdf4ec6ba833913ec202101b25d59cb"
+          }
+        },
+        {
+          "client_id": "400765436328-er279i6qgpi0u7iu6dk7bg8ga1ng57lc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD6bWlrTh--fUw53ZCUJek8uKp5vmuaG5U"
@@ -20,7 +65,63 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "400765436328-er279i6qgpi0u7iu6dk7bg8ga1ng57lc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "400765436328-pcaggcge30oqfk2hlnub1ip8g8s6ssr1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "helpaitech.comboio"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:400765436328:android:a1378cf2ef645494d7dd9d",
+        "android_client_info": {
+          "package_name": "helpaitech.comboio.v2"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "400765436328-p5sah7gcu56in6k334q2nmdpdvs63nl2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "helpaitech.comboio.v2",
+            "certificate_hash": "45ed61390cdf4ec6ba833913ec202101b25d59cb"
+          }
+        },
+        {
+          "client_id": "400765436328-er279i6qgpi0u7iu6dk7bg8ga1ng57lc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6bWlrTh--fUw53ZCUJek8uKp5vmuaG5U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "400765436328-er279i6qgpi0u7iu6dk7bg8ga1ng57lc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "400765436328-pcaggcge30oqfk2hlnub1ip8g8s6ssr1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "helpaitech.comboio"
+              }
+            }
+          ]
         }
       }
     }
