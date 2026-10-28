@@ -410,6 +410,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final _sim3d = Sim3DController();
   bool _show3d = false;
   String _sim3dSig = '';
+  DateTime _alerts3dAt = DateTime(0);
 
   /// Navegação ativa (narração, painel de manobras, recálculo). Na
   /// expedição começa desligada e o piloto toca em "Iniciar navegação".
@@ -5058,7 +5059,53 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (pr != null) {
       _sim3d.update(pr.along, _speedMs, _offRoute || pr.offset > 40);
     }
+    final me = _me;
+    if (me != null && DateTime.now().difference(_alerts3dAt).inSeconds >= 4) {
+      _alerts3dAt = DateTime.now();
+      _sim3d.alerts(_alertsFor3d(me));
+    }
   }
+
+  /// v2: o que vira objeto na pista 3D (a página só mostra o que cai na rota).
+  List<Map<String, Object?>> _alertsFor3d(Position p) => [
+        for (final r in _radarMarkers.take(40))
+          {
+            'la': r.lat,
+            'lo': r.lng,
+            'k': switch (r.kind) {
+              RadarKind.fixed => 'radar',
+              RadarKind.section => 'radarAvg',
+              RadarKind.redLight => 'radarRed',
+            },
+            'lim': r.limit,
+            'dir': r.direction,
+          },
+        for (final q in PoiService.instance.near(p.latitude, p.longitude, 3000))
+          {
+            'la': q.lat,
+            'lo': q.lng,
+            'k': switch (q.kind) {
+              PoiKind.bump => 'bump',
+              PoiKind.policePost => 'post',
+              PoiKind.toll => 'toll',
+              PoiKind.tollMotoFree => 'tollMoto',
+            },
+          },
+        for (final h in _activeHazards)
+          if (distanceMeters(p.latitude, p.longitude, h.lat, h.lng) < 5000)
+            {
+              'la': h.lat,
+              'lo': h.lng,
+              'k': switch (h.type) {
+                HazardType.radar => 'mradar',
+                HazardType.fixedRadar => 'radar',
+                _ => h.type.name,
+              },
+              'e': h.type.emoji,
+              'n': h.type.label,
+            },
+        for (final q in _signalMarkers.take(40)) {'la': q.$1, 'lo': q.$2, 'k': 'signal'},
+      ];
 
   ({NavStep step, double meters})? _upcomingTurn(Position p) {
     final nav = _nav;

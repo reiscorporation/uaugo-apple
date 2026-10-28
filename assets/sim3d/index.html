@@ -3,13 +3,23 @@
   sim3d/index.html — Visão 3D da navegação (UauGo v2, só no Galaxy de teste)
 
   O que faz: Desenha em 3D, em primeira pessoa, a estrada da rota com o
-    "tapete" azul na faixa da direita, setas flutuando antes de cada
-    conversão e o destino com um feixe de luz. Só ruas (sem prédios): leve
-    e prático. A posição vem do app (GPS projetado na rota); entre uma
-    leitura e outra, o carro anda sozinho na velocidade atual (fica suave).
+    "tapete" azul na faixa certa, setas flutuando antes de cada conversão e
+    o destino com um feixe de luz. Só ruas (sem prédios): leve e prático.
+    Saídas e bifurcações ganham pista que se divide, placas verdes no alto
+    (500 m e 200 m), marcos de 300/200/100 m, zebrado na divisão e troca de
+    faixa antes da saída pela esquerda; a câmera sobe um pouco perto delas.
+    Alertas viram objetos na pista: lombada (com faixas amarelas), radar
+    fixo/móvel (poste, placa do limite e "RADAR" pintado no chão), polícia
+    (viatura com giroflex), posto policial, pedágio, semáforo e os alertas
+    dos usuários (placa de perigo com o símbolo).
+    A posição vem do app (GPS projetado na rota); entre uma leitura e
+    outra, o carro anda sozinho na velocidade atual (fica suave).
   Quem usa: lib/widgets/sim3d_view.dart (WebView). O app chama:
     sim3d.setRoute({pts:[[lat,lng]..], steps:[{la,lo,m,t}], dest})
     sim3d.update({along, v, off})   along = metros desde o início da rota
+    sim3d.setAlerts([{la, lo, k, lim?, dir?, e?, n?}])
+      k: radar | radarAvg | radarRed | mradar | bump | post | toll |
+         tollMoto | signal | police | (outros alertas do app: e = emoji, n = nome)
     sim3d.setDark(true|false), sim3d.setActive(true|false)
   e recebe pelo canal "Sim3D": "ready", "map" (pinça para afastar = volta
     ao mapa de cima).
@@ -35,6 +45,7 @@ const send = m => { try { Sim3D.postMessage(m); } catch (_) {} };
 
 /* ---------- utilidades ---------- */
 const len = (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay);
+const clamp01 = x => Math.max(0, Math.min(1, x));
 let LAT0 = 0, LON0 = 0, KX = 1, KY = 110540;
 const proj = (lat, lon) => [(lon - LON0) * KX, (lat - LAT0) * KY]; // x leste, y norte (m)
 
@@ -76,6 +87,7 @@ const LANE = 1.75;   // mão direita: o carro anda 1,75 m à direita do eixo
 let C = [], P = [], CUM = [0], TOTAL = 0;
 let RAW_CUM = [], RAW_S = []; // distância no traçado original -> no caminho suavizado
 let MAN = [], DEST = '';
+const GC = 40; let GRID = new Map(); // grade de 40 m do caminho (achar alertas na rota)
 
 function idxAt(s) {
   let lo = 0, hi = CUM.length - 1;
@@ -91,6 +103,7 @@ function at(arr, s) {
   return { x: a[0] + (b[0] - a[0]) * u, y: a[1] + (b[1] - a[1]) * u, dx: (arr[j][0] - arr[k][0]) / hl, dy: (arr[j][1] - arr[k][1]) / hl };
 }
 const posAt = s => at(P, s), centerAt = s => at(C, s);
+const yawOf = p => Math.atan2(-p.dx, p.dy); // objeto com a frente (-Z) no sentido da rota
 
 // metros do app (no traçado original) -> metros no caminho suavizado
 function sFromAlong(a) {
@@ -103,6 +116,9 @@ function sFromAlong(a) {
   return RAW_S[lo] + (RAW_S[hi] - RAW_S[lo]) * u;
 }
 
+// saída / bifurcação / "mantenha-se" (Google: ramp-right, fork-left, keep-right)
+const isExit = m => /ramp|fork|keep/.test(m);
+
 function setRouteData(d) {
   const pts = d.pts || [];
   if (pts.length < 2) return false;
@@ -114,14 +130,52 @@ function setRouteData(d) {
   }
   if (raw.length < 2) return false;
   C = resample(roundCorners(raw), STEP);
+  const CC = [0]; // distância ao longo do eixo (antes da troca de faixa)
+  for (let i = 1; i < C.length; i++) CC.push(CC[i - 1] + len(C[i - 1][0], C[i - 1][1], C[i][0], C[i][1]));
+  const nearC = (x, y, from, maxN, maxD, give) => {
+    let best = -1, bd = maxD;
+    for (let i = from; i < Math.min(C.length, from + maxN); i++) {
+      const dd = len(x, y, C[i][0], C[i][1]);
+      if (dd < bd) { bd = dd; best = i; }
+      if (best >= 0 && dd > bd + give) break;
+    }
+    return best;
+  };
+  // manobras do app (Google: turn-left, ramp-right, roundabout-left...)
+  const man = [];
+  let iFrom = 0;
+  for (const st of d.steps || []) {
+    const p = proj(st.la, st.lo);
+    const best = nearC(p[0], p[1], iFrom, 20000, 60, 200);
+    if (best < 0) continue;
+    const m = st.m || '', side = /left/.test(m) ? -1 : /right/.test(m) ? 1 : 0;
+    const t = st.t || '';
+    man.push({ i: best, side, m, t, street: streetOf(t), exit: isExit(m) && side !== 0,
+      toward: towardOf(t), num: (t.match(/sa[ií]da\s+(\d+[A-Za-z]?)/i) || [])[1] || '' });
+    iFrom = best;
+  }
+  // faixa: direita; antes de saída pela esquerda o carro passa para a esquerda
+  const leftExits = man.filter(m => m.exit && m.side < 0).map(m => CC[m.i]);
+  const laneAt = sc => {
+    let off = LANE;
+    for (const e of leftExits) {
+      const a = e - 450, b = e + 60;
+      if (sc < a - 80 || sc > b + 80) continue;
+      const w = sc < a ? (sc - (a - 80)) / 80 : sc > b ? 1 - (sc - b) / 80 : 1;
+      off = Math.min(off, LANE - 2 * LANE * clamp01(w));
+    }
+    return off;
+  };
   P = C.map((p, i) => {
     const a = C[Math.max(0, i - 2)], b = C[Math.min(C.length - 1, i + 2)];
     const l = len(a[0], a[1], b[0], b[1]) || 1, dx = (b[0] - a[0]) / l, dy = (b[1] - a[1]) / l;
-    return [p[0] + dy * LANE, p[1] - dx * LANE];
+    const off = laneAt(CC[i]);
+    return [p[0] + dy * off, p[1] - dx * off];
   });
   CUM = [0];
   for (let i = 1; i < P.length; i++) CUM.push(CUM[i - 1] + len(P[i - 1][0], P[i - 1][1], P[i][0], P[i][1]));
   TOTAL = CUM[CUM.length - 1];
+  MAN = man.map(m => ({ ...m, s: CUM[m.i] }));
   // cada vértice original -> s (busca sempre para frente: rotas com retorno)
   RAW_CUM = [0]; RAW_S = [];
   for (let k = 1; k < raw.length; k++) RAW_CUM.push(RAW_CUM[k - 1] + len(raw[k - 1][0], raw[k - 1][1], raw[k][0], raw[k][1]));
@@ -138,35 +192,24 @@ function setRouteData(d) {
   RAW_CUM = RAW_CUM.map(v => v / k0);
   let from = 0;
   for (let k = 0; k < raw.length; k++) {
-    let best = from, bd = 1e12;
-    for (let i = from; i < Math.min(C.length, from + 4000); i++) {
-      const dd = len(raw[k][0], raw[k][1], C[i][0], C[i][1]);
-      if (dd < bd) { bd = dd; best = i; }
-      if (bd < 4 && dd > bd + 60) break;
-    }
+    const best = Math.max(from, nearC(raw[k][0], raw[k][1], from, 4000, 1e12, 60));
     RAW_S.push(CUM[best]); from = best;
   }
-  // manobras do app (Google: turn-left, ramp-right, roundabout-left...)
-  MAN = [];
-  let sFrom = 0;
-  for (const st of d.steps || []) {
-    const p = proj(st.la, st.lo);
-    let best = -1, bd = 60;
-    const i0 = idxAt(sFrom);
-    for (let i = i0; i < Math.min(C.length, i0 + 20000); i++) {
-      const dd = len(p[0], p[1], C[i][0], C[i][1]);
-      if (dd < bd) { bd = dd; best = i; }
-      if (best >= 0 && dd > bd + 200) break;
-    }
-    if (best < 0) continue;
-    const m = st.m || '', side = /left/.test(m) ? -1 : /right/.test(m) ? 1 : 0;
-    MAN.push({ s: CUM[best], side, m, t: st.t || '', street: streetOf(st.t || '') });
-    sFrom = CUM[best];
+  GRID = new Map();
+  for (let i = 0; i < C.length; i++) {
+    const key = Math.floor(C[i][0] / GC) + ',' + Math.floor(C[i][1] / GC);
+    let a = GRID.get(key); if (!a) GRID.set(key, a = []); a.push(i);
   }
   DEST = d.dest || '';
   return true;
 }
+// "... em direção a Cravinhos/Campinas/São Paulo." -> "Cravinhos · Campinas · São Paulo"
+function towardOf(t) {
+  const m = t.match(/(?:dire[çc][ãa]o (?:a|à|ao)|toward)\s+(.+?)\.?$/i);
+  return m ? m[1].split('/').map(x => x.trim()).filter(Boolean).slice(0, 3).join(' · ') : '';
+}
 function streetOf(t) {
+  t = t.replace(/(?:em|na) dire[çc][ãa]o (?:a|à|ao)\s+/i, 'para ');
   const m = t.match(/\b(?:na|no|para a|para o|para|em|pela|pelo|on|onto|toward|at)\s+(.+?)(?:\s*(?:\/|,|\(|Passe por|O destino).*)?$/i);
   const s = (m ? m[1] : '').trim().replace(/[.;:]+$/, '');
   return s.length > 30 ? s.slice(0, 29) + '…' : s;
@@ -188,7 +231,7 @@ const PAL = {
   night: { fog: 0x16223a, ground: 0x1d2433, walk: '#3a4250', road: '#262b33', white: '#d9dee6', yellow: '#d7a92a', hemi: 0.55, sun: 0.25 },
 };
 let pal = PAL.day;
-const LV = { ground: 0, walk: 0.08, road: 0.12, mark: 0.15, carpet: 0.2 };
+const LV = { ground: 0, walk: 0.08, road: 0.12, mark: 0.15, paint: 0.17, carpet: 0.2 };
 const toV = (x, h, y) => new THREE.Vector3(x, h, -y);
 const col = h => new THREE.Color(h);
 
@@ -228,6 +271,7 @@ Flat.prototype.mesh = function (mat) {
   return m;
 };
 const ROAD_HW = 3.7; // rua de 2 faixas (o Google não diz a largura; o motor próprio dirá)
+const inExitZone = s => MAN.some(m => m.exit && s > m.s - 520 && s < m.s + 20);
 function buildChunk(n) {
   const s0 = n * CHUNK, s1 = Math.min(TOTAL, s0 + CHUNK + STEP);
   if (s0 >= TOTAL) return null;
@@ -238,17 +282,19 @@ function buildChunk(n) {
   const kWalk = col(pal.walk), kRoad = col(pal.road), kWhite = col(pal.white), kYellow = col(pal.yellow);
   walk.strip(pts, ROAD_HW + 2.4, LV.walk, kWalk);
   road.strip(pts, ROAD_HW, LV.road, kRoad);
-  // bordas brancas contínuas e eixo amarelo tracejado (3 m pintado, 5 m não)
+  // bordas brancas contínuas e eixo tracejado (3 m pintado, 5 m não):
+  // amarelo na mão dupla; branco perto de saídas (mesma mão)
   mark.strip(pts, 0.1, LV.mark, kWhite, ROAD_HW - 0.35);
   mark.strip(pts, 0.1, LV.mark, kWhite, -(ROAD_HW - 0.35));
   const dashEvery = Math.round(8 / STEP), dashLen = Math.max(1, Math.round(3 / STEP));
   for (let i = 0; i + dashLen < pts.length; i += dashEvery) {
     const s = CUM[i0 + i];
-    if (MAN.some(m => Math.abs(m.s - s) < 16)) continue; // nada pintado no cruzamento
-    mark.strip(pts.slice(i, i + dashLen + 1), 0.08, LV.mark, kYellow);
+    if (MAN.some(m => !m.exit && Math.abs(m.s - s) < 16)) continue; // nada pintado no cruzamento
+    mark.strip(pts.slice(i, i + dashLen + 1), 0.08, LV.mark, inExitZone(s) ? kWhite : kYellow);
   }
-  // cruzamentos: a rua continua reto depois da conversão e do outro lado
   for (const m of MAN) {
+    if (m.exit) { exitRoad(m, s0, s1, walk, road, mark, kWalk, kRoad, kWhite); continue; }
+    // cruzamentos: a rua continua reto depois da conversão e do outro lado
     if (!m.side || m.s < s0 || m.s >= s0 + CHUNK) continue;
     const before = centerAt(m.s - 16), corner = centerAt(m.s), after = centerAt(m.s + 16);
     const stub = (x, y, dx, dy, L) => {
@@ -263,6 +309,34 @@ function buildChunk(n) {
   g.add(walk.mesh(MATS.walk), road.mesh(MATS.road), mark.mesh(MATS.mark));
   scene.add(g);
   return g;
+}
+// Saída: antes dela a pista ganha uma faixa a mais do lado de quem segue;
+// na divisão a pista principal continua reto e o zebrado separa as duas.
+function exitRoad(m, s0, s1, walk, road, mark, kWalk, kRoad, kWhite) {
+  const far = -m.side; // lado de quem segue na principal
+  const a = Math.max(s0, m.s - 520), b = Math.min(s1, m.s);
+  if (a < b) {
+    const seg = C.slice(idxAt(a), Math.min(C.length - 1, idxAt(b) + 1) + 1);
+    walk.strip(seg, 2.6, LV.walk, kWalk, far * (ROAD_HW + 3.6));
+    road.strip(seg, 1.85, LV.road, kRoad, far * (ROAD_HW + 1.75));
+    mark.strip(seg, 0.1, LV.mark, kWhite, far * (ROAD_HW + 3.25));
+  }
+  if (m.s < s0 || m.s >= s0 + CHUNK) return;
+  const before = centerAt(m.s - 40), corner = centerAt(m.s);
+  const nx = before.dy * far, ny = -before.dx * far; // normal para o lado da principal
+  const q = [];
+  for (let d = -10; d <= 300; d += 3) q.push([corner.x + before.dx * d + nx * (ROAD_HW + 1.75), corner.y + before.dy * d + ny * (ROAD_HW + 1.75)]);
+  walk.strip(q, ROAD_HW + 4.2, LV.walk - 0.01, kWalk);
+  road.strip(q, ROAD_HW + 1.85, LV.road - 0.01, kRoad);
+  for (let i = 4; i + 1 < q.length; i += 3) mark.strip(q.slice(i, i + 2), 0.08, LV.mark, kWhite);
+  // zebrado entre os dois ramos
+  for (let d = 6; d <= 46; d += 5) {
+    const r = centerAt(m.s + d), mx = corner.x + before.dx * d + nx * (ROAD_HW + 1.75), my = corner.y + before.dy * d + ny * (ROAD_HW + 1.75);
+    const ex = r.x + nx * ROAD_HW, ey = r.y + ny * ROAD_HW;               // borda do ramo da rota
+    const fx = mx - nx * (ROAD_HW + 1.85), fy = my - ny * (ROAD_HW + 1.85); // borda da principal
+    if ((fx - ex) * nx + (fy - ey) * ny < 0.8) continue;
+    mark.strip([[ex, ey], [fx + before.dx * 2.5, fy + before.dy * 2.5]], 0.22, LV.mark + 0.005, kWhite);
+  }
 }
 function disposeChunk(g) {
   scene.remove(g);
@@ -315,34 +389,418 @@ function updateCarpet(s) {
   carpetGeo.attributes.position.needsUpdate = true; carpetGeo.attributes.dist.needsUpdate = true;
 }
 
-/* ---------- setas nas conversões e destino ---------- */
-const chevGeo = new THREE.ExtrudeGeometry(
-  new THREE.Shape([[-0.55, 1], [0.05, 1], [0.75, 0], [0.05, -1], [-0.55, -1], [0.15, 0]].map(([x, y]) => new THREE.Vector2(x, y))),
-  { depth: 0.14, bevelEnabled: false }).translate(0, 0, -0.07);
+/* ---------- desenhos em canvas (placas, letreiros) ---------- */
+const FONT = '"Roboto Condensed", "Roboto", sans-serif';
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.anisotropy = 4;
+  return t;
+}
+function rrect(g, x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
 function label(text, sub) {
   const c = document.createElement('canvas'); c.width = 1024; c.height = sub ? 256 : 160;
   const g = c.getContext('2d');
-  g.font = '700 80px "Roboto Condensed", "Roboto", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = '700 80px ' + FONT; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.shadowColor = 'rgba(0,0,0,0.6)'; g.shadowBlur = 14; g.fillStyle = '#fff';
   g.fillText(text.toUpperCase(), 512, sub ? 92 : 70, 980);
   g.shadowBlur = 0; g.fillRect(252, sub ? 150 : 130, 520, 5);
-  if (sub) { g.font = '500 50px "Roboto", sans-serif'; g.fillText(sub, 512, 205, 980); }
+  if (sub) { g.font = '500 50px ' + FONT; g.fillText(sub, 512, 205, 980); }
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, fog: false }));
   sp.scale.set(14, 14 * c.height / 1024, 1);
   return sp;
 }
+// etiqueta flutuante colorida (alertas): "RADAR 60", "LOMBADA", "POLÍCIA"
+function tag(text, bg, icon) {
+  const t = canvasTex(640, 160, (g, w, h) => {
+    g.font = '700 84px ' + FONT;
+    const tw = Math.min(520, g.measureText(text).width) + (icon ? 110 : 0) + 70, x = (w - tw) / 2;
+    g.shadowColor = 'rgba(0,0,0,0.45)'; g.shadowBlur = 16;
+    g.fillStyle = bg; rrect(g, x, 18, tw, 124, 34); g.fill();
+    g.shadowBlur = 0; g.lineWidth = 6; g.strokeStyle = 'rgba(255,255,255,0.9)'; rrect(g, x + 3, 21, tw - 6, 118, 31); g.stroke();
+    g.fillStyle = '#fff'; g.textBaseline = 'middle'; g.textAlign = 'left';
+    if (icon) { g.font = '84px sans-serif'; g.fillText(icon, x + 34, 84); g.font = '700 84px ' + FONT; }
+    g.fillText(text, x + 35 + (icon ? 110 : 0), 86, 520);
+  });
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, fog: false }));
+  sp.scale.set(8, 2, 1);
+  return sp;
+}
+// placa redonda de velocidade (branca, aro vermelho)
+function speedSignTex(lim) {
+  return canvasTex(256, 256, g => {
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(128, 128, 124, 0, 7); g.fill();
+    g.strokeStyle = '#d8262b'; g.lineWidth = 30; g.beginPath(); g.arc(128, 128, 106, 0, 7); g.stroke();
+    g.fillStyle = '#111'; g.font = '700 ' + (lim >= 100 ? 92 : 112) + 'px ' + FONT; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(lim > 0 ? String(lim) : '?', 128, 136);
+  });
+}
+// placa amarela em losango (lombada)
+function bumpSignTex() {
+  return canvasTex(256, 256, g => {
+    g.translate(128, 128); g.rotate(Math.PI / 4);
+    g.fillStyle = '#111'; g.fillRect(-88, -88, 176, 176);
+    g.fillStyle = '#f7c600'; g.fillRect(-80, -80, 160, 160);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#111'; g.beginPath(); g.moveTo(58, 160); g.quadraticCurveTo(128, 70, 198, 160); g.closePath(); g.fill();
+    g.fillRect(48, 158, 160, 12);
+  });
+}
+// triângulo de perigo com o símbolo do alerta
+function warnSignTex(emoji) {
+  return canvasTex(256, 256, g => {
+    g.fillStyle = '#d8262b'; g.beginPath(); g.moveTo(128, 8); g.lineTo(250, 236); g.lineTo(6, 236); g.closePath(); g.fill();
+    g.fillStyle = '#fff'; g.beginPath(); g.moveTo(128, 52); g.lineTo(214, 214); g.lineTo(42, 214); g.closePath(); g.fill();
+    g.font = '92px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(emoji || '!', 128, 162);
+  });
+}
+const signOnPole = (tex, h, size) => {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, h, 6), MAT.pole); pole.position.y = h / 2; g.add(pole);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+  sp.scale.set(size, size, 1); sp.position.y = h + size * 0.45; g.add(sp);
+  return g;
+};
+
+/* ---------- materiais e modelos ---------- */
+const MAT = {
+  pole: new THREE.MeshLambertMaterial({ color: 0x5c636c }),
+  dark: new THREE.MeshLambertMaterial({ color: 0x23282e }),
+  white: new THREE.MeshLambertMaterial({ color: 0xf4f6f8 }),
+  blue: new THREE.MeshLambertMaterial({ color: 0x1f5fbf }),
+  glass: new THREE.MeshLambertMaterial({ color: 0x2c3e4e }),
+  orange: new THREE.MeshLambertMaterial({ color: 0xff7a1a }),
+  green: new THREE.MeshLambertMaterial({ color: 0x0b6b3a }),
+};
+const flash = (c) => new THREE.MeshBasicMaterial({ color: c, fog: false });
+function policeCar() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.62, 4.3), MAT.white); body.position.y = 0.62; g.add(body);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.82, 0.16, 3.2), MAT.blue); stripe.position.y = 0.66; g.add(stripe);
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.56, 2.1), MAT.glass); cab.position.set(0, 1.2, 0.25); g.add(cab);
+  for (const [x, z] of [[-0.86, -1.35], [0.86, -1.35], [-0.86, 1.35], [0.86, 1.35]]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.26, 10), MAT.dark); w.rotation.z = Math.PI / 2; w.position.set(x, 0.34, z); g.add(w);
+  }
+  const red = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.16, 0.32), flash(0xff2020)); red.position.set(-0.36, 1.58, 0.1);
+  const blu = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.16, 0.32), flash(0x2a6bff)); blu.position.set(0.36, 1.58, 0.1);
+  red.userData.blink = 0; blu.userData.blink = Math.PI;
+  red.userData.c = 0xff2020; blu.userData.c = 0x2a6bff;
+  g.add(red, blu);
+  return g;
+}
+function cone() {
+  const c = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.75, 10), MAT.orange); c.position.y = 0.37 + LV.road; return c;
+}
+// algo pintado no chão da faixa (texto, zona vermelha), deitado e alinhado à rota
+function roadDecal(tex, w, l, opacity) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: opacity || 1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }));
+  m.rotation.x = -Math.PI / 2; m.position.y = LV.paint; m.renderOrder = 4;
+  return m;
+}
+const TEX = {};
+const tex = (k, f) => TEX[k] || (TEX[k] = f());
+
+/* ---------- alertas na pista ---------- */
+let ALERT_RAW = [], ALERTS = [];
+// ponto (lat, lng) -> posição na rota; prefere o trecho à frente do carro
+function project(lat, lon, maxD) {
+  const [x, y] = proj(lat, lon);
+  const gx = Math.floor(x / GC), gy = Math.floor(y / GC);
+  let best = null;
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+    const a = GRID.get((gx + i) + ',' + (gy + j)); if (!a) continue;
+    for (const k of a) {
+      const d = len(x, y, C[k][0], C[k][1]); if (d > maxD) continue;
+      const score = d + (CUM[k] < s - 30 ? 1000 : 0) + CUM[k] * 1e-4;
+      if (!best || score < best.score) best = { k, d, score };
+    }
+  }
+  if (!best) return null;
+  const k = best.k, a = C[Math.max(0, k - 2)], b = C[Math.min(C.length - 1, k + 2)];
+  const l = len(a[0], a[1], b[0], b[1]) || 1, dx = (b[0] - a[0]) / l, dy = (b[1] - a[1]) / l;
+  return { s: CUM[k], bearing: (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360 };
+}
+function placeAlerts() {
+  for (const a of ALERTS) if (a.obj) scene.remove(a.obj);
+  ALERTS = [];
+  if (!C.length) return;
+  for (const r of ALERT_RAW) {
+    const pr = project(r.la, r.lo, r.k === 'post' || r.k === 'toll' || r.k === 'tollMoto' ? 60 : 35);
+    if (!pr) continue;
+    // radar com sentido: só o do nosso sentido
+    if (r.dir >= 0 && /^radar/.test(r.k)) {
+      const diff = Math.abs(((r.dir - pr.bearing) % 360 + 540) % 360 - 180);
+      if (diff > 70) continue;
+    }
+    ALERTS.push({ ...r, s: pr.s, obj: null });
+  }
+  ALERTS.sort((a, b) => a.s - b.s);
+}
+// coloca o objeto ao lado da pista (direita), de frente para o motorista
+function roadside(obj, s_, off) {
+  const c = centerAt(s_);
+  obj.position.copy(toV(c.x + c.dy * off, 0, c.y - c.dx * off));
+  obj.rotation.y = yawOf(c);
+  return obj;
+}
+function onLane(obj, s_, h) {
+  const p = posAt(s_);
+  obj.position.copy(toV(p.x, h || 0, p.y)); obj.rotation.y = yawOf(p);
+  return obj;
+}
+const SIDE_OFF = ROAD_HW + 1.4;
+function radarZone(g, a, limText) {
+  // zona vermelha na faixa nos 80 m antes do radar + "RADAR" pintado
+  const z = tex('zone', () => canvasTex(64, 256, (c, w, h) => {
+    const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(255,40,40,0)'); gr.addColorStop(0.25, 'rgba(255,40,40,0.55)'); gr.addColorStop(1, 'rgba(255,40,40,0.55)');
+    c.fillStyle = gr; c.fillRect(0, 0, w, h);
+    c.fillStyle = 'rgba(255,255,255,0.35)'; for (let y = 0; y < h; y += 32) c.fillRect(0, y, w, 6);
+  }));
+  const flat = m => new THREE.Group().add(m); // deitado no chão e girado com a rota
+  for (let d = 80; d > 0; d -= 20) g.add(onLane(flat(roadDecal(z, 3.2, 20.5, 0.9)), a.s - d + 10));
+  const t = canvasTex(256, 512, (c, w, h) => {
+    c.fillStyle = '#fff'; c.font = '700 120px ' + FONT; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.save(); c.scale(1, 1.9); c.fillText('RADAR', 128, 70, 240); if (limText) c.fillText(limText, 128, 180, 240); c.restore();
+  });
+  g.add(onLane(flat(roadDecal(t, 2.6, 6, 0.95)), a.s - 45));
+}
+function buildAlert(a) {
+  const g = new THREE.Group(), k = a.k;
+  const top = (sp, h) => { sp.position.y = h; sp.userData.float = h; return sp; };
+  if (k === 'radar' || k === 'radarAvg' || k === 'radarRed') {
+    // poste com braço sobre a faixa e a câmera; placa do limite antes
+    const post = roadside(new THREE.Group(), a.s, SIDE_OFF);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 6.2, 8), MAT.pole); pole.position.y = 3.1; post.add(pole);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.18, 0.18), MAT.pole); arm.position.set(-1.8, 6.0, 0); post.add(arm);
+    const cam = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.42, 0.8), MAT.dark); cam.position.set(-3.4, 5.6, 0); post.add(cam);
+    const fl = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), flash(0xffffff)); fl.position.set(-3.4, 5.6, 0.42); fl.userData.strobe = true; post.add(fl);
+    g.add(post);
+    if (a.lim > 0) {
+      g.add(roadside(signOnPole(tex('lim' + a.lim, () => speedSignTex(a.lim)), 2.3, 1.5), a.s, SIDE_OFF + 0.6));
+      g.add(roadside(signOnPole(tex('lim' + a.lim, () => speedSignTex(a.lim)), 2.3, 1.7), a.s - 150, SIDE_OFF + 0.6));
+    }
+    radarZone(g, a, a.lim > 0 ? String(a.lim) : '');
+    const name = k === 'radarAvg' ? 'RADAR MÉDIA' : k === 'radarRed' ? 'RADAR SINAL' : 'RADAR';
+    g.add(top(roadside(tag(name + (a.lim > 0 ? ' ' + a.lim : ''), '#c62828', '📷'), a.s, SIDE_OFF - 2), 7.8));
+  } else if (k === 'mradar') {
+    const tri = roadside(new THREE.Group(), a.s, SIDE_OFF);
+    for (let i = 0; i < 3; i++) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.5, 5), MAT.dark);
+      const an = i * 2.094; leg.position.set(Math.sin(an) * 0.3, 0.72, Math.cos(an) * 0.3); leg.rotation.set(Math.cos(an) * 0.35, 0, -Math.sin(an) * 0.35); tri.add(leg);
+    }
+    const cam = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.32, 0.55), MAT.dark); cam.position.y = 1.55; tri.add(cam);
+    const fl = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), flash(0xffffff)); fl.position.set(0, 1.55, 0.3); fl.userData.strobe = true; tri.add(fl);
+    g.add(tri); radarZone(g, a, '');
+    g.add(top(roadside(tag('RADAR MÓVEL', '#c62828', '📷'), a.s, SIDE_OFF - 2), 6.5));
+  } else if (k === 'bump') {
+    // lombada de verdade na pista, com faixas amarelas e pretas
+    const stripes = tex('bumpStripes', () => { const t = canvasTex(256, 64, (c, w, h) => {
+      c.fillStyle = '#f7c600'; c.fillRect(0, 0, w, h); c.fillStyle = '#151515';
+      for (let x = -64; x < w; x += 64) { c.beginPath(); c.moveTo(x, h); c.lineTo(x + 32, h); c.lineTo(x + 64, 0); c.lineTo(x + 32, 0); c.closePath(); c.fill(); }
+    }); t.wrapS = THREE.RepeatWrapping; t.repeat.set(1, 1); return t; });
+    // (um pouco mais alta que a real, para ser vista de longe)
+    const hump = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, ROAD_HW * 2, 20, 1, false, 0, Math.PI), new THREE.MeshBasicMaterial({ map: stripes }));
+    hump.rotation.z = Math.PI / 2; hump.scale.set(0.26, 1, 1.5);
+    const h = new THREE.Group(); h.add(hump); hump.position.y = LV.road;
+    g.add(roadside(h, a.s, 0));
+    // faixas amarelas pintadas antes da lombada
+    const bars = tex('bumpBars', () => canvasTex(64, 256, (c, w, hh) => {
+      for (let y = 0; y < hh; y += 64) { c.fillStyle = '#f7c600'; c.fillRect(0, y, w, 26); }
+    }));
+    const deck = new THREE.Group().add(roadDecal(bars, ROAD_HW * 2 - 0.6, 10, 0.95));
+    g.add(roadside(deck, a.s - 9, 0));
+    g.add(roadside(signOnPole(tex('bumpSign', bumpSignTex), 2.2, 1.6), a.s - 60, SIDE_OFF + 0.6));
+    g.add(top(roadside(tag('LOMBADA', '#e09b00', '🚧'), a.s, 0), 3.4));
+  } else if (k === 'post') {
+    const b = roadside(new THREE.Group(), a.s, SIDE_OFF + 7);
+    const house = new THREE.Mesh(new THREE.BoxGeometry(9, 3.4, 6), MAT.white); house.position.y = 1.7; b.add(house);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(9.05, 0.6, 6.05), MAT.blue); band.position.y = 2.9; b.add(band);
+    const car = policeCar(); car.position.set(-3, 0, -5); car.rotation.y = 0.4; b.add(car);
+    g.add(b);
+    g.add(top(roadside(tag('POSTO POLICIAL', '#1e4fa8', '🚔'), a.s, SIDE_OFF + 3), 6.2));
+  } else if (k === 'police') {
+    // viatura parada no acostamento com o giroflex ligado
+    g.add(roadside(policeCar(), a.s, SIDE_OFF + 0.4));
+    g.add(top(roadside(tag('POLÍCIA', '#1e4fa8', '🚓'), a.s, SIDE_OFF - 1), 4.6));
+  } else if (k === 'toll' || k === 'tollMoto') {
+    const c = roadside(new THREE.Group(), a.s, 0), W = ROAD_HW * 2 + 6;
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(W, 0.7, 7), MAT.white); roof.position.y = 5.6; c.add(roof);
+    const fascia = new THREE.Mesh(new THREE.BoxGeometry(W + 0.05, 0.5, 7.05), MAT.blue); fascia.position.y = 5.2; c.add(fascia);
+    for (const x of [-W / 2 + 0.6, 0, W / 2 - 0.6]) {
+      const booth = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.6, 3), MAT.white); booth.position.set(x, 1.3, 0); c.add(booth);
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.3, 5, 0.3), MAT.pole); p.position.set(x, 2.6, 2.6); c.add(p);
+    }
+    g.add(c);
+    g.add(top(roadside(tag(k === 'tollMoto' ? 'PEDÁGIO · MOTO ISENTA' : 'PEDÁGIO', '#1e4fa8', '💰'), a.s, 0), 8));
+  } else if (k === 'signal') {
+    const t = roadside(new THREE.Group(), a.s, SIDE_OFF);
+    const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 5.2, 6), MAT.dark); p1.position.y = 2.6; t.add(p1);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.12, 0.12), MAT.dark); arm.position.set(-1.6, 5.1, 0); t.add(arm);
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.2, 0.36), MAT.dark); box.position.set(-3.1, 4.5, 0); t.add(box);
+    [0xff3b30, 0xffcc00, 0x34c759].forEach((c, i) => {
+      const l = new THREE.Mesh(new THREE.CircleGeometry(0.13, 12), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.55 }));
+      l.position.set(-3.1, 4.85 - i * 0.35, 0.19); t.add(l);
+    });
+    g.add(t);
+  } else {
+    // alertas dos usuários: placa de perigo + o nome; alguns com algo na pista
+    g.add(roadside(signOnPole(warnSignTex(a.e), 2.2, 1.7), a.s - 40, SIDE_OFF + 0.6));
+    if (k === 'pothole' || k === 'oil') {
+      const spot = new THREE.Mesh(new THREE.CircleGeometry(1, 14), new THREE.MeshBasicMaterial({ color: k === 'oil' ? 0x111418 : 0x2a2522, transparent: true, opacity: 0.85, depthWrite: false }));
+      spot.rotation.x = -Math.PI / 2; spot.scale.set(1.1, 0.75, 1); spot.position.y = LV.paint;
+      g.add(onLane(new THREE.Group().add(spot), a.s));
+    }
+    if (k === 'accident' || k === 'danger' || k === 'stoppedVehicle') {
+      for (let i = 0; i < 4; i++) g.add(roadside(new THREE.Group().add(cone()), a.s - 12 + i * 4, ROAD_HW - 0.3 - i * 0.15));
+    }
+    if (k === 'stoppedVehicle' || k === 'accident') {
+      const car = policeCar(); car.children.forEach(c => { if (c.material === MAT.blue) c.visible = false; if (c.userData.blink !== undefined) { c.material = flash(0xffa000); c.userData.c = 0xffa000; } });
+      g.add(roadside(car, a.s, SIDE_OFF + 0.4));
+    }
+    g.add(top(roadside(tag((a.n || 'Atenção').toUpperCase(), '#e65100', a.e), a.s, SIDE_OFF - 1), 4.4));
+  }
+  scene.add(g);
+  return g;
+}
+function updateAlerts(s_, time) {
+  for (const a of ALERTS) {
+    const d = a.s - s_, want = d > -20 && d < 650;
+    if (want && !a.obj) a.obj = buildAlert(a);
+    if (!want && a.obj) { scene.remove(a.obj); a.obj = null; }
+    if (!a.obj) continue;
+    a.obj.traverse(o => {
+      if (o.userData.blink !== undefined) o.material.color.setHex(Math.sin(time * 9 + o.userData.blink) > 0 ? o.userData.c : 0x222222);
+      if (o.userData.strobe) o.visible = (time * 1.3 % 1) < 0.08;
+      if (o.userData.float !== undefined) {
+        o.position.y = o.userData.float + Math.sin(time * 2) * 0.12; o.material.opacity = clamp01((650 - d) / 120);
+        const z = Math.max(1, Math.min(4, o.position.distanceTo(camera.position) / 55)); // legível de longe
+        o.scale.set(8 * z, 2 * z, 1);
+      }
+    });
+  }
+}
+
+/* ---------- setas nas conversões, saídas e destino ---------- */
+const chevGeo = new THREE.ExtrudeGeometry(
+  new THREE.Shape([[-0.55, 1], [0.05, 1], [0.75, 0], [0.05, -1], [-0.55, -1], [0.15, 0]].map(([x, y]) => new THREE.Vector2(x, y))),
+  { depth: 0.14, bevelEnabled: false }).translate(0, 0, -0.07);
+const chevMat = () => new THREE.MeshBasicMaterial({ color: 0x3fc6ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, fog: false });
 let markers = [], destObjs = [];
 function clearMarkers() {
   for (const mk of markers) scene.remove(mk.g);
   for (const o of destObjs) scene.remove(o);
   markers = []; destObjs = [];
 }
+// placa verde no alto (pórtico): à esquerda "segue" (apagada), do lado da
+// saída "SAÍDA + rua + distância" com a seta em azul destacada
+function gantryTex(m, dist) {
+  return canvasTex(1024, 360, (g, w, h) => {
+    const exitLeft = m.side < 0, half = w / 2;
+    const panel = (x, hi) => {
+      g.fillStyle = hi ? '#0a6b3b' : '#0d5a34'; rrect(g, x + 8, 8, half - 16, h - 16, 18); g.fill();
+      g.lineWidth = 8; g.strokeStyle = hi ? '#46dcff' : 'rgba(255,255,255,0.55)'; rrect(g, x + 14, 14, half - 28, h - 28, 14); g.stroke();
+    };
+    const xe = exitLeft ? 0 : half, xs = exitLeft ? half : 0;
+    panel(xs, false); panel(xe, true);
+    g.textBaseline = 'middle';
+    // segue (pista principal)
+    g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 16; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(xs + half / 2, 290); g.lineTo(xs + half / 2, 120); g.stroke();
+    g.beginPath(); g.moveTo(xs + half / 2 - 44, 160); g.lineTo(xs + half / 2, 110); g.lineTo(xs + half / 2 + 44, 160); g.stroke();
+    // saída
+    g.font = '700 54px ' + FONT; g.textAlign = 'left';
+    const exitTxt = m.num ? 'SAÍDA ' + m.num : 'SAÍDA', tw = g.measureText(exitTxt).width + 32;
+    g.fillStyle = '#ffd400'; rrect(g, xe + 36, 34, tw, 68, 10); g.fill();
+    g.fillStyle = '#111'; g.fillText(exitTxt, xe + 52, 70);
+    g.fillStyle = '#fff'; g.font = '700 50px ' + FONT; g.fillText(dist, xe + 60 + tw, 70);
+    g.font = '700 54px ' + FONT;
+    const name = (m.toward || m.street || m.t || '').toUpperCase();
+    const words = name.split(' '); let l1 = '', l2 = '';
+    for (const wd of words) { if (g.measureText((l1 + ' ' + wd).trim()).width < 300 && !l2) l1 = (l1 + ' ' + wd).trim(); else l2 = (l2 + ' ' + wd).trim(); }
+    g.fillText(l1, xe + 40, 170, 310); if (l2) g.fillText(l2, xe + 40, 236, 310);
+    const ax = xe + half - 110, ay = 230, sx = exitLeft ? -1 : 1;
+    g.fillStyle = '#46dcff'; rrect(g, ax - 70, ay - 100, 140, 160, 18); g.fill();
+    g.strokeStyle = '#0a2a3a'; g.lineWidth = 18;
+    g.beginPath(); g.moveTo(ax - sx * 20, ay + 45); g.lineTo(ax - sx * 20, ay); g.lineTo(ax + sx * 30, ay - 55); g.stroke();
+    g.beginPath(); g.moveTo(ax + sx * 30 - sx * 48, ay - 62); g.lineTo(ax + sx * 34, ay - 60); g.lineTo(ax + sx * 30, ay - 12); g.stroke();
+  });
+}
+function countdownTex(n) {
+  return canvasTex(128, 320, (g, w, h) => {
+    g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#d8262b'; for (let i = 0; i < n; i++) { g.beginPath(); g.moveTo(10, 40 + i * 70); g.lineTo(118, 0 + i * 70); g.lineTo(118, 40 + i * 70); g.lineTo(10, 80 + i * 70); g.closePath(); g.fill(); }
+    g.fillStyle = '#111'; g.font = '700 46px ' + FONT; g.textAlign = 'center'; g.fillText(n * 100 + ' m', 64, 300);
+  });
+}
+function goreTex(side) {
+  return canvasTex(512, 160, (g, w, h) => {
+    g.fillStyle = '#111'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#f7c600';
+    for (let x = 30; x < w; x += 90) {
+      const s_ = side; g.beginPath();
+      g.moveTo(x, 20); g.lineTo(x + 40 * s_ + (s_ < 0 ? 60 : 0), 80); g.lineTo(x + (s_ < 0 ? 60 : 0), 140);
+      g.lineTo(x + 26, 140); g.lineTo(x + 26 + 40 * s_ + (s_ < 0 ? 60 : 0) - (s_ < 0 ? 0 : 0), 80); g.lineTo(x + 26, 20); g.closePath(); g.fill();
+    }
+  });
+}
+function exitMarker(m) {
+  const g = new THREE.Group(), prev = MAN.filter(o => o.s < m.s - 1).pop();
+  const room = prev ? m.s - prev.s : 1e9;
+  const before = centerAt(m.s - 40);
+  // pórticos a 500 m e 200 m (se não houver outra manobra no caminho)
+  for (const [d, txt] of [[500, '500 m'], [200, '200 m']]) {
+    if (d > room - 30) continue;
+    const c = centerAt(m.s - d), port = new THREE.Group();
+    const span = ROAD_HW * 2 + 3.7 + 2;
+    for (const x of [-span / 2 - 0.4, span / 2 + 0.4]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.3, 7.4, 0.3), MAT.pole); p.position.set(x, 3.7, 0); port.add(p); }
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(span + 1.2, 0.35, 0.35), MAT.pole); beam.position.y = 7.2; port.add(beam);
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(span - 0.4, (span - 0.4) * 360 / 1024), new THREE.MeshBasicMaterial({ map: gantryTex(m, txt), fog: true }));
+    board.position.set(0, 7.2 - (span - 0.4) * 360 / 1024 / 2 + 0.6, 0.2); port.add(board);
+    port.position.copy(toV(c.x - c.dy * m.side * 1.85, 0, c.y + c.dx * m.side * 1.85));
+    port.rotation.y = yawOf(c);
+    g.add(port);
+  }
+  // marcos de 300, 200 e 100 m do lado da saída
+  for (const n of [3, 2, 1]) {
+    if (n * 100 > room - 20) continue;
+    const b = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 1.35), new THREE.MeshLambertMaterial({ map: tex('cd' + n, () => countdownTex(n)), side: THREE.DoubleSide }));
+    b.position.y = 1.2;
+    const post = new THREE.Group().add(b);
+    g.add(roadside(post, m.s - n * 100, m.side * (ROAD_HW + 1.2)));
+  }
+  // na divisão: placa zebrada apontando para a saída + nome flutuando
+  const nx = before.dy * -m.side, ny = -before.dx * -m.side, cor = centerAt(m.s), r = centerAt(m.s + 30);
+  const mx = cor.x + before.dx * 30 + nx * (ROAD_HW + 1.75);
+  const my = cor.y + before.dy * 30 + ny * (ROAD_HW + 1.75);
+  const gx = (r.x + mx) / 2, gy = (r.y + my) / 2;
+  const gore = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.75), new THREE.MeshBasicMaterial({ map: tex('gore' + m.side, () => goreTex(m.side)), side: THREE.DoubleSide }));
+  gore.position.copy(toV(gx, 1.1, gy)); gore.rotation.y = yawOf(before); g.add(gore);
+  const gp = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.8, 0.12), MAT.pole); gp.position.copy(toV(gx, 0.4, gy)); g.add(gp);
+  // setas na beira de fora do ramo da saída, apontando para onde ele vai
+  for (let k = 0; k < 4; k++) {
+    const sk = m.s + 10 + k * 14, p = centerAt(sk), off = m.side * (ROAD_HW + 1.0);
+    const c = new THREE.Mesh(chevGeo, chevMat());
+    c.scale.set(m.side * 0.9, 0.9, 0.9); c.rotation.y = yawOf(before);
+    c.position.copy(toV(p.x + p.dy * off, 1.6, p.y - p.dx * off));
+    c.userData.k = k; c.userData.s = sk; g.add(c);
+  }
+  if (m.toward || m.street) {
+    const lab = label(m.toward || m.street, m.num ? 'SAÍDA ' + m.num : 'SAÍDA');
+    const p = posAt(m.s + 20); lab.position.copy(toV(p.x, 6.2, p.y)); g.add(lab);
+  }
+  scene.add(g);
+  return g;
+}
 // as setas só existem perto do carro (rotas com centenas de manobras)
 function markerFor(m) {
+  if (m.exit) return exitMarker(m);
   const g = new THREE.Group(), before = posAt(m.s - 14), at_ = posAt(m.s);
-  const yaw = Math.atan2(-before.dx, before.dy);
+  const yaw = yawOf(before);
   for (let k = 0; k < 3; k++) {
-    const c = new THREE.Mesh(chevGeo, new THREE.MeshBasicMaterial({ color: 0x3fc6ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, fog: false }));
+    const c = new THREE.Mesh(chevGeo, chevMat());
     c.scale.set(m.side * 1.25, 1.25, 1.25);
     const off = (k * 3.6 - 1.2) * m.side;
     c.position.copy(toV(at_.x + before.dx * 9 + before.dy * off, 2.8, at_.y + before.dy * 9 - before.dx * off));
@@ -359,16 +817,21 @@ function markerFor(m) {
 function updateMarkers(s, time) {
   for (const m of MAN) {
     if (!m.side) continue;
-    const d = m.s - s, want = d > -6 && d < 280;
+    const range = m.exit ? 620 : 280;
+    const d = m.s - s, want = d > -(m.exit ? 50 : 6) && d < range;
     let mk = markers.find(x => x.m === m);
     if (want && !mk) { mk = { m, g: markerFor(m) }; markers.push(mk); }
     if (!want && mk) { scene.remove(mk.g); markers = markers.filter(x => x !== mk); continue; }
     if (!mk) continue;
-    const a = Math.min(1, (280 - d) / 60) * Math.min(1, (d + 6) / 8);
+    const a = Math.min(1, (range - d) / 60) * Math.min(1, (d + 6) / 8);
+    const showChev = m.exit ? d < 300 : true;
     mk.g.children.forEach(c => {
-      if (c.isSprite) { c.material.opacity = a; return; }
+      if (c.isSprite) { c.material.opacity = m.exit ? clamp01((300 - d) / 60) : a; return; }
+      if (c.userData.k === undefined) return;
       const k = c.userData.k, pulse = 0.55 + 0.45 * Math.max(0, Math.sin(time * 5 - k * 0.9));
-      c.material.opacity = a * (0.45 + 0.5 * pulse); c.position.y = 2.8 + Math.sin(time * 2 + k) * 0.15;
+      c.visible = showChev && !(c.userData.s !== undefined && c.userData.s - s < 8);
+      c.material.opacity = (m.exit ? 1 : a) * (0.45 + 0.5 * pulse);
+      c.position.y = (m.exit ? 1.6 : 2.8) + Math.sin(time * 2 + k) * 0.15;
     });
   }
 }
@@ -393,6 +856,8 @@ window.sim3d = {
   setRoute(d) {
     clearChunks(); clearMarkers();
     hasRoute = setRouteData(typeof d === 'string' ? JSON.parse(d) : d);
+    s = 0; target = 0;
+    placeAlerts();
     if (!hasRoute) return;
     buildDest();
     lookInit = false;
@@ -402,8 +867,13 @@ window.sim3d = {
     if (!hasRoute) return;
     const ns = sFromAlong(d.along || 0);
     // salto grande (recálculo, GPS voltou): vai direto; senão, só corrige
-    if (Math.abs(ns - s) > 60) s = ns;
+    if (Math.abs(ns - s) > 60) { s = ns; lookInit = false; }
     target = ns; v = Math.max(0, d.v || 0); offRoute = !!d.off;
+  },
+  setAlerts(list) {
+    if (typeof list === 'string') list = JSON.parse(list);
+    ALERT_RAW = list || [];
+    placeAlerts();
   },
   setDark(on) {
     pal = on ? PAL.night : PAL.day;
@@ -435,7 +905,7 @@ function resize() {
 }
 addEventListener('resize', resize); resize();
 
-let t0 = performance.now(), time = 0;
+let t0 = performance.now(), time = 0, lift = 0;
 function frame(now) {
   if (!active) return;
   const dt = Math.min(0.1, (now - t0) / 1000); t0 = now; time += dt;
@@ -445,16 +915,22 @@ function frame(now) {
     s += (target + v * 0.5 - s) * Math.min(1, dt * 1.5);
     s = Math.max(0, Math.min(TOTAL, s));
     updateChunks(s);
-    const p = posAt(s), f = posAt(s + 22);
+    // perto de saída/bifurcação a câmera sobe um pouco e olha mais longe
+    const ex = MAN.find(m => m.exit && m.s - s < 350 && m.s - s > -40);
+    lift += ((ex ? 1 : 0) - lift) * Math.min(1, dt * 1.2);
+    const p = posAt(s), f = posAt(s + 22 + 20 * lift);
     ground.position.set(p.x, LV.ground, -p.y);
-    camera.position.copy(toV(p.x, 1.35, p.y));
+    camera.position.copy(toV(p.x, 1.35 + 2.2 * lift, p.y));
     const want = toV(f.x, 0.85, f.y);
-    if (!lookInit) { look.copy(want); lookInit = true; } else look.lerp(want, 1 - Math.exp(-dt * 5));
+    // ponto de olhar suave; se ficou para trás (salto, tela parada), vai direto
+    const behind = (look.x - camera.position.x) * (want.x - camera.position.x) + (look.z - camera.position.z) * (want.z - camera.position.z) < 0;
+    if (!lookInit || behind) { look.copy(want); lookInit = true; } else look.lerp(want, 1 - Math.exp(-dt * 5));
     camera.lookAt(look);
     updateCarpet(s + 1.5);
     carpetMat.uniforms.time.value = time;
     carpetMat.uniforms.dim.value += ((offRoute ? 0.25 : 1) - carpetMat.uniforms.dim.value) * Math.min(1, dt * 3);
     updateMarkers(s, time);
+    updateAlerts(s, time);
   }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);

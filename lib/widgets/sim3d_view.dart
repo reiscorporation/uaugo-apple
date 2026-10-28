@@ -2,7 +2,8 @@
 // sim3d_view.dart — Visão 3D da navegação (UauGo v2, só no Galaxy de teste)
 //
 // O que faz: Mostra a estrada da rota em 3D, em primeira pessoa, com o
-//   "tapete" azul na faixa, setas nas conversões e o destino (página em
+//   "tapete" azul na faixa, setas nas conversões, placas nas saídas,
+//   radares/lombadas/polícia/alertas na pista e o destino (página em
 //   assets/sim3d/index.html, desenhada com three.js, sem internet). Só ruas,
 //   sem prédios: leve e prático.
 // Quem usa: MapScreen (navegação). Pinça para afastar na visão 3D volta ao
@@ -25,6 +26,7 @@ class Sim3DController {
   bool _ready = false;
   String? _routeJson;
   String? _lastUpdate;
+  String? _alertsJson;
   bool _dark = false;
   bool _active = true;
 
@@ -38,6 +40,16 @@ class Sim3DController {
       'dest': dest,
     });
     _run('sim3d.setRoute($_routeJson)');
+    if (_alertsJson != null) _run('sim3d.setAlerts($_alertsJson)');
+  }
+
+  /// Radares, lombadas, polícia, pedágios, semáforos e alertas dos usuários
+  /// perto do piloto: viram objetos na pista (veja setAlerts na página).
+  void alerts(List<Map<String, Object?>> list) {
+    final j = jsonEncode(list);
+    if (j == _alertsJson) return;
+    _alertsJson = j;
+    _run('sim3d.setAlerts($j)');
   }
 
   /// Posição na rota (metros desde o início), velocidade (m/s) e se saiu
@@ -70,6 +82,7 @@ class Sim3DController {
     _ready = true;
     _run('sim3d.setDark($_dark)');
     if (_routeJson != null) _run('sim3d.setRoute($_routeJson)');
+    if (_alertsJson != null) _run('sim3d.setAlerts($_alertsJson)');
     if (_lastUpdate != null) _run('sim3d.update($_lastUpdate)');
     _run('sim3d.setActive($_active)');
   }
