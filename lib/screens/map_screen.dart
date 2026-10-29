@@ -5082,11 +5082,34 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// já em 3D, só volta ao mapa depois de passar ou se ficar a mais de 750 m).
   bool _nearExit(Position p) {
     if (!_navigating && _sim == null) return false;
-    final turn = _upcomingTurn(p);
-    if (turn == null) return false;
-    final m = turn.step.maneuver;
-    final exit = RegExp('ramp|fork|keep').hasMatch(m) && RegExp('left|right').hasMatch(m);
-    return exit && turn.meters < (_show3d ? 750 : 600);
+    final nav = _nav;
+    if (nav == null || nav.finished) return false;
+    // Olha as próximas manobras (não só a primeira): às vezes vem um
+    // "continue"/"siga" curto antes da saída.
+    final limit = _show3d ? 750.0 : 600.0;
+    final ra = _riderAlong;
+    for (var i = nav.nextIndex; i < nav.steps.length && i < nav.nextIndex + 4; i++) {
+      final s = nav.steps[i];
+      final d = (ra != null ? nav.routeDistanceTo(i, ra) : null) ??
+          distanceMeters(p.latitude, p.longitude, s.lat, s.lng);
+      if (d > limit) break;
+      if (_isExitStep(s)) return true;
+    }
+    return false;
+  }
+
+  /// Saída, rampa, bifurcação ou "mantenha-se" (Google em português ou
+  /// inglês: o texto segue o idioma do app). Curva leve em via rápida
+  /// (acima de 50 km/h) também costuma ser uma saída.
+  bool _isExitStep(NavStep s) {
+    final m = s.maneuver;
+    if (RegExp('ramp|fork|keep').hasMatch(m)) return true;
+    if (m.startsWith('turn-slight') && _speedMs > 14) return true;
+    return RegExp(
+            r'sa[íi]da|bifurca|mantenha-se|pegue a rampa|pegue o acesso|'
+            r'\bexit\b|\bfork\b|\bkeep (left|right)\b|take the ramp|slip road',
+            caseSensitive: false)
+        .hasMatch(s.text);
   }
 
   /// Modo "nas saídas": entra no 3D perto de saídas e volta ao mapa depois.
@@ -5123,7 +5146,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _sim3d.dark(_darkMap);
     final pr = _proj;
     if (pr != null) {
-      _sim3d.update(pr.along, _speedMs, _offRoute || pr.offset > 40);
+      // Saiu da rota (virou numa esquina): a 18 m já segue o GPS, sem
+      // esperar o recálculo; a cena mostra a virada de verdade.
+      final me = _me;
+      _sim3d.update(pr.along, _speedMs, _offRoute || pr.offset > 18,
+          lat: me?.latitude, lng: me?.longitude, heading: _bearing);
     }
     final me = _me;
     if (me != null && DateTime.now().difference(_alerts3dAt).inSeconds >= 4) {

@@ -896,6 +896,60 @@ function buildDest() {
   scene.add(beam, pin);
 }
 
+/* ---------- fora da rota: a câmera segue o GPS e desenha a rua por onde passou ----------
+   Saiu da rota (virou numa esquina, pegou outra saída): a cena não fica presa no
+   traçado planejado. O carro anda pela posição real, a rua percorrida aparece
+   embaixo dele (rastro dos últimos ~500 m) e segue reta à frente; a rota planejada
+   continua desenhada no lugar dela, então dá para ver que você saiu dela. */
+let gps = null, gpsAt = 0, gpsDir = { x: 0, y: 1 }, freePos = null, freeDir = null;
+const TRAIL = [];
+let trailGroup = null, trailDirty = false, trailBuiltAt = 0;
+function onGps(d) {
+  if (d.la == null || d.lo == null) return;
+  const p = proj(d.la, d.lo);
+  gps = { x: p[0], y: p[1] }; gpsAt = performance.now();
+  if (d.hd != null && (d.v || 0) > 1) {
+    const r = d.hd * Math.PI / 180;
+    gpsDir = { x: Math.sin(r), y: Math.cos(r) };
+  }
+  const last = TRAIL[TRAIL.length - 1];
+  if (!last || len(last[0], last[1], p[0], p[1]) > 5) {
+    TRAIL.push(p);
+    while (TRAIL.length > 100) TRAIL.shift();
+    trailDirty = true;
+  }
+}
+function clearTrail() {
+  if (trailGroup) { scene.remove(trailGroup); trailGroup.children.forEach(m => m.geometry.dispose()); trailGroup = null; }
+  TRAIL.length = 0; freePos = null; freeDir = null;
+}
+function buildTrail() {
+  if (trailGroup) { scene.remove(trailGroup); trailGroup.children.forEach(m => m.geometry.dispose()); trailGroup = null; }
+  if (!TRAIL.length) return;
+  const last = TRAIL[TRAIL.length - 1], pts = TRAIL.slice();
+  // à frente, a rua segue reta na direção em que você está indo
+  for (let d = 10; d <= 160; d += 10) pts.push([last[0] + gpsDir.x * d, last[1] + gpsDir.y * d]);
+  const line = resample(pts, 2);
+  if (line.length < 2) return;
+  const o = line[0], walk = new Flat(o[0], o[1]), road = new Flat(o[0], o[1]), mark = new Flat(o[0], o[1]);
+  // o carro anda na faixa da direita: o eixo da rua fica 1,75 m à esquerda dele
+  const kWalk = col(pal.walk), kRoad = col(pal.road), kWhite = col(pal.white);
+  walk.strip(line, ROAD_HW + 2.4, LV.walk + 0.005, kWalk, -LANE);
+  road.strip(line, ROAD_HW, LV.road + 0.005, kRoad, -LANE);
+  mark.strip(line, 0.1, LV.mark + 0.005, kWhite, -LANE + ROAD_HW - 0.35);
+  mark.strip(line, 0.1, LV.mark + 0.005, kWhite, -LANE - (ROAD_HW - 0.35));
+  trailGroup = new THREE.Group();
+  trailGroup.add(walk.mesh(MATS.walk), road.mesh(MATS.road), mark.mesh(MATS.mark));
+  scene.add(trailGroup);
+}
+// trecho da rota mais perto do GPS (para desenhar a rota planejada em volta)
+function nearestS(x, y, around) {
+  const i0 = idxAt(around), lo = Math.max(0, i0 - 2500), hi = Math.min(P.length - 1, i0 + 2500);
+  let best = i0, bd = 1e12;
+  for (let i = lo; i <= hi; i += 2) { const d = (P[i][0] - x) ** 2 + (P[i][1] - y) ** 2; if (d < bd) { bd = d; best = i; } }
+  return CUM[best];
+}
+
 /* ---------- estado vindo do app ---------- */
 let hasRoute = false, active = true;
 let s = 0, v = 0, target = 0, offRoute = false;
@@ -915,10 +969,15 @@ window.sim3d = {
   update(d) {
     if (typeof d === 'string') d = JSON.parse(d);
     if (!hasRoute) return;
+    onGps(d);
     const ns = sFromAlong(d.along || 0);
+    const wasOff = offRoute;
+    v = Math.max(0, d.v || 0); offRoute = !!d.off;
+    // voltou para a rota: a câmera volta a andar presa nela
+    if (wasOff && !offRoute) { s = ns; lookInit = false; clearTrail(); }
     // salto grande (recálculo, GPS voltou): vai direto; senão, só corrige
     if (Math.abs(ns - s) > 60) { s = ns; lookInit = false; }
-    target = ns; v = Math.max(0, d.v || 0); offRoute = !!d.off;
+    target = ns;
   },
   setAlerts(list) {
     if (typeof list === 'string') list = JSON.parse(list);
@@ -959,7 +1018,33 @@ let t0 = performance.now(), time = 0, lift = 0;
 function frame(now) {
   if (!active) return;
   const dt = Math.min(0.1, (now - t0) / 1000); t0 = now; time += dt;
-  if (hasRoute) {
+  if (hasRoute && offRoute && gps) {
+    // fora da rota: segue a posição real do GPS (anda na velocidade atual
+    // entre as leituras e encosta aos poucos nela)
+    const ahead = v * Math.min(2, (now - gpsAt) / 1000);
+    const tx = gps.x + gpsDir.x * ahead, ty = gps.y + gpsDir.y * ahead;
+    if (!freePos) { freePos = { x: tx, y: ty }; freeDir = { ...gpsDir }; lookInit = false; trailDirty = true; }
+    freePos.x += freeDir.x * v * dt; freePos.y += freeDir.y * v * dt;
+    const k = Math.min(1, dt * 1.5);
+    freePos.x += (tx - freePos.x) * k; freePos.y += (ty - freePos.y) * k;
+    freeDir.x += (gpsDir.x - freeDir.x) * Math.min(1, dt * 2.5); freeDir.y += (gpsDir.y - freeDir.y) * Math.min(1, dt * 2.5);
+    const fl = Math.hypot(freeDir.x, freeDir.y) || 1; freeDir.x /= fl; freeDir.y /= fl;
+    if (trailDirty && now - trailBuiltAt > 600) { buildTrail(); trailDirty = false; trailBuiltAt = now; }
+    s = nearestS(freePos.x, freePos.y, s);
+    updateChunks(s);
+    lift += (0 - lift) * Math.min(1, dt * 1.2);
+    ground.position.set(freePos.x, LV.ground, -freePos.y);
+    camera.position.copy(toV(freePos.x, 1.35, freePos.y));
+    const want = toV(freePos.x + freeDir.x * 22, 0.85, freePos.y + freeDir.y * 22);
+    if (!lookInit) { look.copy(want); lookInit = true; } else look.lerp(want, 1 - Math.exp(-dt * 5));
+    camera.lookAt(look);
+    updateCarpet(s + 1.5);
+    carpetMat.uniforms.time.value = time;
+    carpetMat.uniforms.dim.value += (0.35 - carpetMat.uniforms.dim.value) * Math.min(1, dt * 3);
+    updateMarkers(s, time);
+    updateAlerts(s, time);
+  } else if (hasRoute) {
+    if (trailGroup) clearTrail();
     // anda na velocidade atual e encosta aos poucos na posição do GPS
     s += v * dt;
     s += (target + v * 0.5 - s) * Math.min(1, dt * 1.5);

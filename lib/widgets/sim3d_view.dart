@@ -52,10 +52,17 @@ class Sim3DController {
     _run('sim3d.setAlerts($j)');
   }
 
-  /// Posição na rota (metros desde o início), velocidade (m/s) e se saiu
-  /// da rota (o tapete fica apagado).
-  void update(double along, double speedMs, bool offRoute) {
-    final j = jsonEncode({'along': along, 'v': speedMs, 'off': offRoute});
+  /// Posição na rota (metros desde o início), velocidade (m/s), se saiu
+  /// da rota e a posição real do GPS com o rumo (graus): fora da rota a
+  /// cena segue o GPS e desenha a rua por onde o piloto está passando.
+  void update(double along, double speedMs, bool offRoute,
+      {double? lat, double? lng, double? heading}) {
+    final j = jsonEncode({
+      'along': along, 'v': speedMs, 'off': offRoute,
+      if (lat != null) 'la': lat,
+      if (lng != null) 'lo': lng,
+      if (heading != null) 'hd': heading,
+    });
     if (j == _lastUpdate) return;
     _lastUpdate = j;
     _run('sim3d.update($j)');
