@@ -98,6 +98,14 @@
     #next .st { font-size: 11px; letter-spacing: 0.02em; }
     #hud { padding: 0 48px; gap: 6px; }
   }
+  /* espaço medido pelo app (entre os botões) estreito: só velocidade e manobra */
+  #hud.narrow { gap: 6px; }
+  #hud.narrow #eta { display: none; }
+  #hud.narrow #speedo { min-width: 66px; }
+  #hud.narrow #speed { font-size: 46px; }
+  #hud.narrow #next { width: auto; flex: 1 1 auto; max-width: calc(100% - 72px); padding: 6px 22px 6px 22px; }
+  #hud.narrow #next .st { font-size: 11px; letter-spacing: 0.02em; }
+  #hud.narrow #next .d { font-size: 21px; }
   /* deitado: painel mais baixo (os botões ficam nas laterais) */
   @media (orientation: landscape) { #hud { bottom: 16px; } }
 </style>
@@ -1082,6 +1090,15 @@ window.sim3d = {
     // salto grande (recálculo, GPS voltou): vai direto; senão, só corrige
     if (Math.abs(ns - s) > 60) { s = ns; lookInit = false; }
     target = ns;
+  },
+  // Espaço livre medido pelo app em volta dos botões: {l, r, b} em px.
+  layout(d) {
+    if (typeof d === 'string') d = JSON.parse(d);
+    const h = document.getElementById('hud');
+    h.style.left = d.l + 'px'; h.style.right = d.r + 'px'; h.style.bottom = d.b + 'px';
+    h.style.padding = '0';
+    const w = innerWidth - d.l - d.r;
+    h.classList.toggle('narrow', w < 470);
   },
   // Painel: {kmh, lim, over, m, d, t, last, eta, rem}. kmh null = sem GPS; m/t = próxima manobra.
   hud(d) {

@@ -3791,6 +3791,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // v2: o painel do 3D se encaixa no espaço livre entre os botões.
+    if (_hud3d) WidgetsBinding.instance.addPostFrameCallback((_) => _layoutHud3d());
     const white = TextStyle(color: Colors.white);
     // Celular deitado: faixas só na metade esquerda e colunas de botões que
     // se ajustam à altura menor. Em pé, nada muda.
@@ -3921,6 +3923,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (_show3d && _canShow3d)
           Positioned.fill(
             child: Sim3DView(
+              key: _kWeb3d,
               controller: _sim3d,
               onBackToMap: () {
                 _manual3dUntil = DateTime.now().add(const Duration(seconds: 20));
@@ -4191,7 +4194,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
         // Controles da simulação (pausar, velocidade, linha do tempo)
         if (_sim != null)
-          Positioned(left: 8, right: 8, bottom: 16, child: _simControls()),
+          Positioned(left: 8, right: 8, bottom: 16,
+              child: KeyedSubtree(key: _kSimBar, child: _simControls())),
 
         // Recentralizar (aparece ao arrastar o mapa) + Iniciar / encerrar.
         // Deitado: à esquerda, para não tapar o marcador do piloto no centro.
@@ -4232,6 +4236,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           top: landscape ? 8 : null,
           bottom: _sim != null ? 196 : (landscape ? 96 : 104),
           child: _landscapeFit(landscape, Alignment.bottomLeft, Column(
+            key: _kLeftCol,
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -4343,7 +4348,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         Positioned(
           left: 6,
           bottom: 24,
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
+          child: Row(key: _kBottomLeft, mainAxisSize: MainAxisSize.min, children: [
             SizedBox(
               width: 62,
               height: 62,
@@ -4378,7 +4383,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           right: 6,
           top: landscape ? 8 : null,
           bottom: _sim != null ? 196 : 24,
-          child: _landscapeFit(landscape, Alignment.bottomRight, Column(mainAxisSize: MainAxisSize.min, children: [
+          child: _landscapeFit(landscape, Alignment.bottomRight, Column(key: _kRightCol, mainAxisSize: MainAxisSize.min, children: [
             if (_clubId != null) ...[
               FloatingActionButton(
                 heroTag: 'club',
@@ -5152,6 +5157,44 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       'eta': eta,
       'rem': rem,
     });
+  }
+
+  // v2: botões que o painel do 3D não pode cobrir (medidos na tela).
+  final _kWeb3d = GlobalKey(), _kLeftCol = GlobalKey(), _kRightCol = GlobalKey();
+  final _kBottomLeft = GlobalKey(), _kSimBar = GlobalKey();
+
+  /// v2: posição do painel do 3D em função dos outros botões: entre a coluna
+  /// da esquerda e a da direita, e acima do que estiver embaixo (alerta,
+  /// câmera, controles da simulação). Se os botões mudarem de lugar ou de
+  /// tamanho, o painel acompanha.
+  void _layoutHud3d() {
+    if (!mounted || !_hud3d) return;
+    Rect? rect(GlobalKey k) {
+      final b = k.currentContext?.findRenderObject();
+      if (b is! RenderBox || !b.attached || !b.hasSize) return null;
+      return b.localToGlobal(Offset.zero) & b.size;
+    }
+    final web = rect(_kWeb3d);
+    if (web == null) return;
+    final lc = rect(_kLeftCol), rc = rect(_kRightCol);
+    var left = (lc != null ? lc.right : web.left) + 6;
+    var right = (rc != null ? rc.left : web.right) - 6;
+    if (right - left < 240) { // estreito demais: usa a largura toda
+      left = web.left + 8;
+      right = web.right - 8;
+    }
+    // O mais alto dos botões de baixo que ficam na faixa do painel.
+    var top = web.bottom - 8;
+    for (final k in [_kBottomLeft, _kSimBar]) {
+      final r = rect(k);
+      if (r == null || r.right <= left || r.left >= right) continue;
+      top = min(top, r.top);
+    }
+    _sim3d.layout(
+      left: left - web.left,
+      right: web.right - right,
+      bottom: web.bottom - top + 8,
+    );
   }
 
   /// v2: o painel do 3D substitui o velocímetro e a faixa da próxima curva.

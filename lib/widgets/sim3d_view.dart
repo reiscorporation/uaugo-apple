@@ -91,6 +91,16 @@ class Sim3DController {
   }
 
   String? _hudJson;
+  String? _layoutJson;
+
+  /// Espaço livre para o painel (px a partir das bordas da visão 3D),
+  /// medido pelo app em volta dos botões.
+  void layout({required double left, required double right, required double bottom}) {
+    final j = jsonEncode({'l': left.round(), 'r': right.round(), 'b': bottom.round()});
+    if (j == _layoutJson) return;
+    _layoutJson = j;
+    _run('sim3d.layout($j)');
+  }
 
   void _run(String js) {
     if (_ready) _web?.runJavaScript(js).catchError((_) {});
@@ -102,6 +112,7 @@ class Sim3DController {
     if (_routeJson != null) _run('sim3d.setRoute($_routeJson)');
     if (_alertsJson != null) _run('sim3d.setAlerts($_alertsJson)');
     if (_lastUpdate != null) _run('sim3d.update($_lastUpdate)');
+    if (_layoutJson != null) _run('sim3d.layout($_layoutJson)');
     if (_hudJson != null) _run('sim3d.hud($_hudJson)');
     _run('sim3d.setActive($_active)');
   }
