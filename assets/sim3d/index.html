@@ -367,22 +367,38 @@ function buildChunk(n) {
   if (pts.length < 2) return null;
   const o = pts[0], walk = new Flat(o[0], o[1]), road = new Flat(o[0], o[1]), mark = new Flat(o[0], o[1]);
   const kWalk = col(pal.walk), kRoad = col(pal.road), kWhite = col(pal.white), kYellow = col(pal.yellow);
-  walk.strip(pts, ROAD_HW + 2.4, LV.walk, kWalk);
-  road.strip(pts, ROAD_HW, LV.road, kRoad);
-  // bordas brancas contínuas e eixo tracejado (3 m pintado, 5 m não):
-  // amarelo na mão dupla; branco perto de saídas (mesma mão)
-  mark.strip(pts, 0.1, LV.mark, kWhite, ROAD_HW - 0.35);
-  mark.strip(pts, 0.1, LV.mark, kWhite, -(ROAD_HW - 0.35));
+  // Onde a rota passa por uma rodovia real do mapa, ela já está desenhada:
+  // a rua genérica só entra nos trechos sem via do mapa.
+  const runs = [];
+  {
+    let st = -1;
+    for (let i = 0; i < pts.length; i++) {
+      const free = !(COVER && COVER[i0 + i]);
+      if (free && st < 0) st = i;
+      if ((!free || i === pts.length - 1) && st >= 0) { const e = free ? i : i - 1; if (e > st) runs.push([st, e]); st = -1; }
+    }
+  }
+  for (const [a, b] of runs) {
+    const rp = pts.slice(Math.max(0, a - 2), Math.min(pts.length, b + 3));
+    walk.strip(rp, ROAD_HW + 2.4, LV.walk, kWalk);
+    road.strip(rp, ROAD_HW, LV.road, kRoad);
+    // bordas brancas contínuas e eixo tracejado (3 m pintado, 5 m não):
+    // amarelo na mão dupla; branco perto de saídas (mesma mão)
+    mark.strip(rp, 0.1, LV.mark, kWhite, ROAD_HW - 0.35);
+    mark.strip(rp, 0.1, LV.mark, kWhite, -(ROAD_HW - 0.35));
+  }
   const dashEvery = Math.round(8 / STEP), dashLen = Math.max(1, Math.round(3 / STEP));
   for (let i = 0; i + dashLen < pts.length; i += dashEvery) {
+    if (COVER && COVER[i0 + i]) continue;
     const s = CUM[i0 + i];
     if (MAN.some(m => !m.exit && Math.abs(m.s - s) < 16)) continue; // nada pintado no cruzamento
     mark.strip(pts.slice(i, i + dashLen + 1), 0.08, LV.mark, inExitZone(s) ? kWhite : kYellow);
   }
   for (const m of MAN) {
-    if (m.exit) { exitRoad(m, s0, s1, walk, road, mark, kWalk, kRoad, kWhite); continue; }
+    // saída numa rodovia do mapa: as alças reais já estão desenhadas
+    if (m.exit) { if (!covered(m.s) && !covered(m.s - 60)) exitRoad(m, s0, s1, walk, road, mark, kWalk, kRoad, kWhite); continue; }
     // cruzamentos: a rua continua reto depois da conversão e do outro lado
-    if (!m.side || m.s < s0 || m.s >= s0 + CHUNK) continue;
+    if (!m.side || m.s < s0 || m.s >= s0 + CHUNK || covered(m.s)) continue;
     const before = centerAt(m.s - 16), corner = centerAt(m.s), after = centerAt(m.s + 16);
     const stub = (x, y, dx, dy, L) => {
       const q = []; for (let d = -6; d <= L; d += 2) q.push([x + dx * d, y + dy * d]);
@@ -425,6 +441,129 @@ function exitRoad(m, s0, s1, walk, road, mark, kWalk, kRoad, kWhite) {
     mark.strip([[ex, ey], [fx + before.dx * 2.5, fy + before.dy * 2.5]], 0.22, LV.mark + 0.005, kWhite);
   }
 }
+/* ---------- rodovias reais (mapa aberto, pacote public/vias/UF.json.gz) ----------
+   Perto do piloto o app manda as vias rápidas e as alças de saída de verdade:
+   tipo (1 expressa, 2 rodovia, 3 avenida principal, 4 alça), faixas, mão única
+   e o traçado. Elas são desenhadas com as faixas e o acostamento; onde a rota
+   passa por uma delas, a rua genérica da rota não é desenhada e o tapete vai
+   para a faixa certa (a da saída, uns 800 m antes dela). */
+const LW = 3.5; // largura de uma faixa (m)
+let OSM_GROUP = null, OSM_SEGS = new Map(), COVER = null, CORR = null, ROADS_RAW = null;
+const roadHW = r => r.cls === 4 ? 2.0 : r.ow ? r.n * LW / 2 : r.n * 3.3 / 2;
+function segKey(x, y) { return Math.floor(x / 25) + ',' + Math.floor(y / 25); }
+function setRoadsData(list) {
+  OSM_SEGS = new Map();
+  if (OSM_GROUP) { scene.remove(OSM_GROUP); OSM_GROUP.children.forEach(m => m.geometry.dispose()); OSM_GROUP = null; }
+  const roads = [];
+  for (const w of list || []) {
+    const pts = [];
+    for (let i = 0; i + 1 < w[3].length; i += 2) {
+      const p = proj(w[3][i], w[3][i + 1]);
+      if (!pts.length || len(pts[pts.length - 1][0], pts[pts.length - 1][1], p[0], p[1]) > 0.5) pts.push(p);
+    }
+    if (pts.length >= 2) roads.push({ cls: w[0], n: Math.max(1, w[1]), ow: !!w[2], pts });
+  }
+  if (!roads.length) { COVER = null; CORR = null; return; }
+  // desenho
+  const o = roads[0].pts[0];
+  const shoulder = new Flat(o[0], o[1]), road = new Flat(o[0], o[1]), mark = new Flat(o[0], o[1]);
+  const kSh = col(pal.walk), kRoad = col(pal.road), kWhite = col(pal.white), kYellow = col(pal.yellow);
+  const H = 0.006; // um pouco acima da rua genérica da rota
+  for (const r of roads) {
+    const hw = roadHW(r), line = resample(r.pts, 2);
+    if (r.cls <= 2 || r.cls === 4) shoulder.strip(line, hw + (r.cls === 4 ? 1.2 : 2.6), LV.walk + H, kSh);
+    else shoulder.strip(line, hw + 1.6, LV.walk + H, kSh);
+    road.strip(line, hw, LV.road + H, kRoad);
+    // bordas contínuas
+    mark.strip(line, 0.1, LV.mark + H, kWhite, hw - 0.2);
+    mark.strip(line, 0.1, LV.mark + H, kWhite, -(hw - 0.2));
+    // divisões de faixa tracejadas (3 m pintado, 9 m não) — eixo amarelo na mão dupla
+    const offs = [], colr = [];
+    if (r.cls !== 4) {
+      if (r.ow) for (let k = 1; k < r.n; k++) { offs.push(-hw + k * LW); colr.push(kWhite); }
+      else { offs.push(0); colr.push(kYellow); }
+    }
+    const dashLen = 2, dashEvery = 6; // em amostras de 2 m
+    offs.forEach((off, j) => {
+      for (let i = 0; i + dashLen < line.length; i += dashEvery) mark.strip(line.slice(i, i + dashLen + 1), 0.08, LV.mark + H, colr[j], off);
+    });
+    // grade de segmentos (para achar a via embaixo da rota)
+    for (let i = 0; i + 1 < r.pts.length; i++) {
+      const a = r.pts[i], b = r.pts[i + 1], l = len(a[0], a[1], b[0], b[1]);
+      if (l < 0.1) continue;
+      const seg = { ax: a[0], ay: a[1], dx: (b[0] - a[0]) / l, dy: (b[1] - a[1]) / l, l, r };
+      for (let d = 0; d <= l + 25; d += 20) {
+        const u = Math.min(l, d), k = segKey(a[0] + seg.dx * u, a[1] + seg.dy * u);
+        const arr = OSM_SEGS.get(k) || []; if (!arr.includes(seg)) arr.push(seg); OSM_SEGS.set(k, arr);
+      }
+    }
+  }
+  OSM_GROUP = new THREE.Group();
+  OSM_GROUP.add(shoulder.mesh(MATS.walk), road.mesh(MATS.road), mark.mesh(MATS.mark));
+  scene.add(OSM_GROUP);
+  computeLanes();
+  clearChunks();
+}
+// Para cada ponto da rota: está sobre uma via do mapa? em que faixa andar?
+function computeLanes() {
+  COVER = new Uint8Array(C.length);
+  const raw = new Float32Array(C.length), has = new Uint8Array(C.length);
+  const exits = MAN.filter(m => m.exit && m.side);
+  for (let i = 0; i < C.length; i++) {
+    const c = C[i], a = C[Math.max(0, i - 2)], b = C[Math.min(C.length - 1, i + 2)];
+    const tl = len(a[0], a[1], b[0], b[1]) || 1, tx = (b[0] - a[0]) / tl, ty = (b[1] - a[1]) / tl;
+    const gx = Math.floor(c[0] / 25), gy = Math.floor(c[1] / 25);
+    let best = null, bd = 1e9, bside = 0;
+    for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
+      const arr = OSM_SEGS.get((gx + ox) + ',' + (gy + oy)); if (!arr) continue;
+      for (const s of arr) {
+        let dot = tx * s.dx + ty * s.dy;
+        if (s.r.ow ? dot < 0.75 : Math.abs(dot) < 0.75) continue;
+        const sgn = dot < 0 ? -1 : 1;           // mão dupla percorrida "ao contrário"
+        const px = c[0] - s.ax, py = c[1] - s.ay, t = px * s.dx + py * s.dy;
+        if (t < -3 || t > s.l + 3) continue;
+        // lateral do ponto da rota em relação ao eixo da via (+ = à direita de quem anda)
+        const lat = sgn * (px * s.dy - py * s.dx);
+        const hw = roadHW(s.r);
+        if (Math.abs(lat) > hw + 2 || Math.abs(lat) >= bd) continue;
+        best = s; bd = Math.abs(lat); bside = lat;
+      }
+    }
+    if (!best) continue;
+    COVER[i] = 1; has[i] = 1;
+    const r = best.r, hw = roadHW(r);
+    let center;
+    if (r.cls === 4) center = 0;
+    else if (!r.ow) { const m = Math.max(1, Math.floor(r.n / 2)); center = 1.65 + 3.3 * (m - 1); }
+    else {
+      const s = CUM[i], ex = exits.find(m => m.s - s > -10 && m.s - s < 800);
+      const k = ex ? (ex.side > 0 ? r.n - 1 : 0) : Math.ceil((r.n - 1) / 2);
+      center = -hw + LW / 2 + LW * k;
+    }
+    raw[i] = (center - bside) - LANE; // quanto mover o carro a partir do caminho normal
+  }
+  // suaviza (troca de faixa em ~100 m); fora das vias do mapa, sem correção
+  CORR = new Float32Array(C.length);
+  const W = 25;
+  let sum = 0, cnt = 0;
+  for (let i = 0; i < C.length + W; i++) {
+    if (i < C.length && has[i]) { sum += raw[i]; cnt++; }
+    const j = i - 2 * W - 1;
+    if (j >= 0 && has[j]) { sum -= raw[j]; cnt--; }
+    const k = i - W;
+    if (k >= 0 && k < C.length) CORR[k] = cnt ? (sum / (2 * W + 1)) : 0;
+  }
+}
+// posição do carro/tapete já na faixa certa
+function lanePosAt(s) {
+  const p = posAt(s);
+  if (!CORR) return p;
+  const i = Math.min(CORR.length - 1, Math.max(0, idxAt(s)));
+  const k = CORR[i];
+  return { x: p.x + p.dy * k, y: p.y - p.dx * k, dx: p.dx, dy: p.dy };
+}
+const covered = s => !!(COVER && COVER[Math.min(COVER.length - 1, Math.max(0, idxAt(s)))]);
+
 function disposeChunk(g) {
   scene.remove(g);
   g.children.forEach(m => m.geometry.dispose());
@@ -466,10 +605,10 @@ const carpetMat = new THREE.ShaderMaterial({
 const carpet = new THREE.Mesh(carpetGeo, carpetMat); carpet.renderOrder = 5; carpet.frustumCulled = false; scene.add(carpet);
 function updateCarpet(s) {
   const pos = carpetGeo.attributes.position.array, dist = carpetGeo.attributes.dist.array;
-  const end = Math.min(TOTAL, s + CARPET_L), hw = 1.5, o = posAt(s);
+  const end = Math.min(TOTAL, s + CARPET_L), hw = 1.5, o = lanePosAt(s);
   carpet.position.set(o.x, 0, -o.y);
   for (let i = 0; i <= CARPET_N; i++) {
-    const ss = s + (end - s) * (i / CARPET_N), p = posAt(ss);
+    const ss = s + (end - s) * (i / CARPET_N), p = lanePosAt(ss);
     pos.set([p.x - p.dy * hw - o.x, LV.carpet, -(p.y + p.dx * hw - o.y), p.x + p.dy * hw - o.x, LV.carpet, -(p.y - p.dx * hw - o.y)], i * 6);
     dist[i * 2] = dist[i * 2 + 1] = ss - s;
   }
@@ -1075,6 +1214,8 @@ window.sim3d = {
     s = 0; target = 0;
     placeAlerts();
     if (!hasRoute) return;
+    COVER = null; CORR = null;
+    if (ROADS_RAW) setRoadsData(ROADS_RAW); // origem nova: desenha as vias de novo
     buildDest();
     lookInit = false;
   },
@@ -1120,6 +1261,12 @@ window.sim3d = {
     $('etaT').textContent = d.eta || '--:--';
     $('etaD').textContent = d.rem || '';
   },
+  // Rodovias reais perto do piloto: [[tipo, faixas, mãoÚnica, [lat, lng, ...]], ...]
+  setRoads(list) {
+    if (typeof list === 'string') list = JSON.parse(list);
+    ROADS_RAW = list || [];
+    if (hasRoute) setRoadsData(ROADS_RAW);
+  },
   setAlerts(list) {
     if (typeof list === 'string') list = JSON.parse(list);
     ALERT_RAW = list || [];
@@ -1131,6 +1278,7 @@ window.sim3d = {
     scene.fog.color.setHex(pal.fog); ground.material.color.setHex(pal.ground);
     hemi.intensity = pal.hemi; sunL.intensity = pal.sun;
     clearChunks();
+    if (hasRoute && ROADS_RAW) setRoadsData(ROADS_RAW);
   },
   setActive(on) {
     const was = active; active = !!on;
@@ -1194,7 +1342,7 @@ function frame(now) {
     // perto de saída/bifurcação a câmera sobe um pouco e olha mais longe
     const ex = MAN.find(m => m.exit && m.s - s < 350 && m.s - s > -40);
     lift += ((ex ? 1 : 0) - lift) * Math.min(1, dt * 1.2);
-    const p = posAt(s), f = posAt(s + 22 + 20 * lift);
+    const p = lanePosAt(s), f = lanePosAt(s + 22 + 20 * lift);
     ground.position.set(p.x, LV.ground, -p.y);
     camera.position.copy(toV(p.x, 1.35 + 2.2 * lift, p.y));
     const want = toV(f.x, 0.85, f.y);

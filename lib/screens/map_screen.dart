@@ -83,6 +83,7 @@ import '../l10n/i18n.dart';
 import '../widgets/toll_confirm_sheet.dart';
 import '../services/media_service.dart';
 import '../widgets/sim3d_view.dart';
+import '../services/vias_service.dart';
 
 /// Tela de mapa/navegação. Três usos:
 /// - expedição em grupo: [code] preenchido;
@@ -5197,6 +5198,24 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// v2: rodovias reais (faixas e saídas) em volta do piloto, a cada 500 m.
+  (double, double)? _roads3dAt;
+  String _roads3dSig = '';
+  void _feedRoads3d() {
+    final p = _me;
+    if (p == null) return;
+    ViasService.instance.ensure(p.latitude, p.longitude);
+    final at = _roads3dAt;
+    final moved = at == null ||
+        distanceMeters(at.$1, at.$2, p.latitude, p.longitude) > 500;
+    if (!moved && _roads3dSig == _sim3dSig) return;
+    final list = ViasService.instance.near(p.latitude, p.longitude, 1800);
+    if (list.isEmpty) return; // ainda baixando (ou fora dos estados com pacote)
+    _roads3dAt = (p.latitude, p.longitude);
+    _roads3dSig = _sim3dSig;
+    _sim3d.roads(list);
+  }
+
   /// v2: o painel do 3D substitui o velocímetro e a faixa da próxima curva.
   bool get _hud3d => _show3d && _canShow3d;
 
@@ -5235,6 +5254,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           lat: me?.latitude, lng: me?.longitude, heading: _bearing);
     }
     _feedHud3d();
+    _feedRoads3d();
     final me = _me;
     if (me != null && DateTime.now().difference(_alerts3dAt).inSeconds >= 4) {
       _alerts3dAt = DateTime.now();

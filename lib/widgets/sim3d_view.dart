@@ -92,6 +92,13 @@ class Sim3DController {
 
   String? _hudJson;
   String? _layoutJson;
+  String? _roadsJson;
+
+  /// Rodovias reais perto do piloto (ViasService.near): faixas e saídas.
+  void roads(List<List<Object>> list) {
+    _roadsJson = jsonEncode(list);
+    _run('sim3d.setRoads($_roadsJson)');
+  }
 
   /// Espaço livre para o painel (px a partir das bordas da visão 3D),
   /// medido pelo app em volta dos botões.
@@ -113,6 +120,7 @@ class Sim3DController {
     if (_alertsJson != null) _run('sim3d.setAlerts($_alertsJson)');
     if (_lastUpdate != null) _run('sim3d.update($_lastUpdate)');
     if (_layoutJson != null) _run('sim3d.layout($_layoutJson)');
+    if (_roadsJson != null) _run('sim3d.setRoads($_roadsJson)');
     if (_hudJson != null) _run('sim3d.hud($_hudJson)');
     _run('sim3d.setActive($_active)');
   }
