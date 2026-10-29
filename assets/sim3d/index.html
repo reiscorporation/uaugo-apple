@@ -35,9 +35,86 @@
   html, body { margin: 0; height: 100%; overflow: hidden; touch-action: none; }
   body { background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-low) 58%, var(--sky-low) 100%); }
   canvas { display: block; width: 100%; height: 100%; }
+
+  /* Painel do para-brisa (velocidade, limite, próxima conversão, chegada) */
+  @font-face { font-family: "Chakra Petch"; font-weight: 600; src: url(chakra-600.woff2) format("woff2"); }
+  @font-face { font-family: "Chakra Petch"; font-weight: 700; src: url(chakra-700.woff2) format("woff2"); }
+  :root {
+    --hud-ink: #f4fbff; --hud-glass: rgba(14, 24, 36, 0.5); --hud-line: rgba(244, 251, 255, 0.85);
+    --route: #46dcff; --alert: #ff4b4b;
+    --font-hud: "Chakra Petch", "Roboto Condensed", "Roboto", sans-serif;
+  }
+  #hud {
+    position: fixed; left: 0; right: 0; bottom: 96px;
+    display: flex; justify-content: center; align-items: center; gap: 10px;
+    padding: 0 64px; pointer-events: none; font-family: var(--font-hud); color: var(--hud-ink);
+    text-shadow: 0 1px 6px rgba(0,0,0,0.55);
+  }
+  #hud[hidden] { display: none; }
+  .hex {
+    position: relative; display: flex; align-items: center; gap: 10px;
+    min-height: 60px; padding: 6px 20px; min-width: 0; box-sizing: border-box;
+    background: var(--hud-glass);
+    clip-path: polygon(14% 0, 86% 0, 100% 50%, 86% 100%, 14% 100%, 0 50%);
+  }
+  .hex::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--hud-line);
+    clip-path: polygon(14% 0, 86% 0, 100% 50%, 86% 100%, 14% 100%, 0 50%,
+      1.6% 50%, 15% calc(100% - 2px), 85% calc(100% - 2px), 98.4% 50%, 85% 2px, 15% 2px, 1.6% 50%, 0 50%);
+  }
+  #eta { flex-direction: column; align-items: flex-start; gap: 0; width: 140px; padding-left: 28px; }
+  #eta .k { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.8; }
+  #eta .v { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  #speedo { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 84px; }
+  #speed { font-size: 56px; font-weight: 700; line-height: 0.95; font-variant-numeric: tabular-nums; }
+  #speed small { display: block; text-align: center; font-size: 11px; letter-spacing: 0.18em; opacity: 0.85; font-weight: 600; }
+  #limit {
+    width: 40px; height: 40px; border-radius: 50%; background: #fff; color: #111;
+    border: 5px solid #d8262b; box-sizing: border-box; display: grid; place-items: center;
+    font-size: 17px; font-weight: 700; text-shadow: none; font-variant-numeric: tabular-nums;
+  }
+  #limit[hidden] { display: none; }
+  body.over #speed { color: var(--alert); animation: blink 0.5s steps(2) infinite; }
+  body.over #limit { animation: pulse 0.5s ease-in-out infinite alternate; }
+  @keyframes blink { 50% { color: #ffd23f; } }
+  @keyframes pulse { to { transform: scale(1.14); } }
+  #next { width: 190px; padding-right: 28px; }
+  #next[hidden] { display: none; }
+  #next svg { flex: none; width: 38px; height: 38px; color: var(--route); filter: drop-shadow(0 0 6px rgba(70,220,255,0.55)); }
+  #next .txt { display: flex; flex-direction: column; min-width: 0; }
+  #next .st { font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9; }
+  #next .d { font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  #say {
+    position: fixed; left: 50%; transform: translateX(-50%); top: 10px;
+    max-width: calc(100% - 32px); box-sizing: border-box; padding: 7px 16px; border-radius: 999px;
+    background: rgba(14, 24, 36, 0.6); color: var(--hud-ink);
+    font: 600 15px/1.3 "Roboto", sans-serif; text-align: center; pointer-events: none;
+  }
+  #say[hidden] { display: none; }
+  /* celular em pé: sem a chegada (fica no topo do app) */
+  @media (max-width: 560px) {
+    #eta { display: none; }
+    #next { width: auto; max-width: 64vw; padding-left: 24px; }
+    #next .st { font-size: 11px; letter-spacing: 0.02em; }
+    #hud { padding: 0 48px; gap: 6px; }
+  }
+  /* deitado: painel mais baixo (os botões ficam nas laterais) */
+  @media (orientation: landscape) { #hud { bottom: 16px; } }
 </style>
 </head>
 <body>
+<div id="say" hidden></div>
+<div id="hud" hidden>
+  <div class="hex" id="eta"><span class="k">Chegada</span><span class="v" id="etaT">--:--</span><span class="k" id="etaD">--</span></div>
+  <div id="speedo">
+    <div id="speed">0<small>KM/H</small></div>
+    <div id="limit" hidden>40</div>
+  </div>
+  <div class="hex" id="next" hidden>
+    <svg id="nIcon" viewBox="0 0 48 48" aria-hidden="true"></svg>
+    <div class="txt"><span class="st" id="nSt"></span><span class="d" id="nD"></span></div>
+  </div>
+</div>
 <script src="three.min.js"></script>
 <script>
 'use strict';
@@ -950,6 +1027,33 @@ function nearestS(x, y, around) {
   return CUM[best];
 }
 
+/* ---------- ícone e distância do painel ---------- */
+const HUD_PATH = {
+  right: 'M14 40V22c0-4 3-7 7-7h12', left: 'M34 40V22c0-4-3-7-7-7H15',
+  sright: 'M18 40V26c0-3 1-5 3-7l10-10', sleft: 'M30 40V26c0-3-1-5-3-7L17 9',
+  uturn: 'M30 40V18a8 8 0 0 0-16 0v12', straight: 'M24 40V8',
+};
+const HUD_HEAD = {
+  right: 'M30 8l8 7-8 7', left: 'M18 8l-8 7 8 7', sright: 'M24 8h9v9', sleft: 'M24 8h-9v9',
+  uturn: 'M8 24l6 7 6-7', straight: 'M16 15l8-8 8 8',
+};
+let hudIconKey = '';
+// nomes de manobra do Google (turn-left, ramp-right, fork-left, uturn-right...)
+function setHudIcon(m, last) {
+  const k = last ? 'dest'
+    : /uturn/.test(m) ? 'uturn'
+    : /slight|ramp|keep|fork/.test(m) ? (/left/.test(m) ? 'sleft' : 'sright')
+    : /left/.test(m) ? 'left' : /right/.test(m) ? 'right' : 'straight';
+  if (k === hudIconKey) return;
+  hudIconKey = k;
+  document.getElementById('nIcon').innerHTML = k === 'dest'
+    ? '<path d="M24 6c-7 0-12 5-12 12 0 9 12 22 12 22s12-13 12-22c0-7-5-12-12-12z" fill="currentColor"/><circle cx="24" cy="18" r="4.5" fill="#0e1824"/>'
+    : `<path d="${HUD_PATH[k]}" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `<path d="${HUD_HEAD[k]}" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+const fmtDist = d => d >= 1000 ? (d / 1000).toFixed(1).replace('.', ',') + ' km'
+  : (d >= 100 ? Math.round(d / 10) * 10 : Math.max(0, Math.round(d))) + ' m';
+
 /* ---------- estado vindo do app ---------- */
 let hasRoute = false, active = true;
 let s = 0, v = 0, target = 0, offRoute = false;
@@ -978,6 +1082,26 @@ window.sim3d = {
     // salto grande (recálculo, GPS voltou): vai direto; senão, só corrige
     if (Math.abs(ns - s) > 60) { s = ns; lookInit = false; }
     target = ns;
+  },
+  // Painel: {kmh, lim, over, m, d, t, last, eta, rem}. kmh null = sem GPS; m/t = próxima manobra.
+  hud(d) {
+    if (typeof d === 'string') d = JSON.parse(d);
+    const $ = id => document.getElementById(id);
+    $('hud').hidden = false;
+    $('speed').firstChild.nodeValue = d.kmh == null ? '--' : d.kmh;
+    $('limit').hidden = !d.lim; if (d.lim) $('limit').textContent = d.lim;
+    document.body.classList.toggle('over', !!d.over);
+    const has = d.t != null && d.d != null;
+    $('next').hidden = !has;
+    if (has) {
+      setHudIcon(d.m || '', !!d.last);
+      $('nD').textContent = fmtDist(d.d);
+      $('nSt').textContent = streetOf(d.t) || (d.last ? (DEST || 'Destino') : d.t);
+    }
+    $('say').hidden = !has || d.d > 320;
+    if (has) $('say').textContent = d.t;
+    $('etaT').textContent = d.eta || '--:--';
+    $('etaD').textContent = d.rem || '';
   },
   setAlerts(list) {
     if (typeof list === 'string') list = JSON.parse(list);

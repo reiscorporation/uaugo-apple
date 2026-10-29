@@ -81,6 +81,17 @@ class Sim3DController {
     _run('sim3d.setActive($on)');
   }
 
+  /// Painel do para-brisa: velocidade, limite (pisca acima dele), próxima
+  /// manobra com a distância e a chegada.
+  void hud(Map<String, Object?> d) {
+    final j = jsonEncode(d);
+    if (j == _hudJson) return;
+    _hudJson = j;
+    _run('sim3d.hud($j)');
+  }
+
+  String? _hudJson;
+
   void _run(String js) {
     if (_ready) _web?.runJavaScript(js).catchError((_) {});
   }
@@ -91,6 +102,7 @@ class Sim3DController {
     if (_routeJson != null) _run('sim3d.setRoute($_routeJson)');
     if (_alertsJson != null) _run('sim3d.setAlerts($_alertsJson)');
     if (_lastUpdate != null) _run('sim3d.update($_lastUpdate)');
+    if (_hudJson != null) _run('sim3d.hud($_hudJson)');
     _run('sim3d.setActive($_active)');
   }
 }

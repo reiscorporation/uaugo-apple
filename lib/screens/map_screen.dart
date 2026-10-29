@@ -4309,6 +4309,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                           fontWeight: FontWeight.w900,
                           fontSize: 16)),
                 ),
+              if (!_hud3d)
               ValueListenableBuilder<SpeedAlertSettings>(
                 valueListenable: _speedSvc.settings,
                 builder: (_, s, __) {
@@ -5118,6 +5119,44 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _set3d(_nearExit(p));
   }
 
+  /// v2: painel do 3D (no lugar do velocímetro e da faixa da próxima curva).
+  void _feedHud3d() {
+    final p = _me;
+    final kmh = p == null ? null : _speedMs * 3.6;
+    final level = kmh == null
+        ? SpeedLevel.normal
+        : SpeedAlerter.level(kmh, _roadLimit, _speedSvc.settings.value.personalMax);
+    final turn = p != null && (_sim != null ? _simStarted : _navigating) ? _upcomingTurn(p) : null;
+    final nav = _nav;
+    final last = turn != null && nav != null && identical(turn.step, nav.steps.last);
+    String? eta, rem;
+    final w = _walker, trip = _trip;
+    if (w != null && trip != null) {
+      final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
+      rem = formatDistance(left.round());
+      if (!widget.simulate) {
+        final secs = (left / (_etaSpeed ?? trip.averageSpeed)).round();
+        eta = formatTime(DateTime.now().add(Duration(seconds: secs)));
+      }
+    }
+    _sim3d.hud({
+      'kmh': kmh?.round(),
+      'lim': _roadLimit?.kmh,
+      'over': level != SpeedLevel.normal,
+      if (turn != null) ...{
+        'm': turn.step.maneuver,
+        'd': turn.meters.round(),
+        't': turn.step.text,
+        'last': last,
+      },
+      'eta': eta,
+      'rem': rem,
+    });
+  }
+
+  /// v2: o painel do 3D substitui o velocímetro e a faixa da próxima curva.
+  bool get _hud3d => _show3d && _canShow3d;
+
   /// v2: liga/desliga a visão 3D. Voltando ao mapa, ele já vem acompanhando.
   void _set3d(bool on) {
     if (on == _show3d) return;
@@ -5152,6 +5191,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _sim3d.update(pr.along, _speedMs, _offRoute || pr.offset > 18,
           lat: me?.latitude, lng: me?.longitude, heading: _bearing);
     }
+    _feedHud3d();
     final me = _me;
     if (me != null && DateTime.now().difference(_alerts3dAt).inSeconds >= 4) {
       _alerts3dAt = DateTime.now();
@@ -5958,7 +5998,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Próxima manobra no topo da tela (como no Waze/Google Maps).
   Widget _nextTurnCard() {
     final nav = _nav, p = _me;
-    final show = nav != null &&
+    final show = !_hud3d && nav != null &&
         p != null &&
         !nav.finished &&
         (_sim != null ? _simStarted : _navigating);
