@@ -231,8 +231,11 @@ service cloud.firestore {
     }
 
     // Usuário Gold: gold/{uid}, gravado só pelo responsável (script/admin).
+    // Gold: gold/{uid} (gravado só pelo responsável) ou administrador da
+    // plataforma (platformAdmins/{uid}).
     function isGold() {
-      return exists(/databases/$(database)/documents/gold/$(request.auth.uid));
+      return exists(/databases/$(database)/documents/gold/$(request.auth.uid))
+        || exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid));
     }
 
     // Tipos que ficam fixos no mapa (lombada, radar fixo, semáforo).
@@ -302,7 +305,11 @@ service cloud.firestore {
       // Ler: todos (inclusive a conta anônima, que navega sozinha).
       allow read: if signedIn();
       allow create: if hasAccount()
-        && request.resource.data.keys().hasOnly(['type', 'lat', 'lng', 'cell', 'createdBy', 'createdAt', 'expiresAt', 'confirmations', 'dismissals', 'permanent', 'gold'])
+        && request.resource.data.keys().hasOnly(['type', 'lat', 'lng', 'cell', 'createdBy', 'createdAt', 'expiresAt', 'confirmations', 'dismissals', 'permanent', 'gold', 'hd'])
+        // Sentido de quem marcou (graus), para avisar só quem vai no mesmo sentido.
+        && (!('hd' in request.resource.data)
+            || (request.resource.data.hd is number
+                && request.resource.data.hd >= 0 && request.resource.data.hd < 360))
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.type in ['police','radar','pothole','bump','danger','oil','animal','accident','fog','kite','risk','fixedRadar','signal','stoppedVehicle']
         && isLat(request.resource.data.lat)

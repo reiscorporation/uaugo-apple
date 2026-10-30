@@ -54,6 +54,13 @@ enum HazardType {
   /// na 3ª confirmação, ou já ao serem marcados por um usuário Gold.
   bool get canBePermanent => this == bump || this == fixedRadar || this == signal;
 
+  /// Vale só para quem anda no mesmo sentido de quem marcou (radar, polícia,
+  /// buraco, lombada, semáforo, óleo, veículo no acostamento). Acidente,
+  /// animal, neblina, pipas e área de risco valem para os dois lados.
+  bool get directional =>
+      this == police || this == radar || this == fixedRadar || this == pothole ||
+      this == bump || this == signal || this == oil || this == stoppedVehicle;
+
   const HazardType(this._label, this.emoji, this.color, this.lifetime,
       this.alertMeters, this._spoken);
   final String _label;
@@ -95,6 +102,10 @@ class Hazard {
   final bool permanent;
   final bool gold;
 
+  /// Sentido de quem marcou (graus, 0 = norte); null = alerta antigo ou
+  /// marcado parado (vale para os dois lados).
+  final double? heading;
+
   Hazard({
     required this.id,
     required this.type,
@@ -108,6 +119,7 @@ class Hazard {
     this.dismissals = 0,
     this.permanent = false,
     this.gold = false,
+    this.heading,
   });
 
   bool get isActive => expiresAt.isAfter(DateTime.now());
@@ -136,6 +148,7 @@ class Hazard {
       dismissals: (d['dismissals'] as num?)?.toInt() ?? 0,
       permanent: d['permanent'] == true,
       gold: d['gold'] == true,
+      heading: (d['hd'] as num?)?.toDouble(),
     );
   }
 }

@@ -86,17 +86,17 @@ class HazardService {
   }
 
   /// Usuário Gold? (gold/{uid}, gravado só pelo responsável; o app só lê
-  /// o próprio). Guardado na memória depois da 1ª leitura.
+  /// o próprio). Administrador da plataforma (platformAdmins/{uid}) também
+  /// conta como Gold. Guardado na memória depois da 1ª leitura.
   Future<bool> isGold(String uid) async {
     final c = _gold;
     if (c != null && c.$1 == uid) return c.$2;
-    try {
-      final d = await FirebaseFirestore.instance.doc('gold/$uid').get();
-      _gold = (uid, d.exists);
-      return d.exists;
-    } catch (_) {
-      return false;
-    }
+    final db = FirebaseFirestore.instance;
+    Future<bool> has(String path) =>
+        db.doc(path).get().then((d) => d.exists, onError: (_) => false);
+    final gold = await has('gold/$uid') || await has('platformAdmins/$uid');
+    _gold = (uid, gold);
+    return gold;
   }
 
   (String, bool)? _gold;
@@ -104,7 +104,10 @@ class HazardService {
   /// Grava o alerta. O Future termina quando o servidor confirma (sem
   /// internet, o Firestore guarda e envia quando a conexão voltar). Usuário
   /// Gold marcando lombada/radar fixo/semáforo: já nasce fixo no mapa.
-  Future<String> report(HazardType type, double lat, double lng, String uid) async {
+  /// [heading] (graus) = sentido de quem marcou, para avisar só quem anda
+  /// no mesmo sentido (radar do outro lado da pista não avisa).
+  Future<String> report(HazardType type, double lat, double lng, String uid,
+      {double? heading}) async {
     final (la, lo) = cellOf(lat, lng);
     final fixed = type.canBePermanent && await isGold(uid);
     final ref = _col.doc();
@@ -120,6 +123,7 @@ class HazardService {
       'confirmations': 1,
       'dismissals': 0,
       if (fixed) ...{'permanent': true, 'gold': true},
+      if (heading != null && type.directional) 'hd': (heading % 360).roundToDouble(),
     });
     return ref.id;
   }

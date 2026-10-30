@@ -117,7 +117,8 @@ class CarService {
           await Geolocator.getCurrentPosition();
       final uid = AuthService.user?.uid;
       if (uid == null) return;
-      await HazardService.instance.report(type, p.latitude, p.longitude, uid);
+      await HazardService.instance.report(type, p.latitude, p.longitude, uid,
+          heading: p.speed > 2 && p.heading >= 0 ? p.heading : null);
       toast(tr('Alerta enviado: {0}', [type.label]));
     } catch (_) {
       toast(tr('Não foi possível marcar o alerta'));

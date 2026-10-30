@@ -363,6 +363,16 @@ describe("Alertas públicos", () => {
     await assertFails(setDoc(doc(db("carol"), "hazards/g2"),
       novo({ ...fixed, createdBy: "carol" })));
   });
+  it("administrador cria radar fixo já fixo (conta como Gold)", async () => {
+    await setDocAdmin("platformAdmins/carol", { since: inHours(0) });
+    await assertSucceeds(setDoc(doc(db("carol"), "hazards/a1"),
+      novo({ type: "fixedRadar", permanent: true, gold: true, expiresAt: far(), createdBy: "carol" })));
+  });
+  it("aceita o sentido de quem marcou (0 a 359 graus) e recusa valor inválido", async () => {
+    await assertSucceeds(setDoc(doc(db("bob"), "hazards/d1"), novo({ type: "radar", hd: 135 })));
+    await assertFails(setDoc(doc(db("bob"), "hazards/d2"), novo({ type: "radar", hd: 400 })));
+    await assertFails(setDoc(doc(db("bob"), "hazards/d3"), novo({ type: "radar", hd: "norte" })));
+  });
   it("Gold não deixa fixo o que muda (buraco)", async () => {
     await setDocAdmin("gold/bob", { since: inHours(0) });
     await assertFails(setDoc(doc(db("bob"), "hazards/g3"),

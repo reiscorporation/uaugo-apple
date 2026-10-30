@@ -46,6 +46,15 @@ bool isAhead({
   return angleDiff(bearing, heading) < maxAngle;
 }
 
+/// O piloto anda no mesmo sentido de quem marcou o alerta? Sem o sentido
+/// do alerta (antigo ou marcado parado) ou do piloto (parado), vale para
+/// todos. Até 60° de diferença conta como o mesmo sentido (curvas).
+bool sameDirection(double? hazardHeading, double riderHeading, double speed,
+    {double maxAngle = 60}) {
+  if (hazardHeading == null || speed < 3 || riderHeading < 0) return true;
+  return angleDiff(hazardHeading, riderHeading) < maxAngle;
+}
+
 /// Um voto "não está mais" remove o alerta? (RN-06)
 bool shouldRemoveHazard({
   required int confirmations,

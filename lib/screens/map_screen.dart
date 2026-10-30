@@ -805,7 +805,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (done >= thresholds.length) continue;
       final d =
           Geolocator.distanceBetween(p.latitude, p.longitude, h.lat, h.lng);
-      if (d > range || !_isAhead(p, h)) continue;
+      if (d > range || !_isAhead(p, h) || !_sameSide(p, h)) continue;
       final next = nextAlert(d, done, thresholds);
       if (next == null) continue;
       // Um alerta novo só aparece se não houver outro na tela.
@@ -1473,6 +1473,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return a.abs() > 100;
   }
 
+  /// Alerta de um sentido só (radar, polícia...): vale para quem anda no
+  /// mesmo sentido de quem marcou (o do outro lado da pista não é avisado).
+  bool _sameSide(Position p, Hazard h) =>
+      !h.type.directional || sameDirection(h.heading, _bearing, p.speed);
+
+  /// Sentido para gravar no alerta: só andando (parado o rumo não vale).
+  double? get _reportHeading => _speedMs > 2 ? _bearing : null;
+
   bool _isAhead(Position p, Hazard h) => isAhead(
         lat: p.latitude,
         lng: p.longitude,
@@ -1564,9 +1572,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     HapticFeedback.mediumImpact();
     try {
       final p = _me ?? await Geolocator.getCurrentPosition();
-      // Se já existe o mesmo alerta a menos de 150 m, só confirma.
+      // Se já existe o mesmo alerta a menos de 150 m (no mesmo sentido), só
+      // confirma; o do outro lado da pista é outro alerta.
       for (final h in _activeHazards) {
-        if (h.type != t) continue;
+        if (h.type != t || !_sameSide(p, h)) continue;
         final d =
             Geolocator.distanceBetween(p.latitude, p.longitude, h.lat, h.lng);
         if (d < 150) {
@@ -1582,7 +1591,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       var sent = false;
       // Fala na hora (mesmo sem internet o alerta fica na fila).
       _voice.alert(tr('Alerta de {0} enviado. Obrigado por avisar a comunidade!', [t.spoken]));
-      _hazardSvc.report(t, p.latitude, p.longitude, widget.uid).then((_) {
+      _hazardSvc.report(t, p.latitude, p.longitude, widget.uid,
+          heading: _reportHeading).then((_) {
         sent = true;
         _snack(tr('{0} {1} enviado para todos. Obrigado!', [t.emoji, t.label]));
       }, onError: (e) => _snack(tr('Não foi possível enviar o alerta: {0}', [e])));
@@ -1734,8 +1744,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (_sim != null || AuthService.isAnonymous) return;
     for (final h in _activeHazards) {
       if (h.createdBy == widget.uid ||
+          h.permanent || // já validado (3 confirmações, Gold ou administrador)
           _voted.contains(h.id) ||
-          _askedHazards.contains(h.id)) {
+          _askedHazards.contains(h.id) ||
+          !_sameSide(p, h)) {
         continue;
       }
       final d =
@@ -4886,7 +4898,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     _myStoppedAlert = 'pendente';
     _hazardSvc
-        .report(HazardType.stoppedVehicle, p.latitude, p.longitude, widget.uid)
+        .report(HazardType.stoppedVehicle, p.latitude, p.longitude, widget.uid,
+            heading: _bearing)
         .then((id) {
       _myStoppedAlert = id;
       if (!mounted) return;
@@ -5286,7 +5299,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             },
           },
         for (final h in _activeHazards)
-          if (distanceMeters(p.latitude, p.longitude, h.lat, h.lng) < 5000)
+          if (distanceMeters(p.latitude, p.longitude, h.lat, h.lng) < 5000 &&
+              _sameSide(p, h))
             {
               'la': h.lat,
               'lo': h.lng,
