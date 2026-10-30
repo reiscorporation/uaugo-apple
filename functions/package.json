@@ -2,7 +2,7 @@
     "name": "comboio-functions",
     "main": "index.js",
     "engines": {
-        "node": "20"
+        "node": "22"
     },
     "dependencies": {
         "@google-cloud/firestore": "^9.3.1",
