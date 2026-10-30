@@ -1,6 +1,6 @@
 # UauGo Privacy Policy
 
-Version 1.15, of 10/24/2026. This is an English translation provided for convenience; in case of any divergence, the Portuguese version prevails.
+Version 1.16, of 10/30/2026. This is an English translation provided for convenience; in case of any divergence, the Portuguese version prevails.
 
 This Policy explains which personal data the **UauGo** app ("App") processes, for what purpose, with whom it is shared, how long it is kept and how you exercise your rights, under the **Brazilian General Data Protection Law (Law 13,709/2018, "LGPD")**.
 
@@ -23,7 +23,8 @@ What can stay on your phone stays on your phone: **trip history, settings, phone
 - **Navigating alone or in "Just drive":** your location is used **only on the phone** (route, warnings, speedometer). It is **not sent to our server**. To calculate routes and search places, the necessary points (origin, destination, stops and the search text) go through our server, which forwards them to Google **without storing them**; for the weather forecast, the points ahead are sent to Open-Meteo.
 - **In an expedition:** your position, speed and time are sent to the **expedition participants** (at most once per minute) while it is open in the App. With the App minimized or the screen off, the position keeps being sent only if you turn on **"Share position in the background"** (Settings → Screen; off by default), and then the persistent "UauGo active" notification appears. Outside an expedition, your position is not sent to the group nor stored on the server. Legal basis: consent (art. 7, I), given on the permissions screen and when joining the expedition.
 - **SOS:** your position is sent to the expedition participants.
-- **Reported alert:** the alert's position and the identifier of who reported it are visible to users while the alert is valid.
+- **Reported alert:** the alert's position, the direction you were travelling (for alerts that apply to only one direction of the road) and the identifier of who reported it are visible to users while the alert is valid.
+- **Contribution statistics (Gold user program):** how many alerts you reported, how many were confirmed by other users and how many were removed by the community as non-existent, plus your account creation date. Purpose: to grant or remove the Gold user status automatically (Terms of Use, item 7) and to fight false alerts. Only you can see your numbers. Legal basis: legitimate interest (art. 7, IX).
 
 **Profile shown to the group**
 - Rider name, brand, model, type and color of the vehicle and the **vehicle photo** (if you upload one). Purpose: show who is who on the expedition map.
@@ -71,6 +72,7 @@ The database, files and server functions are in Google Cloud's **São Paulo (sou
 - **Club notices:** **180 days**.
 - **Club invites:** until they expire (**7 days**), then deleted automatically.
 - **Account, permissions and acceptance of the Terms:** while the account exists.
+- **Contribution statistics and Gold user status:** while the account exists; deleted when you delete your data.
 - **Usage statistics:** event details for **2 months**; after that only totals remain (identifying no one).
 - **Error reports:** **90 days**.
 - **Daily count of route and place queries** (only the number, to limit abuse): replaced every day.
@@ -90,7 +92,7 @@ We use encrypted connections, database access rules (each person only reads what
 
 ## 9. How to delete your data
 
-In the App: **Privacy and permissions → Delete all my data**. This deletes your account, your participation in expeditions, your club registration and the data on the phone. Alerts you reported are no longer associated with you. If you no longer have the App, request it by email at helpaitech.ricardo@gmail.com.
+In the App: **Privacy and permissions → Delete all my data**. This deletes your account, your participation in expeditions, your club registration, your contribution statistics and the data on the phone. Alerts you reported are no longer associated with you. If you no longer have the App, request it by email at helpaitech.ricardo@gmail.com.
 
 ## 10. Minimum age
 

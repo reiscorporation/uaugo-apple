@@ -25,7 +25,7 @@ import '../l10n/i18n.dart';
 class TermsService {
   /// Aumente quando os Termos mudarem de forma relevante: todos os usuários
   /// terão de ler e aceitar de novo.
-  static const version = '1.3';
+  static const version = '1.4';
   static const _key = 'termsAcceptedVersion';
 
   /// O usuário já aceitou a versão vigente?

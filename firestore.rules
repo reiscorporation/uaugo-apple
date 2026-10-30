@@ -158,6 +158,13 @@ service cloud.firestore {
     }
 
     // Usuários Gold: cada um só confere o próprio; ninguém grava pelo app.
+    // Estatísticas de contribuição (programa Ouro): só o servidor grava;
+    // cada pessoa pode ver as próprias.
+    match /userStats/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
     match /gold/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
       allow write: if false;

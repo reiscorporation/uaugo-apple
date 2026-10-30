@@ -1,6 +1,6 @@
 # UauGo Terms of Use
 
-Version 1.3, of 10/08/2026. This is an English translation provided for convenience; in case of any divergence, the Portuguese version prevails.
+Version 1.4, of 10/30/2026. This is an English translation provided for convenience; in case of any divergence, the Portuguese version prevails.
 
 These Terms govern the use of the **UauGo** app ("App"), developed and maintained by **Ricardo Reis**, individual, under the **HelpAITech** brand ("we"). By tapping "I have read and accept", you ("User") declare that you have read, understood and agree to these Terms and to the Privacy Policy. If you do not agree, do not use the App.
 
@@ -44,6 +44,9 @@ UauGo is a **support** tool for motorcycle and car trips, alone or in a group. I
 - When reporting an alert, you declare that it is **true** and at the correct location.
 - It is **forbidden** to report false alerts, to use alerts to harass, defame or discriminate against people, communities or businesses, or for any illegal purpose.
 - The "risk area" alert must describe only actual events (such as robberies), without offending or stigmatizing people or places.
+- Alerts that apply to only one direction of the road (speed camera, police, pothole, speed bump, traffic light, oil, stopped vehicle) record the **direction you were travelling** when reporting and are shown only to people travelling in the same direction.
+- Fixed speed camera, speed bump and traffic light alerts become **fixed on the map** after 3 confirmations from other users, or immediately when reported by a **Gold user** or by the UauGo team. Fixed alerts no longer ask for confirmation and only leave the map after "no longer there" votes from several users.
+- **Gold user:** granted automatically to anyone whose account is at least **30 days** old, with at least **15 alerts confirmed by other users** and at most **1 in 10** alerts removed by the community as non-existent. The criteria are checked every day; the status is removed when they are no longer met or in case of false alerts, and it gives no right to payment or any benefit outside the App.
 - We may remove alerts and suspend users who break these rules.
 
 ## 8. Your account

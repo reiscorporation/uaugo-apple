@@ -37,6 +37,7 @@ const { buildPois } = require("./pois");
 const { buildTolls, boothsFromPois } = require("./tolls");
 const maps = require("./maps");
 const clubs = require("./clubs");
+const gold = require("./gold");
 
 initializeApp();
 const db = getFirestore();
@@ -423,12 +424,73 @@ exports.deleteMyData = onCall(callOpts, async (req) => {
   // Alertas de perigo continuam úteis para a comunidade, mas sem vínculo.
   const hazards = await db.collection("hazards").where("createdBy", "==", uid).get();
   await Promise.all(hazards.docs.map((d) => d.ref.update({ createdBy: "removido" })));
+  // Programa Ouro: estatísticas de contribuição e a condição automática.
+  await db.doc(`userStats/${uid}`).delete();
+  const g = await db.doc(`gold/${uid}`).get();
+  if (g.exists && g.data().auto === true) await g.ref.delete();
 
   await getStorage().bucket().deleteFiles({ prefix: `bikes/${uid}/` });
   await db.doc(`users/${uid}`).delete();
   await getAuth().deleteUser(uid);
   return { ok: true };
 });
+
+// ===================== Programa Ouro (Gold) =====================
+
+/**
+ * A cada alerta criado ou alterado: soma nas estatísticas de contribuição de
+ * quem o criou (userStats/{uid}: criados, confirmados por outros, removidos
+ * pela comunidade). Os alertas se apagam sozinhos; as estatísticas ficam
+ * enquanto a conta existir (Política de Privacidade, item 3).
+ */
+exports.onHazardStats = onDocumentWritten(
+  { document: "hazards/{id}", region },
+  async (event) => {
+    const before = event.data?.before?.exists ? event.data.before.data() : null;
+    const after = event.data?.after?.exists ? event.data.after.data() : null;
+    if (!after) return; // apagado pelo TTL: nada a somar
+    const d = gold.statsDelta(before, after);
+    if (!d.uid || (!d.created && !d.confirmed && !d.removed)) return;
+    await db.doc(`userStats/${d.uid}`).set({
+      created: FieldValue.increment(d.created),
+      confirmed: FieldValue.increment(d.confirmed),
+      removed: FieldValue.increment(d.removed),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+
+/**
+ * Todo dia: concede o Ouro a quem cumpre os critérios (Termos de Uso, item
+ * 7: conta com 30 dias, 15 alertas confirmados por outros, até 1 em cada 10
+ * removidos) e retira de quem deixou de cumprir. Só mexe no Ouro automático
+ * (gold/{uid}.auto = true); o marcado à mão pelo responsável fica.
+ */
+exports.updateGold = onSchedule(
+  { schedule: "every day 03:30", timeZone: "America/Sao_Paulo", region, timeoutSeconds: 540 },
+  async () => {
+    const stats = await db.collection("userStats").get();
+    let given = 0, taken = 0;
+    for (const doc of stats.docs) {
+      const uid = doc.id;
+      let created = 0;
+      try {
+        created = Date.parse((await getAuth().getUser(uid)).metadata.creationTime) || 0;
+      } catch (_) {
+        continue; // conta não existe mais
+      }
+      const ok = gold.isEligible(doc.data(), created);
+      const ref = db.doc(`gold/${uid}`);
+      const cur = await ref.get();
+      if (ok && !cur.exists) {
+        await ref.set({ auto: true, since: FieldValue.serverTimestamp() });
+        given++;
+      } else if (!ok && cur.exists && cur.data().auto === true) {
+        await ref.delete();
+        taken++;
+      }
+    }
+    console.log(`Ouro: ${given} novos, ${taken} retirados, ${stats.size} avaliados`);
+  });
 
 // ===================== Radares =====================
 

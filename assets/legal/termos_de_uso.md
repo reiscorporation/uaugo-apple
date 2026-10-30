@@ -1,6 +1,6 @@
 # Termos de Uso do UauGo
 
-Versão 1.3, de 08/10/2026.
+Versão 1.4, de 30/10/2026.
 
 Estes Termos regulam o uso do aplicativo **UauGo** ("App"), desenvolvido e mantido por **Ricardo Reis**, pessoa física, sob a marca **HelpAITech** ("nós"). Ao tocar em "Li e aceito", você ("Usuário") declara que leu, entendeu e concorda com estes Termos e com a Política de Privacidade. Se não concordar, não use o App.
 
@@ -44,6 +44,9 @@ O UauGo é uma ferramenta de **apoio** a viagens de moto e de carro, sozinho ou 
 - Ao reportar um alerta, você declara que ele é **verdadeiro** e está no local correto.
 - É **proibido** reportar alertas falsos, usar os alertas para perseguir, difamar ou discriminar pessoas, comunidades ou estabelecimentos, ou para qualquer finalidade ilegal.
 - O alerta "área de risco" deve descrever apenas fatos ocorridos (como assaltos), sem ofender ou estigmatizar pessoas ou lugares.
+- Alertas que valem para um só sentido da via (radar, polícia, buraco, lombada, semáforo, óleo, veículo parado) registram o **sentido em que você seguia** ao reportar e são mostrados só a quem segue no mesmo sentido.
+- Alertas de radar fixo, lombada e semáforo ficam **fixos no mapa** depois de 3 confirmações de outros usuários, ou na hora quando reportados por um **usuário Ouro** ou pela equipe do UauGo. Alertas fixos não pedem mais confirmação e só saem do mapa com votos "não está mais" de vários usuários.
+- **Usuário Ouro:** é concedido automaticamente a quem tiver a conta há pelo menos **30 dias**, pelo menos **15 alertas confirmados por outros usuários** e no máximo **1 em cada 10** alertas removidos pela comunidade como inexistentes. Os critérios são conferidos todos os dias; a condição é retirada quando deixarem de ser cumpridos ou em caso de alertas falsos, e não dá direito a pagamento ou vantagem fora do App.
 - Podemos remover alertas e suspender usuários que descumprirem estas regras.
 
 ## 8. Sua conta

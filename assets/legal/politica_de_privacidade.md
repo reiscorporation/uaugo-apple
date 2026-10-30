@@ -1,6 +1,6 @@
 # Política de Privacidade do UauGo
 
-Versão 1.15, de 24/10/2026 (controles de música no mapa, com o acesso a notificações usado só no celular; versão 1.14: placa do veículo e contato de emergência, guardados só no celular; versão 1.13: estatísticas anônimas de uso e relatório de erros, que podem ser desligados; versão 1.12: alerta "veículo parado no acostamento" passa a ser automático, sem identificar o usuário; versão 1.11: pedidos falados livres interpretados por IA; versão 1.10: alerta opcional "veículo parado no acostamento"; versão 1.9: pesquisa de trajeto por voz, opcional; versão 1.8: a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano").
+Versão 1.16, de 30/10/2026 (programa Usuário Ouro: estatísticas de contribuição com alertas; sentido de quem reportou o alerta; versão 1.15: controles de música no mapa, com o acesso a notificações usado só no celular; versão 1.14: placa do veículo e contato de emergência, guardados só no celular; versão 1.13: estatísticas anônimas de uso e relatório de erros, que podem ser desligados; versão 1.12: alerta "veículo parado no acostamento" passa a ser automático, sem identificar o usuário; versão 1.11: pedidos falados livres interpretados por IA; versão 1.10: alerta opcional "veículo parado no acostamento"; versão 1.9: pesquisa de trajeto por voz, opcional; versão 1.8: a posição só é enviada com o App fora da tela se você ligar a opção "Compartilhar posição em segundo plano").
 
 Esta Política explica quais dados pessoais o aplicativo **UauGo** ("App") trata, para quê, com quem compartilha, por quanto tempo guarda e como você exerce seus direitos, conforme a **Lei Geral de Proteção de Dados (Lei 13.709/2018, "LGPD")**.
 
@@ -23,7 +23,8 @@ O que dá para ficar no seu celular fica no seu celular: **histórico de viagens
 - **Navegando sozinho ou em "Só dirigir":** a localização é usada **apenas no celular** (rota, avisos, velocímetro). Ela **não é enviada ao nosso servidor**. Para calcular a rota e buscar lugares, os pontos necessários (origem, destino, paradas e o texto da busca) passam pelo nosso servidor, que os repassa ao Google **sem guardá-los**; para a previsão do tempo, os pontos à frente são enviados ao Open-Meteo.
 - **Em uma expedição:** sua posição, velocidade e horário são enviados aos **participantes da expedição** (no máximo 1 vez por minuto) enquanto ela estiver aberta no App. Com o App minimizado ou a tela apagada, a posição só continua sendo enviada se você ligar a opção **"Compartilhar posição em segundo plano"** (Configurações → Tela; vem desligada), e então aparece a notificação fixa "UauGo ativo". Fora de uma expedição, sua posição não é enviada ao grupo nem guardada no servidor. Base legal: consentimento (art. 7º, I), dado na tela de autorizações e ao entrar na expedição.
 - **SOS:** sua posição é enviada aos participantes da expedição.
-- **Alerta reportado:** a posição do alerta e o identificador de quem reportou ficam visíveis aos usuários durante a validade do alerta.
+- **Alerta reportado:** a posição do alerta, o sentido em que você seguia (nos alertas que valem para um só sentido da via) e o identificador de quem reportou ficam visíveis aos usuários durante a validade do alerta.
+- **Estatísticas de contribuição (programa Usuário Ouro):** quantos alertas você reportou, quantos foram confirmados por outros usuários e quantos foram removidos pela comunidade como inexistentes, além da data de criação da sua conta. Finalidade: conceder ou retirar automaticamente a condição de Usuário Ouro (Termos de Uso, item 7) e combater alertas falsos. Só você vê os seus números. Base legal: legítimo interesse (art. 7º, IX).
 
 **Perfil exibido ao grupo**
 - Nome de piloto, marca, modelo, tipo e cor do veículo e a **foto do veículo** (se você enviar). Finalidade: mostrar quem é quem no mapa da expedição.
@@ -71,6 +72,7 @@ O banco de dados, os arquivos e as funções do servidor ficam na região **São
 - **Avisos do clube:** **180 dias**.
 - **Convites do clube:** até vencerem (**7 dias**), e depois apagados automaticamente.
 - **Conta, autorizações e aceite dos Termos:** enquanto a conta existir.
+- **Estatísticas de contribuição e condição de Usuário Ouro:** enquanto a conta existir; apagadas ao excluir seus dados.
 - **Estatísticas de uso:** os detalhes por evento, por **2 meses**; depois ficam só os totais (sem identificar ninguém).
 - **Relatórios de erro:** **90 dias**.
 - **Contagem diária de consultas de rotas e lugares** (só o número, para limitar abusos): substituída a cada dia.
@@ -90,7 +92,7 @@ Usamos conexões criptografadas, regras de acesso no banco de dados (cada pessoa
 
 ## 9. Como excluir seus dados
 
-No App: **Privacidade e autorizações → Excluir todos os meus dados**. Isso apaga sua conta, suas participações em expedições, seu cadastro no clube e os dados do celular. Os alertas que você reportou deixam de ser associados a você. Se não tiver mais o App, peça pelo e-mail helpaitech.ricardo@gmail.com.
+No App: **Privacidade e autorizações → Excluir todos os meus dados**. Isso apaga sua conta, suas participações em expedições, seu cadastro no clube, suas estatísticas de contribuição e os dados do celular. Os alertas que você reportou deixam de ser associados a você. Se não tiver mais o App, peça pelo e-mail helpaitech.ricardo@gmail.com.
 
 ## 10. Idade mínima
 
