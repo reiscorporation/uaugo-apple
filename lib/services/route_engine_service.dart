@@ -32,6 +32,20 @@ class RouteEngineService {
   /// A última rota veio do motor próprio (true) ou caiu no Google (false).
   static bool lastUsed = false;
 
+  /// Motor fora de alcance (ex.: no 4G, longe do Wi-Fi do servidor de teste):
+  /// não tenta de novo até esta hora, para não atrasar a rota pelo Google.
+  static DateTime _skipUntil = DateTime(0);
+
+  /// Pergunta rápida (2 s) se o motor responde antes de pedir a rota.
+  static Future<bool> _alive() async {
+    try {
+      final r = await http.get(Uri.parse('$url/status')).timeout(const Duration(seconds: 2));
+      return r.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Rota pelos [points] (saída, paradas, destino). null = falhou.
   static Future<RouteResult?> route(
     List<LatLng> points, {
@@ -40,6 +54,11 @@ class RouteEngineService {
     bool avoidFerries = false,
     bool alternatives = false,
   }) async {
+    if (DateTime.now().isBefore(_skipUntil)) return null;
+    if (!await _alive()) {
+      _skipUntil = DateTime.now().add(const Duration(minutes: 2));
+      return null;
+    }
     try {
       final moto = (await ProfileService.load()).style.isMoto;
       final costing = moto ? 'motorcycle' : 'auto';

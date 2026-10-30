@@ -5178,12 +5178,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final web = rect(_kWeb3d);
     if (web == null) return;
     final lc = rect(_kLeftCol), rc = rect(_kRightCol);
-    var left = (lc != null ? lc.right : web.left) + 6;
-    var right = (rc != null ? rc.left : web.right) - 6;
-    if (right - left < 240) { // estreito demais: usa a largura toda
-      left = web.left + 8;
-      right = web.right - 8;
-    }
+    // Sempre entre as colunas (nunca por baixo delas): se o espaço for
+    // pequeno, a página compacta o painel para caber.
+    final left = (lc != null ? lc.right : web.left) + 6;
+    final right = (rc != null ? rc.left : web.right) - 6;
     // O mais alto dos botões de baixo que ficam na faixa do painel.
     var top = web.bottom - 8;
     for (final k in [_kBottomLeft, _kSimBar]) {

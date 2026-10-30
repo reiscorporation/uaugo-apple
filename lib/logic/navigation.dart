@@ -92,7 +92,12 @@ String cleanInstruction(String html) {
       // Dicas em <div>: mantém avisos úteis (destino, pedágio), tira o resto.
       .replaceAllMapped(RegExp(r'<div[^>]*>(.*?)</div>'), (m) {
     final inner = m.group(1)!.replaceAll(RegExp(r'<[^>]+>'), '');
-    return inner.startsWith('Você verá') ? '' : '. $inner';
+    // "Passe por Posto X (à direita a 1 km)": o Google fala o ponto de
+    // referência no começo do trecho, longe dele; confunde mais que ajuda.
+    final hint = inner.startsWith('Você verá') ||
+        inner.startsWith('Passe ') ||
+        inner.startsWith('Pass by ');
+    return hint ? '' : '. $inner';
   })
       .replaceAll(RegExp(r'<[^>]+>'), '')
       .replaceAll('&nbsp;', ' ')

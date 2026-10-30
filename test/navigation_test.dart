@@ -23,6 +23,13 @@ void main() {
           'Vire à direita. O destino estará à direita');
     });
 
+    test('tira "Passe por" (ponto de referência longe do começo do trecho)', () {
+      expect(
+          cleanInstruction('Continue na <b>SP-330</b>'
+              '<div style="font-size:0.9em">Passe por Posto Ipiranga (à direita a 1,4 km)</div>'),
+          'Continue na SP 330');
+    });
+
     test('saídas de rodovia: número em destaque e até 2 destinos', () {
       expect(
           cleanInstruction('Pegue a saída <b>210</b> para a <b>BR-101</b> '
