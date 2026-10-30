@@ -106,6 +106,16 @@
   #hud.narrow #next { width: auto; flex: 1 1 auto; max-width: calc(100% - 72px); padding: 6px 22px 6px 22px; }
   #hud.narrow #next .st { font-size: 11px; letter-spacing: 0.02em; }
   #hud.narrow #next .d { font-size: 21px; }
+  /* bem estreito (celular em pé, entre a coluna do zoom e a do SOS) */
+  #hud.tiny { gap: 4px; }
+  #hud.tiny #speedo { min-width: 52px; gap: 2px; }
+  #hud.tiny #speed { font-size: 38px; }
+  #hud.tiny #speed small { font-size: 9px; letter-spacing: 0.12em; }
+  #hud.tiny #limit { width: 32px; height: 32px; border-width: 4px; font-size: 14px; }
+  #hud.tiny #next { min-height: 52px; max-width: calc(100% - 56px); padding: 4px 16px; gap: 6px; }
+  #hud.tiny #next svg { width: 28px; height: 28px; }
+  #hud.tiny #next .st { font-size: 10px; }
+  #hud.tiny #next .d { font-size: 18px; }
   /* deitado: painel mais baixo (os botões ficam nas laterais) */
   @media (orientation: landscape) { #hud { bottom: 16px; } }
 </style>
@@ -297,6 +307,8 @@ function towardOf(t) {
 }
 function streetOf(t) {
   t = t.replace(/(?:em|na) dire[çc][ãa]o (?:a|à|ao)\s+/i, 'para ');
+  t = t.replace(/\b(?:na|em) dire[çc][ãa]o (?:norte|sul|leste|oeste|nordeste|noroeste|sudeste|sudoeste)\b/i, ''); // "Siga na direção oeste para a ..."
+  t = t.split(/\.\s/)[0]; // só a 1ª frase
   const m = t.match(/\b(?:na|no|para a|para o|para|em|pela|pelo|on|onto|toward|at)\s+(.+?)(?:\s*(?:\/|,|\(|Passe por|O destino).*)?$/i);
   const s = (m ? m[1] : '').trim().replace(/[.;:]+$/, '');
   return s.length > 30 ? s.slice(0, 29) + '…' : s;
@@ -1240,6 +1252,7 @@ window.sim3d = {
     h.style.padding = '0';
     const w = innerWidth - d.l - d.r;
     h.classList.toggle('narrow', w < 470);
+    h.classList.toggle('tiny', w < 280);
   },
   // Painel: {kmh, lim, over, m, d, t, last, eta, rem}. kmh null = sem GPS; m/t = próxima manobra.
   hud(d) {

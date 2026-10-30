@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../logic/best_order.dart';
 import '../logic/costs.dart';
 import '../logic/geo.dart' show decodePolyline;
 import '../logic/itinerary.dart';
@@ -86,6 +87,9 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
   /// Pontos da viagem (o 1º é a saída, que o piloto pode trocar para
   /// planejar ou simular uma viagem que começa em outro lugar).
   late final List<TripPoint> _points = [...widget.points];
+
+  /// Nome da viagem: o destino final (muda se o piloto reordenar).
+  late String _title = widget.title;
 
   /// Saída planejada (null = agora): muda a chegada e o aviso de rodízio, e
   /// permite salvar a viagem para depois.
@@ -182,6 +186,117 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     _calc();
   }
 
+  /// Arrastou uma parada/destino para outra posição (a saída fica fixa).
+  void _reorder(int from, int to) {
+    _cancelAuto();
+    if (to > from) to--;
+    if (from == to) return;
+    setState(() {
+      final p = _points.removeAt(from + 1);
+      _points.insert(to + 1, p);
+      _title = _points.last.name;
+    });
+    _calc();
+  }
+
+  /// Paradas e destino em ordem, com alça para arrastar e "remover".
+  Widget _stopsList() {
+    final n = _points.length - 1;
+    return ReorderableListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      itemCount: n,
+      onReorder: _loading ? (_, __) {} : _reorder,
+      itemBuilder: (_, k) {
+        final i = k + 1, last = i == _points.length - 1;
+        return Row(key: ValueKey('${_points[i].lat},${_points[i].lng},$i'), children: [
+          ReorderableDragStartListener(
+            index: k,
+            enabled: !_loading,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Icon(Icons.drag_handle),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Icon(last ? Icons.flag : Icons.more_vert,
+              color: last ? Colors.red : Colors.amber, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+                last
+                    ? tr('Destino: {0}', [_points[i].name])
+                    : tr('Parada {0}: {1}', [i, _points[i].name]),
+                overflow: TextOverflow.ellipsis),
+          ),
+          IconButton(
+            tooltip: tr('Remover parada'),
+            icon: const Icon(Icons.close, size: 20),
+            onPressed: _loading || _points.length <= 2
+                ? null
+                : () {
+                    _removeStop(i);
+                    if (mounted) setState(() => _title = _points.last.name);
+                  },
+          ),
+        ]);
+      },
+    );
+  }
+
+  /// Calculando a melhor sequência.
+  bool _ordering = false;
+
+  /// Vários destinos: testa as ordens mais curtas no Google (com o trânsito
+  /// do momento) e fica com a mais rápida. A saída fica fixa; o fim é livre.
+  Future<void> _bestOrder() async {
+    _cancelAuto();
+    final before = _trip;
+    final dests = _points.sublist(1);
+    final orders = bestOrders((_points.first.lat, _points.first.lng),
+        [for (final p in dests) (p.lat, p.lng)]);
+    setState(() => _ordering = true);
+    Trip? best;
+    List<TripPoint>? bestPts;
+    for (final o in orders) {
+      final pts = [_points.first, for (final i in o) dests[i]];
+      final t = await TripService.build(
+          title: pts.last.name,
+          points: pts,
+          avoidTolls: _tolls,
+          avoidHighways: _highways);
+      if (!mounted) return;
+      if (t != null && (best == null || t.durationS < best.durationS)) {
+        best = t;
+        bestPts = pts;
+      }
+    }
+    setState(() => _ordering = false);
+    if (best == null || bestPts == null) {
+      _snack(tr('Não foi possível calcular a melhor sequência. Confira a internet.'));
+      return;
+    }
+    final saveMin = before == null ? 0 : ((before.durationS - best.durationS) / 60).round();
+    final saveKm = before == null ? 0.0 : (before.distanceM - best.distanceM) / 1000;
+    setState(() {
+      _points
+        ..clear()
+        ..addAll(bestPts!);
+      _title = _points.last.name;
+      _trip = best;
+      _options = [best!];
+      _tollCost = null;
+    });
+    _calcTolls();
+    _snack(saveMin > 0 || saveKm > 0.5
+        ? tr('Sequência ajustada: economiza {0} min e {1} km.', [saveMin, saveKm.toStringAsFixed(1).replaceAll('.', ',')])
+        : tr('A ordem atual já era a melhor.'));
+  }
+
+  void _snack(String m) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
   @override
   void initState() {
     super.initState();
@@ -270,7 +385,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     if (_countdown != null) _cancelAuto();
     setState(() => _loading = true);
     final t = await TripService.build(
-      title: widget.title,
+      title: _title,
       points: _points,
       avoidTolls: _tolls,
       avoidHighways: _highways,
@@ -453,6 +568,60 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     ]);
   }
 
+  /// Simular / Iniciar (ou Salvar, com saída planejada; ou a contagem do
+  /// início automático).
+  Widget _actions(Trip? t) {
+    return Row(children: [
+              if (_countdown != null) ...[
+                Expanded(
+                  flex: 2,
+                  child: Row(children: [
+                    const Icon(Icons.timer_outlined),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(tr('Iniciando em {0} s…', [_countdown]),
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    TextButton(
+                        onPressed: _cancelAuto, child: Text(tr('Cancelar'))),
+                  ]),
+                ),
+                const SizedBox(width: 8),
+              ] else
+              if (_departAt != null && t != null)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _savePlanned,
+                    icon: const Icon(Icons.bookmark_add_outlined),
+                    label: Text(tr('Salvar')),
+                  ),
+                )
+              else
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: t == null
+                      ? null
+                      : () => Navigator.pop(context, (TripAction.simulate, t)),
+                  icon: const Icon(Icons.play_circle_outline),
+                  label: Text(tr('Simular')),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                // Mesma largura dos dois: "Simular" não quebra em 2 linhas
+                // com a fonte grande do celular.
+                flex: 1,
+                child: FilledButton.icon(
+                  onPressed: t == null
+                      ? null
+                      : () => Navigator.pop(context, (TripAction.start, t)),
+                  icon: const Icon(Icons.navigation),
+                  label: Text(tr('Iniciar')),
+                ),
+              ),
+            ]);
+  }
+
   /// Painel com os cálculos da rota (tempo, km, pedágio, custo, opções).
   Widget _details(ScrollController scroll) {
     final theme = Theme.of(context);
@@ -484,7 +653,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
               const Icon(Icons.flag, color: Colors.red),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(widget.title,
+                child: Text(_title,
                     style: theme.textTheme.titleLarge,
                     overflow: TextOverflow.ellipsis),
               ),
@@ -508,30 +677,26 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
               Text(
                   tr('Saída diferente da sua posição: bom para simular. Se tocar em Iniciar, a navegação recalcula a partir de onde você estiver.'),
                   style: TextStyle(fontSize: 12)),
-            // Paradas no caminho (entre a saída e o destino).
-            for (var i = 1; i < _points.length - 1; i++)
-              Row(children: [
-                const Icon(Icons.more_vert, color: Colors.amber, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(tr('Parada {0}: {1}', [i, _points[i].name]),
-                      overflow: TextOverflow.ellipsis),
-                ),
-                IconButton(
-                  tooltip: tr('Remover parada'),
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: _loading ? null : () => _removeStop(i),
-                ),
-              ]),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
+            // Paradas e destino: arraste pela alça para mudar a ordem
+            // (como no roteiro da expedição).
+            if (_points.length > 2) _stopsList(),
+            Wrap(spacing: 4, children: [
+              TextButton.icon(
                 onPressed:
                     _loading || _points.length >= 12 ? null : _addStop,
                 icon: const Icon(Icons.add_location_alt_outlined),
                 label: Text(tr('Adicionar parada')),
               ),
-            ),
+              // Vários destinos: a ordem que economiza tempo (com trânsito).
+              if (_points.length > 2)
+                TextButton.icon(
+                  onPressed: _loading || _ordering ? null : _bestOrder,
+                  icon: _ordering
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.auto_fix_high),
+                  label: Text(tr('Melhor sequência')),
+                ),
+            ]),
             const SizedBox(height: 4),
             if (_loading)
               const Padding(
@@ -564,6 +729,10 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
+              // Iniciar / Simular logo aqui, junto das rotas sugeridas.
+              const SizedBox(height: 8),
+              _actions(t),
+              const SizedBox(height: 4),
               // Versão de teste do motor próprio: mostra de onde veio a rota.
               if (RouteEngineService.enabled)
                 Text(
@@ -686,56 +855,6 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                         await s.setRoute(s.route.value.copyWith(avoidRisk: v));
                         _calc();
                       },
-              ),
-            ]),
-            const SizedBox(height: 12),
-            Row(children: [
-              if (_countdown != null) ...[
-                Expanded(
-                  flex: 2,
-                  child: Row(children: [
-                    const Icon(Icons.timer_outlined),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(tr('Iniciando em {0} s…', [_countdown]),
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                    TextButton(
-                        onPressed: _cancelAuto, child: Text(tr('Cancelar'))),
-                  ]),
-                ),
-                const SizedBox(width: 8),
-              ] else
-              if (_departAt != null && t != null)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _savePlanned,
-                    icon: const Icon(Icons.bookmark_add_outlined),
-                    label: Text(tr('Salvar')),
-                  ),
-                )
-              else
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: t == null
-                      ? null
-                      : () => Navigator.pop(context, (TripAction.simulate, t)),
-                  icon: const Icon(Icons.play_circle_outline),
-                  label: Text(tr('Simular')),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                // Mesma largura dos dois: "Simular" não quebra em 2 linhas
-                // com a fonte grande do celular.
-                flex: 1,
-                child: FilledButton.icon(
-                  onPressed: t == null
-                      ? null
-                      : () => Navigator.pop(context, (TripAction.start, t)),
-                  icon: const Icon(Icons.navigation),
-                  label: Text(tr('Iniciar')),
-                ),
               ),
             ]),
           ],

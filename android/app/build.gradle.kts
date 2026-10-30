@@ -23,9 +23,8 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        // v2 (só Galaxy de teste): app separado "UauGo2", convive com o UauGo.
-        applicationId = "helpaitech.comboio.v2"
-        manifestPlaceholders["appLabel"] = "UauGo2"
+        applicationId = "helpaitech.comboio"
+        manifestPlaceholders["appLabel"] = "UauGo"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -57,6 +56,12 @@ android {
     }
 
     buildTypes {
+        // Versão de teste pelo cabo (debug): app separado "UauGo2"
+        // (helpaitech.comboio.v2), convive com o UauGo da Play no Galaxy.
+        debug {
+            applicationIdSuffix = ".v2"
+            manifestPlaceholders["appLabel"] = "UauGo2"
+        }
         release {
             signingConfig = signingConfigs.findByName("upload")
                 ?: signingConfigs.getByName("debug")
