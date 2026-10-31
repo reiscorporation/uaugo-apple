@@ -149,6 +149,7 @@ class CarMapView(private val context: Context) {
             }
         }
         v.show(on)
+        overlay?.hud3d = on
     }
     private var meIcon = ""
     private var visible: Rect? = null
@@ -172,10 +173,9 @@ class CarMapView(private val context: Context) {
         val root = FrameLayout(p.context)
         root.addView(mv, FrameLayout.LayoutParams(-1, -1))
         val v3 = Car3DView(p.context)
-        v3.visibility = android.view.View.GONE
         v3.area = visible
         view3d = v3
-        root.addView(v3, FrameLayout.LayoutParams(-1, -1))
+        root.addView(v3.view, FrameLayout.LayoutParams(-1, -1))
         val ov = CarOverlay(p.context)
         overlay = ov
         root.addView(ov.root, FrameLayout.LayoutParams(-1, -1))
@@ -224,7 +224,7 @@ class CarMapView(private val context: Context) {
         poiSig = 0
         me = null
         overlay = null
-        view3d?.show(false)
+        runCatching { view3d?.destroy() }
         view3d = null
         exit3dUntil = -1.0
         meIcon = ""

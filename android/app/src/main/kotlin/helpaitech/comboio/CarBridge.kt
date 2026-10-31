@@ -47,6 +47,9 @@ object CarState {
     @Volatile var zoomOffset = 0f
     /** Estrada em 3D no carro: 0 = só mapa, 1 = nas saídas, 2 = sempre. */
     @Volatile var mode3d = 1
+    /** Cena 3D: último comando de cada tipo ("sim3d.update" -> js) e quem executa. */
+    val sim3dLast = java.util.concurrent.ConcurrentHashMap<String, String>()
+    @Volatile var sim3dSink: ((String) -> Unit)? = null
 
     /** A tela do carro está aberta (o Dart mantém o GPS e a voz). */
     @Volatile var connected = false
@@ -127,6 +130,15 @@ class CarBridge(messenger: BinaryMessenger) {
                     result.success(null)
                 }
                 "connected" -> result.success(CarState.connected)
+                "sim3d" -> {
+                    // Comando da cena 3D (a mesma do celular).
+                    val js = call.arguments as? String
+                    if (js != null) {
+                        CarState.sim3dLast[js.substringBefore('(')] = js
+                        CarState.sim3dSink?.invoke(js)
+                    }
+                    result.success(null)
+                }
                 "pois" -> {
                     // Pins de radares e postos policiais: [lat, lng, tipo, ...].
                     val flat = (call.arguments as? List<*>)?.mapNotNull { (it as? Number)?.toDouble() }

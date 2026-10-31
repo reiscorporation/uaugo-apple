@@ -51,6 +51,7 @@ class CarOverlay(private val ctx: Context) {
         background = box(Color.rgb(255, 193, 7), 12); setPadding(dp(12), dp(8), dp(12), dp(8)); maxLines = 2
     }
     private val speed = tv(36f, Color.WHITE).apply { gravity = Gravity.CENTER }
+    private val speedArea = FrameLayout(ctx)
     private val limit = tv(18f, Color.BLACK).apply {
         gravity = Gravity.CENTER
         background = GradientDrawable().apply {
@@ -73,7 +74,7 @@ class CarOverlay(private val ctx: Context) {
         })
         // Velocímetro (embaixo, à esquerda), placa do limite no canto e a
         // contagem do radar ao lado, como no celular.
-        val speedBox = FrameLayout(ctx)
+        val speedBox = speedArea
         val sp = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
             background = box(Color.argb(238, 15, 27, 45), 18)
@@ -102,11 +103,15 @@ class CarOverlay(private val ctx: Context) {
     private fun dist(m: Double) = if (m >= 1000) String.format(Locale("pt", "BR"), "%.1f km", m / 1000)
         else "${(m / 10).toInt() * 10} m"
 
+    /** Cena 3D na tela: o painel dela mostra velocidade e manobra. */
+    var hud3d = false
+
     /** Atualiza com o estado mandado pelo celular. */
     fun update() {
         val n = CarState.nav
-        turn.visibility = if (n == null) View.GONE else View.VISIBLE
+        turn.visibility = if (n == null || hud3d) View.GONE else View.VISIBLE
         info.visibility = turn.visibility
+        speedArea.visibility = if (hud3d) View.GONE else View.VISIBLE
         if (n != null) {
             turnIcon.setImageResource(icon(n.maneuver))
             turnIcon.setColorFilter(Color.WHITE)

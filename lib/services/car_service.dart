@@ -67,6 +67,12 @@ class CarService {
   /// Aviso curto na tela do carro.
   String _poisSig = '';
 
+  /// Comando da cena 3D (a mesma do celular) para a tela do carro.
+  void sim3d(String js) {
+    if (!connected.value) return;
+    _ch.invokeMethod('sim3d', js).catchError((_) => null);
+  }
+
   /// Pins de radares/postos policiais perto: (lat, lng, tipo).
   void pois(List<(double, double, int)> list) {
     final sig = list.map((e) => '${e.$1},${e.$2}').join(';');

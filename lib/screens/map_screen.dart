@@ -730,7 +730,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _checkHalfway();
     if (!_inBackground) _updateCamera(p);
     if (!_inBackground) _autoExit3d(p);
-    if (!_inBackground) _feed3d();
+    // A cena 3D também alimenta o carro, mesmo com o celular apagado.
+    if (!_inBackground || CarService.instance.connected.value) _feed3d();
     // Grava o caminho (só no celular) na expedição ou navegando.
     if (_isExpedition || _navigating) {
       _recorder?.add(p.latitude, p.longitude, _speedMs, p.timestamp);
@@ -5299,7 +5300,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// v2: mantém a visão 3D com a rota, as manobras e a posição atuais.
   void _feed3d() {
-    if (!_show3d || !_canShow3d) return;
+    final car = CarService.instance.connected.value;
+    if (!_canShow3d || (!_show3d && !car)) return;
     final steps = _nav?.steps ?? const <NavStep>[];
     final sig = '$_routeSig|${steps.length}';
     if (sig != _sim3dSig) {
@@ -5432,6 +5434,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!mounted || !CarService.instance.connected.value) return;
     if (_routeRecs.length >= 2) CarService.instance.route(_routeRecs);
     _sendPoisToCar();
+    _sim3d.resendToCar();
+    _feed3d();
   }
 
   /// Botão da tela do carro.

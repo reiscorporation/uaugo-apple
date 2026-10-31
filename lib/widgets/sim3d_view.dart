@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../logic/navigation.dart';
+import '../services/car_service.dart';
 
 /// Ponte do app com a página 3D. Guarda o último estado e reenvia quando a
 /// página termina de carregar.
@@ -111,6 +112,21 @@ class Sim3DController {
 
   void _run(String js) {
     if (_ready) _web?.runJavaScript(js).catchError((_) {});
+    // A tela do carro usa a mesma cena (com o espaço do painel dela).
+    if (!js.startsWith('sim3d.layout') && !js.startsWith('sim3d.setActive')) {
+      CarService.instance.sim3d(js);
+    }
+  }
+
+  /// Carro conectou agora: manda o estado atual da cena para ele.
+  void resendToCar() {
+    final car = CarService.instance;
+    car.sim3d('sim3d.setDark($_dark)');
+    if (_routeJson != null) car.sim3d('sim3d.setRoute($_routeJson)');
+    if (_roadsJson != null) car.sim3d('sim3d.setRoads($_roadsJson)');
+    if (_alertsJson != null) car.sim3d('sim3d.setAlerts($_alertsJson)');
+    if (_lastUpdate != null) car.sim3d('sim3d.update($_lastUpdate)');
+    if (_hudJson != null) car.sim3d('sim3d.hud($_hudJson)');
   }
 
   void _onReady() {
