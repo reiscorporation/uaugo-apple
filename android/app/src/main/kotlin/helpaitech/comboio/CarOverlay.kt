@@ -58,6 +58,30 @@ class CarOverlay(private val ctx: Context) {
             shape = GradientDrawable.OVAL; setColor(Color.WHITE); setStroke(dp(4), Color.RED)
         }
     }
+    private val alertBtn = tv(30f, Color.BLACK).apply {
+        text = "\u26A0\uFE0E"; gravity = Gravity.CENTER
+        background = box(Color.rgb(255, 193, 7), 14)
+    }
+    private val radarBtn = tv(25f, Color.WHITE).apply {
+        text = "\uD83D\uDCF7"; gravity = Gravity.CENTER
+        background = box(Color.rgb(211, 47, 47), 14)
+    }
+
+    /** Qual botão do mapa foi tocado (com folga para o dedo). */
+    fun hit(x: Float, y: Float): String? {
+        fun inside(v: View): Boolean {
+            val o = IntArray(2)
+            v.getLocationInWindow(o)
+            val m = dp(6)
+            return x >= o[0] - m && x <= o[0] + v.width + m && y >= o[1] - m && y <= o[1] + v.height + m
+        }
+        return when {
+            inside(alertBtn) -> "alert"
+            inside(radarBtn) -> "radar"
+            else -> null
+        }
+    }
+
     private val pill = tv(15f, Color.WHITE).apply {
         background = box(Color.rgb(198, 40, 40), 18); setPadding(dp(12), dp(6), dp(12), dp(6))
     }
@@ -83,9 +107,16 @@ class CarOverlay(private val ctx: Context) {
         speedBox.addView(sp, FrameLayout.LayoutParams(dp(96), dp(96), Gravity.BOTTOM or Gravity.START))
         speedBox.addView(limit, FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.END))
         val bottom = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
+        // Embaixo de tudo: alerta e radar móvel, iguais aos do celular.
+        val column = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        val buttons = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(56), dp(56)))
+        buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         bottom.addView(speedBox, LinearLayout.LayoutParams(dp(118), dp(116)))
         bottom.addView(pill, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8); bottomMargin = dp(6) })
-        root.addView(bottom, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply {
+        column.addView(bottom)
+        column.addView(buttons, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
+        root.addView(column, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply {
             setMargins(dp(10), 0, 0, dp(10))
         })
     }

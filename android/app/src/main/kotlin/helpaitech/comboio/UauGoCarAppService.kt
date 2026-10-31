@@ -223,14 +223,18 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             }
             .build()
         fun icon(res: Int) = CarIcon.Builder(IconCompat.createWithResource(carContext, res)).build()
-        // Alerta (como no Google Maps): abre a lista de alertas para escolher.
-        val alert = Action.Builder()
-            .setIcon(icon(R.drawable.car_alert))
-            .setOnClickListener { screenManager.push(AlertListScreen(carContext)) }
-            .build()
-        val strip = ActionStrip.Builder()
-            .addAction(alert)
-            .addAction(action("Radar", "radar"))
+        // Alerta e radar móvel ficam desenhados no mapa, iguais aos do celular
+        // (a barra do Android Auto pinta os ícones de uma cor só). Carro sem
+        // toque no mapa (API < 5): continuam aqui.
+        val sb = ActionStrip.Builder()
+        if (carContext.carAppApiLevel < 5) {
+            sb.addAction(Action.Builder()
+                .setIcon(icon(R.drawable.car_alert))
+                .setOnClickListener { openAlerts() }
+                .build())
+            sb.addAction(action("Radar", "radar"))
+        }
+        val strip = sb
             .addAction(action(if (CarState.en) "End" else "Encerrar", "stop"))
             .build()
         // Zoom do mapa do carro: o motorista escolhe (+/−).
@@ -281,6 +285,19 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         } else {
             renderer.visible = visibleArea
             renderer.draw()
+        }
+    }
+
+    private fun openAlerts() = screenManager.push(AlertListScreen(carContext))
+
+    /** Toque no mapa: os botões de alerta e radar, iguais aos do celular. */
+    override fun onClick(x: Float, y: Float) {
+        when (carMap.tap(x, y)) {
+            "alert" -> openAlerts()
+            "radar" -> {
+                val sink = CarState.actionSink
+                if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("radar")
+            }
         }
     }
 

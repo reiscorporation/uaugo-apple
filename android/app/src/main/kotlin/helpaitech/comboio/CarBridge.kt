@@ -47,6 +47,8 @@ object CarState {
     @Volatile var zoomOffset = 0f
     /** Estrada em 3D no carro: 0 = só mapa, 1 = nas saídas, 2 = sempre. */
     @Volatile var mode3d = 1
+    /** Imagem do veículo (PNG), a mesma do mapa do celular. */
+    @Volatile var vehicleImage: ByteArray? = null
     /** Cena 3D: último comando de cada tipo ("sim3d.update" -> js) e quem executa. */
     val sim3dLast = java.util.concurrent.ConcurrentHashMap<String, String>()
     @Volatile var sim3dSink: ((String) -> Unit)? = null
@@ -130,6 +132,11 @@ class CarBridge(messenger: BinaryMessenger) {
                     result.success(null)
                 }
                 "connected" -> result.success(CarState.connected)
+                "vehicleImage" -> {
+                    CarState.vehicleImage = call.arguments as? ByteArray
+                    CarState.changed()
+                    result.success(null)
+                }
                 "sim3d" -> {
                     // Comando da cena 3D (a mesma do celular).
                     val js = call.arguments as? String

@@ -5381,6 +5381,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return (step: s, meters: d);
   }
 
+  /// A imagem do veículo no carro é a mesma do celular (foto ou ícone).
+  String _carBikeSig = '';
+  void _sendVehicleToCar() {
+    final sig = _myBike.cacheKey;
+    if (sig == _carBikeSig) return;
+    _carBikeSig = sig;
+    bikeBadgePng(_myBike).then(CarService.instance.vehicleImage).catchError((_) {});
+  }
+
   /// Pins da tela do carro: radares (1 fixo, 2 média, 3 sinal) e postos
   /// policiais (4), como no celular.
   void _sendPoisToCar() {
@@ -5399,6 +5408,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Manda para a tela do carro a manobra, a chegada, o radar e a posição.
   void _sendToCar(Position p) {
     if (!CarService.instance.connected.value) return;
+    _sendVehicleToCar();
     final turn = _navigating ? _upcomingTurn(p) : null;
     final w = _walker;
     final left = w == null ? 0.0 : w.remainingFrom(p.latitude, p.longitude);
@@ -5434,6 +5444,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!mounted || !CarService.instance.connected.value) return;
     if (_routeRecs.length >= 2) CarService.instance.route(_routeRecs);
     _sendPoisToCar();
+    _carBikeSig = ''; // reconectou: manda a imagem do veículo de novo
+    _sendVehicleToCar();
     _sim3d.resendToCar();
     _feed3d();
   }

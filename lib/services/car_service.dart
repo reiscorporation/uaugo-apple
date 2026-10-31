@@ -8,9 +8,12 @@
 // Quem usa: MapScreen.
 // ============================================================================
 
+import 'dart:typed_data';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import '../widgets/bike_marker.dart';
+import 'profile_service.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -58,6 +61,7 @@ class CarService {
           _poisSig = '';
         }
         connected.value = c.arguments == true;
+        if (c.arguments == true) _sendVehicle();
       }
     });
     _ch.invokeMethod<bool>('connected').then((v) => connected.value = v == true,
@@ -66,6 +70,20 @@ class CarService {
 
   /// Aviso curto na tela do carro.
   String _poisSig = '';
+
+  /// Manda a imagem do veículo assim que o carro conecta (sem depender do
+  /// mapa aberto no celular).
+  Future<void> _sendVehicle() async {
+    try {
+      vehicleImage(await bikeBadgePng(await ProfileService.load()));
+    } catch (_) {}
+  }
+
+  /// Imagem do veículo (a mesma do mapa do celular) para a tela do carro.
+  void vehicleImage(Uint8List png) {
+    if (!connected.value) return;
+    _ch.invokeMethod('vehicleImage', png).catchError((_) => null);
+  }
 
   /// Comando da cena 3D (a mesma do celular) para a tela do carro.
   void sim3d(String js) {

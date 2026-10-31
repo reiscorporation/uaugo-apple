@@ -202,6 +202,9 @@ class CarMapView(private val context: Context) {
         false
     }
 
+    /** Toque na tela do carro: "alert", "radar" ou null. */
+    fun tap(x: Float, y: Float) = overlay?.hit(x, y)
+
     /** Área livre da tela (fora dos cartões do Android Auto). */
     fun setVisibleArea(r: Rect) {
         visible = r
@@ -248,7 +251,7 @@ class CarMapView(private val context: Context) {
                 PolylineOptions()
                     .addAll(pts.map { LatLng(it[0], it[1]) })
                     .color(Color.rgb(26, 115, 232)) // azul da rota do celular
-                    .width(11f)
+                    .width(6f) // fina, para não pesar no desenho
                     .zIndex(2f)) else null
         }
         overlay?.update()
@@ -257,14 +260,17 @@ class CarMapView(private val context: Context) {
         if (!CarState.hasPosition) return
         val pos = LatLng(CarState.lat, CarState.lng)
         trimPassed(pts, pos)
-        if (meIcon != CarState.vehicle) {
+        // A imagem do veículo vem do celular (foto ou ícone configurado).
+        val img = CarState.vehicleImage
+        val iconKey = "${CarState.vehicle}|${img?.contentHashCode() ?: 0}"
+        if (meIcon != iconKey) {
             me?.remove()
             me = null
-            meIcon = CarState.vehicle
+            meIcon = iconKey
         }
         val m = me ?: g.addMarker(
             MarkerOptions().position(pos).anchor(0.5f, 0.5f)
-                .icon(BitmapDescriptorFactory.fromBitmap(vehicleBitmap(meIcon))).zIndex(5f)
+                .icon(BitmapDescriptorFactory.fromBitmap(myVehicle(img))).zIndex(5f)
         )?.also { me = it }
         m?.position = pos
         // Ícone em pé (o mapa gira com o piloto).
@@ -306,6 +312,13 @@ class CarMapView(private val context: Context) {
             color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = 6f; isAntiAlias = true
         })
         return b
+    }
+
+    /** A imagem mandada pelo celular; sem ela, o emoji do tipo do veículo. */
+    private fun myVehicle(png: ByteArray?): Bitmap {
+        val b = png?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) }
+            ?: return vehicleBitmap(CarState.vehicle)
+        return Bitmap.createScaledBitmap(b, 84, 84, true)
     }
 
     private fun vehicleBitmap(emoji: String): Bitmap {

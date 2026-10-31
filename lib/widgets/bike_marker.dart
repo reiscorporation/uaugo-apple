@@ -7,6 +7,7 @@
 // ============================================================================
 
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -56,42 +57,7 @@ Future<BitmapDescriptor> bikeMarker({
 }) async {
   final rec = ui.PictureRecorder();
   final c = Canvas(rec);
-  final color = Color(bike.color);
-  const center = Offset(_w / 2, _cy);
-
-  c.drawCircle(center, _r + 6,
-      Paint()..color = isMe ? const Color(0xFF4285F4) : Colors.white);
-  c.drawCircle(center, _r, Paint()..color = color);
-
-  final photo = bike.photoUrl == null ? null : await _loadPhoto(bike.photoUrl!);
-  if (photo != null) {
-    final s = min(photo.width, photo.height).toDouble();
-    final src = Rect.fromLTWH(
-        (photo.width - s) / 2, (photo.height - s) / 2, s, s);
-    c.save();
-    c.clipPath(Path()..addOval(Rect.fromCircle(center: center, radius: _r)));
-    c.drawImageRect(photo, src, Rect.fromCircle(center: center, radius: _r),
-        Paint()..filterQuality = FilterQuality.medium);
-    c.restore();
-  } else {
-    final iconColor =
-        color.computeLuminance() > 0.6 ? Colors.black : Colors.white;
-    final icon = bike.style.icon;
-    final tp = TextPainter(
-      text: TextSpan(
-        text: String.fromCharCode(icon.codePoint),
-        style: TextStyle(
-          fontFamily: icon.fontFamily,
-          package: icon.fontPackage,
-          fontSize: 70,
-          color: iconColor,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(c, center - Offset(tp.width / 2, tp.height / 2));
-  }
-
+  await _paintBadge(c, const Offset(_w / 2, _cy), bike, isMe);
   // Etiqueta: nome + modelo
   final title = TextPainter(
     text: TextSpan(
@@ -133,4 +99,53 @@ Future<BitmapDescriptor> bikeMarker({
   final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
   return BitmapDescriptor.bytes(bytes!.buffer.asUint8List(),
       width: 80, height: 80 * _h / _w);
+}
+
+/// Só o círculo do veículo (foto ou ícone), em PNG: é o mesmo desenho do
+/// celular, mandado para a tela do carro (Android Auto).
+Future<Uint8List> bikeBadgePng(BikeProfile bike) async {
+  const size = (_r + 8) * 2;
+  final rec = ui.PictureRecorder();
+  await _paintBadge(Canvas(rec), const Offset(size / 2, size / 2), bike, true);
+  final img = await rec.endRecording().toImage(size.toInt(), size.toInt());
+  final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+  return bytes!.buffer.asUint8List();
+}
+
+/// Círculo com a foto do veículo (ou o ícone do tipo, na cor escolhida).
+Future<void> _paintBadge(
+    Canvas c, Offset center, BikeProfile bike, bool isMe) async {
+  final color = Color(bike.color);
+  c.drawCircle(center, _r + 6,
+      Paint()..color = isMe ? const Color(0xFF4285F4) : Colors.white);
+  c.drawCircle(center, _r, Paint()..color = color);
+
+  final photo = bike.photoUrl == null ? null : await _loadPhoto(bike.photoUrl!);
+  if (photo != null) {
+    final s = min(photo.width, photo.height).toDouble();
+    final src = Rect.fromLTWH(
+        (photo.width - s) / 2, (photo.height - s) / 2, s, s);
+    c.save();
+    c.clipPath(Path()..addOval(Rect.fromCircle(center: center, radius: _r)));
+    c.drawImageRect(photo, src, Rect.fromCircle(center: center, radius: _r),
+        Paint()..filterQuality = FilterQuality.medium);
+    c.restore();
+  } else {
+    final iconColor =
+        color.computeLuminance() > 0.6 ? Colors.black : Colors.white;
+    final icon = bike.style.icon;
+    final tp = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+          fontSize: 70,
+          color: iconColor,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(c, center - Offset(tp.width / 2, tp.height / 2));
+  }
 }
