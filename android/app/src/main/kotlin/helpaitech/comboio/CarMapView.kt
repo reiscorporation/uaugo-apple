@@ -6,6 +6,8 @@
 //   MapView. O mapa segue o piloto (girado para a frente, inclinado), com a
 //   rota em azul, a seta do piloto, a velocidade, a placa do limite e o aviso
 //   de radar por cima. Os dados vêm do CarState (alimentado pelo celular).
+//   Por cima do mapa pode entrar a estrada em 3D (Car3DView), conforme
+//   CarState.mode3d: nas saídas vai de 400 m antes a 400 m depois da manobra.
 // Quem usa: NavScreen (UauGoCarAppService.kt). Se o mapa falhar, a tela
 //   volta para o desenho simples (MapRenderer).
 // ============================================================================
@@ -124,6 +126,30 @@ class CarMapView(private val context: Context) {
 
     private var me: Marker? = null
     private var overlay: CarOverlay? = null
+    private var view3d: Car3DView? = null
+
+    /** Modo "nas saídas": fica em 3D até faltar menos que isso para o destino. */
+    private var exit3dUntil = -1.0
+
+    /** Mostra ou esconde a estrada em 3D. */
+    private fun apply3d() {
+        val v = view3d ?: return
+        val n = CarState.nav
+        val on = when (CarState.mode3d) {
+            0 -> false
+            2 -> n != null && CarState.route.size >= 2
+            else -> {
+                if (n != null && n.meters <= 400 &&
+                    Regex("ramp|fork|keep|roundabout").containsMatchIn(n.maneuver)) {
+                    exit3dUntil = n.remainingM - n.meters - 400
+                }
+                val inside = n != null && exit3dUntil >= 0 && n.remainingM > exit3dUntil
+                if (!inside) exit3dUntil = -1.0
+                inside
+            }
+        }
+        v.show(on)
+    }
     private var meIcon = ""
     private var visible: Rect? = null
     private var width = 0
@@ -145,6 +171,11 @@ class CarMapView(private val context: Context) {
         mv.onCreate(null)
         val root = FrameLayout(p.context)
         root.addView(mv, FrameLayout.LayoutParams(-1, -1))
+        val v3 = Car3DView(p.context)
+        v3.visibility = android.view.View.GONE
+        v3.area = visible
+        view3d = v3
+        root.addView(v3, FrameLayout.LayoutParams(-1, -1))
         val ov = CarOverlay(p.context)
         overlay = ov
         root.addView(ov.root, FrameLayout.LayoutParams(-1, -1))
@@ -174,6 +205,7 @@ class CarMapView(private val context: Context) {
     /** Área livre da tela (fora dos cartões do Android Auto). */
     fun setVisibleArea(r: Rect) {
         visible = r
+        view3d?.area = r
         applyPadding()
         update()
     }
@@ -192,6 +224,9 @@ class CarMapView(private val context: Context) {
         poiSig = 0
         me = null
         overlay = null
+        view3d?.show(false)
+        view3d = null
+        exit3dUntil = -1.0
         meIcon = ""
         routeSig = 0
     }
@@ -217,6 +252,7 @@ class CarMapView(private val context: Context) {
                     .zIndex(2f)) else null
         }
         overlay?.update()
+        apply3d()
         drawPois(g)
         if (!CarState.hasPosition) return
         val pos = LatLng(CarState.lat, CarState.lng)

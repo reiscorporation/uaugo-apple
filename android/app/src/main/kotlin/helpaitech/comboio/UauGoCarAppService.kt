@@ -241,9 +241,23 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 if (carMap.running) carMap.update()
             }
             .build()
+        // Estrada em 3D: mapa -> 3D nas saídas -> 3D sempre.
+        val view3d = Action.Builder()
+            .setIcon(icon(R.drawable.car_3d))
+            .setOnClickListener {
+                CarState.mode3d = (CarState.mode3d + 1) % 3
+                toast(when (CarState.mode3d) {
+                    0 -> if (CarState.en) "Map view" else "Só mapa"
+                    1 -> if (CarState.en) "3D at exits" else "3D nas saídas"
+                    else -> if (CarState.en) "3D always" else "3D sempre"
+                })
+                if (carMap.running) carMap.update()
+            }
+            .build()
         val mapStrip = ActionStrip.Builder()
             .addAction(zoom(R.drawable.car_zoom_in, 1f))
             .addAction(zoom(R.drawable.car_zoom_out, -1f))
+            .addAction(view3d)
             .build()
         val b = NavigationTemplate.Builder().setActionStrip(strip).setMapActionStrip(mapStrip)
         // A manobra, a chegada e os avisos são desenhados no mapa (CarOverlay),

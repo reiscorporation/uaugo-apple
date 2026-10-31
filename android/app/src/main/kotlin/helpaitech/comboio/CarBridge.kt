@@ -45,6 +45,8 @@ object CarState {
     @Volatile var en = java.util.Locale.getDefault().language != "pt"
     /** Zoom escolhido pelo motorista nos botões +/− do carro (passos). */
     @Volatile var zoomOffset = 0f
+    /** Estrada em 3D no carro: 0 = só mapa, 1 = nas saídas, 2 = sempre. */
+    @Volatile var mode3d = 1
 
     /** A tela do carro está aberta (o Dart mantém o GPS e a voz). */
     @Volatile var connected = false
