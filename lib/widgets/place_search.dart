@@ -13,6 +13,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../logic/itinerary.dart' show formatDistance;
 import '../services/places_service.dart';
 import '../services/recent_places_service.dart';
 import '../services/saved_places_service.dart';
@@ -228,7 +229,12 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
           ListTile(
             leading: Icon(Icons.place_outlined),
             title: Text(r.title),
-            subtitle: r.subtitle.isEmpty ? null : Text(r.subtitle),
+            subtitle: r.subtitle.isEmpty && r.meters == null
+                ? null
+                : Text([
+                    if (r.meters != null) formatDistance(r.meters!),
+                    if (r.subtitle.isNotEmpty) r.subtitle,
+                  ].join(' · ')),
             onTap: _loading ? null : () => _choose(r),
           ),
         if (_results.isEmpty && _ctrl.text.trim().length >= 3 && !_loading)

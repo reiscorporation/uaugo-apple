@@ -170,5 +170,5 @@ PoiIndex _parse((Uint8List, int) a) {
   final j =
       jsonDecode(utf8.decode(gzip.decode(a.$1))) as Map<String, dynamic>;
   return PoiIndex.fromCompact((j['d'] as List?) ?? const [],
-      idBase: a.$2, signals: j['s'] as List?);
+      idBase: a.$2, signals: j['s'] as List?, headings: j['bh'] as List?);
 }

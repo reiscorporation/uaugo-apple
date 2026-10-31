@@ -1170,7 +1170,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (done >= thresholds.length) continue;
       final d = distanceMeters(p.latitude, p.longitude, poi.lat, poi.lng);
       if (d > thresholds.first) continue;
-      if (!_onMyWay(p, poi.lat, poi.lng, side: bump ? 15 : 60)) continue;
+      // Lombada: bem junto do caminho (a outra pista fica a mais de 8 m) e,
+      // em pista de mão única, só no sentido dela.
+      if (!_onMyWay(p, poi.lat, poi.lng, side: bump ? 8 : 60)) continue;
+      if (bump && !sameDirection(poi.heading, _bearing, _speedMs)) continue;
       final next = nextAlert(d, done, thresholds);
       if (next == null) continue;
       _poiSpoken[poi.id] = next;
@@ -5288,6 +5291,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             'dir': r.direction,
           },
         for (final q in PoiService.instance.near(p.latitude, p.longitude, 3000))
+          if (sameDirection(q.heading, _bearing, _speedMs))
           {
             'la': q.lat,
             'lo': q.lng,

@@ -34,7 +34,11 @@ class Poi {
   final double lat;
   final double lng;
   final PoiKind kind;
-  const Poi(this.id, this.lat, this.lng, this.kind);
+
+  /// Sentido da pista (graus), nas lombadas em via de mão única; null =
+  /// vale para os dois lados.
+  final double? heading;
+  const Poi(this.id, this.lat, this.lng, this.kind, [this.heading]);
 }
 
 /// Lombadas e postos policiais de um estado, numa grade de ~1 km para a
@@ -50,8 +54,9 @@ class PoiIndex {
   final Map<int, List<(double, double)>> _signals = {};
 
   /// [d] = [dLat, dLng, tipo, ...] em 1e-5 grau (diferenças acumuladas);
-  /// [signals] = [dLat, dLng, ...] dos semáforos.
-  PoiIndex.fromCompact(List d, {int idBase = 0, List? signals}) {
+  /// [signals] = [dLat, dLng, ...] dos semáforos; [headings] = sentido de
+  /// cada ponto de [d], na mesma ordem (-1 = os dois lados).
+  PoiIndex.fromCompact(List d, {int idBase = 0, List? signals, List? headings}) {
     var sLat = 0, sLng = 0;
     for (var i = 0; signals != null && i + 1 < signals.length; i += 2) {
       sLat += (signals[i] as num).toInt();
@@ -65,7 +70,10 @@ class PoiIndex {
       lat += (d[i] as num).toInt();
       lng += (d[i + 1] as num).toInt();
       final kind = PoiKind.fromCode((d[i + 2] as num).toInt());
-      final p = Poi(idBase + length, lat / 1e5, lng / 1e5, kind);
+      final h = headings != null && length < headings.length
+          ? (headings[length] as num).toDouble()
+          : -1.0;
+      final p = Poi(idBase + length, lat / 1e5, lng / 1e5, kind, h < 0 ? null : h);
       _cells
           .putIfAbsent(_key((lat / 1000).floor(), (lng / 1000).floor()), () => [])
           .add(p);

@@ -184,6 +184,8 @@ async function places(req) {
       body.locationBias = {
         circle: { center: { latitude: lat, longitude: lng }, radius: 50000.0 },
       };
+      // Devolve a distância de cada sugestão: o app ordena da mais perto.
+      body.origin = { latitude: lat, longitude: lng };
     }
     const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
       method: "POST",

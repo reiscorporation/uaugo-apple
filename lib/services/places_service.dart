@@ -22,7 +22,20 @@ class PlaceSuggestion {
   final String placeId;
   final String title; // ex.: "Posto Shell"
   final String subtitle; // ex.: "Urubici - SC"
-  const PlaceSuggestion(this.placeId, this.title, this.subtitle);
+
+  /// Distância até a posição do piloto (null = o Google não informou).
+  final int? meters;
+  const PlaceSuggestion(this.placeId, this.title, this.subtitle, [this.meters]);
+}
+
+/// Mais perto primeiro; sem distância, no fim (mantendo a ordem do Google).
+List<PlaceSuggestion> sortByDistance(List<PlaceSuggestion> list) {
+  final indexed = [for (var i = 0; i < list.length; i++) (i, list[i])];
+  indexed.sort((a, b) {
+    final d = (a.$2.meters ?? 1 << 40).compareTo(b.$2.meters ?? 1 << 40);
+    return d != 0 ? d : a.$1.compareTo(b.$1);
+  });
+  return [for (final e in indexed) e.$2];
 }
 
 /// Lugar escolhido: nome e posição.
@@ -84,7 +97,7 @@ class PlacesService {
         },
       });
       final list = (data['suggestions'] as List?) ?? const [];
-      return list
+      final out = list
           .map((s) => s['placePrediction'] as Map<String, dynamic>?)
           .whereType<Map<String, dynamic>>()
           .map((p) => PlaceSuggestion(
@@ -94,8 +107,10 @@ class PlacesService {
                     '') as String,
                 (p['structuredFormat']?['secondaryText']?['text'] ?? '')
                     as String,
+                (p['distanceMeters'] as num?)?.toInt(),
               ))
           .toList();
+      return sortByDistance(out);
     } catch (_) {
       lastFailed = true;
       return const [];

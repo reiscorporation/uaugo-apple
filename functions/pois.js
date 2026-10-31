@@ -29,14 +29,17 @@ const ROAD_POLICE = /rodovi|PRF|PMRv|BPRv|CPRv|posto policial|posto da pol/i;
 function query(uf) {
   return `[out:json][timeout:600];
 area["ISO3166-2"="BR-${uf}"][admin_level=4]->.a;
+node["traffic_calming"~"^(bump|hump|table|cushion)$"](area.a)->.b;
 (
-  node["traffic_calming"~"^(bump|hump|table|cushion)$"](area.a);
+  .b;
   node["amenity"="police"](area.a);
   way["amenity"="police"](area.a);
   node["barrier"="toll_booth"](area.a);
   node["highway"="traffic_signals"](area.a);
 );
-out center tags;`;
+out center tags;
+way(bn.b)["highway"]["oneway"];
+out body geom;`;
 }
 
 async function fetchUf(uf) {
@@ -66,7 +69,38 @@ async function fetchUf(uf) {
   throw last;
 }
 
+/** Rumo (graus inteiros) de um ponto para o outro. */
+function bearing(a, b) {
+  const rad = Math.PI / 180;
+  const dL = (b.lon - a.lon) * rad;
+  const y = Math.sin(dL) * Math.cos(b.lat * rad);
+  const x = Math.cos(a.lat * rad) * Math.sin(b.lat * rad) -
+    Math.sin(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos(dL);
+  return Math.round((Math.atan2(y, x) / rad + 360) % 360) % 360;
+}
+
+/**
+ * Sentido de cada nó que está numa via de mão única (pista dupla): a lombada
+ * nesse nó só vale para quem anda nesse sentido. Em mão dupla, sem sentido.
+ */
+function nodeHeadings(elements) {
+  const out = new Map();
+  for (const w of elements) {
+    if (w.type !== "way" || !w.geometry || !w.nodes) continue;
+    const dir = w.tags?.oneway;
+    if (dir !== "yes" && dir !== "1" && dir !== "true" && dir !== "-1") continue;
+    const n = w.geometry.length;
+    if (n < 2) continue;
+    for (let i = 0; i < n; i++) {
+      const k = Math.min(i, n - 2), a = w.geometry[k], b = w.geometry[k + 1];
+      out.set(w.nodes[i], dir === "-1" ? bearing(b, a) : bearing(a, b));
+    }
+  }
+  return out;
+}
+
 function compact(elements) {
+  const heads = nodeHeadings(elements);
   const pts = [];
   const sig = [];
   for (const e of elements) {
@@ -90,7 +124,7 @@ function compact(elements) {
     else if (t.amenity === "police" &&
       ROAD_POLICE.test(`${t.name || ""} ${t.operator || ""} ${t.official_name || ""}`)) type = 2;
     if (!type) continue;
-    pts.push([Math.round(lat * 1e5), Math.round(lng * 1e5), type]);
+    pts.push([Math.round(lat * 1e5), Math.round(lng * 1e5), type, heads.get(e.id) ?? -1]);
   }
   pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   sig.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -116,6 +150,9 @@ function compact(elements) {
   return {
     d: delta(rest, true),
     b: delta(bumpPts, true),
+    // Sentido de cada lombada, na mesma ordem de "b" (-1 = os dois). Campo à
+    // parte: versões antigas do app ignoram.
+    bh: bumpPts.map((p) => p[3]),
     s: delta(sig, false),
     bumps: bumpPts.length,
     police: rest.filter((p) => p[2] === 2).length,
@@ -142,9 +179,9 @@ async function buildPois({ previous = {}, save, budgetMs = 420000, log = console
   for (const uf of due) {
     if (Date.now() - start > budgetMs) break;
     try {
-      const { d, b, s, bumps, police, tolls, signals, bbox } = compact(await fetchUf(uf));
+      const { d, b, bh, s, bumps, police, tolls, signals, bbox } = compact(await fetchUf(uf));
       const gz = (o) => zlib.gzipSync(JSON.stringify({ v: 2, uf, ...o }), { level: 9 });
-      const main = gz({ d }), bumpGz = gz({ d: b }), sigGz = gz({ s });
+      const main = gz({ d }), bumpGz = gz({ d: b, bh }), sigGz = gz({ s });
       await save("pois", uf, main);
       await save("lombadas", uf, bumpGz);
       await save("semaforos", uf, sigGz);
@@ -164,4 +201,4 @@ async function buildPois({ previous = {}, save, budgetMs = 420000, log = console
   return { ufs, changed };
 }
 
-module.exports = { buildPois, compact, ROAD_POLICE };
+module.exports = { buildPois, compact, nodeHeadings, ROAD_POLICE };
