@@ -81,7 +81,7 @@ const en5 = <String, String>{
   'Mapa': 'Map',
   'Mapa de cima o tempo todo': 'Top-down map all the time',
   'Mapa + 3D nas saídas': 'Map + 3D at exits',
-  'Mapa normal; vira 3D perto de saídas e bifurcações': 'Normal map; switches to 3D near exits and forks',
+  'Mapa normal; vira 3D 400 m antes e até 400 m depois de saídas, bifurcações e rotatórias': 'Normal map; switches to 3D near exits and forks',
   'Destino: {0}': 'Destination: {0}',
   'Não foi possível calcular a melhor sequência. Confira a internet.': 'Could not work out the best order. Check your internet connection.',
   'Sequência ajustada: economiza {0} min e {1} km.': 'Order adjusted: saves {0} min and {1} km.',

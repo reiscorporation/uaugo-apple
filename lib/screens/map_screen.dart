@@ -5102,24 +5102,46 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Próxima manobra é saída/bifurcação/"mantenha-se" e está perto (600 m;
-  /// já em 3D, só volta ao mapa depois de passar ou se ficar a mais de 750 m).
+  /// Modo "nas saídas": 3D de 400 m antes até 400 m depois da manobra.
+  static const _exit3dMeters = 400.0;
+
+  /// Última saída/rotatória em que entrou no 3D: ponto e posição na rota.
+  (double, double)? _exit3dPoint;
+  double? _exit3dAlong;
+
+  /// Dentro da faixa de 400 m antes ou depois de saída, bifurcação ou
+  /// rotatória? Depois de passar, conta pela rota (ou em linha reta, se
+  /// saiu dela).
   bool _nearExit(Position p) {
     if (!_navigating && _sim == null) return false;
     final nav = _nav;
-    if (nav == null || nav.finished) return false;
-    // Olha as próximas manobras (não só a primeira): às vezes vem um
-    // "continue"/"siga" curto antes da saída.
-    final limit = _show3d ? 750.0 : 600.0;
     final ra = _riderAlong;
-    for (var i = nav.nextIndex; i < nav.steps.length && i < nav.nextIndex + 4; i++) {
-      final s = nav.steps[i];
-      final d = (ra != null ? nav.routeDistanceTo(i, ra) : null) ??
-          distanceMeters(p.latitude, p.longitude, s.lat, s.lng);
-      if (d > limit) break;
-      if (_isExitStep(s)) return true;
+    if (nav != null && !nav.finished) {
+      // Olha as próximas manobras (não só a primeira): às vezes vem um
+      // "continue"/"siga" curto antes da saída.
+      for (var i = nav.nextIndex; i < nav.steps.length && i < nav.nextIndex + 4; i++) {
+        final s = nav.steps[i];
+        final d = (ra != null ? nav.routeDistanceTo(i, ra) : null) ??
+            distanceMeters(p.latitude, p.longitude, s.lat, s.lng);
+        if (d > _exit3dMeters) break;
+        if (_isExitStep(s)) {
+          _exit3dPoint = (s.lat, s.lng);
+          _exit3dAlong = ra == null ? null : ra + d;
+          return true;
+        }
+      }
     }
-    return false;
+    final pt = _exit3dPoint;
+    if (pt == null) return false;
+    final a = _exit3dAlong;
+    final inside = ra != null && a != null
+        ? ra <= a + _exit3dMeters
+        : distanceMeters(p.latitude, p.longitude, pt.$1, pt.$2) <= _exit3dMeters;
+    if (!inside) {
+      _exit3dPoint = null;
+      _exit3dAlong = null;
+    }
+    return inside;
   }
 
   /// Saída, rampa, bifurcação ou "mantenha-se" (Google em português ou
@@ -5127,11 +5149,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// (acima de 50 km/h) também costuma ser uma saída.
   bool _isExitStep(NavStep s) {
     final m = s.maneuver;
-    if (RegExp('ramp|fork|keep').hasMatch(m)) return true;
+    if (RegExp('ramp|fork|keep|roundabout').hasMatch(m)) return true;
     if (m.startsWith('turn-slight') && _speedMs > 14) return true;
     return RegExp(
-            r'sa[íi]da|bifurca|mantenha-se|pegue a rampa|pegue o acesso|'
-            r'\bexit\b|\bfork\b|\bkeep (left|right)\b|take the ramp|slip road',
+            r'sa[íi]da|bifurca|rotat[óo]ria|mantenha-se|pegue a rampa|pegue o acesso|'
+            r'\bexit\b|\bfork\b|\bkeep (left|right)\b|take the ramp|slip road|roundabout',
             caseSensitive: false)
         .hasMatch(s.text);
   }
@@ -6330,7 +6352,7 @@ enum _MapView { convoy, solo }
 enum _Mode3d {
   always('3D sempre', 'Estrada em 3D o tempo todo', Icons.view_in_ar),
   map('Mapa', 'Mapa de cima o tempo todo', Icons.map),
-  exits('Mapa + 3D nas saídas', 'Mapa normal; vira 3D perto de saídas e bifurcações', Icons.alt_route);
+  exits('Mapa + 3D nas saídas', 'Mapa normal; vira 3D 400 m antes e até 400 m depois de saídas, bifurcações e rotatórias', Icons.alt_route);
 
   const _Mode3d(this._label, this._hint, this.icon);
   final String _label;
