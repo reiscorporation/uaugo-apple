@@ -64,7 +64,10 @@ class CarService {
         if (c.arguments == true) _sendVehicle();
       }
     });
-    _ch.invokeMethod<bool>('connected').then((v) => connected.value = v == true,
+    _ch.invokeMethod<bool>('connected').then((v) {
+      connected.value = v == true;
+      if (v == true) _sendVehicle();
+    },
         onError: (_) {});
   }
 
