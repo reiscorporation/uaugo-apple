@@ -30,6 +30,8 @@ import '../services/notification_service.dart';
 import '../services/profile_service.dart';
 import '../services/user_service.dart';
 import '../services/analytics_service.dart';
+import '../services/minimized_trip.dart';
+import '../models/trip.dart';
 import '../services/car_service.dart';
 import '../services/planned_trips_service.dart';
 import '../logic/itinerary.dart' show formatDay, formatTime;
@@ -398,6 +400,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (res == null || !mounted) return;
     AnalyticsService.event(
         res.$1 == TripAction.simulate ? 'route_simulate' : 'route_start');
+    MinimizedTrip.trip.value = null; // rota nova substitui a minimizada
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => MapScreen(
         uid: uid,
@@ -672,8 +675,71 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => HistoryScreen(uid: uid, userName: _riderName)));
   }
 
+  /// Abre de novo a rota minimizada.
+  Future<void> _resumeTrip() async {
+    final t = MinimizedTrip.trip.value;
+    if (t == null) return;
+    final uid = await _prepareAlone();
+    if (uid == null || !mounted) return;
+    MinimizedTrip.trip.value = null;
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => MapScreen(uid: uid, userName: _riderName, trip: t)));
+  }
+
+  /// Há rota minimizada: pergunta antes de abrir o mapa. true = retomou.
+  Future<bool> _askResume() async {
+    final t = MinimizedTrip.trip.value;
+    if (t == null) return false;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('Retomar a navegação?')),
+        content: Text(tr('Você tem uma rota minimizada para {0}.', [t.title])),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Não'))),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('Retomar'))),
+        ],
+      ),
+    );
+    if (!mounted) return true;
+    if (yes == true) {
+      await _resumeTrip();
+      return true;
+    }
+    if (yes == false) MinimizedTrip.trip.value = null;
+    return yes == null; // fora da caixa: não faz nada
+  }
+
+  /// Cartão "Retomar a navegação" enquanto houver rota minimizada.
+  Widget _resumeCard() => ValueListenableBuilder<Trip?>(
+        valueListenable: MinimizedTrip.trip,
+        builder: (_, t, __) => t == null
+            ? const SizedBox.shrink()
+            : Card(
+                margin: const EdgeInsets.only(top: 8),
+                child: ListTile(
+                  leading: const Icon(Icons.navigation),
+                  title: Text(tr('Retomar a navegação?')),
+                  subtitle: Text(t.title, overflow: TextOverflow.ellipsis),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(
+                      tooltip: tr('Descartar'),
+                      icon: const Icon(Icons.close),
+                      onPressed: () => MinimizedTrip.trip.value = null,
+                    ),
+                    FilledButton(onPressed: _resumeTrip, child: Text(tr('Retomar'))),
+                  ]),
+                ),
+              ),
+      );
+
   /// Sem destino: só radares, perigos e velocímetro.
   Future<void> _justDrive() async {
+    if (await _askResume()) return;
     AnalyticsService.event('just_drive');
     final uid = await _prepareAlone();
     if (uid == null || !mounted) return;
@@ -768,6 +834,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               _savedPlacesRow(),
+                  _resumeCard(),
               _plannedTripsList(),
               // "Só dirigir" em destaque: botão grande, logo abaixo da busca.
               const SizedBox(height: 12),

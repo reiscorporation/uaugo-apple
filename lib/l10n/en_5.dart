@@ -87,4 +87,11 @@ const en5 = <String, String>{
   'Sequência ajustada: economiza {0} min e {1} km.': 'Order adjusted: saves {0} min and {1} km.',
   'A ordem atual já era a melhor.': 'The current order was already the best.',
   'Melhor sequência': 'Best order',
+  'Minimizar ou Encerrar voltam para a tela inicial e desligam os avisos.': 'Minimize or End go back to the home screen and turn the warnings off.',
+  'Minimizar volta para a tela inicial; você continua no comboio. Encerrar para a navegação.': 'Minimize goes back to the home screen; you stay in the convoy. End stops navigation.',
+  'Minimizar volta para a tela inicial e guarda a rota para você retomar (a voz e os avisos param até lá). Encerrar apaga a rota.': 'Minimize goes back to the home screen and keeps the route so you can resume it (voice and warnings stop until then). End deletes the route.',
+  'Retomar a navegação?': 'Resume navigation?',
+  'Você tem uma rota minimizada para {0}.': 'You have a minimized route to {0}.',
+  'Retomar': 'Resume',
+  'Descartar': 'Discard',
 };

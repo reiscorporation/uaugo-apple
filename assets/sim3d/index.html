@@ -1241,7 +1241,7 @@ window.sim3d = {
     // voltou para a rota: a câmera volta a andar presa nela
     if (wasOff && !offRoute) { s = ns; lookInit = false; clearTrail(); }
     // salto grande (recálculo, GPS voltou): vai direto; senão, só corrige
-    if (Math.abs(ns - s) > 60) { s = ns; lookInit = false; }
+    if (Math.abs(ns - s) > 200) { s = ns; lookInit = false; }
     target = ns;
   },
   // Espaço livre medido pelo app em volta dos botões: {l, r, b} em px.

@@ -83,6 +83,7 @@ import '../l10n/i18n.dart';
 import '../widgets/toll_confirm_sheet.dart';
 import '../services/media_service.dart';
 import '../widgets/sim3d_view.dart';
+import '../services/minimized_trip.dart';
 import '../services/vias_service.dart';
 
 /// Tela de mapa/navegação. Três usos:
@@ -5249,6 +5250,31 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
   }
 
+  bool _off3d = false;
+  int _off3dCount = 0;
+
+  /// v2: a cena 3D solta da rota e segue o GPS? Só com 3 leituras seguidas,
+  /// longe da rota (conforme a precisão do GPS) e indo para outra direção
+  /// (ou bem longe dela). Sem internet o GPS piora e "pula": uma leitura
+  /// ruim não pode tirar a cena da rota.
+  bool _isOff3d(({double along, double offset, double bearing}) pr, Position? me) {
+    if (me == null) return _off3d;
+    final acc = me.accuracy;
+    if (_off3d) {
+      if (pr.offset < max(15.0, acc)) {
+        _off3d = false;
+        _off3dCount = 0;
+      }
+      return _off3d;
+    }
+    final far = pr.offset > max(18.0, acc * 1.5);
+    final turned = _speedMs > 2 &&
+        angleDiff(me.heading >= 0 ? me.heading : _bearing, pr.bearing) > 30;
+    _off3dCount = far && (turned || pr.offset > max(60.0, acc * 2.5)) ? _off3dCount + 1 : 0;
+    if (_off3dCount >= 3) _off3d = true;
+    return _off3d;
+  }
+
   /// v2: mantém a visão 3D com a rota, as manobras e a posição atuais.
   void _feed3d() {
     if (!_show3d || !_canShow3d) return;
@@ -5261,10 +5287,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _sim3d.dark(_darkMap);
     final pr = _proj;
     if (pr != null) {
-      // Saiu da rota (virou numa esquina): a 18 m já segue o GPS, sem
-      // esperar o recálculo; a cena mostra a virada de verdade.
       final me = _me;
-      _sim3d.update(pr.along, _speedMs, _offRoute || pr.offset > 18,
+      _sim3d.update(pr.along, _speedMs, _isOff3d(pr, me),
           lat: me?.latitude, lng: me?.longitude, heading: _bearing);
     }
     _feedHud3d();
@@ -5494,10 +5518,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       builder: (ctx) => AlertDialog(
         title: Text(_justDriving ? tr('Sair do Dirigir agora?') : tr('Sair da navegação?')),
         content: Text(_justDriving
-            ? tr('Minimizar mantém os avisos de radar, perigos e velocidade. Encerrar desliga tudo.')
+            ? tr('Minimizar ou Encerrar voltam para a tela inicial e desligam os avisos.')
             : _isExpedition
-                ? tr('Minimizar mantém a rota e o comboio. Encerrar para a navegação (você continua no comboio).')
-                : tr('Minimizar mantém a rota: ao abrir o UauGo você volta para ela. Encerrar apaga a rota.')),
+                ? tr('Minimizar volta para a tela inicial; você continua no comboio. Encerrar para a navegação.')
+                : tr('Minimizar volta para a tela inicial e guarda a rota para você retomar (a voz e os avisos param até lá). Encerrar apaga a rota.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, 'stay'),
@@ -5513,10 +5537,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ),
     );
     if (!mounted || choice == null || choice == 'stay') return;
-    if (choice == 'min') {
-      await const MethodChannel('uaugo/device').invokeMethod('minimize');
-      return;
-    }
+    // Minimizar: volta para a tela inicial; ela pergunta se quer retomar.
+    if (choice == 'min' && !_isExpedition) MinimizedTrip.trip.value = _trip;
     await _voice.stop();
     CarService.instance.clearNavigation();
     if (mounted) Navigator.of(context).pop();
