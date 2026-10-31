@@ -3,7 +3,7 @@
 Cruza as rodovias do OpenStreetMap (motorway, trunk, primary com código de
 rodovia) com os arquivos de limites que o app usa (public/limites/UF.json.gz).
 A cada 200 m, classifica o ponto:
-  - Sem limite: nenhum ponto de limite a menos de 60 m;
+  - Sem limite: nenhum ponto de limite a menos de 150 m (o alcance do app ao longo da via);
   - Estimado: o app só tem limite estimado pelo tipo de via (sem placa);
   - Divergente: o limite do app difere 20 km/h ou mais do "maxspeed" do mapa.
 
@@ -23,7 +23,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 REF = re.compile(r'^(BR|[A-Z]{2}[A-Z]?)-?\d{2,3}')
-STEP, NEAR, MIN_KM = 200.0, 60.0, 0.5
+STEP, NEAR, MIN_KM = 200.0, 150.0, 0.5
 STATUS = ['Sem limite', 'Estimado (sem placa)', 'Divergente do mapa']
 
 
@@ -42,13 +42,13 @@ def load_limits(folder):
             lat += d[i]
             lng += d[i + 1]
             la, lo = lat / 1e5, lng / 1e5
-            cells[(int(la * 1000 // 1), int(lo * 1000 // 1))].append((la, lo, d[i + 2], d[i + 3]))
+            cells[(int(la * 400 // 1), int(lo * 400 // 1))].append((la, lo, d[i + 2], d[i + 3]))
             coarse[(round(la * 5), round(lo * 5))][uf] += 1
     return cells, coarse
 
 
 def lookup(cells, la, lo):
-    gx, gy = int(la * 1000 // 1), int(lo * 1000 // 1)
+    gx, gy = int(la * 400 // 1), int(lo * 400 // 1)
     best, bd = None, NEAR
     for i in (-1, 0, 1):
         for j in (-1, 0, 1):
@@ -111,9 +111,7 @@ def main(folder, src, out):
         cls = p.get('highway')
         if not REF.match(ref) and cls == 'primary':
             continue  # avenida urbana, sem código de rodovia
-        if not REF.match(ref) and not p.get('name'):
-            ref = '(sem código)'
-        elif not REF.match(ref):
+        if not REF.match(ref):
             ref = '(sem código)'
         ms, cur = maxspeed(p), None
         pts = samples(ft['geometry']['coordinates'])
@@ -187,9 +185,8 @@ def main(folder, src, out):
     resumo['A1'] = 'Rodovias sem limite de velocidade confiável no UauGo'
     resumo['A1'].font = Font(name='Arial', size=14, bold=True)
     notes = [
-        f'Base: rodovias do OpenStreetMap (motorway, trunk e primary com código), {round(total_km):,} km analisados a cada 200 m; '
-        'limites: os mesmos arquivos que o app usa hoje.'.replace(',', '.'),
-        'Sem limite: nenhum ponto de limite a menos de 60 m. Estimado: limite deduzido do tipo de via, sem placa. '
+        f'Base: rodovias do OpenStreetMap, {round(total_km)} km analisados a cada 200 m; limites: os mesmos arquivos do app.',
+        'Sem limite: nenhum ponto de limite a menos de 150 m. Estimado: limite deduzido do tipo de via, sem placa. '
         'Divergente: difere 20 km/h ou mais do mapa aberto (um dos dois pode estar errado).',
         'Trechos menores que 500 m ficam de fora. Em BR, a UF é aproximada pelos pontos próximos.',
     ]
