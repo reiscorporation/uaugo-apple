@@ -1309,8 +1309,13 @@ addEventListener('touchmove', e => {
 addEventListener('touchend', () => { pinch0 = 0; }, { passive: true });
 
 /* ---------- desenho ---------- */
+// Ao girar o celular a WebView muda de tamanho sem avisar sempre: o quadro
+// confere o tamanho real; sem isso a imagem estica e distorce.
+let viewW = 0, viewH = 0;
 function resize() {
   const w = innerWidth, h = innerHeight;
+  if (!w || !h) return;
+  viewW = w; viewH = h;
   renderer.setSize(w, h, false); camera.aspect = w / h;
   camera.fov = w < h ? 72 : 55; camera.updateProjectionMatrix();
 }
@@ -1319,6 +1324,7 @@ addEventListener('resize', resize); resize();
 let t0 = performance.now(), time = 0, lift = 0;
 function frame(now) {
   if (!active) return;
+  if (innerWidth !== viewW || innerHeight !== viewH) resize();
   const dt = Math.min(0.1, (now - t0) / 1000); t0 = now; time += dt;
   if (hasRoute && offRoute && gps) {
     // fora da rota: segue a posição real do GPS (anda na velocidade atual
