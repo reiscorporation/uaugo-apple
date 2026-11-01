@@ -26,7 +26,7 @@ enum HazardType {
       'lombada'),
   danger('Perigo na pista', '⚠️', Color(0xFFFFA000), Duration(hours: 3), 500,
       'perigo na pista'),
-  oil('Óleo / areia', '🛢️', Color(0xFF546E7A), Duration(hours: 12), 500,
+  oil('Óleo / areia', '🛢️', Color(0xFF546E7A), Duration(hours: 12), 1500,
       'óleo ou areia na pista'),
   animal('Animal na pista', '🐄', Color(0xFF7CB342), Duration(hours: 1), 500,
       'animal na pista'),
@@ -34,7 +34,7 @@ enum HazardType {
       'acidente'),
   fog('Neblina', '🌫️', Color(0xFF90A4AE), Duration(hours: 3), 500,
       'neblina'),
-  kite('Pipas / cerol', '🪁', Color(0xFFD81B60), Duration(days: 2), 500,
+  kite('Pipas / cerol', '🪁', Color(0xFFD81B60), Duration(days: 2), 1500,
       'área de pipas, cuidado com linha com cerol'),
   // Fica 7 dias: é a base da opção de rota "Evitar locais de risco".
   risk('Área de risco / assalto', '🚨', Color(0xFFB71C1C), Duration(days: 7),
@@ -49,6 +49,11 @@ enum HazardType {
   // acostamento de rodovia; some quando ele volta a andar.
   stoppedVehicle('Veículo parado', '🚗', Color(0xFFFF7043),
       Duration(minutes: 30), 500, 'veículo parado no acostamento');
+
+  /// De quanto longe avisar e quantas vezes. Óleo, areia e pipas derrubam moto:
+  /// nela o aviso vem antes (2 km) e repete na metade do caminho.
+  (double, int) alertPlan({required bool moto}) =>
+      moto && (this == oil || this == kite) ? (2000, 2) : (alertMeters, 1);
 
   /// Tipos que não mudam (lombada, radar fixo, semáforo): ficam FIXOS no mapa
   /// na 3ª confirmação, ou já ao serem marcados por um usuário Gold.

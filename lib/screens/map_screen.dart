@@ -805,7 +805,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final (range, repeats) = switch (h.type) {
         HazardType.police => (prefs.policeMeters.toDouble(), prefs.policeRepeats),
         HazardType.radar => (prefs.radarMeters.toDouble(), prefs.radarRepeats),
-        _ => (h.type.alertMeters, 1),
+        _ => h.type.alertPlan(moto: _myBike.style.isMoto),
       };
       final thresholds = alertThresholds(range, repeats);
       final done = _announced[h.id] ?? 0;

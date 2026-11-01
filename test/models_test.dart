@@ -109,14 +109,24 @@ void main() {
 
     test('radares e área de risco a 1 km; semáforo a 300 m; os demais a 500 m', () {
       const longe = [HazardType.radar, HazardType.risk, HazardType.fixedRadar];
+      const antes = [HazardType.oil, HazardType.kite];
       for (final t in longe) {
         expect(t.alertMeters, 1000, reason: t.name);
       }
       expect(HazardType.signal.alertMeters, 300);
       for (final t in HazardType.values
-          .where((t) => !longe.contains(t) && t != HazardType.signal)) {
+          .where((t) => !longe.contains(t) && !antes.contains(t) && t != HazardType.signal)) {
         expect(t.alertMeters, 500, reason: t.name);
       }
+    });
+
+    test('óleo, areia e pipas: 1,5 km; de moto 2 km e de novo a 1 km', () {
+      const antes = [HazardType.oil, HazardType.kite];
+      for (final t in antes) {
+        expect(t.alertPlan(moto: false), (1500.0, 1), reason: t.name);
+        expect(t.alertPlan(moto: true), (2000.0, 2), reason: t.name);
+      }
+      expect(HazardType.pothole.alertPlan(moto: true), (500.0, 1));
     });
 
     test('só lombada, radar fixo e semáforo podem ficar fixos', () {
