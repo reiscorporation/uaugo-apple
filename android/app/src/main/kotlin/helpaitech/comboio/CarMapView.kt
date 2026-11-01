@@ -288,12 +288,15 @@ class CarMapView(private val context: Context) {
     fun setVisibleArea(r: Rect) {
         visible = r
         view3d?.area = r
+        overlay?.setArea(r, width)
         applyPadding()
         update()
     }
 
     /** A superfície foi embora (carro desligou, outra tela...). */
     fun stop() {
+        ticker.removeCallbacks(glide)
+        shownPos = null
         runCatching { mapView?.onPause(); mapView?.onStop(); mapView?.onDestroy() }
         runCatching { presentation?.dismiss() }
         runCatching { display?.release() }
@@ -354,11 +357,10 @@ class CarMapView(private val context: Context) {
             me = null
             meIcon = iconKey
         }
-        val m = me ?: g.addMarker(
-            MarkerOptions().position(pos).anchor(0.5f, 0.5f)
+        me = me ?: g.addMarker(
+            MarkerOptions().position(shownPos ?: pos).anchor(0.5f, 0.5f)
                 .icon(BitmapDescriptorFactory.fromBitmap(myVehicle(img))).zIndex(5f)
-        )?.also { me = it }
-        m?.position = pos
+        )
         // Ícone em pé (o mapa gira com o piloto).
         // Mais longe na rodovia, mais perto na cidade.
         // Mais afastado que antes (pedido do Ricardo); +/− do motorista somam.
@@ -376,17 +378,58 @@ class CarMapView(private val context: Context) {
             poisShown = show
             poiMarkers.forEach { it.isVisible = show }
         }
-        // Anima no tempo entre as leituras: uma animação longa seria cancelada
-        // pela leitura seguinte e o mapa ficaria para trás do veículo. Muito
-        // atrasado (celular ocupado): pula direto para o lugar certo.
-        val cam = CameraUpdateFactory.newCameraPosition(
-            CameraPosition.Builder().target(pos).zoom(zoom)
-                .bearing(CarState.bearing.toFloat()).tilt(45f).build())
+        // Veículo e câmera andam juntos, em passos pequenos, no tempo entre as
+        // leituras (como no celular). Muito atrasado (celular ocupado): pula
+        // direto para o lugar certo.
         val now = android.os.SystemClock.uptimeMillis()
         val gap = now - lastCamAt
         lastCamAt = now
-        if (gap > 2500) g.moveCamera(cam)
-        else g.animateCamera(cam, gap.coerceIn(120L, 900L).toInt(), null)
+        glideFrom = shownPos ?: pos
+        glideBearingFrom = shownBearing
+        glideZoomFrom = shownZoom
+        glideTo = pos
+        glideBearingTo = CarState.bearing.toFloat()
+        glideZoomTo = zoom
+        glideStart = now
+        glideMs = if (gap > 2500 || shownPos == null) 0L else gap.coerceIn(120L, 1100L)
+        ticker.removeCallbacks(glide)
+        glide.run()
+    }
+
+    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
+    private var shownPos: LatLng? = null
+    private var shownBearing = 0f
+    private var shownZoom = 15f
+    private var glideFrom: LatLng? = null
+    private var glideTo: LatLng? = null
+    private var glideBearingFrom = 0f
+    private var glideBearingTo = 0f
+    private var glideZoomFrom = 15f
+    private var glideZoomTo = 15f
+    private var glideStart = 0L
+    private var glideMs = 0L
+
+    /** Um passo do deslize (~20 por segundo: leve para celular simples). */
+    private val glide = object : Runnable {
+        override fun run() {
+            val g = map ?: return
+            val a = glideFrom ?: return
+            val b = glideTo ?: return
+            if (view3d != null) return
+            val t = if (glideMs == 0L) 1f else
+                ((android.os.SystemClock.uptimeMillis() - glideStart).toFloat() / glideMs).coerceAtMost(1f)
+            val p = LatLng(a.latitude + (b.latitude - a.latitude) * t,
+                a.longitude + (b.longitude - a.longitude) * t)
+            val turn = ((glideBearingTo - glideBearingFrom + 540f) % 360f) - 180f
+            shownPos = p
+            shownBearing = (glideBearingFrom + turn * t + 360f) % 360f
+            shownZoom = glideZoomFrom + (glideZoomTo - glideZoomFrom) * t
+            me?.position = p
+            g.moveCamera(CameraUpdateFactory.newCameraPosition(
+                CameraPosition.Builder().target(p).zoom(shownZoom)
+                    .bearing(shownBearing).tilt(45f).build()))
+            if (t < 1f) ticker.postDelayed(this, 50)
+        }
     }
 
     /** O centro do mapa fica na área livre, mais para baixo (vê à frente). */

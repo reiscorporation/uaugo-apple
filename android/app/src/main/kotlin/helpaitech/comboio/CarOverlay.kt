@@ -33,19 +33,22 @@ class CarOverlay(private val ctx: Context) {
 
     val root = FrameLayout(ctx)
     private val turnIcon = ImageView(ctx)
-    private val turnDist = tv(26f, Color.WHITE)
-    private val turnText = tv(16f, Color.WHITE).apply { maxLines = 2 }
+    private val turnDist = tv(20f, Color.WHITE)
+    private val turnText = tv(13f, Color.WHITE).apply {
+        maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+    }
     private val turn = LinearLayout(ctx).apply {
         orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-        background = box(Color.rgb(46, 125, 50), 16); setPadding(dp(12), dp(10), dp(14), dp(10))
-        addView(turnIcon, LinearLayout.LayoutParams(dp(40), dp(40)))
+        background = box(Color.rgb(46, 125, 50), 14); setPadding(dp(10), dp(5), dp(12), dp(5))
+        addView(turnIcon, LinearLayout.LayoutParams(dp(32), dp(32)))
         addView(LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, 0, 0)
             addView(turnDist); addView(turnText)
         })
     }
-    private val info = tv(15f, Color.WHITE).apply {
-        background = box(Color.argb(238, 15, 27, 45), 12); setPadding(dp(12), dp(6), dp(12), dp(6))
+    private val info = tv(13f, Color.WHITE).apply {
+        gravity = Gravity.CENTER_VERTICAL; maxLines = 2
+        background = box(Color.argb(238, 15, 27, 45), 14); setPadding(dp(12), dp(5), dp(12), dp(5))
     }
     private val banner = tv(16f, Color.BLACK).apply {
         background = box(Color.rgb(255, 193, 7), 12); setPadding(dp(12), dp(8), dp(12), dp(8)); maxLines = 2
@@ -82,19 +85,32 @@ class CarOverlay(private val ctx: Context) {
         }
     }
 
+    private var topBox: View? = null
+
+    /** Área livre (fora dos botões do Android Auto): a faixa de cima cabe nela. */
+    fun setArea(r: android.graphics.Rect, width: Int) {
+        val v = topBox ?: return
+        val lp = v.layoutParams as FrameLayout.LayoutParams
+        lp.setMargins(r.left + dp(10), r.top + dp(10), (width - r.right).coerceAtLeast(0) + dp(10), 0)
+        v.layoutParams = lp
+    }
+
     private val pill = tv(15f, Color.WHITE).apply {
         background = box(Color.rgb(198, 40, 40), 18); setPadding(dp(12), dp(6), dp(12), dp(6))
     }
 
     init {
-        // Coluna de cima (esquerda): manobra, chegada, aviso amarelo.
+        // Faixa de cima, de lado a lado da área livre: manobra e chegada; o
+        // aviso amarelo fica logo abaixo.
         val top = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        fun gap() = LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) }
-        top.addView(turn, LinearLayout.LayoutParams(-1, -2))
-        top.addView(info, gap())
-        top.addView(banner, gap().apply { width = -1 })
-        root.addView(top, FrameLayout.LayoutParams(dp(330), -2, Gravity.TOP or Gravity.START).apply {
-            setMargins(dp(10), dp(10), 0, 0)
+        val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        row.addView(turn, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(info, LinearLayout.LayoutParams(-2, -1).apply { leftMargin = dp(6) })
+        top.addView(row, LinearLayout.LayoutParams(-1, -2))
+        top.addView(banner, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
+        topBox = top
+        root.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
+            setMargins(dp(10), dp(10), dp(10), 0)
         })
         // Velocímetro (embaixo, à esquerda), placa do limite no canto e a
         // contagem do radar ao lado, como no celular.
@@ -151,13 +167,11 @@ class CarOverlay(private val ctx: Context) {
             val h = secs / 3600; val min = (secs % 3600) / 60
             val time = if (h > 0) "${h}h${"%02d".format(min)}" else "$min min"
             val eta = if (n.etaMillis > 0) SimpleDateFormat("HH:mm", Locale("pt", "BR")).format(Date(n.etaMillis)) else ""
-            info.text = "${if (CarState.en) "Arrival" else "Chegada"} $eta · $time · ${dist(n.remainingM)}"
+            info.text = "${if (CarState.en) "Arrival" else "Chegada"} $eta\n$time · ${dist(n.remainingM)}"
         }
         val b = CarState.banner
         banner.visibility = if (b.isNullOrBlank()) View.GONE else View.VISIBLE
-        // A tela do carro é baixa: o aviso entra no lugar da chegada, senão
-        // a coluna de cima desce até o velocímetro.
-        info.visibility = if (n == null || hud3d || banner.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        info.visibility = turn.visibility
         banner.text = b ?: ""
         speed.text = "${CarState.speedKmh}"
         limit.visibility = if (CarState.limitKmh > 0) View.VISIBLE else View.GONE
