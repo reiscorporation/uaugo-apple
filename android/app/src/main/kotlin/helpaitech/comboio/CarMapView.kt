@@ -269,8 +269,20 @@ class CarMapView(private val context: Context) {
         false
     }
 
-    /** Toque na tela do carro: "alert", "radar" ou null. */
-    fun tap(x: Float, y: Float) = overlay?.hit(x, y)
+    /** Toque na tela do carro: "alert", "radar", "hazard:id" ou null. */
+    fun tap(x: Float, y: Float) = overlay?.hit(x, y) ?: myHazardAt(x, y)
+
+    /** Toque no ícone de um alerta do próprio piloto (como no celular). */
+    private fun myHazardAt(x: Float, y: Float): String? {
+        val g = map ?: return null
+        if (view3d != null) return null
+        val h = CarState.hazards.filter { it.mine }.minByOrNull {
+            val p = g.projection.toScreenLocation(LatLng(it.lat, it.lng))
+            Math.hypot((p.x - x).toDouble(), (p.y - y).toDouble())
+        } ?: return null
+        val p = g.projection.toScreenLocation(LatLng(h.lat, h.lng))
+        return if (Math.hypot((p.x - x).toDouble(), (p.y - y).toDouble()) <= 36) "hazard:${h.id}" else null
+    }
 
     /** Área livre da tela (fora dos cartões do Android Auto). */
     fun setVisibleArea(r: Rect) {

@@ -292,12 +292,14 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
 
     /** Toque no mapa: os botões de alerta e radar, iguais aos do celular. */
     override fun onClick(x: Float, y: Float) {
-        when (carMap.tap(x, y)) {
-            "alert" -> openAlerts()
-            "radar" -> {
+        val hit = carMap.tap(x, y)
+        when {
+            hit == "alert" -> openAlerts()
+            hit == "radar" -> {
                 val sink = CarState.actionSink
                 if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("radar")
             }
+            hit != null -> screenManager.push(RemoveAlertScreen(carContext, hit.removePrefix("hazard:")))
         }
     }
 
@@ -434,7 +436,7 @@ class AlertListScreen(ctx: CarContext) : Screen(ctx) {
 }
 
 /** Alertas marcados pelo próprio piloto, do mais perto ao mais longe. */
-class RemoveAlertScreen(ctx: CarContext) : Screen(ctx) {
+class RemoveAlertScreen(ctx: CarContext, private val only: String? = null) : Screen(ctx) {
     override fun onGetTemplate(): Template {
         val en = CarState.en
         val k = cos(Math.toRadians(CarState.lat))
@@ -444,7 +446,7 @@ class RemoveAlertScreen(ctx: CarContext) : Screen(ctx) {
             return Math.hypot(x, y)
         }
         val list = ItemList.Builder()
-        for (h in CarState.hazards.filter { it.mine }.sortedBy { meters(it) }.take(6)) {
+        for (h in CarState.hazards.filter { it.mine && (only == null || it.id == only) }.sortedBy { meters(it) }.take(6)) {
             val m = meters(h)
             list.addItem(Row.Builder()
                 .setTitle("${h.emoji}  ${h.label}")
