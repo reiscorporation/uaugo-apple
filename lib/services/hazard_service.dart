@@ -123,7 +123,7 @@ class HazardService {
       'confirmations': 1,
       'dismissals': 0,
       if (fixed) ...{'permanent': true, 'gold': true},
-      if (heading != null && type.directional) 'hd': (heading % 360).roundToDouble(),
+      if (heading != null && type.directional) 'hd': heading.round() % 360.0,
     });
     return ref.id;
   }

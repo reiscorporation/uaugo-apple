@@ -36,6 +36,7 @@ const en3 = <String, String>{
   'Incluir': 'Add',
   'Alerta enviado: radar móvel': 'Alert sent: mobile speed camera',
   'Alerta removido': 'Alert removed',
+  'O alerta não foi enviado.': 'The alert was not sent.',
   'Abra o mapa no celular para remover o alerta': 'Open the map on the phone to remove the alert',
   'Alerta enviado: perigo na pista': 'Alert sent: road hazard',
   'Nenhuma navegação em andamento': 'No navigation in progress',

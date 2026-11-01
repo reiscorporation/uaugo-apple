@@ -1603,7 +1603,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           heading: _reportHeading).then((_) {
         sent = true;
         _snack(tr('{0} {1} enviado para todos. Obrigado!', [t.emoji, t.label]));
-      }, onError: (e) => _snack(tr('Não foi possível enviar o alerta: {0}', [e])));
+      }, onError: (e) {
+        sent = true;
+        // O servidor recusou: a voz já disse "enviado", então desmente.
+        final u = FirebaseAuth.instance.currentUser;
+        debugPrint('Alerta recusado: $e | provedor=${u?.providerData.map((x) => x.providerId).toList()} '
+            'anonimo=${u?.isAnonymous} mesmoUid=${u?.uid == widget.uid}');
+        _snack(tr('Não foi possível enviar o alerta: {0}', [e]));
+        _voice.alert(tr('O alerta não foi enviado.'));
+        CarService.instance.toast(tr('O alerta não foi enviado.'));
+      });
       Future.delayed(const Duration(seconds: 6), () {
         if (!sent && mounted) {
           _snack(tr('{0} {1} salvo. Será enviado quando houver internet.', [t.emoji, t.label]));
