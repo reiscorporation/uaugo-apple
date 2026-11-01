@@ -7,6 +7,7 @@
 // Onde mexer: Consumo: AppSettings.fuel.
 // ============================================================================
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -30,7 +31,15 @@ class ProfileScreen extends StatefulWidget {
 
 /// Estado da tela: veículo, foto nova, consumo.
 class _ProfileScreenState extends State<ProfileScreen> {
-  BikeProfile _bike = const BikeProfile();
+  BikeProfile _b = const BikeProfile();
+  BikeProfile get _bike => _b;
+  set _bike(BikeProfile v) {
+    _b = v;
+    _changed();
+  }
+
+  Timer? _saveTimer;
+  bool _dirty = false;
   final _modelCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
   File? _newPhoto;
@@ -48,17 +57,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final f = AppSettings.instance.fuel.value;
     if (f.kmPerLiter > 0) _kmlCtrl.text = formatDecimal(f.kmPerLiter);
     if (f.pricePerLiter > 0) _priceCtrl.text = MoneyInputFormatter.format(f.pricePerLiter);
-    ProfileService.load().then((b) {
-      if (!mounted) return;
-      setState(() {
-        _bike = b;
-        _modelCtrl.text = b.model;
-        _loading = false;
-      });
+    _loadAll();
+  }
+
+  Future<void> _loadAll() async {
+    final b = await ProfileService.load();
+    final plate = await ProfileService.loadPlate();
+    if (!mounted) return;
+    _modelCtrl.text = b.model;
+    _plateCtrl.text = plate;
+    setState(() {
+      _bike = b;
+      _loading = false;
     });
-    ProfileService.loadPlate().then((p) {
-      if (mounted) _plateCtrl.text = p;
-    });
+    for (final c in [_modelCtrl, _plateCtrl, _kmlCtrl, _priceCtrl]) {
+      c.addListener(_changed);
+    }
   }
 
   /// Escolhe uma foto (câmera ou galeria), já reduzida para 600 px.
@@ -107,41 +121,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// Salva o veículo (envia a foto nova e apaga a antiga) e o consumo.
+  /// Mudou algo: salva logo depois (dá tempo de terminar de digitar).
+  void _changed() {
+    if (_loading) return;
+    _dirty = true;
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 1200), _save);
+  }
+
+  /// Salva o veículo e o consumo. A foto já foi salva por _savePhotoNow.
   Future<void> _save() async {
-    setState(() => _saving = true);
+    _saveTimer?.cancel();
+    if (!_dirty) return;
+    _dirty = false;
     try {
       final saved = await ProfileService.load();
-      var url = _bike.photoUrl;
-      if (_newPhoto != null) {
-        final uid = await AuthService.ensureSignedIn();
-        url = await ProfileService.uploadPhoto(uid, _newPhoto!,
-            oldUrl: saved.photoUrl);
-      } else if (url == null && saved.photoUrl != null) {
-        // Usuário removeu a foto.
-        await ProfileService.deletePhoto(saved.photoUrl);
-      }
-      final p = _bike.copyWith(
+      await ProfileService.save(_bike.copyWith(
         model: _modelCtrl.text.trim(),
-        photoUrl: url,
-        clearPhoto: url == null,
-      );
-      await ProfileService.save(p);
+        photoUrl: saved.photoUrl,
+        clearPhoto: saved.photoUrl == null,
+      ));
       await ProfileService.savePlate(_plateCtrl.text);
       await AppSettings.instance.setFuel(FuelPrefs(
         enabled: _fuelOn,
         kmPerLiter: parseDecimal(_kmlCtrl.text) ?? 0,
         pricePerLiter: parseDecimal(_priceCtrl.text) ?? 0,
       ));
-      if (mounted) Navigator.pop(context, p);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(tr('Não foi possível salvar: {0}', [e]))));
       }
-    } finally {
-      if (mounted) setState(() => _saving = false);
     }
+  }
+
+  /// Saindo da tela: grava o que faltou e devolve o veículo para quem abriu.
+  Future<void> _leave() async {
+    await _save();
+    if (mounted) Navigator.pop(context, await ProfileService.load());
   }
 
   ImageProvider? get _photo {
@@ -156,7 +173,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final color = Color(_bike.color);
     final photo = _photo;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave();
+      },
+      child: Scaffold(
       appBar: AppBar(
           title: Text(tr('Meu veículo'))),
       body: _loading
@@ -327,7 +349,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 subtitle: Text(
                     tr('Mostra o combustível estimado de cada rota e permite registrar abastecimentos e gastos. Fica só no seu celular.')),
                 value: _fuelOn,
-                onChanged: (v) => setState(() => _fuelOn = v),
+                onChanged: (v) {
+                  setState(() => _fuelOn = v);
+                  _changed();
+                },
               ),
               if (_fuelOn)
                 Row(children: [
@@ -358,18 +383,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 ]),
-              const SizedBox(height: 32),
-              FilledButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: _saving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.check),
-                label: Text(tr('Salvar')),
-              ),
+              const SizedBox(height: 16),
+              Text(tr('As alterações são salvas automaticamente.'),
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall),
+              const SizedBox(height: 24),
             ]),
+      ),
     );
   }
 }

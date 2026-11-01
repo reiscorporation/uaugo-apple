@@ -253,6 +253,25 @@ double? radarAheadOnRoute(
   return ahead;
 }
 
+/// O radar [roads] (trechos das vias onde ele está, em ordem) é da via por onde
+/// a rota passa? Separa o radar da pista lateral, do viaduto ou da rotatória
+/// logo acima: no ponto do radar a rota fica perto, mas segue por outra via.
+/// Na dúvida (sem dados da via) vale o aviso: perder radar é pior.
+bool radarOnRouteRoad(
+  List<List<(double, double)>> roads,
+  double Function(double lat, double lng) offsetFromRoute, {
+  double maxOffset = 15,
+}) {
+  var known = false;
+  for (final road in roads) {
+    if (road.length < 3) continue;
+    known = true;
+    final off = [for (final (la, lo) in road) offsetFromRoute(la, lo)]..sort();
+    if (off[off.length ~/ 2] <= maxOffset) return true;
+  }
+  return !known;
+}
+
 // ------------------------------------------------------------ frases
 
 /// Sempre fala a velocidade: a do radar ou, se a base não tiver, o limite

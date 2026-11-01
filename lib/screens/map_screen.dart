@@ -976,6 +976,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _updateBannerBlink();
   }
 
+  /// O radar está na mesma via da rota? Vale para a rota inteira (guardado),
+  /// porque cruzar as vias do pacote a cada leitura do GPS pesaria.
+  bool _radarOnRouteRoad(FixedRadar r, RouteWalker w) {
+    if (!identical(_radarRoadsOf, w)) {
+      _radarRoadsOf = w;
+      _radarRoads.clear();
+    }
+    return _radarRoads[r.id] ??= radarOnRouteRoad(
+      ViasService.instance.roadsAt(r.lat, r.lng),
+      (lat, lng) => w.project(lat, lng).offset,
+    );
+  }
+
+  RouteWalker? _radarRoadsOf;
+  final _radarRoads = <int, bool>{};
+
   void _checkRadars(Position p) {
     final banner = _radarBanner;
     if (banner != null && banner.passed(p)) {
@@ -996,6 +1012,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         w != null && (_navigating || _sim != null) && !_offRoute;
     final rider = useRoute ? _proj : null;
     final onRoute = rider != null && rider.offset < 60;
+    if (onRoute) ViasService.instance.ensure(p.latitude, p.longitude);
 
     // Distância do 1º aviso e quantas vezes avisar (Configurações). Radar de
     // avanço de sinal fica em cruzamento: uma vez só, a no máximo 300 m.
@@ -1015,6 +1032,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (onRoute && w != null) {
         d = radarAheadOnRoute(r,
             project: w.project, riderAlong: rider.along, range: range);
+        if (d != null && !_radarOnRouteRoad(r, w)) d = null;
       } else if (shouldAlertRadar(r,
           lat: p.latitude,
           lng: p.longitude,
@@ -4213,8 +4231,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 ),
               ),
             // Música (como no Waze): em pé, ícone redondo à direita, logo abaixo
-            // das faixas; deitado, fica no topo da coluna da direita.
-            if (_sim == null && !landscape)
+            // das faixas; deitado, fica no topo da coluna da direita. Na
+            // expedição a coluna da direita é alta: vai para a da esquerda.
+            if (_sim == null && !landscape && !_isExpedition)
               Align(
                 alignment: Alignment.centerRight,
                 child: Padding(
@@ -4279,6 +4298,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_sim == null && !landscape && _isExpedition) ...[
+                _musicButton(),
+                const SizedBox(height: 12),
+              ],
               // Sentido do mapa (como nos outros apps): seguindo a direção ou
               // norte para cima.
               ValueListenableBuilder<bool>(
@@ -5093,17 +5116,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final m = await showModalBottomSheet<_Mode3d>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(title: Text(tr('Visão da navegação'), style: Theme.of(ctx).textTheme.titleMedium)),
-          for (final x in _Mode3d.values)
-            ListTile(
-              leading: Icon(x.icon),
-              title: Text(x.label),
-              subtitle: Text(x.hint),
-              trailing: x == _mode3d ? const Icon(Icons.check) : null,
-              onTap: () => Navigator.pop(ctx, x),
-            ),
-        ]),
+        // Deitado a tela é baixa: a lista precisa rolar.
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            ListTile(title: Text(tr('Visão da navegação'), style: Theme.of(ctx).textTheme.titleMedium)),
+            for (final x in _Mode3d.values)
+              ListTile(
+                leading: Icon(x.icon),
+                title: Text(x.label),
+                subtitle: Text(x.hint),
+                trailing: x == _mode3d ? const Icon(Icons.check) : null,
+                onTap: () => Navigator.pop(ctx, x),
+              ),
+          ]),
+        ),
       ),
     );
     if (m != null && mounted) _setMode3d(m);

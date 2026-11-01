@@ -103,7 +103,7 @@
   #hud.narrow #eta { display: none; }
   #hud.narrow #speedo { min-width: 66px; }
   #hud.narrow #speed { font-size: 46px; }
-  #hud.narrow #next { width: auto; flex: 1 1 auto; max-width: calc(100% - 72px); padding: 6px 22px 6px 22px; }
+  #hud.narrow #next { width: 200px; flex: 0 1 auto; max-width: calc(100% - 72px); padding: 6px 22px 6px 22px; }
   #hud.narrow #next .st { font-size: 11px; letter-spacing: 0.02em; }
   #hud.narrow #next .d { font-size: 21px; }
   /* bem estreito (celular em pé, entre a coluna do zoom e a do SOS) */
@@ -619,17 +619,15 @@ const carpetGeo = new THREE.BufferGeometry();
 const carpetMat = new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, side: THREE.DoubleSide,
   polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6,
-  uniforms: { time: { value: 0 }, color: { value: new THREE.Color(0x46dcff) }, far: { value: CARPET_L }, dim: { value: 1 } },
+  uniforms: { color: { value: new THREE.Color(0x46dcff) }, far: { value: CARPET_L }, dim: { value: 1 } },
   vertexShader: 'varying vec2 vUv; varying float vD; attribute float dist; void main(){ vUv = uv; vD = dist; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform float time; uniform vec3 color; uniform float far; uniform float dim; varying vec2 vUv; varying float vD;
+  fragmentShader: `uniform vec3 color; uniform float far; uniform float dim; varying vec2 vUv; varying float vD;
     void main(){
       float near = smoothstep(0.0, 6.0, vD);
       float fade = 1.0 - smoothstep(far*0.55, far, vD);
       float edge = smoothstep(0.36, 0.5, abs(vUv.x - 0.5));
-      float c = fract((vD - abs(vUv.x - 0.5) * 5.0) / 7.0 - time * 1.4);
-      float chev = smoothstep(0.0, 0.06, c) * (1.0 - smoothstep(0.16, 0.24, c));
-      vec3 col = mix(color, vec3(1.0), chev * 0.55 + edge * 0.35);
-      gl_FragColor = vec4(col, (0.5 + chev * 0.25 + edge * 0.3) * near * fade * dim);
+      vec3 col = mix(color, vec3(1.0), edge * 0.35);
+      gl_FragColor = vec4(col, (0.5 + edge * 0.3) * near * fade * dim);
     }`,
 });
 const carpet = new THREE.Mesh(carpetGeo, carpetMat); carpet.renderOrder = 5; carpet.frustumCulled = false; scene.add(carpet);
@@ -1368,7 +1366,6 @@ function frame(now) {
     if (!lookInit) { look.copy(want); lookInit = true; } else look.lerp(want, 1 - Math.exp(-dt * 5));
     camera.lookAt(look);
     updateCarpet(s + 1.5);
-    carpetMat.uniforms.time.value = time;
     carpetMat.uniforms.dim.value += (0.35 - carpetMat.uniforms.dim.value) * Math.min(1, dt * 3);
     updateMarkers(s, time);
     updateAlerts(s, time);
@@ -1391,7 +1388,6 @@ function frame(now) {
     if (!lookInit || behind) { look.copy(want); lookInit = true; } else look.lerp(want, 1 - Math.exp(-dt * 5));
     camera.lookAt(look);
     updateCarpet(s + 1.5);
-    carpetMat.uniforms.time.value = time;
     carpetMat.uniforms.dim.value += ((offRoute ? 0.25 : 1) - carpetMat.uniforms.dim.value) * Math.min(1, dt * 3);
     updateMarkers(s, time);
     updateAlerts(s, time);

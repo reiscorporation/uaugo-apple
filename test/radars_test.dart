@@ -5,6 +5,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 void main() {
+  group('radarOnRouteRoad', () {
+    final road = [(0.0, 0.0), (0.0, 0.1), (0.0, 0.2), (0.0, 0.3), (0.0, 0.4)];
+    test('via da rota: avisa', () {
+      expect(radarOnRouteRoad([road], (_, __) => 5), isTrue);
+    });
+    test('rotatória acima ou pista lateral: não avisa', () {
+      // Só o ponto do cruzamento fica perto da rota.
+      expect(radarOnRouteRoad([road], (_, lng) => lng == 0.2 ? 3 : 80), isFalse);
+      expect(radarOnRouteRoad([road], (_, __) => 28), isFalse);
+    });
+    test('sobre duas vias: basta a rota seguir uma', () {
+      final off = [(1.0, 0.0), (1.0, 0.1), (1.0, 0.2)];
+      expect(radarOnRouteRoad([road, off], (lat, _) => lat == 1 ? 4 : 80), isTrue);
+    });
+    test('sem dados da via: avisa', () {
+      expect(radarOnRouteRoad(const [], (_, __) => 80), isTrue);
+      expect(radarOnRouteRoad([road.sublist(0, 2)], (_, __) => 80), isTrue);
+    });
+  });
+
   // BR-101 em SC, sentido sul: de -28.270 para -28.290 (mesma longitude).
   final line = encodePolyline(const [
     LatLng(-28.270, -48.700),

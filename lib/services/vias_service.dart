@@ -118,6 +118,52 @@ class ViasService {
     return _Index(vias, cells);
   }
 
+  /// Trechos das vias que passam a até [nearM] do ponto: [spanM] para cada
+  /// lado, com um ponto a cada ~40 m. Vazio se não houver pacote da região.
+  List<List<(double, double)>> roadsAt(double lat, double lng,
+      {double nearM = 12, double spanM = 200}) {
+    final out = <List<(double, double)>>[];
+    final la5 = (lat * 1e5).round(), lo5 = (lng * 1e5).round();
+    final k = cos(lat * pi / 180);
+    // Metros no plano em volta do ponto.
+    double x(int lo) => (lo - lo5) * 1.1132 * k;
+    double y(int la) => (la - la5) * 1.1054;
+    for (final idx in _loaded.values) {
+      final ids = <int>{};
+      for (var a = -2000; a <= 2000; a += 2000) {
+        for (var b = -2000; b <= 2000; b += 2000) {
+          ids.addAll(idx.cells[_cell(la5 + a, lo5 + b)] ?? const []);
+        }
+      }
+      for (final id in ids) {
+        final p = idx.vias[id].pts;
+        final pts = <(double, double)>[];
+        var near = false;
+        for (var i = 0; i + 3 < p.length; i += 2) {
+          final ax = x(p[i + 1]), ay = y(p[i]);
+          final bx = x(p[i + 3]), by = y(p[i + 2]);
+          final dx = bx - ax, dy = by - ay;
+          final len = sqrt(dx * dx + dy * dy);
+          if (len == 0) continue;
+          final t = (-(ax * dx + ay * dy) / (len * len)).clamp(0.0, 1.0);
+          final px = ax + t * dx, py = ay + t * dy;
+          if (px * px + py * py <= nearM * nearM) near = true;
+          final n = max(1, (len / 40).ceil());
+          for (var s = 0; s < n; s++) {
+            final sx = ax + dx * s / n, sy = ay + dy * s / n;
+            if (sx * sx + sy * sy > spanM * spanM) continue;
+            pts.add((
+              (la5 + sy / 1.1054) / 1e5,
+              (lo5 + sx / (1.1132 * k)) / 1e5,
+            ));
+          }
+        }
+        if (near) out.add(pts);
+      }
+    }
+    return out;
+  }
+
   /// Vias perto do ponto já em JSON, fora da linha principal do app: em
   /// celular simples, montar isso na tela congelava o mapa e o Android Auto.
   Future<String?> nearJson(double lat, double lng, double radiusM) async {
