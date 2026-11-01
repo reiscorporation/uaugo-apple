@@ -352,6 +352,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final _speedAlerter = SpeedAlerter();
   RoadLimit? _roadLimit;
   double _speedMs = 0; // velocidade usada no velocímetro e nos alertas
+  final _gpsGate = GpsGate();
   Position? _prevPos;
   Position? _limitsCheckedAt;
   Position? _radarMarkersAt;
@@ -706,6 +707,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Nova posição do GPS (ou da simulação): tudo que depende da posição
   /// acontece aqui, nesta ordem. Veja docs/ARQUITETURA.md, seção 4.
   void _onPosition(Position p) {
+    // Leitura ruim com o veículo parado (local coberto): a posição anda
+    // sozinha e inventa velocidade. Mantém o último lugar e mostra 0.
+    if (_sim == null && _me != null &&
+        !_gpsGate.accept(p.accuracy, DateTime.now())) {
+      if (_speedMs != 0) setState(() => _speedMs = 0);
+      return;
+    }
     if (_sim == null) _checkIdleInBackground(p);
     // Mudou a situação com o app na tela (entrou no comboio, ligou o Android
     // Auto...): troca o GPS para/do serviço agora, enquanto o Android deixa.
@@ -3975,8 +3983,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
 
         // v2: estrada em 3D por cima do mapa (os avisos e botões ficam por cima).
-        // Celular e carro mostram o 3D ao mesmo tempo (pedido do Ricardo,
-        // mesmo em celular simples: pesa mais na memória).
+        // Celular simples com o carro conectado: 3D só no carro (os dois
+        // juntos deixavam o carro uns 3 s atrás do celular).
         if (_hud3d)
           Positioned.fill(
             child: Sim3DView(
@@ -5315,7 +5323,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// v2: o painel do 3D substitui o velocímetro e a faixa da próxima curva.
-  bool get _hud3d => _show3d && _canShow3d;
+  bool get _hud3d =>
+      _show3d && _canShow3d &&
+      !(CarService.instance.connected.value && AppSettings.instance.simplePhone);
 
   /// v2: liga/desliga a visão 3D. Voltando ao mapa, ele já vem acompanhando.
   void _set3d(bool on) {

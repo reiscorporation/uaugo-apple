@@ -223,6 +223,9 @@ class AppSettings {
   int deviceMemMb = 0;
 
   /// Modo leve valendo agora (escolha do usuário ou automático).
+  /// Celular com pouca memória (decidido pelo aparelho, não por preferência).
+  bool get simplePhone => deviceMemMb > 0 && deviceMemMb < 4500;
+
   bool get lightMode =>
       lightModeChoice.value ?? (deviceMemMb > 0 && deviceMemMb < 4500);
 
