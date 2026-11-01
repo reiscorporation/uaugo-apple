@@ -136,6 +136,7 @@ class CarMapView(private val context: Context) {
     private var me: Marker? = null
     private var overlay: CarOverlay? = null
     private var view3d: Car3DView? = null
+    private var lastCamAt = 0L
 
     /** Modo "nas saídas": fica em 3D até faltar menos que isso para o destino. */
     private var exit3dUntil = -1.0
@@ -326,11 +327,17 @@ class CarMapView(private val context: Context) {
             CarState.speedKmh >= 50 -> 14.2f
             else -> 15.0f
         } + CarState.zoomOffset + (if (nearTurn) 1.2f else 0f)).coerceIn(10f, 19f)
-        g.animateCamera(
-            CameraUpdateFactory.newCameraPosition(
-                CameraPosition.Builder().target(pos).zoom(zoom)
-                    .bearing(CarState.bearing.toFloat()).tilt(45f).build()),
-            900, null)
+        // Anima no tempo entre as leituras: uma animação longa seria cancelada
+        // pela leitura seguinte e o mapa ficaria para trás do veículo. Muito
+        // atrasado (celular ocupado): pula direto para o lugar certo.
+        val cam = CameraUpdateFactory.newCameraPosition(
+            CameraPosition.Builder().target(pos).zoom(zoom)
+                .bearing(CarState.bearing.toFloat()).tilt(45f).build())
+        val now = android.os.SystemClock.uptimeMillis()
+        val gap = now - lastCamAt
+        lastCamAt = now
+        if (gap > 2500) g.moveCamera(cam)
+        else g.animateCamera(cam, gap.coerceIn(120L, 900L).toInt(), null)
     }
 
     /** O centro do mapa fica na área livre, mais para baixo (vê à frente). */

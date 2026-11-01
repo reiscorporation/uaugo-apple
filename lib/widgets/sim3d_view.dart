@@ -96,8 +96,8 @@ class Sim3DController {
   String? _roadsJson;
 
   /// Rodovias reais perto do piloto (ViasService.near): faixas e saídas.
-  void roads(List<List<Object>> list) {
-    _roadsJson = jsonEncode(list);
+  void roads(String json) {
+    _roadsJson = json;
     _run('sim3d.setRoads($_roadsJson)');
   }
 

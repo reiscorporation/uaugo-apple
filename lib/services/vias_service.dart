@@ -46,6 +46,19 @@ class ViasService {
   final Map<String, _Index> _loaded = {};
   final Set<String> _loading = {};
 
+  /// Pontos da via dentro da área (com 1 ponto de folga em cada ponta).
+  static List<double> _nearPart(Int32List p, int la5, int lo5, int dLa, int dLo) {
+    var first = -1, last = -1;
+    for (var i = 0; i + 1 < p.length; i += 2) {
+      if ((p[i] - la5).abs() <= dLa && (p[i + 1] - lo5).abs() <= dLo) {
+        if (first < 0) first = i;
+        last = i;
+      }
+    }
+    final a = max(0, first - 2), b = min(p.length - 2, last + 2);
+    return [for (var i = a; i <= b + 1; i++) p[i] / 1e5];
+  }
+
   static int _cell(int lat5, int lng5) =>
       ((lat5 / 2000).floor() + 10000) * 100000 + (lng5 / 2000).floor() + 50000;
 
@@ -105,6 +118,13 @@ class ViasService {
     return _Index(vias, cells);
   }
 
+  /// Vias perto do ponto já em JSON, fora da linha principal do app: em
+  /// celular simples, montar isso na tela congelava o mapa e o Android Auto.
+  Future<String?> nearJson(double lat, double lng, double radiusM) async {
+    final list = near(lat, lng, radiusM);
+    return list.isEmpty ? null : compute(jsonEncode, list);
+  }
+
   /// Vias com algum ponto a menos de [radiusM] do ponto, no formato da
   /// visão 3D: [tipo, faixas, mãoÚnica, [lat, lng, ...]].
   List<List<Object>> near(double lat, double lng, double radiusM) {
@@ -132,7 +152,8 @@ class ViasService {
         if (!inside) continue;
         out.add([
           v.cls, v.lanes, v.oneway ? 1 : 0,
-          [for (final x in p) x / 1e5],
+          // Só o trecho perto: a via inteira pesa muito em rodovia longa.
+          _nearPart(p, la5, lo5, dLa, dLo),
         ]);
       }
     }
