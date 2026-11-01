@@ -13,3 +13,9 @@
 -keep class * implements com.sun.jna.** { *; }
 -keep class org.vosk.** { *; }
 -dontwarn java.awt.**
+
+# Cena 3D do carro: a página chama o app por este método (Car3DView).
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keepattributes JavascriptInterface
