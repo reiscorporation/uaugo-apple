@@ -131,13 +131,38 @@ class CarMapView(private val context: Context) {
     /** Modo "nas saídas": fica em 3D até faltar menos que isso para o destino. */
     private var exit3dUntil = -1.0
 
+    private var root3d: FrameLayout? = null
+    private var ctx3d: Context? = null
+
+    /** Cria a cena ao entrar no 3D e libera ao sair; com ela na tela, o mapa
+     *  do Google fica pausado (economia de memória no celular). */
+    private fun set3d(on: Boolean) {
+        if (on == (view3d != null)) return
+        val root = root3d ?: return
+        if (on) {
+            val v = Car3DView(ctx3d ?: return)
+            v.area = visible
+            view3d = v
+            // Entre o mapa e os avisos do carro.
+            root.addView(v.view, 1, FrameLayout.LayoutParams(-1, -1))
+            runCatching { mapView?.onPause() }
+        } else {
+            view3d?.let {
+                root.removeView(it.view)
+                runCatching { it.destroy() }
+            }
+            view3d = null
+            runCatching { mapView?.onResume() }
+        }
+    }
+
     /** Mostra ou esconde a estrada em 3D. */
     private fun apply3d() {
-        val v = view3d ?: return
+        if (root3d == null) return
         val n = CarState.nav
         val on = when (CarState.mode3d) {
             0 -> false
-            2 -> n != null && CarState.route.size >= 2
+            2 -> CarState.route.size >= 2
             else -> {
                 if (n != null && n.meters <= 400 &&
                     Regex("ramp|fork|keep|roundabout").containsMatchIn(n.maneuver)) {
@@ -148,7 +173,7 @@ class CarMapView(private val context: Context) {
                 inside
             }
         }
-        v.show(on)
+        set3d(on)
         overlay?.hud3d = on
     }
     private var meIcon = ""
@@ -172,14 +197,19 @@ class CarMapView(private val context: Context) {
         mv.onCreate(null)
         val root = FrameLayout(p.context)
         root.addView(mv, FrameLayout.LayoutParams(-1, -1))
-        val v3 = Car3DView(p.context)
-        v3.area = visible
-        view3d = v3
-        root.addView(v3.view, FrameLayout.LayoutParams(-1, -1))
+        root3d = root
+        ctx3d = p.context
         val ov = CarOverlay(p.context)
         overlay = ov
         root.addView(ov.root, FrameLayout.LayoutParams(-1, -1))
         p.setContentView(root)
+        // A Presentation é um diálogo: sem isso a imagem sai escurecida.
+        p.window?.apply {
+            clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            setDimAmount(0f)
+            attributes = attributes.apply { alpha = 1f }
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.BLACK))
+        }
         p.show()
         mv.onStart()
         mv.onResume()
@@ -229,6 +259,8 @@ class CarMapView(private val context: Context) {
         overlay = null
         runCatching { view3d?.destroy() }
         view3d = null
+        root3d = null
+        ctx3d = null
         exit3dUntil = -1.0
         meIcon = ""
         routeSig = 0
@@ -251,11 +283,12 @@ class CarMapView(private val context: Context) {
                 PolylineOptions()
                     .addAll(pts.map { LatLng(it[0], it[1]) })
                     .color(Color.rgb(26, 115, 232)) // azul da rota do celular
-                    .width(6f) // fina, para não pesar no desenho
+                    .width(3f) // bem fina: o trânsito aparece em volta
                     .zIndex(2f)) else null
         }
-        overlay?.update()
         apply3d()
+        overlay?.update()
+        if (view3d != null) return // mapa pausado: a cena 3D cobre a tela
         drawPois(g)
         if (!CarState.hasPosition) return
         val pos = LatLng(CarState.lat, CarState.lng)
@@ -318,7 +351,7 @@ class CarMapView(private val context: Context) {
     private fun myVehicle(png: ByteArray?): Bitmap {
         val b = png?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) }
             ?: return vehicleBitmap(CarState.vehicle)
-        return Bitmap.createScaledBitmap(b, 84, 84, true)
+        return Bitmap.createScaledBitmap(b, 56, 56, true)
     }
 
     private fun vehicleBitmap(emoji: String): Bitmap {

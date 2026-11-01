@@ -3938,7 +3938,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
 
         // v2: estrada em 3D por cima do mapa (os avisos e botões ficam por cima).
-        if (_show3d && _canShow3d)
+        // Com o carro conectado o 3D fica só no carro: os dois juntos não cabem
+        // na memória de um celular simples.
+        if (_show3d && _canShow3d && !CarService.instance.connected.value)
           Positioned.fill(
             child: Sim3DView(
               key: _kWeb3d,
@@ -5088,8 +5090,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (m != null && mounted) _setMode3d(m);
   }
 
+  void _sendMode3dToCar() => CarService.instance.mode3d(switch (_mode3d) {
+        _Mode3d.map => 0,
+        _Mode3d.exits => 1,
+        _Mode3d.always => 2,
+      });
+
   void _setMode3d(_Mode3d m, {bool save = true}) {
     setState(() => _mode3d = m);
+    _sendMode3dToCar();
     _manual3dUntil = DateTime(0);
     if (save) SharedPreferences.getInstance().then((p) => p.setString('mode3d', m.name));
     switch (m) {
@@ -5255,7 +5264,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// v2: o painel do 3D substitui o velocímetro e a faixa da próxima curva.
-  bool get _hud3d => _show3d && _canShow3d;
+  bool get _hud3d =>
+      _show3d && _canShow3d && !CarService.instance.connected.value;
 
   /// v2: liga/desliga a visão 3D. Voltando ao mapa, ele já vem acompanhando.
   void _set3d(bool on) {
@@ -5409,7 +5419,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _sendToCar(Position p) {
     if (!CarService.instance.connected.value) return;
     _sendVehicleToCar();
-    final turn = _navigating ? _upcomingTurn(p) : null;
+    final turn = _navigating || _sim != null ? _upcomingTurn(p) : null;
     final w = _walker;
     final left = w == null ? 0.0 : w.remainingFrom(p.latitude, p.longitude);
     final speed = _etaSpeed ?? _trip?.averageSpeed ?? 16.7;
@@ -5441,9 +5451,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Carro conectou (ou reconectou): reenvia a rota e os pins.
   void _onCarConnected() {
-    if (!mounted || !CarService.instance.connected.value) return;
+    if (!mounted) return;
+    setState(() {}); // o 3D do celular sai/volta com o carro
+    if (!CarService.instance.connected.value) return;
     if (_routeRecs.length >= 2) CarService.instance.route(_routeRecs);
     _sendPoisToCar();
+    _sendMode3dToCar();
     _carBikeSig = ''; // reconectou: manda a imagem do veículo de novo
     _sendVehicleToCar();
     _sim3d.resendToCar();
@@ -5472,6 +5485,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       return;
     }
     switch (a) {
+      // Alertas do carro: sem conta ou na simulação nada é enviado (avisa
+      // em vez de dizer "enviado").
+      case 'radar' || 'hazard' when _sim != null:
+        CarService.instance.toast(tr('Na simulação os alertas não são enviados.'));
+      case final x when x.startsWith('hazard:') && _sim != null:
+        CarService.instance.toast(tr('Na simulação os alertas não são enviados.'));
+      case 'radar' || 'hazard' when AuthService.isAnonymous:
+        CarService.instance.toast(tr('Entre na sua conta no celular para marcar alertas'));
+      case final x when x.startsWith('hazard:') && AuthService.isAnonymous:
+        CarService.instance.toast(tr('Entre na sua conta no celular para marcar alertas'));
       case 'radar':
         await _reportHazard(HazardType.radar);
         CarService.instance.toast(tr('Alerta enviado: radar móvel'));

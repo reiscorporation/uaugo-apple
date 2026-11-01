@@ -5,7 +5,8 @@
 //   mapa do carro, com o mesmo painel (velocidade, placa piscando, manobra),
 //   as placas de saída e as rodovias reais. O celular manda os comandos da
 //   cena pelo canal do carro (CarState.sim3d); a página nova recebe o último
-//   de cada tipo ao abrir.
+//   de cada tipo ao abrir. Só existe enquanto aparece: em celular simples a
+//   memória não comporta tudo ao mesmo tempo (CarMapView cria e libera).
 // Quem usa: CarMapView (mostra/esconde conforme CarState.mode3d).
 // Onde mexer: o desenho é o da página; aqui só a ponte e o espaço do painel.
 // ============================================================================
@@ -24,7 +25,6 @@ import android.webkit.WebView
 class Car3DView(context: Context) {
     val view = WebView(context)
     private var ready = false
-    private var on = false
     private val density = context.resources.displayMetrics.density
 
     /** Área livre (fora dos botões do Android Auto). */
@@ -35,7 +35,6 @@ class Car3DView(context: Context) {
         }
 
     init {
-        view.visibility = View.GONE
         view.setBackgroundColor(Color.rgb(5, 8, 15))
         view.settings.javaScriptEnabled = true
         view.settings.allowFileAccess = true
@@ -46,7 +45,8 @@ class Car3DView(context: Context) {
             }
         }, "Sim3D")
         CarState.sim3dSink = { js -> if (ready) view.evaluateJavascript(js, null) }
-        view.loadUrl("file:///android_asset/flutter_assets/assets/sim3d/index.html")
+        // #car: resolução e quadros menores (o celular já projeta a tela do carro).
+        view.loadUrl("file:///android_asset/flutter_assets/assets/sim3d/index.html#car")
     }
 
     private fun onReady() {
@@ -56,7 +56,7 @@ class Car3DView(context: Context) {
             CarState.sim3dLast[k]?.let { view.evaluateJavascript(it, null) }
         }
         sendLayout()
-        view.evaluateJavascript("sim3d.setActive($on)", null)
+        view.evaluateJavascript("sim3d.setActive(true)", null)
     }
 
     /** Painel entre as bordas da área livre (em px da página). */
@@ -69,19 +69,6 @@ class Car3DView(context: Context) {
         val bottom = ((view.height - r.bottom) / d).toInt() + 8
         view.evaluateJavascript("sim3d.layout({l:$left,r:$right,b:$bottom})", null)
     }
-
-    /** Liga/desliga a cena (desligada, a página para de desenhar). */
-    fun show(show: Boolean) {
-        if (show == on) return
-        on = show
-        view.visibility = if (show) View.VISIBLE else View.GONE
-        if (ready) {
-            view.evaluateJavascript("sim3d.setActive($show)", null)
-            sendLayout()
-        }
-    }
-
-    val showing get() = on
 
     fun destroy() {
         CarState.sim3dSink = null

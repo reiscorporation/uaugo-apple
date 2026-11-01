@@ -82,6 +82,11 @@ class CarService {
     } catch (_) {}
   }
 
+  /// Visão escolhida no celular vale no carro: 0 mapa, 1 nas saídas, 2 sempre.
+  void mode3d(int mode) {
+    _ch.invokeMethod('mode3d', mode).catchError((_) => null);
+  }
+
   /// Imagem do veículo (a mesma do mapa do celular) para a tela do carro.
   void vehicleImage(Uint8List png) {
     if (!connected.value) return;

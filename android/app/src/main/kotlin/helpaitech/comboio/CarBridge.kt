@@ -132,6 +132,11 @@ class CarBridge(messenger: BinaryMessenger) {
                     result.success(null)
                 }
                 "connected" -> result.success(CarState.connected)
+                "mode3d" -> {
+                    (call.arguments as? Int)?.let { CarState.mode3d = it }
+                    CarState.changed()
+                    result.success(null)
+                }
                 "vehicleImage" -> {
                     CarState.vehicleImage = call.arguments as? ByteArray
                     CarState.changed()
