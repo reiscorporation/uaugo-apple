@@ -65,6 +65,17 @@ class CarOverlay(private val ctx: Context) {
         text = "\u26A0\uFE0E"; gravity = Gravity.CENTER
         background = box(Color.rgb(255, 193, 7), 14)
     }
+    private val requestBtn = tv(25f, Color.WHITE).apply {
+        text = "\uD83D\uDCE2"; gravity = Gravity.CENTER
+        background = box(Color.rgb(245, 124, 0), 14)
+    }
+    private val sosBtn = tv(17f, Color.WHITE).apply {
+        text = "SOS"; gravity = Gravity.CENTER; minWidth = dp(56)
+        background = box(Color.rgb(211, 47, 47), 14); setPadding(dp(8), 0, dp(8), 0)
+    }
+    private val groupBar = tv(15f, Color.WHITE).apply {
+        setPadding(dp(12), dp(8), dp(12), dp(8)); maxLines = 2
+    }
     private val radarBtn = tv(25f, Color.WHITE).apply {
         text = "\uD83D\uDCF7"; gravity = Gravity.CENTER
         background = box(Color.rgb(211, 47, 47), 14)
@@ -73,12 +84,16 @@ class CarOverlay(private val ctx: Context) {
     /** Qual botão do mapa foi tocado (com folga para o dedo). */
     fun hit(x: Float, y: Float): String? {
         fun inside(v: View): Boolean {
+            if (v.visibility != View.VISIBLE) return false
             val o = IntArray(2)
             v.getLocationInWindow(o)
             val m = dp(6)
             return x >= o[0] - m && x <= o[0] + v.width + m && y >= o[1] - m && y <= o[1] + v.height + m
         }
         return when {
+            inside(groupBar) && CarState.groupAction != null -> "do:${CarState.groupAction}"
+            inside(requestBtn) -> "requests"
+            inside(sosBtn) -> "sos"
             inside(alertBtn) -> "alert"
             inside(radarBtn) -> "radar"
             else -> null
@@ -108,6 +123,7 @@ class CarOverlay(private val ctx: Context) {
         row.addView(info, LinearLayout.LayoutParams(-2, -1).apply { leftMargin = dp(6) })
         top.addView(row, LinearLayout.LayoutParams(-1, -2))
         top.addView(banner, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
+        top.addView(groupBar, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
         topBox = top
         root.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
             setMargins(dp(10), dp(10), dp(10), 0)
@@ -128,6 +144,8 @@ class CarOverlay(private val ctx: Context) {
         val buttons = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(56), dp(56)))
         buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
+        buttons.addView(requestBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
+        buttons.addView(sosBtn, LinearLayout.LayoutParams(-2, dp(56)).apply { leftMargin = dp(8) })
         bottom.addView(speedBox, LinearLayout.LayoutParams(dp(118), dp(108)))
         bottom.addView(pill, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8); bottomMargin = dp(6) })
         column.addView(bottom)
@@ -173,6 +191,21 @@ class CarOverlay(private val ctx: Context) {
         banner.visibility = if (b.isNullOrBlank()) View.GONE else View.VISIBLE
         info.visibility = turn.visibility
         banner.text = b ?: ""
+        val group = if (CarState.groupOn) View.VISIBLE else View.GONE
+        requestBtn.visibility = group
+        sosBtn.visibility = group
+        val armed = CarState.sosArmed
+        sosBtn.textSize = if (armed) 12f else 17f
+        sosBtn.text = when {
+            !armed -> "SOS"
+            CarState.en -> "Tap again\nto send"
+            else -> "Toque novamente\npara enviar"
+        }
+        val g = CarState.groupText
+        groupBar.visibility = if (g.isNullOrBlank()) View.GONE else View.VISIBLE
+        groupBar.text = g ?: ""
+        groupBar.background = box(
+            if (CarState.groupUrgent) Color.rgb(198, 40, 40) else Color.rgb(46, 125, 50), 12)
         speed.text = "${CarState.speedKmh}"
         limit.visibility = if (CarState.limitKmh > 0) View.VISIBLE else View.GONE
         limit.text = "${CarState.limitKmh}"

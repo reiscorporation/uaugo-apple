@@ -34,6 +34,13 @@ object CarState {
     data class Hazard(val id: String, val lat: Double, val lng: Double,
                       val emoji: String, val label: String, val mine: Boolean)
     @Volatile var hazards: List<Hazard> = emptyList()
+    /** Em expedição: botões de SOS e pedidos, e a faixa do grupo (SOS, pedido). */
+    @Volatile var groupOn = false
+    @Volatile var groupText: String? = null
+    @Volatile var groupAction: String? = null
+    @Volatile var groupUrgent = false
+    /** SOS tocado uma vez: o próximo toque em até 3 s envia. */
+    @Volatile var sosArmed = false
     @Volatile var lat = 0.0
     @Volatile var lng = 0.0
     @Volatile var bearing = 0.0
@@ -173,6 +180,15 @@ class CarBridge(messenger: BinaryMessenger) {
                                 (it[2] as Number).toDouble(), it[3] as String,
                                 it[4] as String, it[5] == true)
                         }
+                    CarState.changed()
+                    result.success(null)
+                }
+                "group" -> {
+                    val a = call.arguments as? Map<*, *>
+                    CarState.groupOn = a?.get("on") == true
+                    CarState.groupText = a?.get("text") as? String
+                    CarState.groupAction = a?.get("action") as? String
+                    CarState.groupUrgent = a?.get("urgent") == true
                     CarState.changed()
                     result.success(null)
                 }

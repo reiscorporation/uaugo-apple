@@ -290,6 +290,26 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
 
     private fun openAlerts() = screenManager.push(AlertListScreen(carContext))
 
+    private val sosTimer = android.os.Handler(android.os.Looper.getMainLooper())
+    private val sosDisarm = Runnable {
+        CarState.sosArmed = false
+        CarState.changed()
+    }
+
+    /** No carro não existe "segurar": 1º toque pede confirmação, o 2º envia. */
+    private fun sosTap() {
+        sosTimer.removeCallbacks(sosDisarm)
+        if (CarState.sosArmed) {
+            CarState.sosArmed = false
+            val sink = CarState.actionSink
+            if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("sos")
+        } else {
+            CarState.sosArmed = true
+            sosTimer.postDelayed(sosDisarm, 3000)
+        }
+        CarState.changed()
+    }
+
     /** Toque no mapa: os botões de alerta e radar, iguais aos do celular. */
     override fun onClick(x: Float, y: Float) {
         val hit = carMap.tap(x, y)
@@ -299,6 +319,9 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 val sink = CarState.actionSink
                 if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("radar")
             }
+            hit == "requests" -> screenManager.push(GroupRequestScreen(carContext))
+            hit == "sos" -> sosTap()
+            hit?.startsWith("do:") == true -> CarState.actionSink?.invoke(hit.removePrefix("do:"))
             hit != null -> screenManager.push(RemoveAlertScreen(carContext, hit.removePrefix("hazard:")))
         }
     }
@@ -466,6 +489,42 @@ class RemoveAlertScreen(ctx: CarContext, private val only: String? = null) : Scr
         }
         return ListTemplate.Builder()
             .setTitle(if (en) "Remove my alert" else "Remover meu alerta")
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
+    }
+}
+
+/** Pedidos ao grupo (os mesmos do celular, GroupRequest no Dart). */
+class GroupRequestScreen(ctx: CarContext) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val en = CarState.en
+        val kinds = listOf(
+            Triple("fuel", "⛽", if (en) "I need to refuel" else "Preciso abastecer"),
+            Triple("restroom", "🚻", if (en) "Restroom stop" else "Parada para banheiro"),
+            Triple("rest", "☕", if (en) "I need a rest" else "Preciso descansar"),
+            Triple("problem", "🔧", if (en) "Vehicle problem" else "Problema no veículo"),
+            Triple("behind", "🐢", if (en) "Wait, I fell behind" else "Esperem, fiquei para trás"),
+        )
+        val list = ItemList.Builder()
+        for ((code, emoji, label) in kinds) {
+            list.addItem(Row.Builder()
+                .setTitle("$emoji  $label")
+                .setOnClickListener {
+                    val sink = CarState.actionSink
+                    if (sink == null) {
+                        CarToast.makeText(carContext,
+                            if (en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+                            CarToast.LENGTH_SHORT).show()
+                    } else {
+                        sink("group:$code")
+                    }
+                    screenManager.pop()
+                }
+                .build())
+        }
+        return ListTemplate.Builder()
+            .setTitle(if (en) "Request to the group" else "Pedido ao grupo")
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()

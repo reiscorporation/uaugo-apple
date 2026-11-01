@@ -60,6 +60,7 @@ class CarService {
           _routeSig = '';
           _poisSig = '';
           _hazardsSig = '';
+          _groupSig = '';
         }
         connected.value = c.arguments == true;
         if (c.arguments == true) _sendVehicle();
@@ -75,6 +76,7 @@ class CarService {
   /// Aviso curto na tela do carro.
   String _poisSig = '';
   String _hazardsSig = '';
+  String _groupSig = '';
 
   /// Manda a imagem do veículo assim que o carro conecta (sem depender do
   /// mapa aberto no celular).
@@ -109,6 +111,17 @@ class CarService {
     _ch.invokeMethod('pois', [
       for (final (la, lo, k) in list) ...[la, lo, k.toDouble()]
     ]).catchError((_) => null);
+  }
+
+  /// Expedição: botões do grupo e a faixa de SOS/pedidos. [action] volta
+  /// para o app quando o motorista toca na faixa.
+  void group({required bool on, String? text, String? action, bool urgent = false}) {
+    final sig = '$on|$text|$action|$urgent';
+    if (sig == _groupSig) return;
+    _groupSig = sig;
+    _ch.invokeMethod('group', {
+      'on': on, 'text': text, 'action': action, 'urgent': urgent,
+    }).catchError((_) => null);
   }
 
   /// Alertas da comunidade perto: (id, lat, lng, emoji, nome, é meu).

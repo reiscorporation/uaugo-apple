@@ -2583,6 +2583,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// SOS do grupo mudaram: avisa os novos (voz, vibração e janela).
   void _onAlerts(List<SosAlert> alerts) {
     setState(() => _alerts = alerts);
+    _sendGroupToCar();
     final fresh = alerts.where((a) => !_seenAlerts.contains(a.id)).toList();
     _seenAlerts.addAll(alerts.map((a) => a.id));
     // Alertas antigos aparecem só na faixa vermelha, sem pop-up.
@@ -2638,6 +2639,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Capitão/líder: pede o OK (toque ou "sim").
         _pendingAck = r;
         _voice.alert(tr('{0}. Diga sim para confirmar.', [text]));
+        _sendGroupToCar();
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           duration: const Duration(seconds: 30),
           content: Text('${r.kind.emoji} $text'),
@@ -2646,6 +2648,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       } else {
         _voice.alert(text);
         _showTrafficBanner('${r.kind.emoji} $text');
+        _noteToCar('${r.kind.emoji} $text');
       }
     }
     for (final r in acked) {
@@ -2653,8 +2656,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (r.uid == widget.uid) {
         _voice.alert(tr('{0} viu seu pedido.', [r.ackName]));
         _showTrafficBanner(tr('👍 {0} viu seu pedido: {1}', [r.ackName, r.kind.label]));
+        _noteToCar(tr('👍 {0} viu seu pedido: {1}', [r.ackName, r.kind.label]));
       } else if (!_canAck) {
         _showTrafficBanner(tr('👍 {0} confirmou o pedido de {1}', [r.ackName, r.name]));
+        _noteToCar(tr('👍 {0} confirmou o pedido de {1}', [r.ackName, r.name]));
       }
     }
   }
@@ -2662,6 +2667,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// "OK 👍" no pedido (capitão/líder).
   Future<void> _ackRequest(GroupRequestItem r) async {
     if (_pendingAck?.id == r.id) _pendingAck = null;
+    _sendGroupToCar();
     try {
       await _svc.ackRequest(_code, r.id, widget.uid, widget.userName);
       _snack(tr('👍 Confirmado para {0}', [r.name]));
@@ -5479,8 +5485,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// policiais (4), como no celular.
   void _sendPoisToCar() {
     if (!CarService.instance.connected.value) return;
+    // Com rota: só os radares à frente, na via e no sentido dela (a mesma
+    // regra dos avisos). Sem rota, os mais próximos.
+    final w = _walker, pr = _proj;
+    final byRoute = w != null && pr != null && pr.offset < 60 &&
+        (_navigating || _sim != null) && !_offRoute;
+    final radars = byRoute
+        ? _radarMarkers.where((r) =>
+            radarAheadOnRoute(r,
+                    project: w.project, riderAlong: pr.along, range: 10000) !=
+                null &&
+            _radarOnRouteRoad(r, w))
+        : _radarMarkers.take(40);
     CarService.instance.pois([
-      for (final r in _radarMarkers.take(40))
+      for (final r in radars)
         (r.lat, r.lng, switch (r.kind) {
           RadarKind.fixed => 1,
           RadarKind.section => 2,
@@ -5488,6 +5506,42 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         }),
       for (final q in _policeMarkers.take(20)) (q.lat, q.lng, 4),
     ]);
+  }
+
+  /// Aviso curto na faixa do grupo do carro (pedidos e confirmações).
+  void _noteToCar(String text) {
+    _carNote = text;
+    _carNoteUntil = DateTime.now().add(const Duration(seconds: 15));
+    _sendGroupToCar();
+  }
+
+  String? _carNote;
+  DateTime _carNoteUntil = DateTime(0);
+
+  /// Expedição na tela do carro: botões do grupo e a faixa (o que importa
+  /// mais vem primeiro: meu SOS, SOS de outro piloto, pedido a confirmar).
+  void _sendGroupToCar() {
+    if (!CarService.instance.connected.value) return;
+    final car = CarService.instance;
+    if (!_isExpedition) return car.group(on: false);
+    final mine = _alerts.where((a) => a.uid == widget.uid).firstOrNull;
+    if (mine != null) {
+      return car.group(on: true, urgent: true, action: 'sosCancel:${mine.id}',
+          text: tr('🚨 SOS enviado · toque para cancelar'));
+    }
+    final other = _alerts.firstOrNull;
+    if (other != null) {
+      return car.group(on: true, urgent: true,
+          text: tr('🚨 SOS: {0}{1}', [other.name, _dist(other.lat, other.lng)]));
+    }
+    final ack = _pendingAck;
+    if (ack != null) {
+      return car.group(on: true, action: 'ack:${ack.id}',
+          text: tr('{0} {1} · toque para confirmar',
+              [ack.kind.emoji, groupRequestSpeech(ack.name, ack.kind)]));
+    }
+    final note = DateTime.now().isBefore(_carNoteUntil) ? _carNote : null;
+    car.group(on: true, text: note);
   }
 
   /// Alertas da comunidade na tela do carro: os mais perto, com os do piloto
@@ -5511,6 +5565,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _sendToCar(Position p) {
     if (!CarService.instance.connected.value) return;
     _sendVehicleToCar();
+    _sendGroupToCar();
     final turn = _navigating || _sim != null ? _upcomingTurn(p) : null;
     final w = _walker;
     final left = w == null ? 0.0 : w.remainingFrom(p.latitude, p.longitude);
@@ -5551,6 +5606,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (_routeRecs.length >= 2) CarService.instance.route(_routeRecs);
     _sendPoisToCar();
     _sendHazardsToCar();
+    _sendGroupToCar();
     _sendMode3dToCar();
     _carBikeSig = ''; // reconectou: manda a imagem do veículo de novo
     _sendVehicleToCar();
@@ -5580,6 +5636,29 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       return;
     }
     switch (a) {
+      // Grupo pela tela do carro. Na simulação nada vai para o grupo.
+      case 'sos' when _sim != null:
+        CarService.instance.toast(tr('Na simulação nada é enviado ao grupo.'));
+      case final x when x.startsWith('group:') && _sim != null:
+        CarService.instance.toast(tr('Na simulação nada é enviado ao grupo.'));
+      case 'sos':
+        await _sendSos();
+        CarService.instance.toast(tr('SOS enviado aos pilotos'));
+      case final x when x.startsWith('sosCancel:'):
+        _svc.resolveAlert(_code, x.substring(10));
+        CarService.instance.toast(tr('SOS cancelado'));
+      case final x when x.startsWith('group:'):
+        final kind = GroupRequest.values
+            .where((k) => k.name == x.substring(6))
+            .firstOrNull;
+        if (kind == null) return;
+        await _sendGroupRequest(kind);
+        CarService.instance.toast(tr('Enviado ao grupo: {0}', [kind.label]));
+      case final x when x.startsWith('ack:'):
+        final r = _pendingAck;
+        if (r == null || r.id != x.substring(4)) return;
+        await _ackRequest(r);
+        CarService.instance.toast(tr('Pedido confirmado'));
       // Remover o próprio alerta pela tela do carro.
       case final x when x.startsWith('unhazard:'):
         final id = x.substring(9);
