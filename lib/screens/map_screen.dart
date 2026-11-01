@@ -2537,6 +2537,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       _focus(m.lat!, m.lng!);
                     }
                   : null,
+              onLongPress: () => _askRouteToMember(m),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
                 child: Row(children: [
@@ -2564,6 +2565,31 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  /// Segurou um piloto (capitão, ferrolho ou líder): oferece ir até ele,
+  /// para buscar quem saiu da rota. Abre a rota no Google Maps, como no SOS.
+  Future<void> _askRouteToMember(Member m) async {
+    if (!_watchesGroup || m.uid == widget.uid || !m.hasLocation) return;
+    HapticFeedback.mediumImpact();
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('Traçar rota até {0}?', [m.name])),
+        content: Text(m.isStale
+            ? tr('Sem sinal agora: a rota vai até a última posição recebida.')
+            : tr('A rota vai até a posição atual do piloto.')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Cancelar'))),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('Traçar rota'))),
+        ],
+      ),
+    );
+    if (go == true) await _navigate(m.lat!, m.lng!);
   }
 
   /// Abre o roteiro da expedição.
@@ -3349,6 +3375,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                             _focus(m.lat!, m.lng!);
                           }
                         : null,
+                onLongPress: () {
+                  Navigator.pop(ctx);
+                  _askRouteToMember(m);
+                },
               ),
             _sheetTitle(tr('Paradas ({0})', [_stops.length])),
             if (_stops.isEmpty)
