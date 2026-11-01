@@ -74,7 +74,8 @@ class CarMapView(private val context: Context) {
                 BitmapDescriptorFactory.fromBitmap(pinBitmap(h.emoji, Color.rgb(245, 166, 35)))
             }
             g.addMarker(MarkerOptions().position(LatLng(h.lat, h.lng)).anchor(0.5f, 0.5f)
-                .icon(icon).zIndex(4.5f))?.let { hazardMarkers.add(it) }
+                // Acima do veículo: quem marca está em cima do próprio alerta.
+                .icon(icon).zIndex(6f))?.let { hazardMarkers.add(it) }
         }
     }
 

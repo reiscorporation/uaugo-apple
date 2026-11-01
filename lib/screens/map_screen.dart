@@ -1603,6 +1603,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _hazardSvc.report(t, p.latitude, p.longitude, widget.uid,
           heading: _reportHeading).then((_) {
         sent = true;
+        debugPrint('Alerta gravado: ${t.name}');
         _snack(tr('{0} {1} enviado para todos. Obrigado!', [t.emoji, t.label]));
       }, onError: (e) {
         sent = true;
@@ -1616,6 +1617,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       });
       Future.delayed(const Duration(seconds: 6), () {
         if (!sent && mounted) {
+          debugPrint('Alerta sem resposta do servidor: ${t.name}');
           _snack(tr('{0} {1} salvo. Será enviado quando houver internet.', [t.emoji, t.label]));
         }
       });
