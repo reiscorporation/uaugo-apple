@@ -3938,8 +3938,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
 
         // v2: estrada em 3D por cima do mapa (os avisos e botões ficam por cima).
-        // Celular simples com o carro conectado: 3D só no carro (os dois
-        // juntos não cabem na memória).
+        // Celular e carro mostram o 3D ao mesmo tempo (pedido do Ricardo,
+        // mesmo em celular simples: pesa mais na memória).
         if (_hud3d)
           Positioned.fill(
             child: Sim3DView(
@@ -5264,9 +5264,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// v2: o painel do 3D substitui o velocímetro e a faixa da próxima curva.
-  bool get _hud3d =>
-      _show3d && _canShow3d &&
-      !(CarService.instance.connected.value && AppSettings.instance.lightMode);
+  bool get _hud3d => _show3d && _canShow3d;
 
   /// v2: liga/desliga a visão 3D. Voltando ao mapa, ele já vem acompanhando.
   void _set3d(bool on) {
