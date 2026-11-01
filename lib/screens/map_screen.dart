@@ -413,7 +413,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool _show3d = false;
   String _sim3dSig = '';
   /// v2: 3D sempre, só mapa, ou mapa que vira 3D perto de saídas/bifurcações.
-  _Mode3d _mode3d = _Mode3d.always;
+  /// Começa no híbrido; depois vale sempre a escolha salva do piloto.
+  _Mode3d _mode3d = _Mode3d.exits;
   /// Pinça/zoom do piloto: o modo "nas saídas" não troca sozinho por um tempo.
   DateTime _manual3dUntil = DateTime(0);
   DateTime _alerts3dAt = DateTime(0);
@@ -435,7 +436,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // Navegando sozinho, a câmera começa em primeira pessoa e a navegação
       // já está ativa (o piloto tocou em "Iniciar" na prévia).
       _view = _MapView.solo;
-      _show3d = true; // v2: navegação começa na visão 3D
       if (!widget.simulate) {
         _navigating = true;
         if (_trip != null) _voice.setNarration(true);
