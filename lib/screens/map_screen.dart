@@ -5517,12 +5517,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       meters: turn?.meters ?? 0,
       remainingM: left,
       eta: DateTime.now().add(Duration(seconds: (left / speed).round())),
-      alert: pill == null
+      // A faixa do radar já leva a distância: sem pílula repetida.
+      alert: pill == null || _bannerRadar != null
           ? null
           : tr('{0} {1}{2}em {3} m', [pill.emoji, pill.kmh ?? '', pill.kmh != null ? ' ' : '', pill.m]),
       // Faixa amarela (igual à do celular): radar/polícia/perigo à frente.
       banner: _radarBanner != null
           ? '${_radarBanner!.emoji} ${_radarBanner!.text}'
+              '${_bannerRadar != null ? ' · ${_bannerRadar!.m} m' : ''}'
           : (_shownHazard != null
               ? '${_shownHazard!.type.emoji} ${_shownHazard!.type.label} a '
                   '${_dist(_shownHazard!.lat, _shownHazard!.lng).replaceFirst(' · ', '')}'

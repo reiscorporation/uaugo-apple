@@ -112,7 +112,7 @@ class CarOverlay(private val ctx: Context) {
         val buttons = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(56), dp(56)))
         buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
-        bottom.addView(speedBox, LinearLayout.LayoutParams(dp(118), dp(116)))
+        bottom.addView(speedBox, LinearLayout.LayoutParams(dp(118), dp(108)))
         bottom.addView(pill, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8); bottomMargin = dp(6) })
         column.addView(bottom)
         column.addView(buttons, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
@@ -141,7 +141,6 @@ class CarOverlay(private val ctx: Context) {
     fun update() {
         val n = CarState.nav
         turn.visibility = if (n == null || hud3d) View.GONE else View.VISIBLE
-        info.visibility = turn.visibility
         speedArea.visibility = if (hud3d) View.GONE else View.VISIBLE
         if (n != null) {
             turnIcon.setImageResource(icon(n.maneuver))
@@ -156,6 +155,9 @@ class CarOverlay(private val ctx: Context) {
         }
         val b = CarState.banner
         banner.visibility = if (b.isNullOrBlank()) View.GONE else View.VISIBLE
+        // A tela do carro é baixa: o aviso entra no lugar da chegada, senão
+        // a coluna de cima desce até o velocímetro.
+        info.visibility = if (n == null || hud3d || banner.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         banner.text = b ?: ""
         speed.text = "${CarState.speedKmh}"
         limit.visibility = if (CarState.limitKmh > 0) View.VISIBLE else View.GONE

@@ -116,6 +116,10 @@
   #hud.tiny #next svg { width: 28px; height: 28px; }
   #hud.tiny #next .st { font-size: 10px; }
   #hud.tiny #next .d { font-size: 18px; }
+  /* aperto máximo (aviso de radar ao lado): só a distância */
+  #hud.mini #next { padding: 4px 14px; justify-content: center; }
+  #hud.mini #next svg, #hud.mini #next .st { display: none; }
+  #hud.mini #next .d { white-space: nowrap; }
   /* tela do carro: bem mais baixa que o celular, painel compacto */
   body.car #hud { gap: 8px; }
   body.car .hex { min-height: 46px; padding: 4px 16px; }
@@ -198,7 +202,7 @@ const STEP = 2;      // amostra a cada 2 m (rotas longas cabem na memória)
 const LANE = 1.75;   // mão direita: o carro anda 1,75 m à direita do eixo
 let C = [], P = [], CUM = [0], TOTAL = 0;
 let RAW_CUM = [], RAW_S = []; // distância no traçado original -> no caminho suavizado
-let MAN = [], DEST = '';
+let MAN = [], DEST = '', OFF = []; // OFF: lado do eixo em que o carro anda, ponto a ponto
 const GC = 40; let GRID = new Map(); // grade de 40 m do caminho (achar alertas na rota)
 
 function idxAt(s) {
@@ -278,11 +282,11 @@ function setRouteData(d) {
     }
     return off;
   };
+  OFF = C.map((_, i) => laneAt(CC[i]));
   P = C.map((p, i) => {
     const a = C[Math.max(0, i - 2)], b = C[Math.min(C.length - 1, i + 2)];
     const l = len(a[0], a[1], b[0], b[1]) || 1, dx = (b[0] - a[0]) / l, dy = (b[1] - a[1]) / l;
-    const off = laneAt(CC[i]);
-    return [p[0] + dy * off, p[1] - dx * off];
+    return [p[0] + dy * OFF[i], p[1] - dx * OFF[i]];
   });
   CUM = [0];
   for (let i = 1; i < P.length; i++) CUM.push(CUM[i - 1] + len(P[i - 1][0], P[i - 1][1], P[i][0], P[i][1]));
@@ -570,19 +574,32 @@ function computeLanes() {
       const k = ex ? (ex.side > 0 ? r.n - 1 : 0) : Math.ceil((r.n - 1) / 2);
       center = -hw + LW / 2 + LW * k;
     }
-    raw[i] = (center - bside) - LANE; // quanto mover o carro a partir do caminho normal
+    raw[i] = (center - bside) - OFF[i]; // quanto mover o carro a partir do caminho normal
   }
-  // suaviza (troca de faixa em ~100 m); fora das vias do mapa, sem correção
+  // suaviza (troca de faixa em ~100 m). Sobre a via a correção vale inteira
+  // (só a via está desenhada ali); fora dela, some aos poucos em ~100 m.
   CORR = new Float32Array(C.length);
-  const W = 25;
+  const W = 25, avg = new Float32Array(C.length);
   let sum = 0, cnt = 0;
   for (let i = 0; i < C.length + W; i++) {
     if (i < C.length && has[i]) { sum += raw[i]; cnt++; }
     const j = i - 2 * W - 1;
     if (j >= 0 && has[j]) { sum -= raw[j]; cnt--; }
     const k = i - W;
-    if (k >= 0 && k < C.length) CORR[k] = cnt ? (sum / (2 * W + 1)) : 0;
+    if (k >= 0 && k < C.length) avg[k] = cnt ? sum / cnt : 0;
   }
+  const fade = (from, to, dir) => {
+    let last = -1;
+    for (let k = from; k !== to; k += dir) {
+      if (has[k]) { last = k; CORR[k] = avg[k]; continue; }
+      const d = last < 0 ? 1e9 : Math.abs(k - last);
+      if (d > 2 * W) continue;
+      const v = avg[last] * (1 - d / (2 * W));
+      if (Math.abs(v) > Math.abs(CORR[k])) CORR[k] = v;
+    }
+  };
+  fade(0, C.length, 1);
+  fade(C.length - 1, -1, -1);
 }
 // posição do carro/tapete já na faixa certa
 function lanePosAt(s) {
@@ -1269,6 +1286,7 @@ window.sim3d = {
     const w = innerWidth - d.l - d.r;
     h.classList.toggle('narrow', !CAR && w < 470);
     h.classList.toggle('tiny', !CAR && w < 280);
+    h.classList.toggle('mini', !CAR && w < 190);
   },
   // Painel: {kmh, lim, over, m, d, t, last, eta, rem}. kmh null = sem GPS; m/t = próxima manobra.
   hud(d) {
