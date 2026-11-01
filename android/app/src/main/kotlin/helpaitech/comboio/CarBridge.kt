@@ -30,6 +30,10 @@ object CarState {
     @Volatile var route: List<DoubleArray> = emptyList() // [lat, lng]
     /** Radares (1–3) e postos policiais (4) perto: [lat, lng, tipo]. */
     @Volatile var pois: List<DoubleArray> = emptyList()
+    /** Alertas da comunidade perto do piloto (mine = marcado por ele). */
+    data class Hazard(val id: String, val lat: Double, val lng: Double,
+                      val emoji: String, val label: String, val mine: Boolean)
+    @Volatile var hazards: List<Hazard> = emptyList()
     @Volatile var lat = 0.0
     @Volatile var lng = 0.0
     @Volatile var bearing = 0.0
@@ -157,6 +161,18 @@ class CarBridge(messenger: BinaryMessenger) {
                         ?: emptyList()
                     CarState.pois = flat.chunked(3).filter { it.size == 3 }
                         .map { doubleArrayOf(it[0], it[1], it[2]) }
+                    CarState.changed()
+                    result.success(null)
+                }
+                "hazards" -> {
+                    // Alertas: [id, lat, lng, emoji, nome, meu, ...].
+                    CarState.hazards = (call.arguments as? List<*>).orEmpty().chunked(6)
+                        .filter { it.size == 6 }
+                        .map {
+                            CarState.Hazard(it[0] as String, (it[1] as Number).toDouble(),
+                                (it[2] as Number).toDouble(), it[3] as String,
+                                it[4] as String, it[5] == true)
+                        }
                     CarState.changed()
                     result.success(null)
                 }

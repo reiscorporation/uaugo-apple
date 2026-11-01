@@ -59,6 +59,7 @@ class CarService {
         if (c.arguments == true) {
           _routeSig = '';
           _poisSig = '';
+          _hazardsSig = '';
         }
         connected.value = c.arguments == true;
         if (c.arguments == true) _sendVehicle();
@@ -73,6 +74,7 @@ class CarService {
 
   /// Aviso curto na tela do carro.
   String _poisSig = '';
+  String _hazardsSig = '';
 
   /// Manda a imagem do veículo assim que o carro conecta (sem depender do
   /// mapa aberto no celular).
@@ -109,6 +111,16 @@ class CarService {
     ]).catchError((_) => null);
   }
 
+  /// Alertas da comunidade perto: (id, lat, lng, emoji, nome, é meu).
+  void hazards(List<(String, double, double, String, String, bool)> list) {
+    final sig = list.map((e) => '${e.$1},${e.$6}').join(';');
+    if (sig == _hazardsSig) return;
+    _hazardsSig = sig;
+    _ch.invokeMethod('hazards', [
+      for (final h in list) ...[h.$1, h.$2, h.$3, h.$4, h.$5, h.$6]
+    ]).catchError((_) => null);
+  }
+
   /// Some a navegação da tela do carro (rota, manobra, chegada) na hora.
   void clearNavigation() {
     _routeSig = '';
@@ -127,6 +139,10 @@ class CarService {
     if (a.startsWith('navigate:')) {
       SharedPlaceService.instance.fromVoice = true;
       SharedPlaceService.instance.pending.value = a.substring(9);
+      return;
+    }
+    if (a.startsWith('unhazard:')) {
+      toast(tr('Abra o mapa no celular para remover o alerta'));
       return;
     }
     final type = switch (a) {

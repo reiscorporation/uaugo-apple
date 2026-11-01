@@ -56,6 +56,27 @@ class CarMapView(private val context: Context) {
     private var poiSig = 0
     private val poiMarkers = mutableListOf<com.google.android.gms.maps.model.Marker>()
     private val poiIcons = HashMap<Int, com.google.android.gms.maps.model.BitmapDescriptor>()
+    private var hazardSig = 0
+    private val hazardMarkers = mutableListOf<Marker>()
+    private val hazardIcons = HashMap<String, com.google.android.gms.maps.model.BitmapDescriptor>()
+    private var poisShown = true
+
+    /** Alertas da comunidade, com o emoji do tipo (como no celular). */
+    private fun drawHazards(g: GoogleMap) {
+        val list = CarState.hazards
+        val sig = list.hashCode()
+        if (sig == hazardSig) return
+        hazardSig = sig
+        hazardMarkers.forEach { it.remove() }
+        hazardMarkers.clear()
+        for (h in list) {
+            val icon = hazardIcons.getOrPut(h.emoji) {
+                BitmapDescriptorFactory.fromBitmap(pinBitmap(h.emoji, Color.rgb(245, 166, 35)))
+            }
+            g.addMarker(MarkerOptions().position(LatLng(h.lat, h.lng)).anchor(0.5f, 0.5f)
+                .icon(icon).zIndex(4.5f))?.let { hazardMarkers.add(it) }
+        }
+    }
 
     /** Pins de radares e postos policiais (só redesenha quando mudam). */
     private fun drawPois(g: com.google.android.gms.maps.GoogleMap) {
@@ -77,19 +98,19 @@ class CarMapView(private val context: Context) {
                 BitmapDescriptorFactory.fromBitmap(pinBitmap(emoji, color))
             }
             g.addMarker(MarkerOptions().position(LatLng(p[0], p[1])).anchor(0.5f, 0.5f)
-                .icon(icon).zIndex(4f))?.let { poiMarkers.add(it) }
+                .icon(icon).zIndex(4f).visible(poisShown))?.let { poiMarkers.add(it) }
         }
     }
 
     private fun pinBitmap(emoji: String, ring: Int): Bitmap {
-        val px = 64
+        val px = 44
         val b = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
         val c = Canvas(b)
-        c.drawCircle(px / 2f, px / 2f, px / 2f - 3, Paint().apply { color = Color.WHITE; isAntiAlias = true })
-        c.drawCircle(px / 2f, px / 2f, px / 2f - 3, Paint().apply {
-            color = ring; style = Paint.Style.STROKE; strokeWidth = 5f; isAntiAlias = true
+        c.drawCircle(px / 2f, px / 2f, px / 2f - 2, Paint().apply { color = Color.WHITE; isAntiAlias = true })
+        c.drawCircle(px / 2f, px / 2f, px / 2f - 2, Paint().apply {
+            color = ring; style = Paint.Style.STROKE; strokeWidth = 4f; isAntiAlias = true
         })
-        c.drawText(emoji, px / 2f, px / 2f + 12f, Paint().apply { textSize = 34f; textAlign = Paint.Align.CENTER; isAntiAlias = true })
+        c.drawText(emoji, px / 2f, px / 2f + 8f, Paint().apply { textSize = 23f; textAlign = Paint.Align.CENTER; isAntiAlias = true })
         return b
     }
 
@@ -203,7 +224,12 @@ class CarMapView(private val context: Context) {
             DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY)
         display = vd
         val p = Presentation(context, vd.display)
-        val mv = MapView(p.context)
+        // Letra grande do celular não vale aqui: o mapa do carro é outra tela.
+        val cfg = android.content.res.Configuration(p.context.resources.configuration)
+        cfg.fontScale = 1f
+        val mv = MapView(android.view.ContextThemeWrapper(p.context, 0).apply {
+            applyOverrideConfiguration(cfg)
+        })
         mv.onCreate(null)
         val root = FrameLayout(p.context)
         root.addView(mv, FrameLayout.LayoutParams(-1, -1))
@@ -265,6 +291,9 @@ class CarMapView(private val context: Context) {
         routeLine = null
         poiMarkers.clear()
         poiSig = 0
+        hazardMarkers.clear()
+        hazardSig = 0
+        poisShown = true
         me = null
         overlay = null
         runCatching { view3d?.destroy() }
@@ -300,6 +329,7 @@ class CarMapView(private val context: Context) {
         overlay?.update()
         if (view3d != null) return // mapa pausado: a cena 3D cobre a tela
         drawPois(g)
+        drawHazards(g)
         if (!CarState.hasPosition) return
         val pos = LatLng(CarState.lat, CarState.lng)
         trimPassed(pts, pos)
@@ -327,6 +357,12 @@ class CarMapView(private val context: Context) {
             CarState.speedKmh >= 50 -> 14.2f
             else -> 15.0f
         } + CarState.zoomOffset + (if (nearTurn) 1.2f else 0f)).coerceIn(10f, 19f)
+        // Mapa bem afastado: os radares viram um amontoado que cobre as ruas.
+        val show = zoom >= 13f
+        if (show != poisShown) {
+            poisShown = show
+            poiMarkers.forEach { it.isVisible = show }
+        }
         // Anima no tempo entre as leituras: uma animação longa seria cancelada
         // pela leitura seguinte e o mapa ficaria para trás do veículo. Muito
         // atrasado (celular ocupado): pula direto para o lugar certo.

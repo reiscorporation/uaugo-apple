@@ -402,6 +402,13 @@ class AlertListScreen(ctx: CarContext) : Screen(ctx) {
             Triple("fog", "🌫️", if (en) "Fog" else "Neblina"),
         )
         val list = ItemList.Builder()
+        if (CarState.hazards.any { it.mine }) {
+            list.addItem(Row.Builder()
+                .setTitle(if (en) "🗑️  Remove my alert" else "🗑️  Remover meu alerta")
+                .setBrowsable(true)
+                .setOnClickListener { screenManager.push(RemoveAlertScreen(carContext)) }
+                .build())
+        }
         for ((code, emoji, label) in types) {
             list.addItem(Row.Builder()
                 .setTitle("$emoji  $label")
@@ -420,6 +427,43 @@ class AlertListScreen(ctx: CarContext) : Screen(ctx) {
         }
         return ListTemplate.Builder()
             .setTitle(if (en) "Report on the road" else "O que tem na pista?")
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
+    }
+}
+
+/** Alertas marcados pelo próprio piloto, do mais perto ao mais longe. */
+class RemoveAlertScreen(ctx: CarContext) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val en = CarState.en
+        val k = cos(Math.toRadians(CarState.lat))
+        fun meters(h: CarState.Hazard): Double {
+            val x = (h.lng - CarState.lng) * 111320.0 * k
+            val y = (h.lat - CarState.lat) * 110540.0
+            return Math.hypot(x, y)
+        }
+        val list = ItemList.Builder()
+        for (h in CarState.hazards.filter { it.mine }.sortedBy { meters(it) }.take(6)) {
+            val m = meters(h)
+            list.addItem(Row.Builder()
+                .setTitle("${h.emoji}  ${h.label}")
+                .addText(if (m < 1000) "${m.toInt()} m" else "${"%.1f".format(m / 1000)} km")
+                .setOnClickListener {
+                    val sink = CarState.actionSink
+                    if (sink == null) {
+                        CarToast.makeText(carContext,
+                            if (en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+                            CarToast.LENGTH_SHORT).show()
+                    } else {
+                        sink("unhazard:${h.id}")
+                    }
+                    screenManager.popToRoot()
+                }
+                .build())
+        }
+        return ListTemplate.Builder()
+            .setTitle(if (en) "Remove my alert" else "Remover meu alerta")
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()

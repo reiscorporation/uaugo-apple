@@ -775,7 +775,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _hazardSub?.cancel();
     _hazardSub = _hazardSvc
         .watchAround(p.latitude, p.longitude)
-        .listen((list) => setState(() => _hazards = list));
+        .listen((list) {
+      setState(() => _hazards = list);
+      _sendHazardsToCar();
+    });
   }
 
   /// Alertas da comunidade à frente: avisa (voz/tela) e mostra a faixa com
@@ -5435,6 +5438,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     ]);
   }
 
+  /// Alertas da comunidade na tela do carro: os mais perto, com os do piloto
+  /// marcados (ele pode remover lá).
+  void _sendHazardsToCar() {
+    if (!CarService.instance.connected.value) return;
+    final list = [..._activeHazards];
+    final p = _me;
+    if (p != null) {
+      double d(Hazard h) => Geolocator.distanceBetween(
+          p.latitude, p.longitude, h.lat, h.lng);
+      list.sort((a, b) => d(a).compareTo(d(b)));
+    }
+    CarService.instance.hazards([
+      for (final h in list.take(30))
+        (h.id, h.lat, h.lng, h.type.emoji, h.type.label, h.createdBy == widget.uid),
+    ]);
+  }
+
   /// Manda para a tela do carro a manobra, a chegada, o radar e a posição.
   void _sendToCar(Position p) {
     if (!CarService.instance.connected.value) return;
@@ -5476,6 +5496,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!CarService.instance.connected.value) return;
     if (_routeRecs.length >= 2) CarService.instance.route(_routeRecs);
     _sendPoisToCar();
+    _sendHazardsToCar();
     _sendMode3dToCar();
     _carBikeSig = ''; // reconectou: manda a imagem do veículo de novo
     _sendVehicleToCar();
@@ -5505,6 +5526,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       return;
     }
     switch (a) {
+      // Remover o próprio alerta pela tela do carro.
+      case final x when x.startsWith('unhazard:'):
+        final id = x.substring(9);
+        final h = _hazards.where((e) => e.id == id).firstOrNull;
+        if (h == null || h.createdBy != widget.uid) return;
+        _hazardSvc.dismiss(h, force: true);
+        setState(() {
+          if (_shownHazard?.id == id) _shownHazard = null;
+          _hazards = [for (final e in _hazards) if (e.id != id) e];
+        });
+        _sendHazardsToCar();
+        CarService.instance.toast(tr('Alerta removido'));
       // Alertas do carro: sem conta ou na simulação nada é enviado (avisa
       // em vez de dizer "enviado").
       case 'radar' || 'hazard' when _sim != null:
