@@ -3938,9 +3938,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
 
         // v2: estrada em 3D por cima do mapa (os avisos e botões ficam por cima).
-        // Com o carro conectado o 3D fica só no carro: os dois juntos não cabem
-        // na memória de um celular simples.
-        if (_show3d && _canShow3d && !CarService.instance.connected.value)
+        // Celular simples com o carro conectado: 3D só no carro (os dois
+        // juntos não cabem na memória).
+        if (_hud3d)
           Positioned.fill(
             child: Sim3DView(
               key: _kWeb3d,
@@ -5265,7 +5265,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// v2: o painel do 3D substitui o velocímetro e a faixa da próxima curva.
   bool get _hud3d =>
-      _show3d && _canShow3d && !CarService.instance.connected.value;
+      _show3d && _canShow3d &&
+      !(CarService.instance.connected.value && AppSettings.instance.lightMode);
 
   /// v2: liga/desliga a visão 3D. Voltando ao mapa, ele já vem acompanhando.
   void _set3d(bool on) {
@@ -5285,6 +5286,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   bool _off3d = false;
   int _off3dCount = 0;
+
+  /// A barra da simulação pulou de lugar (para frente ou para trás): recomeça
+  /// a posição na rota, as manobras e o estado de "fora da rota".
+  void _afterSimJump() {
+    _proj = null;
+    _riderAlong = null;
+    _navSynced = false;
+    _offRoute = false;
+    _offRouteCount = 0;
+    _off3d = false;
+    _off3dCount = 0;
+    _roads3dAt = null;
+    _exit3dPoint = null;
+    _exit3dAlong = null;
+  }
 
   /// v2: a cena 3D solta da rota e segue o GPS? Só com 3 leituras seguidas,
   /// longe da rota (conforme a precisão do GPS) e indo para outra direção
@@ -6294,7 +6310,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             valueListenable: sim.progress,
             builder: (_, v, __) => Slider(
               value: v.clamp(0.0, 1.0),
-              onChanged: (x) => sim.seek(x),
+              onChanged: (x) {
+                sim.seek(x);
+                _afterSimJump();
+              },
               onChangeEnd: (_) {
                 // Pulou no tempo: recomeça narração e avisos do ponto novo.
                 _navSynced = false;

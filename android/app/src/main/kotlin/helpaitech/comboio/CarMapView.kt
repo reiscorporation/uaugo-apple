@@ -102,8 +102,13 @@ class CarMapView(private val context: Context) {
         val k = Math.cos(Math.toRadians(pos.latitude))
         var best = -1
         var bestD = Double.MAX_VALUE
-        val end = minOf(pts.size - 1, trimIdx + 300)
-        for (i in trimIdx until end) {
+        // Longe do ponto guardado (a simulação voltou ou pulou): procura na
+        // rota inteira, para redesenhar o trecho certo.
+        val p0 = pts[minOf(trimIdx, pts.size - 1)]
+        val far = Math.abs(p0[0] - pos.latitude) + Math.abs(p0[1] - pos.longitude) > 0.05
+        val start = if (far) 0 else trimIdx
+        val end = if (far) pts.size - 1 else minOf(pts.size - 1, trimIdx + 300)
+        for (i in start until end) {
             // Trecho i -> i+1 em metros, com o piloto na origem.
             val ax = (pts[i][1] - pos.longitude) * 111320.0 * k
             val ay = (pts[i][0] - pos.latitude) * 111320.0
@@ -119,7 +124,11 @@ class CarMapView(private val context: Context) {
             if (d < bestD) { bestD = d; best = i }
         }
         // Só apaga com o piloto na rota (até 60 m do trecho).
-        if (best < 0 || bestD > 60.0 * 60.0) return
+        if (best < 0 || bestD > 60.0 * 60.0) {
+            // Não achou à frente: pode ter voltado alguns km.
+            if (trimIdx > 0 && !far) trimIdx = 0
+            return
+        }
         trimIdx = best
         line.points = listOf(pos) + pts.subList(best + 1, pts.size).map { LatLng(it[0], it[1]) }
     }
