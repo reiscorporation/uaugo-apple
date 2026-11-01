@@ -22,6 +22,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../logic/gps_speed.dart';
 import '../logic/voice_commands.dart';
 import '../logic/group_requests.dart';
 import '../logic/find_places.dart';
@@ -2987,7 +2988,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final prev = _prevPos;
     _prevPos = p;
     double raw;
-    if (p.speed > 0.5) {
+    if (gpsSpeedIsNoise(
+        speed: p.speed, speedAccuracy: p.speedAccuracy, accuracy: p.accuracy)) {
+      raw = 0;
+    } else if (p.speed > 0.5) {
       raw = p.speed;
     } else if (p.speedAccuracy > 0 || prev == null) {
       // O aparelho mede a velocidade e diz que está parado: vale zero.
