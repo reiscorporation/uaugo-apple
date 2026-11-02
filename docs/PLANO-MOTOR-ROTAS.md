@@ -37,7 +37,7 @@ Decisão do Ricardo (24/10/2026): criar o motor próprio, com cuidado para traç
 ## Calibragem dos desvios (02/11/2026) — `E:/UauGo-motor/calibrar.py`
 - 37 viagens contra o Google. `use_tolls` e pedágio não mudam nada; a causa é o peso do tempo. `use_distance` 0,25: moto de 9 para 2 desvios acima de 5%, carro de 9 para 3; caminho igual 72% para 76% (moto), 74% para 77% (carro).
 - Terra e ruas menores não aumentam (`terra.py`, 9.700 km: 1,9 km de terra; ruas menores 35 para 38 km).
-- Sobram RP→São Carlos (+10 km) e, no carro, Guarulhos→Pinheiros (+9 km); cidades ainda têm caminhos diferentes do Google. Tempo: fator fixo 0,82 no app; o certo é calibrar `default_speeds.json` e remontar o mapa.
+- Sobram RP→São Carlos (+10 km), RP→Uberaba (+10 km) e, no carro, Guarulhos→Pinheiros (+9 km); cidades ainda têm caminhos diferentes do Google. Tempo: fator fixo 0,82 no app; o certo é calibrar `default_speeds.json` e remontar o mapa.
 
 ## Teste no Galaxy + comparação ampla (28/10/2026) — `E:/UauGo-motor/comparacao-2026-10-28.md`
 - Galaxy (versão de teste, Wi-Fi de casa) traçou rotas pelo motor. Limite de distância removido
