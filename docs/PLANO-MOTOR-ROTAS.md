@@ -31,7 +31,8 @@ Decisão do Ricardo (24/10/2026): criar o motor próprio, com cuidado para traç
 ## Motor na próxima versão (decisão 02/11/2026)
 - O motor traça as rotas e o Google fica com o trânsito: `routeTraffic` a cada 5 min dá cores, tempo real e atraso. Com atraso grande, viagem sozinho pede uma rota ao Google (no máximo a cada 15 min).
 - Ainda pelo Google: evitar pedágio, áreas de risco e queda do motor.
-- Medição no PC limitado a 2 CPUs (mistura de cidade, estrada e longas, 30% com alternativas): 38 rotas/s com 2 simultâneas, mediana 42 ms, p95 109 ms; com 8 simultâneas, 30 rotas/s e p95 494 ms. Memória 462 MiB depois do teste. Falta repetir na VPS.
+- Medição no PC limitado a 2 CPUs (mistura de cidade, estrada e longas, 30% com alternativas): 38 rotas/s com 2 simultâneas, mediana 42 ms, p95 109 ms; com 8 simultâneas, 30 rotas/s e p95 494 ms. Memória 462 MiB depois do teste.
+- Medição na VPS (2 vCPU, motor limitado a 1,5 CPU e 2,5 GB, 02/11): 20 a 23 rotas/s; mediana 78 ms com 2 simultâneas e 330 ms com 8 (p95 551 ms), sem erros; 549 MiB de memória; SP→Salvador 164 ms. Teste de 30 s por nível, ainda sem carga longa.
 
 ## Teste no Galaxy + comparação ampla (28/10/2026) — `E:/UauGo-motor/comparacao-2026-10-28.md`
 - Galaxy (versão de teste, Wi-Fi de casa) traçou rotas pelo motor. Limite de distância removido
