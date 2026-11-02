@@ -104,6 +104,7 @@ class MapScreen extends StatefulWidget {
     required this.userName,
     this.trip,
     this.simulate = false,
+    this.simStart,
     this.startNavigation = false,
   });
 
@@ -112,6 +113,9 @@ class MapScreen extends StatefulWidget {
   final String userName;
   final Trip? trip;
   final bool simulate;
+
+  /// Simulação retomada depois de o Android fechar o app: ponto (0 a 1).
+  final double? simStart;
 
   /// Expedição aberta pelo "Iniciar" do roteiro: liga a navegação assim
   /// que a rota do grupo chegar.
@@ -241,8 +245,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
   }
 
+  bool _simSaved = false;
+
+  void _clearSimSaved() {
+    if (_simSaved) ActiveTrip.clear();
+    _simSaved = false;
+  }
+
   /// Saiu da tela: para relógios e escutas do Firestore (e guarda a viagem).
   void _pauseWork() {
+    // Sem serviço em segundo plano, o Android pode fechar o app na simulação.
+    final sim = _sim, trip = _trip;
+    if (sim != null && trip != null && MinimizedTrip.trip.value == null) {
+      _simSaved = true;
+      ActiveTrip.save(trip, simAt: sim.progress.value);
+    }
     MediaService.instance.stop();
     _ticker?.cancel();
     _onlineTimer?.cancel();
@@ -263,6 +280,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Voltou à tela: religa relógios e escutas.
   void _resumeWork() {
+    _clearSimSaved();
     if (AppSettings.instance.mediaControls.value) MediaService.instance.start();
     _listenExpedition();
     _startTimers();
@@ -472,6 +490,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // Começa parada no ponto de saída: o piloto toca em "Iniciar simulação".
       sim.paused.value = true;
       sim.start();
+      if (widget.simStart != null) {
+        sim.seek(widget.simStart!);
+        _simStarted = true;
+        sim.paused.value = false;
+      }
       // Voz acompanha a velocidade da simulação (fala mais rápido e não
       // acumula frases atrasadas).
       _voice.setFastMode(sim.multiplier.value);
@@ -621,6 +644,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void dispose() {
     // Saiu do mapa por vontade própria; o Android fechar o app não passa aqui.
     if (!_isExpedition && _sim == null) ActiveTrip.clear();
+    _clearSimSaved();
     _onlineTimer?.cancel();
     _routeTrafficTimer?.cancel();
     CarService.instance.connected.removeListener(_onCarConnected);

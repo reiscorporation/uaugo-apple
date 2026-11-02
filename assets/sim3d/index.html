@@ -202,7 +202,7 @@ const STEP = 2;      // amostra a cada 2 m (rotas longas cabem na memória)
 const LANE = 1.75;   // mão direita: o carro anda 1,75 m à direita do eixo
 let C = [], P = [], CUM = [0], TOTAL = 0;
 let RAW_CUM = [], RAW_S = []; // distância no traçado original -> no caminho suavizado
-let MAN = [], DEST = '', OFF = []; // OFF: lado do eixo em que o carro anda, ponto a ponto
+let MAN = [], CURVES = [], DEST = '', OFF = []; // OFF: lado do eixo em que o carro anda, ponto a ponto
 const GC = 40; let GRID = new Map(); // grade de 40 m do caminho (achar alertas na rota)
 
 function idxAt(s) {
@@ -292,6 +292,7 @@ function setRouteData(d) {
   for (let i = 1; i < P.length; i++) CUM.push(CUM[i - 1] + len(P[i - 1][0], P[i - 1][1], P[i][0], P[i][1]));
   TOTAL = CUM[CUM.length - 1];
   MAN = man.map(m => ({ ...m, s: CUM[m.i] }));
+  CURVES = findCurves();
   // cada vértice original -> s (busca sempre para frente: rotas com retorno)
   RAW_CUM = [0]; RAW_S = [];
   for (let k = 1; k < raw.length; k++) RAW_CUM.push(RAW_CUM[k - 1] + len(raw[k - 1][0], raw[k - 1][1], raw[k][0], raw[k][1]));
@@ -961,11 +962,67 @@ const chevGeo = new THREE.ExtrudeGeometry(
   new THREE.Shape([[-0.55, 1], [0.05, 1], [0.75, 0], [0.05, -1], [-0.55, -1], [0.15, 0]].map(([x, y]) => new THREE.Vector2(x, y))),
   { depth: 0.14, bevelEnabled: false }).translate(0, 0, -0.07);
 const chevMat = () => new THREE.MeshBasicMaterial({ color: 0x3fc6ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, fog: false });
-let markers = [], destObjs = [];
+let markers = [], destObjs = [], curveMarks = [];
 function clearMarkers() {
   for (const mk of markers) scene.remove(mk.g);
   for (const o of destObjs) scene.remove(o);
-  markers = []; destObjs = [];
+  for (const mk of curveMarks) scene.remove(mk.g);
+  markers = []; destObjs = []; curveMarks = [];
+}
+// curvas do traçado (com ou sem manobra), rotatórias e saídas: [{s0, s1, side}]
+function findCurves() {
+  const W = 15, MIN_BEND = 5, MIN_TURN = 15; // 30 m, graus em 30 m, graus no total
+  const head = (i, j) => Math.atan2(P[j][0] - P[i][0], P[j][1] - P[i][1]) * 180 / Math.PI;
+  const out = [];
+  let cur = null;
+  for (let i = W; i + W < P.length; i++) {
+    const d = ((head(i, i + W) - head(i - W, i) + 540) % 360) - 180;
+    const side = Math.abs(d) >= MIN_BEND ? Math.sign(d) : 0;
+    if (cur && (i - cur.b > 10 || (side && side !== cur.side))) {
+      if (Math.abs(cur.turn) >= MIN_TURN) out.push(cur);
+      cur = null;
+    }
+    if (side) {
+      cur = cur || { a: i, b: i, side, turn: 0 };
+      cur.b = i;
+    }
+    if (cur) cur.turn += d / W;
+  }
+  if (cur && Math.abs(cur.turn) >= MIN_TURN) out.push(cur);
+  const list = out.map(c => ({ s0: Math.max(0, CUM[c.a] - 30), s1: CUM[c.b] + 30, side: c.side }));
+  // manobra em ângulo pequeno, que não chega a dar curva no traçado
+  for (const m of MAN) {
+    if (!m.side || list.some(c => c.side === m.side && m.s >= c.s0 && m.s <= c.s1)) continue;
+    list.push({ s0: m.exit ? m.s : Math.max(0, m.s - 30), s1: m.s + 60, side: m.side });
+  }
+  return list.sort((a, b) => a.s0 - b.s0);
+}
+// sequência de setas por fora da curva, cada uma na direção da via naquele ponto
+function curveGroup(c) {
+  const g = new THREE.Group(), gap = Math.max(12, (c.s1 - c.s0) / 40);
+  for (let sk = c.s0, k = 0; sk <= Math.min(c.s1, TOTAL); sk += gap, k++) {
+    const p = posAt(sk), off = -c.side * 3.4, m = new THREE.Mesh(chevGeo, chevMat());
+    m.scale.set(c.side * 0.9, 0.9, 0.9); m.rotation.y = yawOf(p);
+    m.position.copy(toV(p.x + p.dy * off, 1.5, p.y - p.dx * off));
+    m.userData.k = k; m.userData.s = sk; g.add(m);
+  }
+  scene.add(g);
+  return g;
+}
+function updateCurves(s, time) {
+  for (const c of CURVES) {
+    const want = c.s0 - s < 260 && c.s1 - s > -5;
+    let mk = curveMarks.find(x => x.c === c);
+    if (want && !mk) { mk = { c, g: curveGroup(c) }; curveMarks.push(mk); }
+    if (!want && mk) { scene.remove(mk.g); curveMarks = curveMarks.filter(x => x !== mk); continue; }
+    if (!mk) continue;
+    mk.g.children.forEach(m => {
+      const k = m.userData.k;
+      m.visible = m.userData.s - s > 2;
+      m.material.opacity = 0.5 + 0.45 * Math.max(0, Math.sin(time * 5 - k * 0.7));
+      m.position.y = 1.5 + Math.sin(time * 2 + k) * 0.12;
+    });
+  }
 }
 // placa verde no alto (pórtico): à esquerda "segue" (apagada), do lado da
 // saída "SAÍDA + rua + distância" com a seta em azul destacada
@@ -1388,6 +1445,7 @@ function frame(now) {
     updateCarpet(s + 1.5);
     carpetMat.uniforms.dim.value += (0.35 - carpetMat.uniforms.dim.value) * Math.min(1, dt * 3);
     updateMarkers(s, time);
+    updateCurves(s, time);
     updateAlerts(s, time);
   } else if (hasRoute) {
     if (trailGroup) clearTrail();
@@ -1410,6 +1468,7 @@ function frame(now) {
     updateCarpet(s + 1.5);
     carpetMat.uniforms.dim.value += ((offRoute ? 0.25 : 1) - carpetMat.uniforms.dim.value) * Math.min(1, dt * 3);
     updateMarkers(s, time);
+    updateCurves(s, time);
     updateAlerts(s, time);
   }
   renderer.render(scene, camera);

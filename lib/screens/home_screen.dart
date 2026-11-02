@@ -691,8 +691,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final uid = await _prepareAlone();
     if (uid == null || !mounted) return;
     MinimizedTrip.trip.value = null;
+    final simAt = ActiveTrip.simAt;
+    ActiveTrip.simAt = null;
     await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => MapScreen(uid: uid, userName: _riderName, trip: t)));
+        builder: (_) => MapScreen(
+            uid: uid,
+            userName: _riderName,
+            trip: t,
+            simulate: simAt != null,
+            simStart: simAt)));
   }
 
   /// Há rota minimizada: pergunta antes de abrir o mapa. true = retomou.

@@ -34,10 +34,14 @@ class ActiveTrip {
   /// Mais velha que isso não é a mesma viagem: não retoma.
   static const maxAge = Duration(hours: 6);
 
-  static Future<void> save(Trip t) async {
+  /// Na última [load]: era uma simulação, neste ponto (0 a 1) da rota.
+  static double? simAt;
+
+  static Future<void> save(Trip t, {double? simAt}) async {
     try {
       (await SharedPreferences.getInstance()).setString(_key, jsonEncode({
         'at': DateTime.now().millisecondsSinceEpoch,
+        if (simAt != null) 'simAt': simAt,
         'title': t.title,
         'plan': t.plan.toMap(),
         'typicalS': t.typicalS,
@@ -74,6 +78,7 @@ class ActiveTrip {
         await clear();
         return null;
       }
+      simAt = (j['simAt'] as num?)?.toDouble();
       return Trip(
         title: j['title'] as String,
         plan: TripPlan.fromMap(j['plan'] as Map<String, dynamic>),
