@@ -75,6 +75,44 @@ void main() {
       expect(t.update(const RoadLimit(80, false), t0)?.kmh, 80);
     });
 
+    test('saída ao lado da pista não derruba o limite da rodovia', () {
+      final t = LimitTracker();
+      final t0 = DateTime(2026, 11, 2, 10);
+      t.update(const RoadLimit(110, false), t0, kmh: 105);
+      // Estimado de 40 (balança, atendimento) a 105 km/h: nunca vale.
+      for (var s = 1; s < 120; s++) {
+        final now = t0.add(Duration(seconds: s));
+        expect(t.update(const RoadLimit(40, true), now, kmh: 105)?.kmh, 110);
+      }
+      // Reduziu de verdade (entrou na saída): agora vale.
+      final later = t0.add(const Duration(seconds: 130));
+      t.update(const RoadLimit(40, true), later, kmh: 50);
+      t.update(const RoadLimit(40, true), later, kmh: 50);
+      expect(t.update(const RoadLimit(40, true), later, kmh: 50)?.kmh, 40);
+    });
+
+    test('placa de verdade vale depois de 45 s, mesmo sem reduzir', () {
+      final t = LimitTracker();
+      final t0 = DateTime(2026, 11, 2, 10);
+      t.update(const RoadLimit(110, false), t0, kmh: 105);
+      const p = RoadLimit(60, false);
+      expect(t.update(p, t0, kmh: 105)?.kmh, 110);
+      final late = t0.add(const Duration(seconds: 46));
+      t.update(p, late, kmh: 105);
+      t.update(p, late, kmh: 105);
+      expect(t.update(p, late, kmh: 105)?.kmh, 60);
+    });
+
+    test('perfil: pista paralela de 800 m com 40 some; 2 km com 60 fica', () {
+      const a = RoadLimit(110, false), b = RoadLimit(40, false), c = RoadLimit(60, false);
+      final side = RouteLimitProfile(0, 50, [
+        ...List.filled(20, a), ...List.filled(16, b), ...List.filled(20, a)]);
+      expect(side.at(1200)?.kmh, 110);
+      final real = RouteLimitProfile(0, 50, [
+        ...List.filled(20, a), ...List.filled(40, c), ...List.filled(20, a)]);
+      expect(real.at(2000)?.kmh, 60);
+    });
+
     test('mantém o último limite por um trecho curto sem dados', () {
       final t = LimitTracker();
       final t0 = DateTime(2026, 10, 3, 10);

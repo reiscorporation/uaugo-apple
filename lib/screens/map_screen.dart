@@ -11,6 +11,7 @@
 // ============================================================================
 
 import 'dart:async';
+import 'dart:io' show InternetAddress;
 import 'dart:math';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -241,6 +242,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _pauseWork() {
     MediaService.instance.stop();
     _ticker?.cancel();
+    _onlineTimer?.cancel();
     _rainTimer?.cancel();
     _trafficTimer?.cancel();
     _autosave?.cancel();
@@ -436,6 +438,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     } else {
       _trip = widget.trip;
       if (_trip != null) _onStops(_trip!.stops);
+      if (_trip != null && !widget.simulate) ActiveTrip.save(_trip!);
       // Navegando sozinho, a câmera começa em primeira pessoa e a navegação
       // já está ativa (o piloto tocou em "Iniciar" na prévia).
       _view = _MapView.solo;
@@ -612,6 +615,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    // Saiu do mapa por vontade própria; o Android fechar o app não passa aqui.
+    if (!_isExpedition && _sim == null) ActiveTrip.clear();
+    _onlineTimer?.cancel();
     CarService.instance.connected.removeListener(_onCarConnected);
     _blinkTimer?.cancel();
     MediaService.instance.stop();
@@ -679,6 +685,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Relógios da tela: textos "há X min", chuva e trânsito (só com o app
   /// na tela; param em _pauseWork).
   void _startTimers() {
+    _onlineTimer?.cancel();
+    _onlineTimer =
+        Timer.periodic(const Duration(seconds: 30), (_) => _checkOnline());
+    _checkOnline();
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
@@ -2105,6 +2115,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Troca a rota em uso (recálculo ou rota mais rápida).
   void _applyTrip(Trip nt) {
     _trip = nt;
+    ActiveTrip.save(nt);
     _etaSpeed = null;
     _stopArrived.clear();
     _stopNearAnnounced.clear();
@@ -3159,7 +3170,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _speedSvc.lookup(p.latitude, p.longitude, _bearing, _speedMs,
             routeOffset:
                 onRoute ? (la, lo) => w.offsetNear(la, lo, pr.along) : null);
-    _roadLimit = _limitTracker.update(found, DateTime.now());
+    _roadLimit = _limitTracker.update(found, DateTime.now(), kmh: kmh);
     final speech = _speedAlerter.update(
         kmh, _roadLimit, _speedSvc.settings.value, DateTime.now());
     if (speech != null) _voice.alert(speech);
@@ -5263,7 +5274,36 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// v2: a visão 3D cabe aqui? (sozinho, primeira pessoa, com rota)
   bool get _canShow3d =>
       !_isExpedition && _view == _MapView.solo && _routeRecs.length >= 2 &&
-      (_navigating || _sim != null);
+      (_navigating || _sim != null) && _online3d;
+
+  /// O 3D só funciona com internet. Duas falhas seguidas (30 s) para um
+  /// túnel curto não ficar trocando de tela.
+  bool _online3d = true;
+  int _offlineChecks = 0;
+  Timer? _onlineTimer;
+
+  Future<void> _checkOnline() async {
+    var ok = false;
+    try {
+      final r = await InternetAddress.lookup('firebasestorage.googleapis.com')
+          .timeout(const Duration(seconds: 4));
+      ok = r.isNotEmpty;
+    } catch (_) {}
+    if (!mounted) return;
+    _offlineChecks = ok ? 0 : _offlineChecks + 1;
+    final on = ok || _offlineChecks < 2;
+    if (on == _online3d) return;
+    final showing = _show3d;
+    setState(() => _online3d = on);
+    _sendMode3dToCar();
+    if (on) {
+      _sim3dSig = ''; // página nova: manda a rota de novo
+      WidgetsBinding.instance.addPostFrameCallback((_) => _feed3d());
+    } else if (showing) {
+      _showTrafficBanner(tr('📵 Sem internet: voltei para o mapa. O 3D volta com a conexão.'));
+      if (_me case final p?) _updateCamera(p, force: true);
+    }
+  }
 
   /// v2: escolha da visão (3D sempre / mapa / mapa + 3D nas saídas).
   Future<void> _chooseMode3d() async {
@@ -5273,7 +5313,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Deitado a tela é baixa: a lista precisa rolar.
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            ListTile(title: Text(tr('Visão da navegação'), style: Theme.of(ctx).textTheme.titleMedium)),
+            ListTile(
+              title: Text(tr('Visão da navegação'), style: Theme.of(ctx).textTheme.titleMedium),
+              subtitle: Text(tr('O 3D só funciona com internet.')),
+            ),
             for (final x in _Mode3d.values)
               ListTile(
                 leading: Icon(x.icon),
@@ -5290,6 +5333,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   void _sendMode3dToCar() => CarService.instance.mode3d(switch (_mode3d) {
+        _ when !_online3d => 0,
         _Mode3d.map => 0,
         _Mode3d.exits => 1,
         _Mode3d.always => 2,
@@ -5968,6 +6012,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _onArrivedDestination(Stop s) async {
     if (_arrivedAtDestination) return;
     _arrivedAtDestination = true;
+    ActiveTrip.clear();
     setState(() {
       _navigating = false;
       _applyWakelock();

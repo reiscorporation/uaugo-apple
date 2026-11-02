@@ -499,6 +499,11 @@ class SettingsScreen extends StatelessWidget {
               },
             ),
           ),
+          ListTile(
+            leading: const Icon(Icons.view_in_ar),
+            title: Text(tr('Visão 3D')),
+            subtitle: Text(tr('Só funciona com internet. Sem conexão, o app usa o mapa normal e o 3D volta sozinho.')),
+          ),
           ValueListenableBuilder<bool>(
             valueListenable: s.showTraffic,
             builder: (_, on, __) => SwitchListTile(

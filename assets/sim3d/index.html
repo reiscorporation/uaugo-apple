@@ -559,7 +559,9 @@ function computeLanes() {
         // lateral do ponto da rota em relação ao eixo da via (+ = à direita de quem anda)
         const lat = sgn * (px * s.dy - py * s.dx);
         const hw = roadHW(s.r);
-        if (Math.abs(lat) > hw + 2 || Math.abs(lat) >= bd) continue;
+        // O traçado da rota e o do mapa aberto diferem alguns metros: com
+        // folga pequena, o trecho ficava fora da via desenhada ao lado.
+        if (Math.abs(lat) > hw + 8 || Math.abs(lat) >= bd) continue;
         best = s; bd = Math.abs(lat); bside = lat;
       }
     }

@@ -77,7 +77,16 @@ class _HomeScreenState extends State<HomeScreen> {
     PlannedTripsService.instance.load();
     SharedPlaceService.instance.pending.addListener(_onShared);
     CarService.instance.connected.addListener(_onCar);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _busy = true;
+      final t = await ActiveTrip.load();
+      _busy = false;
+      if (!mounted) return;
+      if (t != null) {
+        MinimizedTrip.trip.value = t;
+        await _resumeTrip();
+        return;
+      }
       _onShared();
       _onCar();
     });
