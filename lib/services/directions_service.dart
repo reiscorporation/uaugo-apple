@@ -19,6 +19,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../logic/geo.dart';
 import '../logic/navigation.dart';
 import '../logic/radars.dart' show nearestOnLine;
+import '../logic/route_traffic.dart';
 import 'app_settings.dart';
 import 'hazard_service.dart';
 import 'route_engine_service.dart';
@@ -77,6 +78,41 @@ class DirectionsService {
   static const _maxWaypoints = 23;
 
   static bool get available => true;
+
+  /// Trânsito pelo caminho [points] (saída, pontos da rota, chegada): o
+  /// traçado do Google e os trechos dele. null = sem o dado (a rota fica azul).
+  static Future<(List<(double, double)>, List<TrafficInterval>)?> routeTraffic(
+      List<LatLng> points) async {
+    try {
+      final prefs = AppSettings.instance.route.value;
+      final res = await _fn.httpsCallable('routeTraffic').call({
+        'origin': _fmt(points.first),
+        'destination': _fmt(points.last),
+        'via': [for (final p in points.sublist(1, points.length - 1)) _fmt(p)],
+        'avoid': [
+          if (prefs.avoidTolls) 'tolls',
+          if (prefs.avoidHighways) 'highways',
+          if (prefs.avoidFerries) 'ferries',
+        ],
+      });
+      final j = jsonDecode(jsonEncode(res.data)) as Map<String, dynamic>;
+      final poly = j['polyline'] as String?;
+      if (poly == null) return null;
+      return (
+        [for (final q in decodePolyline(poly)) (q.latitude, q.longitude)],
+        [
+          for (final t in (j['intervals'] as List).cast<Map<String, dynamic>>())
+            (
+              start: (t['start'] as num).toInt(),
+              end: (t['end'] as num).toInt(),
+              level: trafficLevel(t['speed'] as String?),
+            ),
+        ],
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Só o traçado (cai para linhas retas entre os pontos se falhar).
   static Future<List<LatLng>> route(List<LatLng> points) async {

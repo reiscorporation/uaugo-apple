@@ -38,6 +38,8 @@ const en3 = <String, String>{
   'Alerta removido': 'Alert removed',
   'Traçar rota até {0}?': 'Route to {0}?',
   '🧭 Indo até {0}': '🧭 Going to {0}',
+  'Mostrar trânsito na rota': 'Show traffic on the route',
+  'A linha da rota fica verde, amarela ou vermelha conforme o trânsito agora. As outras vias não mudam de cor.': 'The route line turns green, yellow or red with current traffic. Other roads keep their color.',
   '📵 Sem internet: voltei para o mapa. O 3D volta com a conexão.': '📵 No internet: back to the map. 3D returns with the connection.',
   'O 3D só funciona com internet.': '3D only works with internet.',
   'Visão 3D': '3D view',

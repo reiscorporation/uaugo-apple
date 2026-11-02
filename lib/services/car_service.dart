@@ -241,6 +241,18 @@ class CarService {
     _ch.invokeMethod('route', flat).catchError((_) => null);
   }
 
+  /// Trechos da rota com trânsito: [nível, nº de pontos, lat, lng, ...].
+  void traffic(List<(int, List<(double, double)>)> runs) {
+    final flat = <double>[
+      for (final (level, pts) in runs) ...[
+        level.toDouble(),
+        pts.length.toDouble(),
+        for (final p in pts) ...[p.$1, p.$2],
+      ],
+    ];
+    _ch.invokeMethod('traffic', flat).catchError((_) => null);
+  }
+
   void clear() {
     _routeSig = '';
     _ch.invokeMethod('clear').catchError((_) => null);

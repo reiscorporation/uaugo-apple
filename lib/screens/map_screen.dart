@@ -24,6 +24,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../logic/gps_speed.dart';
+import '../logic/route_traffic.dart';
 import '../logic/voice_commands.dart';
 import '../logic/group_requests.dart';
 import '../logic/find_places.dart';
@@ -86,6 +87,7 @@ import '../l10n/i18n.dart';
 import '../widgets/toll_confirm_sheet.dart';
 import '../services/media_service.dart';
 import '../widgets/sim3d_view.dart';
+import '../services/directions_service.dart';
 import '../services/minimized_trip.dart';
 import '../services/vias_service.dart';
 
@@ -243,6 +245,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     MediaService.instance.stop();
     _ticker?.cancel();
     _onlineTimer?.cancel();
+    _routeTrafficTimer?.cancel();
     _rainTimer?.cancel();
     _trafficTimer?.cancel();
     _autosave?.cancel();
@@ -618,6 +621,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Saiu do mapa por vontade própria; o Android fechar o app não passa aqui.
     if (!_isExpedition && _sim == null) ActiveTrip.clear();
     _onlineTimer?.cancel();
+    _routeTrafficTimer?.cancel();
     CarService.instance.connected.removeListener(_onCarConnected);
     _blinkTimer?.cancel();
     MediaService.instance.stop();
@@ -689,6 +693,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _onlineTimer =
         Timer.periodic(const Duration(seconds: 30), (_) => _checkOnline());
     _checkOnline();
+    _routeTrafficTimer?.cancel();
+    _routeTrafficTimer =
+        Timer.periodic(const Duration(minutes: 5), (_) => _refreshRouteTraffic());
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
@@ -2226,6 +2233,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _calcRouteCost(_routeRecs, t.distanceM);
     }
     _walker = _routeRecs.length >= 2 ? RouteWalker(_routeRecs) : null;
+    // Rota nova: o trânsito da antiga não vale mais.
+    _setTrafficRuns(const []);
+    _trafficAt = DateTime.fromMillisecondsSinceEpoch(0);
+    Future.delayed(const Duration(seconds: 3), _refreshRouteTraffic);
     // Rota nova: as manobras são reposicionadas nela na próxima leitura.
     _nav?.detachRoute();
     if (widget.startNavigation && !_autoStarted && _isExpedition &&
@@ -3814,6 +3825,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return {
       ..._prfPolylines,
       if (_route.length >= 2) ..._routePolylines(),
+      if (_route.length >= 2) ..._trafficPolylines(),
     };
   }
 
@@ -3842,6 +3854,80 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   List<LatLng>? _trimmedRoute;
   List<LatLng>? _trimBase;
   int _trimStep = -1;
+
+  List<TrafficRun> _trafficRuns = const [];
+  List<Polyline> _trafficLines = const [];
+  Object? _trafficLinesFor;
+  int _trafficLinesStep = -1;
+  DateTime _trafficAt = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _trafficBusy = false;
+
+  static const _trafficColors = [Color(0xFF2EA043), Color(0xFFF9A825), Color(0xFFD32F2F)];
+
+  /// Trechos que faltam da rota, com a posição atual já descontada.
+  List<(int, List<(double, double)>)> _trafficAhead() {
+    final w = _walker;
+    if (w == null) return const [];
+    final along = _proj?.along ?? 0;
+    return [
+      for (final r in _trafficRuns)
+        if (r.to > along) (r.level, w.pointsBetween(max(r.from, along), r.to)),
+    ];
+  }
+
+  /// Verde, amarelo e vermelho só em cima da rota (refeito a cada ~100 m).
+  List<Polyline> _trafficPolylines() {
+    if (_trafficRuns.isEmpty) return const [];
+    final step = ((_proj?.along ?? 0) / 100).floor();
+    if (identical(_trafficLinesFor, _trafficRuns) && step == _trafficLinesStep) {
+      return _trafficLines;
+    }
+    _trafficLinesFor = _trafficRuns;
+    _trafficLinesStep = step;
+    var i = 0;
+    return _trafficLines = [
+      for (final (level, pts) in _trafficAhead())
+        Polyline(
+          polylineId: PolylineId('traffic_${i++}'),
+          points: [for (final (la, lo) in pts) LatLng(la, lo)],
+          width: 6,
+          color: _trafficColors[level],
+          zIndex: 3,
+        ),
+    ];
+  }
+
+  void _setTrafficRuns(List<TrafficRun> runs) {
+    if (!mounted) return;
+    setState(() => _trafficRuns = runs);
+    CarService.instance.traffic(_trafficAhead());
+  }
+
+  /// Consulta o trânsito dos próximos 100 km da rota (a cada 5 min, ou ao
+  /// trocar de rota). Sem resposta, a rota fica azul.
+  Future<void> _refreshRouteTraffic() async {
+    final w = _walker, p = _me;
+    if (!AppSettings.instance.showTraffic.value || _saving || _sim != null ||
+        !_navigating || !_online3d || _trafficBusy || w == null || p == null) {
+      return;
+    }
+    if (DateTime.now().difference(_trafficAt) < const Duration(seconds: 60)) return;
+    _trafficAt = DateTime.now();
+    _trafficBusy = true;
+    final from = _proj?.along ?? 0;
+    final to = min(w.length, from + 100000);
+    final pts = <LatLng>[
+      LatLng(p.latitude, p.longitude),
+      for (var i = 1; i <= 9; i++)
+        if (w.at(from + (to - from) * i / 10) case final q) LatLng(q.lat, q.lng),
+      if (w.at(to) case final q) LatLng(q.lat, q.lng),
+    ];
+    final got = await DirectionsService.routeTraffic(pts);
+    _trafficBusy = false;
+    if (!mounted || !identical(w, _walker)) return;
+    if (got == null) return;
+    _setTrafficRuns(trafficOnRoute(w, got.$1, got.$2, start: from));
+  }
 
   /// Rota azul com borda escura (refeita só quando muda).
   List<Polyline> _routePolylines() {
@@ -4080,9 +4166,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           // Na economia de bateria, sem trânsito e sem prédios 3D (menos
           // trabalho para o processador gráfico).
           // Modo leve (celulares mais simples): sem trânsito e sem prédios 3D.
-          // Trânsito (grátis, do Google) fica mesmo no modo leve: é o que
-          // mostra a lentidão na rota, como no Waze.
-          trafficEnabled: AppSettings.instance.showTraffic.value && !_saving,
+          // A camada do Google pinta o mapa todo: o trânsito vai só na
+          // linha da rota (_trafficPolylines).
+          trafficEnabled: false,
           buildingsEnabled: !_saving && !AppSettings.instance.lightMode,
           // Mapa escuro à noite (ou sempre, conforme Configurações).
           style: _darkMap ? darkMapStyle : null,
@@ -5281,6 +5367,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool _online3d = true;
   int _offlineChecks = 0;
   Timer? _onlineTimer;
+  Timer? _routeTrafficTimer;
 
   Future<void> _checkOnline() async {
     var ok = false;

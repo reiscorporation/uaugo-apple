@@ -51,7 +51,7 @@ class RoutePrefs {
     this.avoidTolls = false,
     this.avoidHighways = false,
     this.avoidFerries = false,
-    this.liveTraffic = false,
+    this.liveTraffic = true,
     this.avoidRisk = false,
   });
 
@@ -344,7 +344,8 @@ class AppSettings {
       avoidTolls: p.getBool('routeAvoidTolls') ?? false,
       avoidHighways: p.getBool('routeAvoidHighways') ?? false,
       avoidFerries: p.getBool('routeAvoidFerries') ?? false,
-      liveTraffic: p.getBool('routeLiveTraffic') ?? false,
+      // Chave nova: passou a vir ligado para todos (antes, desligado).
+      liveTraffic: p.getBool('routeLiveTraffic2') ?? true,
       avoidRisk: p.getBool('routeAvoidRisk') ?? false,
     );
     alerts.value = AlertPrefs(
@@ -456,7 +457,7 @@ class AppSettings {
     await p.setBool('routeAvoidTolls', r.avoidTolls);
     await p.setBool('routeAvoidHighways', r.avoidHighways);
     await p.setBool('routeAvoidFerries', r.avoidFerries);
-    await p.setBool('routeLiveTraffic', r.liveTraffic);
+    await p.setBool('routeLiveTraffic2', r.liveTraffic);
     await p.setBool('routeAvoidRisk', r.avoidRisk);
   }
 }

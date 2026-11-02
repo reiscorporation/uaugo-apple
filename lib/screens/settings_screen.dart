@@ -508,9 +508,9 @@ class SettingsScreen extends StatelessWidget {
             valueListenable: s.showTraffic,
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.traffic),
-              title: Text(tr('Mostrar trânsito no mapa')),
+              title: Text(tr('Mostrar trânsito na rota')),
               subtitle: Text(
-                  tr('Vias em verde, laranja e vermelho conforme o trânsito agora (do Google, sem custo)')),
+                  tr('A linha da rota fica verde, amarela ou vermelha conforme o trânsito agora. As outras vias não mudam de cor.')),
               value: on,
               onChanged: s.setShowTraffic,
             ),

@@ -28,6 +28,8 @@ object CarState {
 
     @Volatile var nav: Nav? = null
     @Volatile var route: List<DoubleArray> = emptyList() // [lat, lng]
+    /** Trechos da rota com trânsito: nível (0–2) e pontos [lat, lng]. */
+    @Volatile var traffic: List<Pair<Int, List<DoubleArray>>> = emptyList()
     /** Radares (1–3) e postos policiais (4) perto: [lat, lng, tipo]. */
     @Volatile var pois: List<DoubleArray> = emptyList()
     /** Alertas da comunidade perto do piloto (mine = marcado por ele). */
@@ -136,9 +138,28 @@ class CarBridge(messenger: BinaryMessenger) {
                     CarState.changed()
                     result.success(null)
                 }
+                "traffic" -> {
+                    val f = (call.arguments as? List<*>)?.mapNotNull { (it as? Number)?.toDouble() }
+                        ?: emptyList()
+                    val runs = ArrayList<Pair<Int, List<DoubleArray>>>()
+                    var i = 0
+                    while (i + 1 < f.size) {
+                        val n = f[i + 1].toInt()
+                        val end = i + 2 + n * 2
+                        if (end > f.size) break
+                        runs.add(f[i].toInt() to (0 until n).map {
+                            doubleArrayOf(f[i + 2 + it * 2], f[i + 3 + it * 2])
+                        })
+                        i = end
+                    }
+                    CarState.traffic = runs
+                    CarState.changed()
+                    result.success(null)
+                }
                 "clear" -> {
                     CarState.nav = null
                     CarState.route = emptyList()
+                    CarState.traffic = emptyList()
                     CarState.changed()
                     result.success(null)
                 }

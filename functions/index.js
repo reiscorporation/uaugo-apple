@@ -239,6 +239,7 @@ exports.transferExpeditionRoles = onCall(callOpts, async (req) => {
 // ===================== Rotas e lugares (chave fica no servidor) ===========
 // Detalhes em maps.js. O app chama estas funções no lugar do Google direto.
 exports.directions = onCall(callOpts, maps.directions);
+exports.routeTraffic = onCall(callOpts, maps.routeTraffic);
 exports.places = onCall(callOpts, maps.places);
 // IA (Gemini): entende pedidos falados livres ("restaurante bom e barato").
 const ai = require("./ai");

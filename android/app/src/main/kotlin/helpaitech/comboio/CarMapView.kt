@@ -51,6 +51,8 @@ class CarMapView(private val context: Context) {
     private var mapView: MapView? = null
     private var map: GoogleMap? = null
     private var routeLine: Polyline? = null
+    private val trafficLines = mutableListOf<Polyline>()
+    private var trafficDrawn: Any? = null
     private var routeSig = 0
     private var trimIdx = 0
     private var poiSig = 0
@@ -255,7 +257,7 @@ class CarMapView(private val context: Context) {
             g.uiSettings.setAllGesturesEnabled(false)
             g.uiSettings.isMapToolbarEnabled = false
             g.uiSettings.isCompassEnabled = false
-            g.isTrafficEnabled = true // como no celular
+            g.isTrafficEnabled = false // o trânsito vai só na linha da rota
             g.isBuildingsEnabled = false // mais leve
             applyPadding()
             update()
@@ -305,6 +307,8 @@ class CarMapView(private val context: Context) {
         display = null
         map = null
         routeLine = null
+        trafficLines.clear()
+        trafficDrawn = null
         poiMarkers.clear()
         poiSig = 0
         hazardMarkers.clear()
@@ -338,8 +342,24 @@ class CarMapView(private val context: Context) {
                 PolylineOptions()
                     .addAll(pts.map { LatLng(it[0], it[1]) })
                     .color(Color.rgb(26, 115, 232)) // azul da rota do celular
-                    .width(3f) // bem fina: o trânsito aparece em volta
+                    .width(6f)
                     .zIndex(2f)) else null
+        }
+        if (CarState.traffic !== trafficDrawn) {
+            trafficDrawn = CarState.traffic
+            trafficLines.forEach { it.remove() }
+            trafficLines.clear()
+            for ((level, line) in CarState.traffic) {
+                trafficLines.add(g.addPolyline(PolylineOptions()
+                    .addAll(line.map { LatLng(it[0], it[1]) })
+                    .color(when (level) {
+                        2 -> Color.rgb(211, 47, 47)
+                        1 -> Color.rgb(249, 168, 37)
+                        else -> Color.rgb(46, 160, 67)
+                    })
+                    .width(6f)
+                    .zIndex(3f)))
+            }
         }
         apply3d()
         overlay?.update()

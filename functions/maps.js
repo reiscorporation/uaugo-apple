@@ -9,6 +9,9 @@
  * Funções (chamadas pelo app com httpsCallable):
  * - directions: { origin, destination, waypoints?, avoid?, alternatives?,
  *                 traffic? }  ->  a resposta da Directions API
+ * - routeTraffic: { origin, destination, via?, avoid? }  ->  { polyline,
+ *                 intervals: [{ start, end, speed }] }, trânsito só na rota
+ *                 (Routes API); { } quando não há o dado.
  * - places:     { action: "autocomplete", input, sessionToken, lat?, lng? }
  *               { action: "details", placeId, sessionToken }
  *               { action: "find", category, cheap?, openNow?, lat, lng,
@@ -126,6 +129,63 @@ async function directions(req) {
   // Nunca devolve mensagens internas do Google (podem citar a chave).
   delete body.error_message;
   return body;
+}
+
+/** Velocidade de cada trecho da rota, para colorir só a linha dela. */
+async function routeTraffic(req) {
+  const uid = requireUser(req);
+  const { origin, destination, via, avoid } = req.data || {};
+  const pts = Array.isArray(via) ? via : [];
+  if (!COORD.test(origin || "") || !COORD.test(destination || "") ||
+      pts.length > 9 || !pts.every((w) => COORD.test(w))) {
+    throw new HttpsError("invalid-argument", "Rota inválida.");
+  }
+  await countUse(uid, "directions");
+  const point = (c) => {
+    const [latitude, longitude] = c.split(",").map(Number);
+    return { location: { latLng: { latitude, longitude } } };
+  };
+  const av = Array.isArray(avoid) ? avoid : [];
+  const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+    method: "POST",
+    signal: AbortSignal.timeout(15000),
+    headers: {
+      "content-type": "application/json",
+      "X-Goog-Api-Key": key(),
+      "X-Goog-FieldMask": "routes.polyline.encodedPolyline,routes.travelAdvisory.speedReadingIntervals",
+    },
+    body: JSON.stringify({
+      origin: point(origin),
+      destination: point(destination),
+      // "via": passa pelo ponto sem parar, para seguir a nossa rota.
+      intermediates: pts.map((c) => ({ ...point(c), via: true })),
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_AWARE",
+      polylineQuality: "HIGH_QUALITY",
+      extraComputations: ["TRAFFIC_ON_POLYLINE"],
+      routeModifiers: {
+        avoidTolls: av.includes("tolls"),
+        avoidHighways: av.includes("highways"),
+        avoidFerries: av.includes("ferries"),
+      },
+    }),
+  });
+  if (!res.ok) {
+    console.warn(`routeTraffic: HTTP ${res.status}`);
+    return {};
+  }
+  const r = (await res.json()).routes?.[0];
+  const list = r?.travelAdvisory?.speedReadingIntervals;
+  if (!r?.polyline?.encodedPolyline || !list) return {};
+  return {
+    polyline: r.polyline.encodedPolyline,
+    // O Google omite o índice 0.
+    intervals: list.map((t) => ({
+      start: t.startPolylinePointIndex || 0,
+      end: t.endPolylinePointIndex || 0,
+      speed: t.speed || "NORMAL",
+    })),
+  };
 }
 
 /** Uma chamada à Directions API. */
@@ -292,4 +352,4 @@ async function find(uid, d) {
   };
 }
 
-module.exports = { directions, places, FIND, countUse, requireUser };
+module.exports = { directions, routeTraffic, places, FIND, countUse, requireUser };

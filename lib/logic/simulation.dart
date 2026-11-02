@@ -50,6 +50,17 @@ class RouteWalker {
     return [(here.lat, here.lng), ...points.skip(i)];
   }
 
+  /// O traçado entre [from] e [to] metros, com as duas pontas exatas.
+  List<(double, double)> pointsBetween(double from, double to) {
+    final a = at(from), b = at(to);
+    return [
+      (a.lat, a.lng),
+      for (var i = 0; i < points.length && _cum[i] < to; i++)
+        if (_cum[i] > from) points[i],
+      (b.lat, b.lng),
+    ];
+  }
+
   /// Posição e direção a [meters] do início (limitado ao traçado).
   ({double lat, double lng, double bearing}) at(double meters) {
     if (points.isEmpty) return (lat: 0, lng: 0, bearing: 0);
