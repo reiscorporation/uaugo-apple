@@ -11,6 +11,7 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -375,6 +376,25 @@ class ExpeditionService {
     });
   }
 
+  /// Saiu para buscar um colega: avisa o capitão. Vai junto com os pedidos
+  /// (some sozinho em 1 hora), mas não aparece como pedido ao grupo.
+  void sendHelping(String code, String uid, String name, String target,
+      double lat, double lng) {
+    _exp(code).collection('requests').add({
+      'uid': uid,
+      'name': name,
+      'kind': 'helping',
+      'target': target,
+      'lat': lat,
+      'lng': lng,
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt':
+          Timestamp.fromDate(DateTime.now().add(const Duration(hours: 1))),
+    }).then((_) {}, onError: (Object e) {
+      debugPrint('Aviso ao capitão recusado: $e');
+    });
+  }
+
   /// Capitão/líder confirma o pedido ("OK 👍").
   Future<void> ackRequest(String code, String id, String uid, String name) =>
       _exp(code).collection('requests').doc(id).update({
@@ -404,6 +424,24 @@ class ExpeditionService {
                       ackName: d.data()['ackName'] as String?,
                     ),
               ]..sort((a, b) => b.at.compareTo(a.at)));
+
+  /// Quem saiu para buscar um colega nos últimos 30 min, em tempo real.
+  Stream<List<HelpingItem>> helps(String code) => _exp(code)
+      .collection('requests')
+      .where('createdAt',
+          isGreaterThan: Timestamp.fromDate(
+              DateTime.now().subtract(const Duration(minutes: 30))))
+      .snapshots()
+      .map((s) => [
+            for (final d in s.docs)
+              if (d.data()['kind'] == 'helping')
+                (
+                  id: d.id,
+                  uid: (d.data()['uid'] ?? '') as String,
+                  name: (d.data()['name'] ?? '') as String,
+                  target: (d.data()['target'] ?? '') as String,
+                ),
+          ]);
 
   /// SOS ativos do grupo, em tempo real.
   Stream<List<SosAlert>> activeAlerts(String code) => _exp(code)

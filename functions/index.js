@@ -113,11 +113,28 @@ const REQUESTS = {
   behind: ["🐢", "ficou para trás. Esperem!"],
 };
 
+// Um piloto saiu para buscar um colega: só o capitão recebe.
+async function avisarCapitao(code, r) {
+  const exp = (await db.doc(`expeditions/${code}`).get()).data();
+  const captain = exp?.captainId || exp?.leaderId;
+  if (!captain || captain === r.uid) return;
+  const token = (await db.doc(`users/${captain}`).get()).data()?.fcmToken;
+  if (!token) return;
+  const who = (r.name || "Um piloto").toString().slice(0, 60);
+  const target = (r.target || "um colega").toString().slice(0, 60);
+  await sendPush({
+    token,
+    notification: { title: `🧭 ${who} está indo até ${target}`, body: "Rota própria, a do grupo não mudou" },
+    data: { type: "helping", code, uid: r.uid || "" },
+  });
+}
+
 // Avisa o grupo de um pedido ("Ricardo precisa abastecer").
 exports.onRequest = onDocumentCreated(
   { document: "expeditions/{code}/requests/{reqId}", region },
   async (event) => {
     const r = event.data?.data();
+    if (r?.kind === "helping") return avisarCapitao(event.params.code, r);
     const k = r && REQUESTS[r.kind];
     if (!k) return;
     const who = (r.name || "Um piloto").toString().slice(0, 60);

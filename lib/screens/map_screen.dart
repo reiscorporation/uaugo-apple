@@ -672,7 +672,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _maybeUpgradeRoute();
       }))
       ..add(_svc.activeAlerts(_code).listen(_onAlerts))
-      ..add(_svc.requests(_code).listen(_onRequests));
+      ..add(_svc.requests(_code).listen(_onRequests))
+      ..add(_svc.helps(_code).listen(_onHelps));
   }
 
   /// Relógios da tela: textos "há X min", chuva e trânsito (só com o app
@@ -2420,6 +2421,30 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _useHelpTrip(nt);
     if (!_navigating) _startNavigation();
     _voice.alert(tr('Rota até {0}. {1}.', [name, formatDistance(nt.distanceM)]));
+    if (_isExpedition && !_isCaptain) {
+      _svc.sendHelping(_code, widget.uid, widget.userName, name, p.latitude, p.longitude);
+    }
+  }
+
+  final Set<String> _seenHelps = {};
+  bool _helpsLoaded = false;
+
+  /// Capitão: alguém saiu para buscar um colega (voz, faixa e carro).
+  void _onHelps(List<HelpingItem> list) {
+    final fresh = list.where((h) => !_seenHelps.contains(h.id)).toList();
+    _seenHelps.addAll(list.map((h) => h.id));
+    if (!_helpsLoaded) {
+      _helpsLoaded = true;
+      return;
+    }
+    if (!_isCaptain) return;
+    for (final h in fresh.reversed) {
+      if (h.uid == widget.uid) continue;
+      final text = tr('{0} está indo até {1}', [h.name, h.target]);
+      _voice.alert(text);
+      _showTrafficBanner('🧭 $text');
+      _noteToCar('🧭 $text');
+    }
   }
 
   /// Trocou o capitão: avisa todo mundo (e por voz quem virou capitão).
@@ -2619,7 +2644,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Segurou um piloto (capitão, ferrolho ou líder): oferece ir até ele,
-  /// para buscar quem saiu da rota. A rota é só de quem vai; a do grupo não muda.
+  /// para buscar quem saiu da rota. O capitão vai pelo Google Maps; os outros,
+  /// por uma rota só deles no UauGo (a do grupo não muda).
   Future<void> _askRouteToMember(Member m) async {
     if (!_watchesGroup || m.uid == widget.uid || !m.hasLocation) return;
     HapticFeedback.mediumImpact();
@@ -2640,7 +2666,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ],
       ),
     );
-    if (go == true) await _goHelp(m.name, m.lat!, m.lng!, uid: m.uid);
+    if (go != true) return;
+    if (_isCaptain) {
+      await _navigate(m.lat!, m.lng!);
+    } else {
+      await _goHelp(m.name, m.lat!, m.lng!, uid: m.uid);
+    }
   }
 
   /// Abre o roteiro da expedição.

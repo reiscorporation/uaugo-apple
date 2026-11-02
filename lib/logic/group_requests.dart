@@ -41,6 +41,9 @@ typedef GroupRequestItem = ({
   String? ackName,
 });
 
+/// Um piloto saiu para buscar um colega ([target]); só o capitão é avisado.
+typedef HelpingItem = ({String id, String uid, String name, String target});
+
 /// Frase falada para o grupo: "Ricardo precisa abastecer".
 String groupRequestSpeech(String who, GroupRequest r) {
   final name = who.trim().isEmpty ? tr('Um piloto') : who.trim();
