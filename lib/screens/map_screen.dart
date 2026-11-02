@@ -3181,7 +3181,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _speedSvc.lookup(p.latitude, p.longitude, _bearing, _speedMs,
             routeOffset:
                 onRoute ? (la, lo) => w.offsetNear(la, lo, pr.along) : null);
-    _roadLimit = _limitTracker.update(found, DateTime.now(), kmh: kmh);
+    _roadLimit = _limitTracker.update(found, DateTime.now(),
+        kmh: kmh, onExit: prof != null && prof.onExit(pr!.along));
     final speech = _speedAlerter.update(
         kmh, _roadLimit, _speedSvc.settings.value, DateTime.now());
     if (speech != null) _voice.alert(speech);
@@ -3219,6 +3220,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // ---- Perfil do limite ao longo da rota (de 1 km atrás a 6 km à frente)
   RouteLimitProfile? _limitProfile;
   Object? _limitProfileRoute;
+  List<double> _routeExits = const [];
+  Object? _routeExitsNav;
+
+  /// Onde a rota sai da via (m pela rota), a partir das manobras.
+  List<double> _exitsOn(RouteWalker w) {
+    final nav = _nav;
+    if (nav == null) return const [];
+    if (!identical(_routeExitsNav, nav) || !identical(_limitProfileRoute, w)) {
+      _routeExitsNav = nav;
+      _routeExits = [
+        for (final s in nav.steps)
+          if (s.leavesRoad) w.project(s.lat, s.lng).along,
+      ];
+    }
+    return _routeExits;
+  }
 
   /// Perfil válido para [along]; refaz ao andar 2 km ou ao trocar a rota.
   RouteLimitProfile? _routeLimitProfile(RouteWalker w, double along) {
@@ -3229,6 +3246,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         along <= cur.start + 3000) {
       return cur;
     }
+    final exits = _exitsOn(w);
     const step = 50.0;
     final start = max(0.0, along - 1000);
     final end = min(w.length, along + 6000);
@@ -3239,7 +3257,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           routeOffset: (a, b) => w.offsetNear(a, b, d), maxAngle: 30));
     }
     if (raw.every((r) => r == null)) return null; // sem dados aqui ainda
-    _limitProfile = RouteLimitProfile(start, step, raw);
+    _limitProfile = RouteLimitProfile(start, step, raw, exits: exits);
     _limitProfileRoute = w;
     return _limitProfile;
   }
@@ -3280,9 +3298,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               routeOffset: along != null && w != null
                   ? (a, b) => w.offsetNear(a, b, along + d)
                   : null);
-      // Só placas (não estimados) e redução de pelo menos 10 km/h.
-      final reduced =
-          l != null && !l.estimated && l.kmh <= cur.kmh - 10 ? l.kmh : null;
+      // Só placas e redução de pelo menos 10 km/h. Na saída que a rota pega,
+      // vale também o estimado (quase nenhuma saída tem placa mapeada).
+      final exit = along != null &&
+          l != null &&
+          isSideDrop(cur, l) &&
+          (_limitProfile?.onExit(along + d) ?? false);
+      final reduced = l != null && (!l.estimated || exit) && l.kmh <= cur.kmh - 10
+          ? l.kmh
+          : null;
       if (reduced != null && reduced == prevKmh) {
         found = (reduced, prevD!);
         break;

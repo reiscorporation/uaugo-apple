@@ -164,15 +164,32 @@ bool isSideDrop(RoadLimit from, RoadLimit to) =>
 /// amostras a cada [step] m; trechos curtos (< [minRun] m) com limite
 /// diferente do que vem antes E depois são ignorados — é o caso das saídas
 /// e alças coladas à pista (placa de verdade vale por quilômetros).
+/// [exits]: onde a própria rota sai da via (m pela rota); ali o trecho curto
+/// é a saída que o piloto vai pegar, e o limite dele vale.
 class RouteLimitProfile {
   RouteLimitProfile(this.start, this.step, List<RoadLimit?> raw,
-      {double minRun = 400, double minRunBigDrop = 1000})
-      : _v = _smooth(raw, (minRun / step).ceil(), (minRunBigDrop / step).ceil());
+      {double minRun = 400,
+      double minRunBigDrop = 1000,
+      List<double> exits = const []})
+      : _exits = exits,
+        _v = _smooth(raw, (minRun / step).ceil(), (minRunBigDrop / step).ceil(),
+            start, step, exits);
+
+  /// Quanto depois da saída o limite novo ainda pode começar (m).
+  static const exitReach = 300.0;
+
+  /// Até onde, depois da saída, o piloto está nela (m).
+  static const exitLength = 1500.0;
 
   /// Distância pela rota (m) da 1ª amostra.
   final double start;
   final double step;
   final List<RoadLimit?> _v;
+  final List<double> _exits;
+
+  /// [along] (m pela rota) está numa saída que a rota pega.
+  bool onExit(double along) =>
+      _exits.any((e) => along >= e - 50 && along <= e + exitLength);
 
   double get end => start + step * (_v.length - 1);
 
@@ -183,7 +200,8 @@ class RouteLimitProfile {
     return _v[i];
   }
 
-  static List<RoadLimit?> _smooth(List<RoadLimit?> raw, int minLen, int bigLen) {
+  static List<RoadLimit?> _smooth(List<RoadLimit?> raw, int minLen, int bigLen,
+      double start, double step, List<double> exits) {
     // 1) Sem dado no meio de um trecho: repete o anterior (pontes, viadutos).
     final v = [...raw];
     for (var i = 1; i < v.length; i++) {
@@ -208,7 +226,11 @@ class RouteLimitProfile {
         // Queda grande numa rodovia: atendimento ao usuário e balança têm
         // pista paralela longa, então o trecho precisa ser maior para valer.
         final big = value != null && before != null && isSideDrop(before, value);
-        final short = value != null && (len < minLen || (big && len < bigLen));
+        final from = start + step * i, to = start + step * j;
+        final isExit = exits.any((e) => e >= from - exitReach && e <= to);
+        final short = value != null &&
+            !isExit &&
+            (len < minLen || (big && len < bigLen));
         if (short && before != null && (after == null || after == before)) {
           for (var k = i; k <= j; k++) {
             v[k] = before;
@@ -246,10 +268,12 @@ class LimitTracker {
   /// em [confirmations] leituras seguidas (um ponto solto de uma saída não
   /// troca a placa); sem dado, mantém o anterior por até 15 s (cruzamentos e
   /// pontes). [kmh]: velocidade atual; a 100 km/h na pista, um limite de 40 é
-  /// da saída ao lado, e o estimado nem conta.
-  RoadLimit? update(RoadLimit? found, DateTime now, {double kmh = 0}) {
+  /// da saída ao lado, e o estimado nem conta. [onExit]: a rota pega esta
+  /// saída, então o limite dela vale mesmo com o piloto ainda rápido.
+  RoadLimit? update(RoadLimit? found, DateTime now,
+      {double kmh = 0, bool onExit = false}) {
     final cur = _current;
-    if (found != null && cur != null && isSideDrop(cur, found) &&
+    if (found != null && cur != null && !onExit && isSideDrop(cur, found) &&
         kmh > found.kmh + 30) {
       final since = _sideSince ??= now;
       if (found.estimated || now.difference(since) < sideHold) {

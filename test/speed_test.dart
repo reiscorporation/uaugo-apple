@@ -113,6 +113,24 @@ void main() {
       expect(real.at(2000)?.kmh, 60);
     });
 
+    test('saída que a rota pega: trecho curto fica e o limite vale na hora', () {
+      const a = RoadLimit(110, false), b = RoadLimit(40, true);
+      final raw = [
+        ...List.filled(20, a), ...List.filled(6, b), ...List.filled(20, a)];
+      expect(RouteLimitProfile(0, 50, raw).at(1100)?.kmh, 110);
+      final p = RouteLimitProfile(0, 50, raw, exits: const [1000]);
+      expect(p.at(1100)?.kmh, 40);
+      expect(p.onExit(1100), isTrue);
+      expect(p.onExit(5000), isFalse);
+
+      final t = LimitTracker();
+      final t0 = DateTime(2026, 11, 2, 10);
+      t.update(a, t0, kmh: 100);
+      t.update(b, t0, kmh: 100, onExit: true);
+      t.update(b, t0, kmh: 100, onExit: true);
+      expect(t.update(b, t0, kmh: 100, onExit: true)?.kmh, 40);
+    });
+
     test('mantém o último limite por um trecho curto sem dados', () {
       final t = LimitTracker();
       final t0 = DateTime(2026, 10, 3, 10);

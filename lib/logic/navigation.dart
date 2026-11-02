@@ -49,6 +49,14 @@ class NavStep {
       maneuver.startsWith('ramp') ||
       text.startsWith('Pegue a saída') ||
       text.startsWith('Pegue a rampa');
+
+  /// A rota sai da via aqui (saída, conversão, rotatória): o limite menor
+  /// depois deste ponto é de verdade, mesmo em trecho curto.
+  bool get leavesRoad =>
+      isExit ||
+      (maneuver.isNotEmpty &&
+          maneuver != 'straight' &&
+          !maneuver.startsWith('merge'));
 }
 
 const _abbrev = {
