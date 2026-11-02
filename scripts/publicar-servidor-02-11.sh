@@ -13,7 +13,7 @@ if [ -n "$SV" ] && [[ " $SV " != *" routes.googleapis.com "* ]]; then
   gcloud services api-keys update "$N" $A --quiet >/dev/null
   echo "Routes API incluída na chave"
 fi
-firebase deploy --only firestore:rules,functions:routeTraffic,functions:onRequest,functions:updateSpeedLimits --project helpaitechcomboio --force
+FUNCTIONS_DISCOVERY_TIMEOUT=120 firebase deploy --only firestore:rules,functions:routeTraffic,functions:onRequest,functions:updateSpeedLimits --project helpaitechcomboio --force
 BUCKET=$(python -c "import json;print(json.load(open('firebase.json')).get('storage',{}).get('bucket','') or 'helpaitechcomboio.firebasestorage.app')")
 gcloud storage cp /e/UauGo-motor/limites-osm/*.json.gz "gs://$BUCKET/public/limites-osm/"
 gcloud scheduler jobs run firebase-schedule-updateSpeedLimits-southamerica-east1 --location=southamerica-east1 --project helpaitechcomboio
