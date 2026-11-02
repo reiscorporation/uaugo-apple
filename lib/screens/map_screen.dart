@@ -3248,13 +3248,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Object? _limitProfileRoute;
   List<double> _routeExits = const [];
   Object? _routeExitsNav;
+  RouteWalker? _routeExitsWalker;
+  RouteWalker? _noLimitsRoute;
+  double _noLimitsAt = 0; // sem limite nenhum por aqui: não refaz a cada leitura
 
   /// Onde a rota sai da via (m pela rota), a partir das manobras.
   List<double> _exitsOn(RouteWalker w) {
     final nav = _nav;
     if (nav == null) return const [];
-    if (!identical(_routeExitsNav, nav) || !identical(_limitProfileRoute, w)) {
+    if (!identical(_routeExitsNav, nav) || !identical(_routeExitsWalker, w)) {
       _routeExitsNav = nav;
+      _routeExitsWalker = w;
       _routeExits = [
         for (final s in nav.steps)
           if (s.leavesRoad) w.project(s.lat, s.lng).along,
@@ -3268,9 +3272,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final cur = _limitProfile;
     if (cur != null &&
         identical(_limitProfileRoute, w) &&
-        along >= cur.start + 1000 - 1 &&
+        (cur.start == 0 || along >= cur.start + 1000 - 1) &&
         along <= cur.start + 3000) {
       return cur;
+    }
+    // Sem nenhum limite nesta região: só tenta de novo 500 m adiante. Refazer
+    // a cada leitura do GPS travava a tela nas rotas longas.
+    if (identical(_noLimitsRoute, w) && (along - _noLimitsAt).abs() < 500) {
+      return null;
     }
     final exits = _exitsOn(w);
     const step = 50.0;
@@ -3282,7 +3291,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       raw.add(_speedSvc.lookup(q.lat, q.lng, q.bearing, max(_speedMs, 10.0),
           routeOffset: (a, b) => w.offsetNear(a, b, d), maxAngle: 30));
     }
-    if (raw.every((r) => r == null)) return null; // sem dados aqui ainda
+    if (raw.every((r) => r == null)) {
+      _noLimitsRoute = w; // sem dados aqui ainda
+      _noLimitsAt = along;
+      return null;
+    }
+    _noLimitsRoute = null;
     _limitProfile = RouteLimitProfile(start, step, raw, exits: exits);
     _limitProfileRoute = w;
     return _limitProfile;
