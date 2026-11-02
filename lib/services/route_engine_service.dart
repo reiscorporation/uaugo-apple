@@ -33,6 +33,14 @@ class RouteEngineService {
   static const _key = String.fromEnvironment('ROUTE_ENGINE_KEY');
   static const _auth = {'X-Motor-Key': _key};
 
+  /// Peso da distância na escolha: sem ele, o motor dava voltas para ficar em
+  /// vias mais rápidas (9 de 37 viagens com desvio; com 0,25, 2 e sem mais
+  /// terra). Comparação: E:/UauGo-motor/calibrar.py.
+  static const _useDistance = 0.25;
+
+  /// As velocidades do motor dão tempos 22% maiores que os do Google.
+  static const _timeScale = 0.82;
+
   /// A última rota veio do motor próprio (true) ou caiu no Google (false).
   static bool lastUsed = false;
 
@@ -82,7 +90,7 @@ class RouteEngineService {
         'costing': costing,
         'costing_options': {
           costing: {
-            if (shortest) 'shortest': true,
+            if (shortest) 'shortest': true else 'use_distance': _useDistance,
             if (avoidTolls) 'use_tolls': 0.0,
             if (avoidHighways) 'use_highways': 0.0,
             if (avoidFerries) 'use_ferry': 0.0,
@@ -124,7 +132,7 @@ class RouteEngineService {
       final shape = decodePolyline6(l['shape'] as String);
       final s = l['summary'] as Map<String, dynamic>;
       legs.add(RouteLeg(((s['length'] as num) * 1000).round(),
-          (s['time'] as num).round()));
+          ((s['time'] as num) * _timeScale).round()));
       final ls = <NavStep>[];
       for (final m in (l['maneuvers'] as List).cast<Map<String, dynamic>>()) {
         final idx = (m['begin_shape_index'] as num).toInt().clamp(0, shape.length - 1);

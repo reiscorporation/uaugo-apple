@@ -34,6 +34,11 @@ Decisão do Ricardo (24/10/2026): criar o motor próprio, com cuidado para traç
 - Medição no PC limitado a 2 CPUs (mistura de cidade, estrada e longas, 30% com alternativas): 38 rotas/s com 2 simultâneas, mediana 42 ms, p95 109 ms; com 8 simultâneas, 30 rotas/s e p95 494 ms. Memória 462 MiB depois do teste.
 - Medição na VPS (2 vCPU, motor limitado a 1,5 CPU e 2,5 GB, 02/11): 20 a 23 rotas/s; mediana 78 ms com 2 simultâneas e 330 ms com 8 (p95 551 ms), sem erros; 549 MiB de memória; SP→Salvador 164 ms. Teste de 30 s por nível, ainda sem carga longa.
 
+## Calibragem dos desvios (02/11/2026) — `E:/UauGo-motor/calibrar.py`
+- 37 viagens contra o Google. `use_tolls` e pedágio não mudam nada; a causa é o peso do tempo. `use_distance` 0,25: moto de 9 para 2 desvios acima de 5%, carro de 9 para 3; caminho igual 72% para 76% (moto), 74% para 77% (carro).
+- Terra e ruas menores não aumentam (`terra.py`, 9.700 km: 1,9 km de terra; ruas menores 35 para 38 km).
+- Sobram RP→São Carlos (+10 km) e, no carro, Guarulhos→Pinheiros (+9 km); cidades ainda têm caminhos diferentes do Google. Tempo: fator fixo 0,82 no app; o certo é calibrar `default_speeds.json` e remontar o mapa.
+
 ## Teste no Galaxy + comparação ampla (28/10/2026) — `E:/UauGo-motor/comparacao-2026-10-28.md`
 - Galaxy (versão de teste, Wi-Fi de casa) traçou rotas pelo motor. Limite de distância removido
   (`service_limits.*.max_distance` = 100.000 km no `valhalla.json`; moto vinha com 500 km e recusava a Bahia).
