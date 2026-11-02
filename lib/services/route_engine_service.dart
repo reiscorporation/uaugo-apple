@@ -1,12 +1,12 @@
 // ============================================================================
-// route_engine_service.dart — Motor de rotas próprio (Valhalla), em TESTE
+// route_engine_service.dart — Motor de rotas próprio (Valhalla), na VPS
 //
 // O que faz: Calcula a rota no motor do UauGo (Valhalla + mapa aberto do
 //   OpenStreetMap) em vez do Google: traçado, trechos, manobras faladas em
 //   português, pedágio e rotas alternativas. Moto usa o perfil de moto
 //   (evita vias proibidas para moto, quando o mapa marca).
 // Quem usa: DirectionsService (só quando o app é gerado com
-//   --dart-define=ROUTE_ENGINE=http://ip-do-servidor:8002; senão, Google).
+//   ROUTE_ENGINE e ROUTE_ENGINE_KEY em config/dart_defines.json; senão, Google).
 // Onde mexer: plano em docs/PLANO-MOTOR-ROTAS.md. Se o motor falhar, o
 //   DirectionsService volta para o Google.
 // ============================================================================
@@ -29,6 +29,10 @@ class RouteEngineService {
   static const url = String.fromEnvironment('ROUTE_ENGINE');
   static bool get enabled => url.isNotEmpty;
 
+  /// Chave que o Caddy da VPS exige (sem ela, o motor responde 403).
+  static const _key = String.fromEnvironment('ROUTE_ENGINE_KEY');
+  static const _auth = {'X-Motor-Key': _key};
+
   /// A última rota veio do motor próprio (true) ou caiu no Google (false).
   static bool lastUsed = false;
 
@@ -39,7 +43,9 @@ class RouteEngineService {
   /// Pergunta rápida (2 s) se o motor responde antes de pedir a rota.
   static Future<bool> _alive() async {
     try {
-      final r = await http.get(Uri.parse('$url/status')).timeout(const Duration(seconds: 2));
+      final r = await http
+          .get(Uri.parse('$url/status'), headers: _auth)
+          .timeout(const Duration(seconds: 2));
       return r.statusCode == 200;
     } catch (_) {
       return false;
@@ -52,6 +58,7 @@ class RouteEngineService {
     required bool avoidTolls,
     required bool avoidHighways,
     bool avoidFerries = false,
+    bool shortest = false,
     bool alternatives = false,
   }) async {
     if (DateTime.now().isBefore(_skipUntil)) return null;
@@ -75,6 +82,7 @@ class RouteEngineService {
         'costing': costing,
         'costing_options': {
           costing: {
+            if (shortest) 'shortest': true,
             if (avoidTolls) 'use_tolls': 0.0,
             if (avoidHighways) 'use_highways': 0.0,
             if (avoidFerries) 'use_ferry': 0.0,
@@ -86,7 +94,7 @@ class RouteEngineService {
       };
       final res = await http
           .post(Uri.parse('$url/route'),
-              headers: {'Content-Type': 'application/json'},
+              headers: {'Content-Type': 'application/json', ..._auth},
               body: jsonEncode(body))
           .timeout(const Duration(seconds: 20));
       if (res.statusCode != 200) return null;

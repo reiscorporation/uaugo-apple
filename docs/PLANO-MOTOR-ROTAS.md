@@ -12,7 +12,7 @@ Decisão do Ricardo (24/10/2026): criar o motor próprio, com cuidado para traç
 |---|---|---|
 | 1 | Medir o gasto atual com rota/busca | pendente |
 | 2 | Montar o Valhalla com o mapa do Brasil (no PC; o servidor só serve) | **feito 25/10** (`E:\UauGo-motor`) |
-| 3 | Servidor: Valhalla na VPS (8 GB), app pede ao nosso servidor e cai no Google se falhar | pendente |
+| 3 | Servidor: Valhalla na VPS (8 GB), app pede ao nosso servidor e cai no Google se falhar | em andamento (02/11): `/opt/helpaitech/motor`, Caddy com chave em `motor.200-141-16-177.sslip.io` |
 | 4 | Moto (Marginais) + rodízio (exclude_polygons) no motor próprio | pendente (ver teste) |
 | 5 | Busca com Photon, Google como reserva | pendente |
 | 6 | Mapa offline (opcional) | pendente |
@@ -27,6 +27,11 @@ Decisão do Ricardo (24/10/2026): criar o motor próprio, com cuidado para traç
   aberto em cada trecho, anônima) + **horário típico** aprendido com o tempo (ex.: avenida lenta às 18h).
 - **No começo, o Google informa o trânsito** até haver usuários suficientes em cada região: o motor traça o
   caminho e o Google só diz se há lentidão (e, se houver, oferece a rota dele). Menos chamadas que hoje.
+
+## Motor na próxima versão (decisão 02/11/2026)
+- O motor traça as rotas e o Google fica com o trânsito: `routeTraffic` a cada 5 min dá cores, tempo real e atraso. Com atraso grande, viagem sozinho pede uma rota ao Google (no máximo a cada 15 min).
+- Ainda pelo Google: evitar pedágio, áreas de risco e queda do motor.
+- Medição no PC limitado a 2 CPUs (mistura de cidade, estrada e longas, 30% com alternativas): 38 rotas/s com 2 simultâneas, mediana 42 ms, p95 109 ms; com 8 simultâneas, 30 rotas/s e p95 494 ms. Memória 462 MiB depois do teste. Falta repetir na VPS.
 
 ## Teste no Galaxy + comparação ampla (28/10/2026) — `E:/UauGo-motor/comparacao-2026-10-28.md`
 - Galaxy (versão de teste, Wi-Fi de casa) traçou rotas pelo motor. Limite de distância removido

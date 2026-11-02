@@ -88,6 +88,7 @@ import '../widgets/toll_confirm_sheet.dart';
 import '../services/media_service.dart';
 import '../widgets/sim3d_view.dart';
 import '../services/directions_service.dart';
+import '../services/route_engine_service.dart';
 import '../services/minimized_trip.dart';
 import '../services/vias_service.dart';
 
@@ -706,7 +707,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     Future.delayed(const Duration(seconds: 20), _checkRain);
     // Navegando sozinho (opção de trânsito): a cada 5 min (a 1ª em 30 s).
     _trafficTimer?.cancel();
-    if (!_isExpedition && !widget.simulate && _trip != null) {
+    // Com o motor próprio, quem chama é o trânsito da rota (_onRouteDelay).
+    if (!_isExpedition && !widget.simulate && _trip != null &&
+        !RouteEngineService.enabled) {
       _trafficTimer =
           Timer.periodic(const Duration(minutes: 5), (_) => _checkTraffic());
       Future.delayed(const Duration(seconds: 30), _checkTraffic);
@@ -2176,17 +2179,40 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     // Mesma rota: atualiza a previsão de chegada com o trânsito de agora.
     if (nt.durationS > 0) _etaSpeed = nt.distanceM / nt.durationS;
-    final delay = nt.trafficDelayS;
-    if (delay >= 300 && delay > 0.15 * (nt.typicalS ?? nt.durationS)) {
-      final mins = (delay / 60).round();
-      final now = DateTime.now();
-      if (now.difference(_lastDelayAlert) > const Duration(minutes: 15) ||
-          mins >= _lastDelayMin + 5) {
-        _lastDelayAlert = now;
-        _lastDelayMin = mins;
-        _voice.alert(tr('Trânsito intenso na rota: mais {0} minutos', [mins]));
-        _showTrafficBanner(tr('🚗 Trânsito intenso na rota: +{0} min', [mins]));
-      }
+    _sayDelay(nt.trafficDelayS, nt.typicalS ?? nt.durationS);
+  }
+
+  /// Avisa trânsito intenso; retorna true se o atraso é grande.
+  bool _sayDelay(int delay, int base) {
+    if (delay < 300 || delay <= 0.15 * base) return false;
+    final mins = (delay / 60).round();
+    final now = DateTime.now();
+    if (now.difference(_lastDelayAlert) > const Duration(minutes: 15) ||
+        mins >= _lastDelayMin + 5) {
+      _lastDelayAlert = now;
+      _lastDelayMin = mins;
+      _voice.alert(tr('Trânsito intenso na rota: mais {0} minutos', [mins]));
+      _showTrafficBanner(tr('🚗 Trânsito intenso na rota: +{0} min', [mins]));
+    }
+    return true;
+  }
+
+  DateTime _lastGoogleRoute = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Motor próprio: o tempo do Google corrige a chegada. Com atraso grande e
+  /// sozinho, pede ao Google uma rota melhor (no máximo a cada 15 min).
+  Future<void> _onRouteDelay(double meters, int durationS, int staticS) async {
+    if (durationS <= 0 || staticS <= 0) return;
+    _etaSpeed = meters / durationS;
+    if (!_sayDelay(durationS - staticS, staticS) || _isExpedition) return;
+    final now = DateTime.now();
+    if (now.difference(_lastGoogleRoute) < const Duration(minutes: 15)) return;
+    _lastGoogleRoute = now;
+    DirectionsService.skipEngine = true;
+    try {
+      await _checkTraffic();
+    } finally {
+      DirectionsService.skipEngine = false;
     }
   }
 
@@ -3951,6 +3977,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!mounted || !identical(w, _walker)) return;
     if (got == null) return;
     _setTrafficRuns(trafficOnRoute(w, got.$1, got.$2, start: from));
+    if (RouteEngineService.enabled) _onRouteDelay(to - from, got.$3, got.$4);
   }
 
   /// Rota azul com borda escura (refeita só quando muda).

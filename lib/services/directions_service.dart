@@ -80,8 +80,10 @@ class DirectionsService {
   static bool get available => true;
 
   /// Trânsito pelo caminho [points] (saída, pontos da rota, chegada): o
-  /// traçado do Google e os trechos dele. null = sem o dado (a rota fica azul).
-  static Future<(List<(double, double)>, List<TrafficInterval>)?> routeTraffic(
+  /// traçado do Google, os trechos dele e os tempos com e sem trânsito.
+  /// null = sem o dado (a rota fica azul).
+  static Future<
+      (List<(double, double)>, List<TrafficInterval>, int, int)?> routeTraffic(
       List<LatLng> points) async {
     try {
       final prefs = AppSettings.instance.route.value;
@@ -108,6 +110,8 @@ class DirectionsService {
               level: trafficLevel(t['speed'] as String?),
             ),
         ],
+        (j['durationS'] as num?)?.toInt() ?? 0,
+        (j['staticS'] as num?)?.toInt() ?? 0,
       );
     } catch (_) {
       return null;
@@ -199,6 +203,7 @@ class DirectionsService {
       prefs0.avoidFerries,
       prefs0.preference.name,
       prefs0.liveTraffic,
+      skipEngine,
       risks.length,
       I18n.lang.value, // manobras faladas no idioma do app
       alternatives,
@@ -220,6 +225,9 @@ class DirectionsService {
     return r;
   }
 
+  /// Pede ao Google em vez do motor: rota alternativa quando há trânsito.
+  static bool skipEngine = false;
+
   /// Rotas guardadas há pouco (chave -> hora e resultado).
   static final _cache = <String, (DateTime, RouteResult)>{};
 
@@ -231,13 +239,16 @@ class DirectionsService {
     List<(double, double)> risks = const [],
     bool alternatives = false,
   }) async {
-    // Versão de teste do motor próprio: tenta nele primeiro; se falhar
-    // (fora do Wi-Fi, PC desligado), segue pelo Google.
-    if (RouteEngineService.enabled) {
+    // Motor próprio primeiro; se falhar, segue pelo Google. Ainda pelo
+    // Google: evitar pedágio (no mapa aberto a rodovia inteira é pedágio) e
+    // áreas de risco (o motor não as conhece).
+    if (RouteEngineService.enabled && !skipEngine && !avoidTolls && risks.isEmpty) {
+      final prefs = AppSettings.instance.route.value;
       final r = await RouteEngineService.route(points,
           avoidTolls: avoidTolls,
           avoidHighways: avoidHighways,
-          avoidFerries: AppSettings.instance.route.value.avoidFerries,
+          avoidFerries: prefs.avoidFerries,
+          shortest: prefs.preference == RoutePreference.shortest,
           alternatives: alternatives);
       if (r != null) return r;
       RouteEngineService.lastUsed = false;

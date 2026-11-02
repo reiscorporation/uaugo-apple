@@ -10,8 +10,8 @@
  * - directions: { origin, destination, waypoints?, avoid?, alternatives?,
  *                 traffic? }  ->  a resposta da Directions API
  * - routeTraffic: { origin, destination, via?, avoid? }  ->  { polyline,
- *                 intervals: [{ start, end, speed }] }, trânsito só na rota
- *                 (Routes API); { } quando não há o dado.
+ *                 intervals: [{ start, end, speed }], durationS, staticS },
+ *                 trânsito só na rota (Routes API); { } quando não há o dado.
  * - places:     { action: "autocomplete", input, sessionToken, lat?, lng? }
  *               { action: "details", placeId, sessionToken }
  *               { action: "find", category, cheap?, openNow?, lat, lng,
@@ -152,7 +152,8 @@ async function routeTraffic(req) {
     headers: {
       "content-type": "application/json",
       "X-Goog-Api-Key": key(),
-      "X-Goog-FieldMask": "routes.polyline.encodedPolyline,routes.travelAdvisory.speedReadingIntervals",
+      "X-Goog-FieldMask": "routes.polyline.encodedPolyline,routes.duration,routes.staticDuration," +
+        "routes.travelAdvisory.speedReadingIntervals",
     },
     body: JSON.stringify({
       origin: point(origin),
@@ -179,6 +180,9 @@ async function routeTraffic(req) {
   if (!r?.polyline?.encodedPolyline || !list) return {};
   return {
     polyline: r.polyline.encodedPolyline,
+    // Tempos com e sem trânsito ("1234s").
+    durationS: parseInt(r.duration, 10) || 0,
+    staticS: parseInt(r.staticDuration, 10) || 0,
     // O Google omite o índice 0.
     intervals: list.map((t) => ({
       start: t.startPolylinePointIndex || 0,
