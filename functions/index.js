@@ -608,6 +608,14 @@ exports.updateSpeedLimits = onSchedule(
           resumable: false,
           metadata: { cacheControl: "no-cache" },
         }),
+      loadExtra: async (uf) => {
+        const file = bucket.file(`public/limites-osm/${uf}.json.gz`);
+        const [ok] = await file.exists();
+        if (!ok) return null;
+        const [meta] = await file.getMetadata();
+        const [gz] = await file.download({ decompress: false });
+        return { id: meta.md5Hash, gz };
+      },
       log: (m) => console.log(m),
     });
     await metaRef.set({ ufs, builtAt: new Date().toISOString() });
