@@ -19,9 +19,11 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../logic/geo.dart';
 import '../logic/navigation.dart';
 import '../logic/radars.dart' show nearestOnLine;
+import '../logic/risk_areas.dart';
 import '../logic/route_traffic.dart';
 import 'app_settings.dart';
 import 'hazard_service.dart';
+import '../models/hazard.dart';
 import 'route_engine_service.dart';
 import '../l10n/i18n.dart';
 
@@ -139,11 +141,17 @@ class DirectionsService {
     final path = <LatLng>[];
     var risks = 0;
     var toll = false;
-    // Evitar locais de risco: áreas reportadas pela comunidade.
-    final riskPts = AppSettings.instance.route.value.avoidRisk
+    // Evitar locais de risco: alertas da comunidade e, no motor, os alertas
+    // com mais de uma confirmação + as áreas críticas dos dados públicos.
+    final avoidRisk = AppSettings.instance.route.value.avoidRisk;
+    final hazards =
+        avoidRisk ? await HazardService.instance.activeRisks() : const <Hazard>[];
+    final riskPts = [for (final h in hazards) (h.lat, h.lng)];
+    final avoid = avoidRisk
         ? [
-            for (final h in await HazardService.instance.activeRisks())
-              (h.lat, h.lng)
+            for (final h in hazards)
+              if (h.confirmations >= 2) (h.lat, h.lng),
+            ...await RouteEngineService.riskAreas(),
           ]
         : const <(double, double)>[];
     if (alternatives && points.length == 2) {
@@ -151,12 +159,13 @@ class DirectionsService {
           avoidTolls: avoidTolls,
           avoidHighways: avoidHighways,
           risks: riskPts,
+          avoid: avoid,
           alternatives: true);
     }
     for (var i = 0; i < points.length - 1; i += _maxWaypoints + 1) {
       final end = (i + _maxWaypoints + 1).clamp(0, points.length - 1);
       final part = await _request(points.sublist(i, end + 1),
-          avoidTolls: avoidTolls, avoidHighways: avoidHighways, risks: riskPts);
+          avoidTolls: avoidTolls, avoidHighways: avoidHighways, risks: riskPts, avoid: avoid);
       if (part == null) return null;
       legs.addAll(part.legs);
       steps.addAll(part.legSteps);
@@ -188,6 +197,7 @@ class DirectionsService {
     required bool avoidTolls,
     required bool avoidHighways,
     List<(double, double)> risks = const [],
+    List<(double, double)> avoid = const [],
     bool alternatives = false,
   }) async {
     final prefs0 = AppSettings.instance.route.value;
@@ -205,6 +215,7 @@ class DirectionsService {
       prefs0.liveTraffic,
       skipEngine,
       risks.length,
+      avoid.length,
       I18n.lang.value, // manobras faladas no idioma do app
       alternatives,
     ].join('|');
@@ -217,6 +228,7 @@ class DirectionsService {
         avoidTolls: avoidTolls,
         avoidHighways: avoidHighways,
         risks: risks,
+        avoid: avoid,
         alternatives: alternatives);
     if (r != null) {
       _cache[key] = (DateTime.now(), r);
@@ -237,20 +249,26 @@ class DirectionsService {
     required bool avoidTolls,
     required bool avoidHighways,
     List<(double, double)> risks = const [],
+    List<(double, double)> avoid = const [],
     bool alternatives = false,
   }) async {
     // Motor próprio primeiro; se falhar, segue pelo Google. Ainda pelo
-    // Google: evitar pedágio (no mapa aberto a rodovia inteira é pedágio) e
-    // áreas de risco (o motor não as conhece).
-    if (RouteEngineService.enabled && !skipEngine && !avoidTolls && risks.isEmpty) {
+    // Google: evitar pedágio (no mapa aberto a rodovia inteira é pedágio).
+    if (RouteEngineService.enabled && !skipEngine && !avoidTolls) {
       final prefs = AppSettings.instance.route.value;
       final r = await RouteEngineService.route(points,
           avoidTolls: avoidTolls,
           avoidHighways: avoidHighways,
           avoidFerries: prefs.avoidFerries,
           shortest: prefs.preference == RoutePreference.shortest,
-          alternatives: alternatives);
-      if (r != null) return r;
+          alternatives: alternatives,
+          avoid: avoidAreasFor(points, avoid));
+      if (r != null) {
+        if (risks.isEmpty) return r;
+        return RouteResult(r.polyline, r.legs, r.legSteps,
+            countRisks(decodePolyline(r.polyline), risks), r.hasToll, r.summary,
+            r.alternatives);
+      }
       RouteEngineService.lastUsed = false;
     }
     try {

@@ -238,7 +238,7 @@ const en3 = <String, String>{
   'Considerar o trânsito do momento': 'Consider current traffic',
   'Chegada com o trânsito atual. Navegando sozinho, avisa trânsito intenso e troca para uma rota mais rápida (consulta a cada 5 min, só com rota traçada). Aumenta o consumo de dados e de bateria.': 'Arrival with current traffic. In solo navigation, warns about heavy traffic and switches to a faster route (checks every 5 min, only with a planned route). Increases data and battery use.',
   'Evitar locais de risco': 'Avoid risky areas',
-  'Entre as rotas possíveis, escolhe a que passa longe das áreas com relatos de assalto reportadas pelos usuários (alerta "Área de risco / assalto").': 'Among the possible routes, picks the one that stays away from areas with robbery reports from users ("Risk area / robbery" alert).',
+  'A rota desvia dos pontos com muitos roubos registrados pelas secretarias de segurança e dos alertas "Área de risco / assalto" confirmados por outros usuários.': 'The route avoids spots with many robberies recorded by public security departments and "Risk area / robbery" alerts confirmed by other users.',
   'Avisos de radar e polícia': 'Speed camera and police warnings',
   'Radares (fixos e móveis)': 'Speed cameras (fixed and mobile)',
   'Polícia na pista e postos policiais': 'Police on the road and police stations',

@@ -605,7 +605,7 @@ class SettingsScreen extends StatelessWidget {
                 secondary: const Icon(Icons.gpp_maybe),
                 title: Text(tr('Evitar locais de risco')),
                 subtitle: Text(
-                    tr('Entre as rotas possíveis, escolhe a que passa longe das áreas com relatos de assalto reportadas pelos usuários (alerta "Área de risco / assalto").')),
+                    tr('A rota desvia dos pontos com muitos roubos registrados pelas secretarias de segurança e dos alertas "Área de risco / assalto" confirmados por outros usuários.')),
                 value: r.avoidRisk,
                 onChanged: (v) => s.setRoute(r.copyWith(avoidRisk: v)),
               ),

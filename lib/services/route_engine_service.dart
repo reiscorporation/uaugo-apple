@@ -19,6 +19,7 @@ import 'package:http/http.dart' as http;
 import '../l10n/i18n.dart';
 import '../logic/geo.dart';
 import '../logic/navigation.dart';
+import '../logic/risk_areas.dart';
 import 'directions_service.dart';
 import 'profile_service.dart';
 
@@ -40,6 +41,35 @@ class RouteEngineService {
 
   /// As velocidades do motor dão tempos 22% maiores que os do Google.
   static const _timeScale = 0.82;
+
+  /// Lado (graus) dos quadrados de [riskAreas].
+  static double areaSide = 250 / 111320;
+
+  static (DateTime, List<(double, double)>)? _areas;
+
+  /// Quadrados com muitos roubos, do mais crítico ao menos (dados públicos,
+  /// scripts/areas-risco.py). Guarda por 6 h; vazio se não conseguir baixar.
+  static Future<List<(double, double)>> riskAreas() async {
+    final c = _areas;
+    if (c != null && DateTime.now().difference(c.$1).inHours < 6) return c.$2;
+    if (!enabled) return const [];
+    try {
+      final r = await http
+          .get(Uri.parse('$url/areas'), headers: _auth)
+          .timeout(const Duration(seconds: 5));
+      if (r.statusCode != 200) return c?.$2 ?? const [];
+      final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+      areaSide = (j['lado'] as num).toDouble();
+      final list = <(double, double)>[
+        for (final a in (j['c'] as List).cast<List>())
+          ((a[0] as num).toDouble(), (a[1] as num).toDouble())
+      ];
+      _areas = (DateTime.now(), list);
+      return list;
+    } catch (_) {
+      return c?.$2 ?? const [];
+    }
+  }
 
   /// A última rota veio do motor próprio (true) ou caiu no Google (false).
   static bool lastUsed = false;
@@ -68,6 +98,7 @@ class RouteEngineService {
     bool avoidFerries = false,
     bool shortest = false,
     bool alternatives = false,
+    List<(double, double)> avoid = const [],
   }) async {
     if (DateTime.now().isBefore(_skipUntil)) return null;
     if (!await _alive()) {
@@ -98,6 +129,7 @@ class RouteEngineService {
         },
         'language': I18n.isEn ? 'en-US' : 'pt-BR',
         'directions_options': {'units': 'kilometers'},
+        if (avoid.isNotEmpty) 'exclude_polygons': avoidPolygons(avoid, areaSide),
         if (alternatives && points.length == 2) 'alternates': 2,
       };
       final res = await http
