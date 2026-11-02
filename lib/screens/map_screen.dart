@@ -1990,7 +1990,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final sim = _sim;
     final on = sim != null
         ? _simStarted
-        : _navigating && _voice.narrationOn.value;
+        : _navigating && (_voice.narrationOn.value || _helpTarget != null);
     if (!on || nav == null) return;
     void say(String t) => _voice.narrate(t, force: sim != null);
     if (!_navSynced) {
@@ -2009,7 +2009,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final limit = max(60.0, min(150.0, p.accuracy * 2.5));
       if (d > limit) {
         _offRouteCount++;
-        if (_offRouteCount >= 3 && !_isExpedition && _trip != null) {
+        if (_offRouteCount >= 3 && _helpTarget != null) {
+          // Indo até um colega: refaz a rota dele, nunca a do grupo.
+          _retraceHelp(p);
+        } else if (_offRouteCount >= 3 && !_isExpedition && _trip != null) {
           // Navegando sozinho: recalcula como o Waze.
           _reroute(p);
         } else if (_offRouteCount >= 3 && _isExpedition && _stops.length >= 2) {
@@ -2268,7 +2271,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (next >= _stops.length) return;
     final remaining = _stops.sublist(next);
     setState(() => _rerouting = true);
-    if (_isCaptain) {
+    if (_isCaptain && !_backFromHelp) {
       _voice.narrate(tr('Recalculando a rota da expedição'));
       final ok = await _svc.rerouteFromCaptain(_code, exp.plan, p.latitude,
           p.longitude, remaining, _stops.sublist(1, next));
@@ -2307,24 +2310,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Com rota própria: voltou ao trajeto da expedição (3 leituras a menos de
   /// 40 m)? Então segue a rota do grupo de novo.
   void _checkBackOnExpeditionRoute(Position p) {
-    // Indo socorrer um colega: a rota própria vale até chegar nele.
+    // Indo até um colega: a rota própria vale até chegar nele.
     final help = _helpTarget;
     if (help != null) {
-      if (distanceMeters(p.latitude, p.longitude, help.lat, help.lng) < 80) {
-        _helpTarget = null;
-        _personalTrip = null;
-        _routeSig = '';
-        _navSig = '';
-        _onStops(_stops);
+      final (lat, lng) = _helpPosition(help);
+      if (distanceMeters(p.latitude, p.longitude, lat, lng) < 80) {
+        _endHelp();
         _voice.alert(tr('Você chegou até {0}. Ao seguir, volto para a rota da expedição.', [help.name]));
+      } else if (distanceMeters(lat, lng, help.lat, help.lng) > 300) {
+        // O colega andou: a rota acompanha.
+        _retraceHelp(p);
       }
       return;
     }
     final w = _expWalker;
-    if (_personalTrip == null || w == null) return;
+    if (w == null || (_personalTrip == null && !_backFromHelp)) return;
     final off = w.project(p.latitude, p.longitude).offset;
     _backOnExpRoute = off < 40 ? _backOnExpRoute + 1 : 0;
     if (_backOnExpRoute < 3) return;
+    _backFromHelp = false;
+    if (_personalTrip == null) return;
     _personalTrip = null;
     _routeSig = '';
     _navSig = '';
@@ -2332,32 +2337,31 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _voice.narrate(tr('Você voltou para a rota da expedição'));
   }
 
-  /// Colega que pediu ajuda (SOS) e para onde o piloto está indo.
-  ({String name, double lat, double lng})? _helpTarget;
+  /// Colega que o piloto está indo buscar (SOS ou fora da rota). Com [uid],
+  /// a rota acompanha a posição dele.
+  ({String name, String? uid, double lat, double lng})? _helpTarget;
 
-  /// "Ir até lá" no SOS: rota temporária, dentro do UauGo, até o colega
-  /// (antes abria o Google Maps). Ao chegar, volta para a rota do grupo.
-  Future<void> _goHelp(String name, double lat, double lng) async {
-    final p = _me;
-    if (p == null) {
-      _snack(tr('Ainda sem a sua posição pelo GPS'));
-      return;
-    }
-    setState(() => _rerouting = true);
-    final nt = await TripService.build(
-      title: tr('Ajuda: {0}', [name]),
-      points: [
-        TripPoint(tr('Sua posição'), p.latitude, p.longitude, type: StopType.meet),
-        TripPoint(name, lat, lng, type: StopType.destination),
-      ],
-    );
-    if (!mounted) return;
-    setState(() => _rerouting = false);
-    if (nt == null) {
-      _snack(tr('Não foi possível traçar a rota até {0}. Confira a internet.', [name]));
-      return;
-    }
-    _helpTarget = (name: name, lat: lat, lng: lng);
+  /// Foi até um colega e ainda não voltou ao trajeto do grupo: o desvio é
+  /// só dele, mesmo sendo o capitão (não muda a rota de todos).
+  bool _backFromHelp = false;
+
+  /// Onde o colega está agora (sem posição nova, onde a rota foi traçada).
+  (double, double) _helpPosition(
+      ({String name, String? uid, double lat, double lng}) t) {
+    final m = _members.where((m) => m.uid == t.uid).firstOrNull;
+    return m != null && m.hasLocation ? (m.lat!, m.lng!) : (t.lat, t.lng);
+  }
+
+  Future<Trip?> _helpTrip(String name, Position p, double lat, double lng) =>
+      TripService.build(
+        title: tr('Ajuda: {0}', [name]),
+        points: [
+          TripPoint(tr('Sua posição'), p.latitude, p.longitude, type: StopType.meet),
+          TripPoint(name, lat, lng, type: StopType.destination),
+        ],
+      );
+
+  void _useHelpTrip(Trip nt) {
     _personalTrip = nt;
     _backOnExpRoute = 0;
     _offRouteCount = 0;
@@ -2367,6 +2371,53 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _navSig = 'personal';
     _nav = _buildNav([for (final s in nt.stops.skip(1)) ...s.steps]);
     _navSynced = false;
+  }
+
+  /// Refaz a rota até o colega (saiu dela ou ele andou), a cada 20 s no
+  /// máximo. Sem internet, segue com a rota que já está no celular.
+  Future<void> _retraceHelp(Position p) async {
+    final t = _helpTarget;
+    if (t == null || _rerouting) return;
+    if (DateTime.now().difference(_lastReroute) < const Duration(seconds: 20)) return;
+    _lastReroute = DateTime.now();
+    final (lat, lng) = _helpPosition(t);
+    setState(() => _rerouting = true);
+    final nt = await _helpTrip(t.name, p, lat, lng);
+    if (!mounted) return;
+    setState(() => _rerouting = false);
+    if (nt == null || _helpTarget != t) return;
+    _helpTarget = (name: t.name, uid: t.uid, lat: lat, lng: lng);
+    _useHelpTrip(nt);
+  }
+
+  /// Fim da rota até o colega (chegou ou desistiu): volta para a do grupo.
+  void _endHelp() {
+    _helpTarget = null;
+    _personalTrip = null;
+    _backFromHelp = true;
+    _routeSig = '';
+    _navSig = '';
+    _onStops(_stops);
+  }
+
+  /// Rota temporária, dentro do UauGo, até o colega ("Ir até lá" no SOS ou
+  /// segurar um piloto). Ao chegar, volta para a rota do grupo.
+  Future<void> _goHelp(String name, double lat, double lng, {String? uid}) async {
+    final p = _me;
+    if (p == null) {
+      _snack(tr('Ainda sem a sua posição pelo GPS'));
+      return;
+    }
+    setState(() => _rerouting = true);
+    final nt = await _helpTrip(name, p, lat, lng);
+    if (!mounted) return;
+    setState(() => _rerouting = false);
+    if (nt == null) {
+      _snack(tr('Não foi possível traçar a rota até {0}. Confira a internet.', [name]));
+      return;
+    }
+    _helpTarget = (name: name, uid: uid, lat: lat, lng: lng);
+    _useHelpTrip(nt);
     if (!_navigating) _startNavigation();
     _voice.alert(tr('Rota até {0}. {1}.', [name, formatDistance(nt.distanceM)]));
   }
@@ -2568,7 +2619,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Segurou um piloto (capitão, ferrolho ou líder): oferece ir até ele,
-  /// para buscar quem saiu da rota. Abre a rota no Google Maps, como no SOS.
+  /// para buscar quem saiu da rota. A rota é só de quem vai; a do grupo não muda.
   Future<void> _askRouteToMember(Member m) async {
     if (!_watchesGroup || m.uid == widget.uid || !m.hasLocation) return;
     HapticFeedback.mediumImpact();
@@ -2589,7 +2640,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ],
       ),
     );
-    if (go == true) await _navigate(m.lat!, m.lng!);
+    if (go == true) await _goHelp(m.name, m.lat!, m.lng!, uid: m.uid);
   }
 
   /// Abre o roteiro da expedição.
@@ -4137,6 +4188,34 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         icon: const Icon(Icons.close, color: Colors.white),
                         onPressed: () =>
                             setState(() => _trafficBanner = null),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+            if (_helpTarget case final help?)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: Colors.teal.shade700,
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 2, 4, 2),
+                    child: Row(children: [
+                      Expanded(
+                        child: Text(tr('🧭 Indo até {0}', [help.name]),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(foregroundColor: Colors.white),
+                        onPressed: _endHelp,
+                        child: Text(tr('Cancelar')),
                       ),
                     ]),
                   ),
@@ -5734,6 +5813,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           _navigating = false;
           _applyWakelock();
         });
+        if (_helpTarget != null) _endHelp();
         await _voice.stop();
         CarService.instance.clearNavigation();
         CarService.instance.toast(tr('Navegação encerrada'));
@@ -5946,6 +6026,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ),
     );
     if (ok != true || !mounted) return;
+    if (_helpTarget != null) _endHelp();
     await _voice.stop();
     if (!mounted) return;
     if (_isExpedition) {

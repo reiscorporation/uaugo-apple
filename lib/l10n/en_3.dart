@@ -37,6 +37,7 @@ const en3 = <String, String>{
   'Alerta enviado: radar móvel': 'Alert sent: mobile speed camera',
   'Alerta removido': 'Alert removed',
   'Traçar rota até {0}?': 'Route to {0}?',
+  '🧭 Indo até {0}': '🧭 Going to {0}',
   'Sem sinal agora: a rota vai até a última posição recebida.': 'No signal now: the route goes to the last position received.',
   'A rota vai até a posição atual do piloto.': 'The route goes to the rider current position.',
   '🚨 SOS enviado · toque para cancelar': '🚨 SOS sent · tap to cancel',
