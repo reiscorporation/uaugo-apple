@@ -5,13 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>SOS UauGo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   html, body { margin: 0; height: 100%; background: #0f1a2b; color: #fff; font-family: Arial, sans-serif; }
   body { display: flex; flex-direction: column; }
   header { padding: 14px 16px; background: #c62828; }
   h1 { margin: 0; font-size: 20px; }
   #status { margin: 4px 0 0; font-size: 15px; }
-  iframe { flex: 1; width: 100%; border: 0; background: #1b2a41; }
+  #map { flex: 1; width: 100%; background: #1b2a41; }
   a { display: none; margin: 12px 16px; padding: 14px; border-radius: 10px; background: #fff; color: #0f1a2b; font-weight: bold; text-align: center; text-decoration: none; }
 </style>
 </head>
@@ -20,14 +22,16 @@
   <h1 id="title">🆘 Pedido de ajuda</h1>
   <p id="status">Buscando a localização...</p>
 </header>
-<iframe id="map" title="Mapa" referrerpolicy="no-referrer-when-downgrade"></iframe>
+<div id="map"></div>
 <a id="open" target="_blank" rel="noopener">Abrir no Google Maps</a>
 <script>
   // Lê a posição a cada 10 s pela função sosLive (lib/services/live_sos.dart).
   const token = new URLSearchParams(location.search).get('t') || '';
   const url = '/api/sos?t=' + encodeURIComponent(token);
-  const status = document.getElementById('status'), map = document.getElementById('map'), open = document.getElementById('open');
-  let last = '', timer;
+  const status = document.getElementById('status'), open = document.getElementById('open');
+  const map = L.map('map');
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+  let last = '', timer, pin;
   async function load() {
     try {
       const r = await fetch(url, { cache: 'no-store' });
@@ -42,7 +46,8 @@
       const here = d.lat.toFixed(5) + ',' + d.lng.toFixed(5);
       if (here !== last) {
         last = here;
-        map.src = 'https://maps.google.com/maps?q=' + here + '&z=16&output=embed';
+        if (pin) { pin.setLatLng([d.lat, d.lng]); map.panTo([d.lat, d.lng]); }
+        else { pin = L.circleMarker([d.lat, d.lng], { radius: 11, color: '#fff', weight: 3, fillColor: '#c62828', fillOpacity: 1 }).addTo(map); map.setView([d.lat, d.lng], 16); }
         open.href = 'https://www.google.com/maps/search/?api=1&query=' + here;
         open.style.display = 'block';
       }
