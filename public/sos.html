@@ -23,26 +23,23 @@
 <iframe id="map" title="Mapa" referrerpolicy="no-referrer-when-downgrade"></iframe>
 <a id="open" target="_blank" rel="noopener">Abrir no Google Maps</a>
 <script>
-  // Lê liveSos/{token} a cada 10 s (documentação: lib/services/live_sos.dart).
+  // Lê a posição a cada 10 s pela função sosLive (lib/services/live_sos.dart).
   const token = new URLSearchParams(location.search).get('t') || '';
-  const url = 'https://firestore.googleapis.com/v1/projects/helpaitechcomboio/databases/(default)/documents/liveSos/' + encodeURIComponent(token);
+  const url = '/api/sos?t=' + encodeURIComponent(token);
   const status = document.getElementById('status'), map = document.getElementById('map'), open = document.getElementById('open');
-  const num = v => v && Number(v.doubleValue ?? v.integerValue);
   let last = '', timer;
   async function load() {
     try {
       const r = await fetch(url, { cache: 'no-store' });
-      if (r.status === 404 || r.status === 403) { status.textContent = 'Aguardando a primeira posição, ou link expirado.'; return; }
+      if (r.status === 404) { status.textContent = 'Aguardando a primeira posição, ou link expirado.'; return; }
       if (!r.ok) throw new Error();
-      const f = (await r.json()).fields;
-      const lat = num(f.lat), lng = num(f.lng), at = new Date(f.updatedAt.timestampValue);
-      const live = f.active.booleanValue && new Date(f.expiresAt.timestampValue) > new Date();
-      if (f.name.stringValue) document.getElementById('title').textContent = '🆘 ' + f.name.stringValue + ' pediu ajuda';
+      const d = await r.json(), at = new Date(d.updatedAt), live = d.active;
+      if (d.name) document.getElementById('title').textContent = '🆘 ' + d.name + ' pediu ajuda';
       const min = Math.floor((Date.now() - at) / 60000), hora = at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       status.textContent = !live ? 'Compartilhamento encerrado. Última posição às ' + hora + '.'
         : min >= 2 ? 'Sem atualização há ' + min + ' min. Última posição às ' + hora + '.'
         : 'Localização em tempo real. Atualizada às ' + hora + '.';
-      const here = lat.toFixed(5) + ',' + lng.toFixed(5);
+      const here = d.lat.toFixed(5) + ',' + d.lng.toFixed(5);
       if (here !== last) {
         last = here;
         map.src = 'https://maps.google.com/maps?q=' + here + '&z=16&output=embed';

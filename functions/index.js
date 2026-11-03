@@ -830,6 +830,33 @@ async function writeTollTable(data) {
  *   tollPrices/{key} (preço estimado, com fonte e data) e atualiza a tabela
  *   do app na hora. car/moto em R$ (moto 0 = isenta; null = não achou).
  */
+/**
+ * Link do SOS em tempo real (public/sos.html, em /api/sos): o Firestore só
+ * aceita o app (App Check), então a posição chega à página por aqui. Sem login:
+ * quem tem o token aleatório lê só aquele SOS.
+ */
+exports.sosLive = onHttpRequest({ region, invoker: "public", maxInstances: 5 }, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const token = String(req.query.t || "");
+  if (!/^[0-9a-f]{32}$/.test(token)) {
+    res.status(404).json({ error: "link inválido" });
+    return;
+  }
+  const snap = await db.doc(`liveSos/${token}`).get();
+  if (!snap.exists) {
+    res.status(404).json({ error: "link expirado" });
+    return;
+  }
+  const d = snap.data();
+  res.json({
+    name: d.name,
+    lat: d.lat,
+    lng: d.lng,
+    updatedAt: d.updatedAt.toMillis(),
+    active: d.active === true && d.expiresAt.toMillis() > Date.now(),
+  });
+});
+
 exports.tollPrices = onHttpRequest({ region, invoker: "public", timeoutSeconds: 300, memory: "512MiB" }, async (req, res) => {
   const secret = process.env.TOLL_INGEST_SECRET || "";
   const got = String(req.get("x-uaugo-key") || "");

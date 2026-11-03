@@ -2,7 +2,8 @@
 // live_sos.dart — Localização em tempo real do SOS
 //
 // O que faz: Enquanto o SOS está ativo, grava a posição a cada 15 s em
-//   liveSos/{token}. Quem tem o link vê em public/sos.html, sem login. Para em
+//   liveSos/{token}. Quem tem o link vê em public/sos.html, sem login (lê pela
+//   função sosLive, porque o Firestore só aceita o app). Para em
 //   "Estou bem" ou depois de 2 h; o TTL do Firestore apaga o documento.
 // Quem usa: MapScreen (SOS). A posição vem do GPS da tela do mapa, que entra no
 //   serviço em primeiro plano; o relógio daqui cobre o app fora do mapa.

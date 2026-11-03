@@ -447,10 +447,10 @@ describe("liveSos", () => {
     assertFails(setDoc(doc(anon(), "liveSos/" + T), { ...base(), uid: "bob" })));
   it("validade acima de 3 h é recusada", () =>
     assertFails(setDoc(doc(anon(), "liveSos/" + T), { ...base(), expiresAt: inHours(4) })));
-  it("quem tem o link lê; ninguém lista", async () => {
+  it("ninguém lê direto: o link passa pela função sosLive", async () => {
     await setDoc(doc(anon(), "liveSos/" + T), base());
     const f = env.unauthenticatedContext().firestore();
-    await assertSucceeds(getDoc(doc(f, "liveSos/" + T)));
+    await assertFails(getDoc(doc(f, "liveSos/" + T)));
     await assertFails(getDocs(collection(f, "liveSos")));
   });
   it("só o dono atualiza e não estende a validade", async () => {
