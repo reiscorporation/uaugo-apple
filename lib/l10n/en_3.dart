@@ -112,6 +112,7 @@ const en3 = <String, String>{
   'PRF (rodovias federais)': 'PRF (federal highways)',
   'Polícia Militar': 'Military Police',
   'Avisar {0} pelo WhatsApp': 'Notify {0} on WhatsApp',
+  'Contato não salvo: informe o nome e o WhatsApp com DDD.': 'Contact not saved: enter the name and WhatsApp number with area code.',
   'SOS: compartilhando sua localização em tempo real': 'SOS: sharing your live location',
   'Estou bem: parar a localização em tempo real': "I'm OK: stop live location",
   'Mensagem pronta com a sua localização': 'Ready-made message with your location',

@@ -310,7 +310,13 @@ class SettingsScreen extends StatelessWidget {
       await s.setEmergencyContact(null);
     } else if (r == 'salvar') {
       final digits = phone.text.replaceAll(RegExp(r'\D'), '');
-      if (name.text.trim().isEmpty || digits.length < 10) return;
+      if (name.text.trim().isEmpty || digits.length < 10) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(tr('Contato não salvo: informe o nome e o WhatsApp com DDD.'))));
+        }
+        return;
+      }
       await s.setEmergencyContact((name.text.trim(), digits));
     }
   }
@@ -332,6 +338,37 @@ class SettingsScreen extends StatelessWidget {
       body: SafeArea(
         top: false,
         child: ListView(children: [
+          ValueListenableBuilder<(String, String)?>(
+            valueListenable: s.emergencyContact,
+            builder: (ctx, c, __) => Card(
+              margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              color: Colors.red.withValues(alpha: 0.12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Colors.red),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ListTile(
+                leading: const CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.red,
+                  child: Text('SOS',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold)),
+                ),
+                title: Text(tr('Contato de emergência'),
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(c == null
+                    ? tr('Ninguém cadastrado. No SOS, um toque avisa essa pessoa pelo WhatsApp com a sua localização.')
+                    : tr('{0} · {1}\nNo SOS: "Avisar {2} pelo WhatsApp".', [c.$1, c.$2, c.$1])),
+                isThreeLine: c != null,
+                trailing: const Icon(Icons.edit_outlined),
+                onTap: () => _editEmergency(ctx, c),
+              ),
+            ),
+          ),
           section(tr('Conta')),
           const _AccountTile(),
           section(tr('Tela')),
@@ -344,19 +381,6 @@ class SettingsScreen extends StatelessWidget {
                   tr('A tela não apaga enquanto o mapa estiver aberto. Navegando, ela fica sempre ligada. Use com o carregador do veículo.')),
               value: on,
               onChanged: s.setKeepScreenOn,
-            ),
-          ),
-          ValueListenableBuilder<(String, String)?>(
-            valueListenable: s.emergencyContact,
-            builder: (ctx, c, __) => ListTile(
-              leading: const Icon(Icons.contact_emergency_outlined),
-              title: Text(tr('Contato de emergência')),
-              subtitle: Text(c == null
-                  ? tr('Ninguém cadastrado. No SOS, um toque avisa essa pessoa pelo WhatsApp com a sua localização.')
-                  : tr('{0} · {1}\nNo SOS: "Avisar {2} pelo WhatsApp".', [c.$1, c.$2, c.$1])),
-              isThreeLine: c != null,
-              trailing: const Icon(Icons.edit_outlined),
-              onTap: () => _editEmergency(ctx, c),
             ),
           ),
           ValueListenableBuilder<bool?>(
