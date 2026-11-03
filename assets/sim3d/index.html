@@ -267,6 +267,7 @@ function setRouteData(d) {
     const m = st.m || '', side = /left/.test(m) ? -1 : /right/.test(m) ? 1 : 0;
     const t = st.t || '';
     man.push({ i: best, side, m, t, street: streetOf(t), exit: isExit(m) && side !== 0,
+      rb: /roundabout/.test(m) && /^(saia|exit)/i.test(t), // saída da rotatória
       toward: towardOf(t), num: (t.match(/sa[ií]da\s+(\d+[A-Za-z]?)/i) || [])[1] || '' });
     iFrom = best;
   }
@@ -992,8 +993,8 @@ function findCurves() {
   const list = out.map(c => ({ s0: Math.max(0, CUM[c.a] - 30), s1: CUM[c.b] + 30, side: c.side }));
   // manobra em ângulo pequeno, que não chega a dar curva no traçado
   for (const m of MAN) {
-    if (!m.side || list.some(c => c.side === m.side && m.s >= c.s0 && m.s <= c.s1)) continue;
-    list.push({ s0: m.exit ? m.s : Math.max(0, m.s - 30), s1: m.s + 60, side: m.side });
+    if (!m.side || (!m.rb && list.some(c => c.side === m.side && m.s >= c.s0 && m.s <= c.s1))) continue;
+    list.push({ s0: m.exit ? m.s : Math.max(0, m.s - 30), s1: m.s + 60, side: m.side, rb: m.rb });
   }
   return list.sort((a, b) => a.s0 - b.s0);
 }
@@ -1003,7 +1004,8 @@ function findArrows(curves) {
   const GAP = 35, NEAR = 24, out = [], list = curves.map(c => ({ ...c }));
   for (let i = 0; i + 1 < list.length; i++) {
     const a = list[i], b = list[i + 1];
-    if (a.side !== b.side && a.s1 > b.s0) a.s1 = b.s0 = (a.s1 + b.s0) / 2;
+    if (a.side === b.side || a.s1 <= b.s0) continue;
+    if (b.rb) a.s1 = b.s0; else a.s1 = b.s0 = (a.s1 + b.s0) / 2;
   }
   let last = -Infinity;
   for (const c of list) {
@@ -1145,7 +1147,12 @@ function exitMarker(m) {
   gore.position.copy(toV(gx, 1.1, gy)); gore.rotation.y = yawOf(before); g.add(gore);
   const gp = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.8, 0.12), MAT.pole); gp.position.copy(toV(gx, 0.4, gy)); g.add(gp);
   // placa grande piscando na divisão (no lugar do letreiro no céu)
-  const bw = 9, bh = bw / 2, bx = (r.x + 2 * mx) / 3, by = (r.y + 2 * my) / 3;
+  exitBoard(g, m, (r.x + 2 * mx) / 3, (r.y + 2 * my) / 3, yawOf(before), m.s + 30);
+  scene.add(g);
+  return g;
+}
+function exitBoard(g, m, bx, by, yaw, endS) {
+  const bw = 9, bh = bw / 2;
   const board = new THREE.Group();
   const texOn = exitBoardTex(m, true), texOff = exitBoardTex(m, false);
   const face = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), new THREE.MeshBasicMaterial({ map: texOn, fog: false }));
@@ -1160,17 +1167,18 @@ function exitMarker(m) {
     const l = new THREE.Mesh(new THREE.CircleGeometry(0.28, 14), new THREE.MeshBasicMaterial({ color: 0xffb300, fog: false }));
     l.position.set(x, 1.6 + bh + 0.35, 0.02); l.userData.ph = i * Math.PI; board.add(l); return l;
   });
-  board.position.copy(toV(bx, 0, by)); board.rotation.y = yawOf(before);
-  board.userData.exitBoard = { face, glow, lamps, texOn, texOff, s: m.s + 30 };
+  board.position.copy(toV(bx, 0, by)); board.rotation.y = yaw;
+  board.userData.exitBoard = { face, glow, lamps, texOn, texOff, s: endS };
   g.add(board);
-  scene.add(g);
-  return g;
 }
 // as setas só existem perto do carro (rotas com centenas de manobras)
 function markerFor(m) {
   if (m.exit) return exitMarker(m);
   const g = new THREE.Group(), before = posAt(m.s - 14), at_ = posAt(m.s);
-  if (m.street) {
+  if (m.rb) {
+    const p = posAt(m.s + 12), off = m.side * (ROAD_HW + 6);
+    exitBoard(g, m, p.x + p.dy * off, p.y - p.dx * off, yawOf(p), m.s + 12);
+  } else if (m.street) {
     const lab = label(m.street);
     lab.position.copy(toV(at_.x + before.dx * 9 + before.dy * m.side * 3, 5.6, at_.y + before.dy * 9 - before.dx * m.side * 3));
     g.add(lab);

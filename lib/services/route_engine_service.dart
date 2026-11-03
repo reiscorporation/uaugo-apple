@@ -174,7 +174,7 @@ class RouteEngineService {
         for (final n in (m['street_names'] as List? ?? const [])) {
           names[n as String] = (names[n] ?? 0) + ((m['length'] as num?)?.toDouble() ?? 0);
         }
-        final text = (m['instruction'] as String? ?? '').trim();
+        final text = roundaboutText((m['instruction'] as String? ?? '').trim());
         if (text.isEmpty) continue;
         ls.add(NavStep(at.latitude, at.longitude, text, _maneuver(type)));
       }
@@ -189,6 +189,15 @@ class RouteEngineService {
     final hasToll = (trip['summary'] as Map?)?['has_toll'] == true;
     return RouteResult(encodePolyline(simplifyPolyline(path, 4)), legs, steps, 0,
         hasToll, summary);
+  }
+
+  /// O motor manda a entrada de rotatória em inglês mesmo no pedido em português.
+  static String roundaboutText(String t) {
+    if (I18n.isEn) return t;
+    final m = RegExp(r'^Enter (.+?) and take the (\d+)\S* exit(?: onto (.+?))?\.?$').firstMatch(t);
+    if (m == null) return t;
+    final to = m[3] == null ? '' : ' para ${m[3]}';
+    return 'Na rotatória ${m[1]}, pegue a ${m[2]}ª saída$to.';
   }
 
   /// Tipo de manobra do Valhalla -> o mesmo nome usado pelo Google no app.

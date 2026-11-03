@@ -6872,9 +6872,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       'https://www.google.com/maps/search/?api=1&query='
       '${p.latitude.toStringAsFixed(6)},${p.longitude.toStringAsFixed(6)}';
 
+  /// Logo depois de abrir o app ainda não há posição: pede ao GPS na hora.
+  /// Sem GPS, o pedido de ajuda sai mesmo assim.
+  Future<String> _sosMessage() async {
+    Position? p = _me;
+    try {
+      p ??= await Geolocator.getCurrentPosition()
+          .timeout(const Duration(seconds: 4));
+    } catch (_) {}
+    try {
+      p ??= await Geolocator.getLastKnownPosition();
+    } catch (_) {}
+    return p == null ? '🆘 Preciso de ajuda.' : _sosText(p);
+  }
+
   void _showEmergency() {
     HapticFeedback.heavyImpact();
-    final p = _me;
     showSafeSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -6896,7 +6909,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               onTap: () => launchUrl(Uri.parse('tel:$num')),
             ),
           // Contato de emergência (Configurações): um toque avisa pelo WhatsApp.
-          if (p != null && AppSettings.instance.emergencyContact.value != null)
+          if (AppSettings.instance.emergencyContact.value != null)
             Builder(builder: (_) {
               final (nome, fone) = AppSettings.instance.emergencyContact.value!;
               final num = fone.startsWith('55') && fone.length >= 12 ? fone : '55$fone';
@@ -6905,31 +6918,33 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 title: Text(tr('Avisar {0} pelo WhatsApp', [nome]),
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text(tr('Mensagem pronta com a sua localização')),
-                onTap: () => launchUrl(
-                    Uri.parse('https://wa.me/$num?text=${Uri.encodeComponent(_sosText(p))}'),
-                    mode: LaunchMode.externalApplication),
+                onTap: () async {
+                  final text = await _sosMessage();
+                  await launchUrl(
+                      Uri.parse('https://wa.me/$num?text=${Uri.encodeComponent(text)}'),
+                      mode: LaunchMode.externalApplication);
+                },
               );
             }),
-          if (p != null) ...[
-            // Direto no WhatsApp (a pessoa escolhe o contato); a lista de
-            // compartilhar do Android às vezes nem mostra o WhatsApp.
-            ListTile(
-              leading: const Icon(Icons.chat, color: Color(0xFF25D366)),
-              title: Text(tr('Enviar minha localização pelo WhatsApp')),
-              onTap: () async {
-                final text = _sosText(p);
-                final ok = await launchUrl(
-                    Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}'),
-                    mode: LaunchMode.externalApplication);
-                if (!ok) SharePlus.instance.share(ShareParams(text: text));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.share_location),
-              title: Text(tr('Enviar por outro app (SMS, Telegram...)')),
-              onTap: () => SharePlus.instance.share(ShareParams(text: _sosText(p))),
-            ),
-          ],
+          // Direto no WhatsApp (a pessoa escolhe o contato); a lista de
+          // compartilhar do Android às vezes nem mostra o WhatsApp.
+          ListTile(
+            leading: const Icon(Icons.chat, color: Color(0xFF25D366)),
+            title: Text(tr('Enviar minha localização pelo WhatsApp')),
+            onTap: () async {
+              final text = await _sosMessage();
+              final ok = await launchUrl(
+                  Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}'),
+                  mode: LaunchMode.externalApplication);
+              if (!ok) SharePlus.instance.share(ShareParams(text: text));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.share_location),
+            title: Text(tr('Enviar por outro app (SMS, Telegram...)')),
+            onTap: () async =>
+                SharePlus.instance.share(ShareParams(text: await _sosMessage())),
+          ),
         ]),
       ),
     );
