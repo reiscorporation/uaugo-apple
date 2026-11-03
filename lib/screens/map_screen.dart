@@ -44,6 +44,7 @@ import '../models/expedition.dart';
 import '../models/hazard.dart';
 import '../services/expedition_service.dart';
 import '../services/hazard_service.dart';
+import '../services/live_sos.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
 import '../services/auth_service.dart';
@@ -146,7 +147,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// sempre ligada (_applyWakelock), então a navegação não depende disso.
   bool get _keepGpsInBackground =>
       _sim == null &&
-      ((_isExpedition && AppSettings.instance.backgroundShare.value) || _carMode);
+      (LiveSos.active.value != null ||
+          (_isExpedition && AppSettings.instance.backgroundShare.value) ||
+          _carMode);
 
   /// Android Auto conectado e navegando: o celular costuma ficar bloqueado,
   /// mas GPS, voz e avisos continuam (a tela é a do carro).
@@ -176,8 +179,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       saving: _saving,
       background: service,
       economical: false,
-      notificationText: tr('Compartilhando sua localização com o comboio'),
+      notificationText: LiveSos.active.value != null
+          ? tr('SOS: compartilhando sua localização em tempo real')
+          : tr('Compartilhando sua localização com o comboio'),
     ).listen(_onPosition, onError: (e) => _snack('GPS: $e'));
+  }
+
+  /// O SOS em tempo real ligou/desligou: o GPS entra ou sai do serviço com a
+  /// notificação fixa, ainda com o app na tela.
+  void _onLiveSos() {
+    if (mounted && _sim == null && !_inBackground) _startGps();
   }
 
   /// Desliga o GPS (e o serviço com a notificação fixa).
@@ -189,7 +200,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Em segundo plano: desliga o GPS se o piloto está parado há muito tempo.
   void _checkIdleInBackground(Position p) {
-    if (!_inBackground) {
+    if (!_inBackground || LiveSos.active.value != null) {
       _idleSince = null;
       return;
     }
@@ -454,6 +465,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    LiveSos.active.addListener(_onLiveSos);
     if (AppSettings.instance.mediaControls.value) MediaService.instance.start();
     if (_isExpedition) {
       _listenExpedition();
@@ -645,6 +657,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Saiu do mapa por vontade própria; o Android fechar o app não passa aqui.
     if (!_isExpedition && _sim == null) ActiveTrip.clear();
     _clearSimSaved();
+    LiveSos.active.removeListener(_onLiveSos);
     _onlineTimer?.cancel();
     _routeTrafficTimer?.cancel();
     CarService.instance.connected.removeListener(_onCarConnected);
@@ -752,6 +765,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Nova posição do GPS (ou da simulação): tudo que depende da posição
   /// acontece aqui, nesta ordem. Veja docs/ARQUITETURA.md, seção 4.
   void _onPosition(Position p) {
+    if (_sim == null) LiveSos.push(p);
     // Leitura ruim com o veículo parado (local coberto): a posição anda
     // sozinha e inventa velocidade. Mantém o último lugar e mostra 0.
     if (_sim == null && _me != null &&
@@ -6872,22 +6886,29 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       'https://www.google.com/maps/search/?api=1&query='
       '${p.latitude.toStringAsFixed(6)},${p.longitude.toStringAsFixed(6)}';
 
-  /// Logo depois de abrir o app ainda não há posição: pede ao GPS na hora.
-  /// Sem GPS, o pedido de ajuda sai mesmo assim.
-  Future<String> _sosMessage() async {
-    Position? p = _me;
-    try {
-      p ??= await Geolocator.getCurrentPosition()
-          .timeout(const Duration(seconds: 4));
-    } catch (_) {}
-    try {
-      p ??= await Geolocator.getLastKnownPosition();
-    } catch (_) {}
-    return p == null ? '🆘 Preciso de ajuda.' : _sosText(p);
+  /// Liga o compartilhamento em tempo real e monta o pedido de ajuda. Não
+  /// espera o GPS: a página do link mostra a posição assim que ela chegar.
+  String _sosMessage() {
+    final link = LiveSos.start(widget.uid, widget.userName, first: _me);
+    final me = _me;
+    return '🆘 Preciso de ajuda. Minha localização em tempo real: $link'
+        '${me == null ? '' : '\n\n${_sosText(me)}'}';
   }
+
+  Future<void> _openSosChat(String number) => launchUrl(
+      Uri.parse('https://wa.me/$number?text=${Uri.encodeComponent(_sosMessage())}'),
+      mode: LaunchMode.externalApplication);
+
+  /// Contato de emergência no formato do WhatsApp (com o 55 do Brasil).
+  String _sosNumber(String fone) =>
+      fone.startsWith('55') && fone.length >= 12 ? fone : '55$fone';
 
   void _showEmergency() {
     HapticFeedback.heavyImpact();
+    // Com contato cadastrado, o WhatsApp abre direto com a mensagem pronta;
+    // os telefones ficam atrás, para quando voltar ao app.
+    final contact = AppSettings.instance.emergencyContact.value;
+    if (contact != null) _openSosChat(_sosNumber(contact.$2));
     showSafeSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -6912,18 +6933,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           if (AppSettings.instance.emergencyContact.value != null)
             Builder(builder: (_) {
               final (nome, fone) = AppSettings.instance.emergencyContact.value!;
-              final num = fone.startsWith('55') && fone.length >= 12 ? fone : '55$fone';
               return ListTile(
                 leading: const Icon(Icons.contact_emergency, color: Color(0xFF25D366), size: 30),
                 title: Text(tr('Avisar {0} pelo WhatsApp', [nome]),
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text(tr('Mensagem pronta com a sua localização')),
-                onTap: () async {
-                  final text = await _sosMessage();
-                  await launchUrl(
-                      Uri.parse('https://wa.me/$num?text=${Uri.encodeComponent(text)}'),
-                      mode: LaunchMode.externalApplication);
-                },
+                onTap: () => _openSosChat(_sosNumber(fone)),
               );
             }),
           // Direto no WhatsApp (a pessoa escolhe o contato); a lista de
@@ -6932,7 +6947,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             leading: const Icon(Icons.chat, color: Color(0xFF25D366)),
             title: Text(tr('Enviar minha localização pelo WhatsApp')),
             onTap: () async {
-              final text = await _sosMessage();
+              final text = _sosMessage();
               final ok = await launchUrl(
                   Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}'),
                   mode: LaunchMode.externalApplication);
@@ -6942,8 +6957,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ListTile(
             leading: const Icon(Icons.share_location),
             title: Text(tr('Enviar por outro app (SMS, Telegram...)')),
-            onTap: () async =>
-                SharePlus.instance.share(ShareParams(text: await _sosMessage())),
+            onTap: () => SharePlus.instance.share(ShareParams(text: _sosMessage())),
+          ),
+          ValueListenableBuilder<String?>(
+            valueListenable: LiveSos.active,
+            builder: (_, token, __) => token == null
+                ? const SizedBox.shrink()
+                : ListTile(
+                    leading: const Icon(Icons.location_off, color: Colors.red),
+                    title: Text(tr('Estou bem: parar a localização em tempo real')),
+                    onTap: LiveSos.stop,
+                  ),
           ),
         ]),
       ),

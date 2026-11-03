@@ -20,6 +20,12 @@
       ]
     },
     {
+      "collectionGroup": "liveSos",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
       "collectionGroup": "hazards",
       "fieldPath": "expiresAt",
       "ttl": true,

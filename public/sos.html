@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>SOS UauGo</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0f1a2b; color: #fff; font-family: Arial, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { padding: 14px 16px; background: #c62828; }
+  h1 { margin: 0; font-size: 20px; }
+  #status { margin: 4px 0 0; font-size: 15px; }
+  iframe { flex: 1; width: 100%; border: 0; background: #1b2a41; }
+  a { display: none; margin: 12px 16px; padding: 14px; border-radius: 10px; background: #fff; color: #0f1a2b; font-weight: bold; text-align: center; text-decoration: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">🆘 Pedido de ajuda</h1>
+  <p id="status">Buscando a localização...</p>
+</header>
+<iframe id="map" title="Mapa" referrerpolicy="no-referrer-when-downgrade"></iframe>
+<a id="open" target="_blank" rel="noopener">Abrir no Google Maps</a>
+<script>
+  // Lê liveSos/{token} a cada 10 s (documentação: lib/services/live_sos.dart).
+  const token = new URLSearchParams(location.search).get('t') || '';
+  const url = 'https://firestore.googleapis.com/v1/projects/helpaitechcomboio/databases/(default)/documents/liveSos/' + encodeURIComponent(token);
+  const status = document.getElementById('status'), map = document.getElementById('map'), open = document.getElementById('open');
+  const num = v => v && Number(v.doubleValue ?? v.integerValue);
+  let last = '', timer;
+  async function load() {
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      if (r.status === 404 || r.status === 403) { status.textContent = 'Aguardando a primeira posição, ou link expirado.'; return; }
+      if (!r.ok) throw new Error();
+      const f = (await r.json()).fields;
+      const lat = num(f.lat), lng = num(f.lng), at = new Date(f.updatedAt.timestampValue);
+      const live = f.active.booleanValue && new Date(f.expiresAt.timestampValue) > new Date();
+      if (f.name.stringValue) document.getElementById('title').textContent = '🆘 ' + f.name.stringValue + ' pediu ajuda';
+      const min = Math.floor((Date.now() - at) / 60000), hora = at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      status.textContent = !live ? 'Compartilhamento encerrado. Última posição às ' + hora + '.'
+        : min >= 2 ? 'Sem atualização há ' + min + ' min. Última posição às ' + hora + '.'
+        : 'Localização em tempo real. Atualizada às ' + hora + '.';
+      const here = lat.toFixed(5) + ',' + lng.toFixed(5);
+      if (here !== last) {
+        last = here;
+        map.src = 'https://maps.google.com/maps?q=' + here + '&z=16&output=embed';
+        open.href = 'https://www.google.com/maps/search/?api=1&query=' + here;
+        open.style.display = 'block';
+      }
+      if (!live) clearInterval(timer);
+    } catch (_) {
+      status.textContent = 'Sem conexão. Tentando de novo...';
+    }
+  }
+  load();
+  timer = setInterval(load, 10000);
+</script>
+</body>
+</html>

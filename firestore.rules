@@ -267,6 +267,29 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // SOS em tempo real: quem tem o link (token aleatório) lê um documento;
+    // ninguém lista. Vale por até 3 h e o TTL apaga depois de expiresAt.
+    function validLiveSos(d) {
+      return str(d.name, 60) && isLat(d.lat) && isLng(d.lng)
+        && d.active is bool && d.updatedAt == request.time;
+    }
+    match /liveSos/{token} {
+      allow get: if token.size() == 32;
+      allow list: if false;
+      allow create: if signedIn() && token.size() == 32
+        && request.resource.data.keys().hasOnly(
+          ['uid', 'name', 'lat', 'lng', 'active', 'updatedAt', 'expiresAt'])
+        && request.resource.data.uid == request.auth.uid
+        && validLiveSos(request.resource.data)
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt < request.time + duration.value(3, 'h');
+      allow update: if signedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['lat', 'lng', 'active', 'updatedAt'])
+        && validLiveSos(request.resource.data);
+      allow delete: if false;
+    }
+
     match /hazards/{hazardId} {
       function voteRef() {
         return /databases/$(database)/documents/hazards/$(hazardId)/votes/$(request.auth.uid);

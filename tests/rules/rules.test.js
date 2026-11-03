@@ -435,3 +435,29 @@ describe("Valores de pedágio informados pelos pilotos", () => {
     await assertSucceeds(getDoc(ref(db("alice"), "alice")));
   });
 });
+
+describe("liveSos", () => {
+  const T = "a".repeat(32);
+  const base = () => ({ uid: "anon1", name: "Ana", lat: -21, lng: -47, active: true,
+    updatedAt: serverTimestamp(), expiresAt: inHours(2) });
+  const anon = () => env.authenticatedContext("anon1", {
+    firebase: { sign_in_provider: "anonymous" } }).firestore();
+  it("conta anônima cria o próprio SOS", () => assertSucceeds(setDoc(doc(anon(), "liveSos/" + T), base())));
+  it("não cria em nome de outro", () =>
+    assertFails(setDoc(doc(anon(), "liveSos/" + T), { ...base(), uid: "bob" })));
+  it("validade acima de 3 h é recusada", () =>
+    assertFails(setDoc(doc(anon(), "liveSos/" + T), { ...base(), expiresAt: inHours(4) })));
+  it("quem tem o link lê; ninguém lista", async () => {
+    await setDoc(doc(anon(), "liveSos/" + T), base());
+    const f = env.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(f, "liveSos/" + T)));
+    await assertFails(getDocs(collection(f, "liveSos")));
+  });
+  it("só o dono atualiza e não estende a validade", async () => {
+    await setDoc(doc(anon(), "liveSos/" + T), base());
+    await assertSucceeds(updateDoc(doc(anon(), "liveSos/" + T), { lat: -22, updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(anon(), "liveSos/" + T), { expiresAt: inHours(2.5), updatedAt: serverTimestamp() }));
+    const bob = env.authenticatedContext("bob").firestore();
+    await assertFails(updateDoc(doc(bob, "liveSos/" + T), { lat: 0, updatedAt: serverTimestamp() }));
+  });
+});
