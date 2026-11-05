@@ -1086,6 +1086,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // avanço de sinal fica em cruzamento: uma vez só, a no máximo 300 m.
     final prefs = AppSettings.instance.alerts.value;
     for (final r in _radarsAround) {
+      if (r.unverified) continue;
       final redLight = r.kind == RadarKind.redLight;
       final range = redLight
           ? min(300.0, prefs.radarMeters.toDouble())

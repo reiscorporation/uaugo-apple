@@ -231,7 +231,12 @@ class RouteLimitProfile {
         final short = value != null &&
             !isExit &&
             (len < minLen || (big && len < bigLen));
-        if (short && before != null && (after == null || after == before)) {
+        // Queda grande entre dois trechos de rodovia (ex.: 90 antes e 110
+        // depois, num trevo cujas alças de 40 cruzam a pista): também é alça.
+        final highwayBothSides = big && after != null && after.kmh >= 80;
+        if (short &&
+            before != null &&
+            (after == null || after == before || highwayBothSides)) {
           for (var k = i; k <= j; k++) {
             v[k] = before;
           }

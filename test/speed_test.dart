@@ -30,6 +30,14 @@ void main() {
       expect(p.at(500)?.kmh, 110);
       expect(p.at(1500)?.kmh, 80);
     });
+    test('trevo: 40 curto entre 90 e 110 é alça, não a pista', () {
+      // Anhanguera chegando a Ribeirão Preto (relato de 04/11).
+      const r90 = RoadLimit(90, false), r40 = RoadLimit(40, false);
+      final raw = [...List.filled(20, r90), ...List.filled(14, r40), ...List.filled(20, a)];
+      final p = RouteLimitProfile(0, 50, raw);
+      expect(p.at(1300)?.kmh, 90);
+      expect(p.at(2000)?.kmh, 110);
+    });
     test('sem dado no meio repete o anterior', () {
       final raw = <RoadLimit?>[a, a, null, null, a, a];
       final p = RouteLimitProfile(0, 50, raw);

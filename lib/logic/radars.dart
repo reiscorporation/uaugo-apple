@@ -32,6 +32,10 @@ class FixedRadar {
   const FixedRadar(this.id, this.lat, this.lng, this.kind, this.limit,
       this.direction);
 
+  /// Sem limite e sem sentido (quase sempre do mapa colaborativo): muitos já
+  /// não existem. Aparece no mapa, mas não é falado (decisão de 04/11).
+  bool get unverified => limit == 0 && direction < 0;
+
   /// Radar de avanço de sinal fica em cruzamento: avisa mais perto.
   double get alertMeters => kind == RadarKind.redLight ? 300 : 1000;
 }
