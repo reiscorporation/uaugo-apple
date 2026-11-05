@@ -5,6 +5,9 @@
 //   "uaugo/car") a próxima manobra, a chegada, a rota e a posição; recebe os
 //   botões do carro (Radar, Perigo, Encerrar). Com o carro conectado e
 //   navegando, o mapa mantém GPS, voz e avisos mesmo com o celular bloqueado.
+//   Destinos (casa, salvos, recentes) vão para a lista do carro; com o carro
+//   conectado e o celular apagado, as telas continuam sendo montadas
+//   (quadros forçados): escolher destino no carro abre a rota sem desbloquear.
 // Quem usa: MapScreen.
 // ============================================================================
 
@@ -12,6 +15,8 @@ import 'dart:typed_data';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import '../widgets/bike_marker.dart';
 import 'profile_service.dart';
 import 'package:flutter/services.dart';
@@ -21,6 +26,8 @@ import '../models/hazard.dart';
 import 'auth_service.dart';
 import 'hazard_service.dart';
 import '../l10n/i18n.dart';
+import 'recent_places_service.dart';
+import 'saved_places_service.dart';
 import 'shared_place_service.dart';
 
 class CarService {
@@ -46,6 +53,8 @@ class CarService {
     _ch.setMethodCallHandler((c) async {
       if (c.method == 'action') {
         final a = c.arguments as String;
+        debugPrint('Carro: $a (mapa aberto: ${_actions.hasListener}, '
+            'app: ${WidgetsBinding.instance.lifecycleState})');
         // Mapa aberto no celular: ele cuida. Senão, os botões ainda valem.
         if (_actions.hasListener) {
           _actions.add(a);
@@ -71,6 +80,46 @@ class CarService {
       if (v == true) _sendVehicle();
     },
         onError: (_) {});
+    connected.addListener(_onConnected);
+    SavedPlacesService.instance.places.addListener(sendDestinations);
+  }
+
+  Timer? _frames;
+
+  /// Celular apagado ou bloqueado: o Android para de montar as telas, e a rota
+  /// pedida no carro só começava ao desbloquear. Com o carro conectado,
+  /// força um quadro a cada 0,5 s enquanto o app não está na frente.
+  void _onConnected() {
+    _frames?.cancel();
+    _frames = null;
+    if (!connected.value) return;
+    sendDestinations();
+    _frames = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+        SchedulerBinding.instance.scheduleForcedFrame();
+      }
+    });
+  }
+
+  /// Casa, trabalho, locais salvos e os recentes, para escolher no carro.
+  Future<void> sendDestinations() async {
+    if (!connected.value) return;
+    await SavedPlacesService.instance.load();
+    final recent = await RecentPlacesService.instance.load();
+    final seen = <String>{};
+    final list = <Map<String, Object>>[];
+    void add(String name, double lat, double lng) {
+      final key = '${lat.toStringAsFixed(4)},${lng.toStringAsFixed(4)}';
+      if (name.isEmpty || !seen.add(key) || list.length >= 12) return;
+      list.add({'n': name, 'la': lat, 'lo': lng});
+    }
+    for (final p in SavedPlacesService.instance.places.value) {
+      add(p.name, p.lat, p.lng);
+    }
+    for (final p in recent) {
+      add(p.name, p.lat, p.lng);
+    }
+    _ch.invokeMethod('destinations', list).catchError((_) => null);
   }
 
   /// Aviso curto na tela do carro.

@@ -9,6 +9,11 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    // App que o carro já ligou (UauGoEngine): a tela usa o mesmo, sem reiniciar.
+    override fun provideFlutterEngine(context: Context): FlutterEngine? = UauGoEngine.cached()
+
+    override fun shouldDestroyEngineWithHost(): Boolean = UauGoEngine.cached() == null
+
     // Comandos de voz offline (Configurações → Acessibilidade). VoiceCommands.kt
     private var voice: VoiceCommands? = null
     // Endereço recebido de outro app (WhatsApp, Google Maps...). SharedPlace.kt
@@ -76,6 +81,11 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         voice?.shutdown()
+        // App fechado (sem o motor do carro): o carro liga outro quando precisar.
+        if (UauGoEngine.cached() == null) {
+            CarState.actionSink = null
+            CarState.dartReady = false
+        }
         super.onDestroy()
     }
 }

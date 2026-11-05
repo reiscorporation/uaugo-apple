@@ -58,6 +58,11 @@ object CarState {
     @Volatile var en = java.util.Locale.getDefault().language != "pt"
     /** Zoom escolhido pelo motorista nos botões +/− do carro (passos). */
     @Volatile var zoomOffset = 0f
+    /** Destinos para escolher no carro: (nome, lat, lng). */
+    @Volatile var destinations: List<Triple<String, Double, Double>> = emptyList()
+    /** Pedidos do carro que chegaram antes de o app (Dart) estar pronto. */
+    val pending = java.util.concurrent.ConcurrentLinkedQueue<String>()
+    @Volatile var dartReady = false
     /** Bússola do carro: norte sempre para cima (sem inclinar o mapa). */
     @Volatile var northUp = false
     /** Estrada em 3D no carro: 0 = só mapa, 1 = nas saídas, 2 = sempre. */
@@ -165,7 +170,28 @@ class CarBridge(messenger: BinaryMessenger) {
                     CarState.changed()
                     result.success(null)
                 }
-                "connected" -> result.success(CarState.connected)
+                "connected" -> {
+                    result.success(CarState.connected)
+                    // O app acabou de subir: entrega o que o carro já pediu.
+                    CarState.dartReady = true
+                    Handler(Looper.getMainLooper()).post {
+                        while (true) {
+                            val a = CarState.pending.poll() ?: break
+                            channel.invokeMethod("action", a)
+                        }
+                    }
+                }
+                "destinations" -> {
+                    val l = call.arguments as? List<*> ?: emptyList<Any>()
+                    CarState.destinations = l.mapNotNull { e ->
+                        val m = e as? Map<*, *> ?: return@mapNotNull null
+                        val n = m["n"] as? String ?: return@mapNotNull null
+                        val la = (m["la"] as? Number)?.toDouble() ?: return@mapNotNull null
+                        val lo = (m["lo"] as? Number)?.toDouble() ?: return@mapNotNull null
+                        Triple(n, la, lo)
+                    }
+                    result.success(null)
+                }
                 "mode3d" -> {
                     (call.arguments as? Int)?.let { CarState.mode3d = it }
                     CarState.changed()
@@ -230,7 +256,9 @@ class CarBridge(messenger: BinaryMessenger) {
                 else -> result.notImplemented()
             }
         }
-        CarState.actionSink = { a -> channel.invokeMethod("action", a) }
+        CarState.actionSink = { a ->
+            if (CarState.dartReady) channel.invokeMethod("action", a) else CarState.pending.add(a)
+        }
         CarState.connectedSink = { on -> channel.invokeMethod("connected", on) }
     }
 }

@@ -111,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// vai direto para o "Para onde?" com o destino.
   Future<void> _onShared() async {
     if (!mounted || SharedPlaceService.instance.pending.value == null) return;
+    debugPrint('Destino recebido: na frente=${ModalRoute.of(context)?.isCurrent}, ocupado=$_busy');
     final byVoice = SharedPlaceService.instance.fromVoice;
     SharedPlaceService.instance.fromVoice = false;
     // Em outra tela (ex.: navegando): não interrompe o que está acontecendo.

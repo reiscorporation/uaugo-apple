@@ -78,6 +78,8 @@ class UauGoCarAppService : CarAppService() {
 
 class UauGoSession : Session() {
     override fun onCreateScreen(intent: Intent): Screen {
+        // Celular bloqueado e app fechado: liga o app sem tela para atender.
+        UauGoEngine.ensureForCar(carContext)
         CarState.updateConnected(true)
         lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onDestroy(owner: LifecycleOwner) = CarState.updateConnected(false)
@@ -94,14 +96,7 @@ class UauGoSession : Session() {
     private fun handleNavigate(intent: Intent) {
         if (intent.action != CarContext.ACTION_NAVIGATE) return
         val geo = intent.dataString ?: return
-        val sink = CarState.actionSink
-        if (sink != null) {
-            sink("navigate:$geo")
-        } else {
-            CarToast.makeText(carContext,
-                if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular",
-                CarToast.LENGTH_LONG).show()
-        }
+        UauGoEngine.send(carContext, "navigate:$geo")
     }
 }
 
@@ -222,9 +217,8 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         fun action(title: String, code: String) = Action.Builder()
             .setTitle(title)
             .setOnClickListener {
-                // Sem o app rodando no celular, avisa em vez de ficar mudo.
-                val sink = CarState.actionSink
-                if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink(code)
+                // Sem o app rodando no celular, liga o app (sem tela) e entrega.
+                UauGoEngine.send(carContext, code)
             }
             .build()
         fun icon(res: Int) = CarIcon.Builder(IconCompat.createWithResource(carContext, res)).build()
@@ -239,6 +233,11 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 .build())
             sb.addAction(action("Radar", "radar"))
         }
+        // Destinos: casa, salvos e recentes, sem tocar no celular.
+        sb.addAction(Action.Builder()
+            .setTitle(if (CarState.en) "Go to" else "Destinos")
+            .setOnClickListener { screenManager.push(DestinationsScreen(carContext)) }
+            .build())
         val strip = sb
             .addAction(action(if (CarState.en) "End" else "Encerrar", "stop"))
             .build()
@@ -433,6 +432,36 @@ class MapRenderer {
 }
 
 /** Lista de alertas na tela do carro (aberta pelo botão ⚠). */
+/** Destinos para escolher no carro (casa, salvos, recentes). */
+class DestinationsScreen(ctx: CarContext) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val list = ItemList.Builder()
+        val all = CarState.destinations
+        if (all.isEmpty()) {
+            list.setNoItemsMessage(if (CarState.en) "Save places or search on the phone first"
+                else "Salve locais ou busque no celular antes")
+        }
+        for ((name, lat, lng) in all.take(6)) {
+            list.addItem(Row.Builder()
+                .setTitle(name)
+                .setOnClickListener {
+                    val geo = "geo:$lat,$lng?q=" + android.net.Uri.encode(name.replace("(", " ").replace(")", " "))
+                    UauGoEngine.send(carContext, "navigate:$geo")
+                    CarToast.makeText(carContext,
+                        if (CarState.en) "Calculating route…" else "Calculando a rota…",
+                        CarToast.LENGTH_SHORT).show()
+                    screenManager.pop()
+                }
+                .build())
+        }
+        return ListTemplate.Builder()
+            .setTitle(if (CarState.en) "Go to" else "Destinos")
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
+    }
+}
+
 class AlertListScreen(ctx: CarContext) : Screen(ctx) {
     override fun onGetTemplate(): Template {
         val en = CarState.en
