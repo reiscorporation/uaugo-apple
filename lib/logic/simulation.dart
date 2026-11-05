@@ -96,23 +96,36 @@ class RouteWalker {
   /// trecho de ±2 km em volta: roda toda segundo, e percorrer uma rota de
   /// centenas de km inteira a cada leitura gasta bateria à toa. Se o ponto
   /// não estiver perto desse trecho, refaz a busca na rota toda.
+  ///
+  /// Em rotatória, alça e retorno a rota passa a poucos metros dela mesma:
+  /// entre os trechos quase tão perto quanto o mais perto, fica o que segue
+  /// a direção do veículo ([heading]) e o mais próximo de [around] (ou o
+  /// primeiro depois de [after]). Sem isso a posição pulava para a frente e
+  /// para trás (3D "em loop" e mapa perdendo a orientação).
   ({double along, double offset, double bearing}) project(
-      double lat, double lng, {double? around}) {
+      double lat, double lng, {double? around, double? heading, double? after}) {
     if (points.length < 2) {
       return (along: 0, offset: double.infinity, bearing: 0);
     }
     if (around != null) {
       final near = _projectRange(lat, lng, _indexAt(max(0, around - 2000)),
-          min(points.length - 1, _indexAt(around + 2000) + 1));
+          min(points.length - 1, _indexAt(around + 2000) + 1),
+          around: around, heading: heading);
       if (near.offset < 200) return near;
     }
-    return _projectRange(lat, lng, 0, points.length - 1);
+    return _projectRange(lat, lng, 0, points.length - 1,
+        around: around, heading: heading, after: after);
   }
 
+  /// Trecho "quase tão perto" do mais perto (m): o GPS erra uns 10 a 20 m.
+  static const _tieMeters = 25.0;
+
   ({double along, double offset, double bearing}) _projectRange(
-      double lat, double lng, int first, int last) {
+      double lat, double lng, int first, int last,
+      {double? around, double? heading, double? after}) {
     final kx = cos(lat * pi / 180);
     var best = (along: 0.0, offset: double.infinity, bearing: 0.0);
+    final close = <({double along, double offset, double bearing})>[];
     for (var i = max(1, first + 1); i <= last; i++) {
       final (aLat, aLng) = points[i - 1];
       final (bLat, bLng) = points[i];
@@ -125,15 +138,38 @@ class RouteWalker {
               .clamp(0.0, 1.0);
       final qLat = aLat + t * (bLat - aLat), qLng = aLng + t * (bLng - aLng);
       final off = distanceMeters(lat, lng, qLat, qLng);
-      if (off < best.offset) {
-        best = (
+      if (off < best.offset || off < 80) {
+        final q = (
           along: _cum[i - 1] + t * (_cum[i] - _cum[i - 1]),
           offset: off,
           bearing: bearingBetween(aLat, aLng, bLat, bLng),
         );
+        if (off < best.offset) best = q;
+        // Só o pé da perpendicular: a ponta do trecho vizinho não é outro caminho.
+        if (off < 80 && t > 0 && t < 1) close.add(q);
       }
     }
-    return best;
+    if (around == null && heading == null && after == null) return best;
+    var pool = [
+      best,
+      for (final q in close)
+        if (q.offset <= best.offset + _tieMeters && q != best) q
+    ];
+    if (pool.length < 2) return best;
+    if (heading != null) {
+      final same = [for (final q in pool) if (angleDiff(q.bearing, heading) < 75) q];
+      if (same.isNotEmpty) pool = same;
+    }
+    if (after != null) {
+      final ahead = [for (final q in pool) if (q.along >= after - 30) q];
+      if (ahead.isNotEmpty) pool = ahead;
+      return pool.reduce((a, b) => a.along <= b.along ? a : b);
+    }
+    if (around != null) {
+      return pool.reduce(
+          (a, b) => (a.along - around).abs() <= (b.along - around).abs() ? a : b);
+    }
+    return pool.reduce((a, b) => a.offset <= b.offset ? a : b);
   }
 
   /// Índice do ponto do traçado onde está a distância [meters] (busca binária).

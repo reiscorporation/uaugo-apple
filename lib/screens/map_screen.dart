@@ -786,7 +786,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Posição na rota: calculada uma vez por leitura e usada pela voz,
     // radares, limite da via e avisos à frente.
     _proj = _walker?.project(p.latitude, p.longitude,
-        around: (_proj?.offset ?? 1e9) < 200 ? _proj!.along : null);
+        around: (_proj?.offset ?? 1e9) < 200 ? _proj!.along : null,
+        heading: _sim == null && p.speed > 3 && p.heading >= 0 ? p.heading : null);
     if (_inBackground) {
       _me = p;
     } else {
@@ -2097,7 +2098,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     String? speech;
     if (w != null && proj != null) {
       // Pela rota: avanço e distâncias medidos na estrada.
-      if (!nav.hasRoute) nav.attachRoute((la, lo) => w.project(la, lo).along);
+      if (!nav.hasRoute) {
+        // Em ordem: a saída da rotatória não cai na entrada, que fica ao lado.
+        var prev = 0.0;
+        nav.attachRoute((la, lo) => prev = w.project(la, lo, after: prev).along);
+      }
       speech = nav.updateAlong(proj.along, p.speed, jump: jump);
     } else {
       speech = nav.update(p.latitude, p.longitude, p.speed + jump / 8);
@@ -3972,12 +3977,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (w == null) return const [];
     final along = _proj?.along ?? 0;
     return [
+      // Livre fica na rota azul: só lento e parado ganham cor.
       for (final r in _trafficRuns)
-        if (r.to > along) (r.level, w.pointsBetween(max(r.from, along), r.to)),
+        if (r.level > 0 && r.to > along)
+          (r.level, w.pointsBetween(max(r.from, along), r.to)),
     ];
   }
 
-  /// Verde, amarelo e vermelho só em cima da rota (refeito a cada ~100 m).
+  /// Amarelo e vermelho só em cima da rota (refeito a cada ~100 m).
   List<Polyline> _trafficPolylines() {
     if (_trafficRuns.isEmpty) return const [];
     final step = ((_proj?.along ?? 0) / 100).floor();

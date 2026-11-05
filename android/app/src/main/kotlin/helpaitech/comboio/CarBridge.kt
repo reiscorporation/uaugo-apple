@@ -58,6 +58,8 @@ object CarState {
     @Volatile var en = java.util.Locale.getDefault().language != "pt"
     /** Zoom escolhido pelo motorista nos botões +/− do carro (passos). */
     @Volatile var zoomOffset = 0f
+    /** Bússola do carro: norte sempre para cima (sem inclinar o mapa). */
+    @Volatile var northUp = false
     /** Estrada em 3D no carro: 0 = só mapa, 1 = nas saídas, 2 = sempre. */
     @Volatile var mode3d = 1
     /** Imagem do veículo (PNG), a mesma do mapa do celular. */

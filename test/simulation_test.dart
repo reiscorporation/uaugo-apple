@@ -38,4 +38,24 @@ void main() {
     expect(w.remainingFrom(-28.0101, -49.0001), closeTo(1113, 5));
     expect(w.remainingFrom(-28.02, -49.0), 0);
   });
+
+  group('posição na rota que passa perto dela mesma', () {
+    // Vai para o norte, faz retorno de 20 m e volta para o sul pelo lado.
+    final w = RouteWalker([
+      (0.0, 0.0), (0.01, 0.0), (0.01, 0.00018), (0.0, 0.00018),
+    ]);
+    test('segue o sentido do veículo', () {
+      final ida = w.project(0.005, 0.00009, heading: 0);
+      final volta = w.project(0.005, 0.00009, heading: 180);
+      expect(ida.along, lessThan(700));
+      expect(volta.along, greaterThan(1100));
+    });
+    test('fica perto de onde estava', () {
+      final q = w.project(0.005, 0.00011, around: 560);
+      expect(q.along, closeTo(556, 20));
+    });
+    test('manobras em ordem caem depois da anterior', () {
+      expect(w.project(0.005, 0.00009, after: 1000).along, greaterThan(1100));
+    });
+  });
 }

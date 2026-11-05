@@ -408,7 +408,7 @@ class CarMapView(private val context: Context) {
         glideBearingFrom = shownBearing
         glideZoomFrom = shownZoom
         glideTo = pos
-        glideBearingTo = CarState.bearing.toFloat()
+        glideBearingTo = if (CarState.northUp) 0f else CarState.bearing.toFloat()
         glideZoomTo = zoom
         glideStart = now
         glideMs = if (gap > 2500 || shownPos == null) 0L else gap.coerceIn(120L, 1100L)
@@ -447,7 +447,7 @@ class CarMapView(private val context: Context) {
             me?.position = p
             g.moveCamera(CameraUpdateFactory.newCameraPosition(
                 CameraPosition.Builder().target(p).zoom(shownZoom)
-                    .bearing(shownBearing).tilt(45f).build()))
+                    .bearing(shownBearing).tilt(if (CarState.northUp) 0f else 45f).build()))
             if (t < 1f) ticker.postDelayed(this, 50)
         }
     }

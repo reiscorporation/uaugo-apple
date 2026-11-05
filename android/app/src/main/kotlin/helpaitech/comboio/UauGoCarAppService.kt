@@ -110,6 +110,11 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
     private val renderer = MapRenderer()
     // Mapa do Google na tela do carro; se não abrir, fica o desenho simples.
     private val carMap = CarMapView(ctx)
+
+    init {
+        CarState.northUp = ctx.getSharedPreferences("car", android.content.Context.MODE_PRIVATE)
+            .getBoolean("northUp", false)
+    }
     private var navigating = false
     private val nav: NavigationManager = ctx.getCarService(NavigationManager::class.java)
     private val onChange: () -> Unit = {
@@ -258,7 +263,23 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 if (carMap.running) carMap.update()
             }
             .build()
+        // Bússola: o motorista escolhe norte para cima ou o mapa girando com o carro.
+        val compass = Action.Builder()
+            .setIcon(icon(R.drawable.car_compass))
+            .setOnClickListener {
+                CarState.northUp = !CarState.northUp
+                carContext.getSharedPreferences("car", android.content.Context.MODE_PRIVATE)
+                    .edit().putBoolean("northUp", CarState.northUp).apply()
+                toast(if (CarState.northUp) {
+                    if (CarState.en) "North up" else "Norte para cima"
+                } else {
+                    if (CarState.en) "Map follows the car" else "Mapa na direção do carro"
+                })
+                if (carMap.running) carMap.update()
+            }
+            .build()
         val mapStrip = ActionStrip.Builder()
+            .addAction(compass)
             .addAction(zoom(R.drawable.car_zoom_in, 1f))
             .addAction(zoom(R.drawable.car_zoom_out, -1f))
             .addAction(view3d)
@@ -372,7 +393,7 @@ class MapRenderer {
                 val lat0 = CarState.lat
                 val lng0 = CarState.lng
                 val kx = 111320.0 * cos(Math.toRadians(lat0))
-                val rot = Math.toRadians(-CarState.bearing)
+                val rot = if (CarState.northUp) 0.0 else Math.toRadians(-CarState.bearing)
                 val path = Path()
                 var first = true
                 for (p in CarState.route) {
