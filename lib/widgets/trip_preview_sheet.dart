@@ -704,7 +704,16 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (t == null)
-              Text(tr('Não foi possível calcular a rota. Confira a internet.'))
+              // Sem rota (sinal caiu, troca de Wi-Fi para dados): sem Iniciar e
+              // Simular, então oferece calcular de novo aqui mesmo.
+              Row(children: [
+                Expanded(child: Text(tr('Não foi possível calcular a rota. Confira a internet.'))),
+                TextButton.icon(
+                  onPressed: _calc,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(tr('Tentar de novo')),
+                ),
+              ])
             else ...[
               // Saída: agora ou planejada (data e hora).
               Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [

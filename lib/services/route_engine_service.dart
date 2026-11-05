@@ -114,8 +114,10 @@ class RouteEngineService {
             {
               'lat': points[i].latitude,
               'lon': points[i].longitude,
-              // Paradas no meio passam pelo ponto (sem "chegou" falso).
-              'type': i == 0 || i == points.length - 1 ? 'break' : 'through',
+              // Parada no meio: divide a rota em trechos, um por parada (o
+              // app conta com isso; "through" juntava tudo num trecho só e a
+              // rota com parada falhava), sem fazer retorno no ponto.
+              'type': i == 0 || i == points.length - 1 ? 'break' : 'break_through',
             }
         ],
         'costing': costing,
@@ -160,7 +162,7 @@ class RouteEngineService {
     final steps = <List<NavStep>>[];
     final path = <LatLng>[];
     final names = <String, double>{};
-    for (final l in legsJ) {
+    for (final (li, l) in legsJ.indexed) {
       final shape = decodePolyline6(l['shape'] as String);
       final s = l['summary'] as Map<String, dynamic>;
       legs.add(RouteLeg(((s['length'] as num) * 1000).round(),
@@ -174,6 +176,10 @@ class RouteEngineService {
         for (final n in (m['street_names'] as List? ?? const [])) {
           names[n as String] = (names[n] ?? 0) + ((m['length'] as num?)?.toDouble() ?? 0);
         }
+        // Parada no meio: sem "o seu destino fica à esquerda" ao chegar nela
+        // nem "dirija para oeste" ao sair (a rota continua).
+        if (li < legsJ.length - 1 && type >= 4 && type <= 6) continue;
+        if (li > 0 && type >= 1 && type <= 3) continue;
         final text = roundaboutText((m['instruction'] as String? ?? '').trim());
         if (text.isEmpty) continue;
         ls.add(NavStep(at.latitude, at.longitude, text, _maneuver(type)));

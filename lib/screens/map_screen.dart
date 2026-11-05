@@ -2069,6 +2069,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final d = proj.offset;
       final limit = max(60.0, min(150.0, p.accuracy * 2.5));
       if (d > limit) {
+        // Parado (saída demorada, estacionamento, GPS solto dentro de casa):
+        // não recalcula a cada leitura; só conta fora da rota andando.
+        if (_speedMs < 3) return;
         _offRouteCount++;
         if (_offRouteCount >= 3 && _helpTarget != null) {
           // Indo até um colega: refaz a rota dele, nunca a do grupo.
@@ -5280,6 +5283,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Parado mais de 2 min numa rodovia (via de 80+ km/h, vindo a mais de
   /// 60 km/h, longe de semáforo): publica "veículo parado". Voltou a andar
   /// (10 s): tira o alerta.
+  /// Perto (400 m) de uma parada programada da rota ou do comboio, inclusive
+  /// a saída e o destino: parar ali é o plano, não um veículo na pista.
+  bool _nearPlannedStop(Position p) => [..._stops, ...?_trip?.stops].any((s) =>
+      distanceMeters(p.latitude, p.longitude, s.lat, s.lng) < 400);
+
   void _checkStoppedOnShoulder(Position p) {
     // Automático para todos (segurança de quem vem atrás); o alerta não
     // mostra quem é. "Não avisar" no aviso tira na hora (ex.: parou num posto).
@@ -5302,6 +5310,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _stoppedSince ??= now;
     final highway = (_roadLimit?.kmh ?? 0) >= 80;
     if (_myStoppedAlert != null ||
+        _nearPlannedStop(p) ||
         AuthService.isAnonymous ||
         !highway ||
         now.difference(_stoppedSince!) < const Duration(minutes: 2) ||
