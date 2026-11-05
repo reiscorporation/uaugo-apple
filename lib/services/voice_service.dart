@@ -46,6 +46,10 @@ class VoiceService {
 
   static const _kAlerts = 'voiceAlerts';
   static const _kNarration = 'voiceNarration';
+  static const _kVoice = 'voiceName';
+
+  /// Voz escolhida em Configurações (nome do Android); null = automática.
+  final voiceName = ValueNotifier<String?>(null);
 
   /// Prepara a voz em português (uma vez).
   Future<void> init() async {
@@ -56,9 +60,19 @@ class VoiceService {
     try {
       await _tts.setLanguage(I18n.ttsLang);
       // Trocou o idioma do app: a voz acompanha.
-      I18n.lang.addListener(() => _tts.setLanguage(I18n.ttsLang));
+      I18n.lang.addListener(() async {
+        await _tts.setLanguage(I18n.ttsLang);
+        await _applyVoice();
+      });
       await _tts.setSpeechRate(0.5);
       await _tts.setVolume(1);
+      // Canal de navegação: no Android Auto a voz vai pelo canal de guia do
+      // carro (e abaixa a música), em vez de misturar com a mídia.
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await _tts.setAudioAttributesForNavigation();
+      }
+      voiceName.value = prefs.getString(_kVoice);
+      await _applyVoice();
       await _tts.awaitSpeakCompletion(true);
       await _tts.setIosAudioCategory(
         IosTextToSpeechAudioCategory.playback,
@@ -72,6 +86,59 @@ class VoiceService {
     } catch (e) {
       debugPrint('Voz indisponível: $e');
     }
+  }
+
+  /// Vozes do idioma do app que funcionam sem internet. A voz "de rede", sem
+  /// sinal na estrada, era trocada na hora por uma reserva fina e distorcida.
+  Future<List<Map<String, String>>> voices() async {
+    try {
+      final all = await _tts.getVoices;
+      final lang = I18n.ttsLang.toLowerCase();
+      final list = [
+        for (final v in (all as List? ?? const []))
+          if (v is Map) {for (final e in v.entries) '${e.key}': '${e.value}'}
+      ].where((v) =>
+          (v['locale'] ?? '').toLowerCase() == lang &&
+          v['network_required'] != '1' &&
+          !(v['features'] ?? '').contains('notInstalled')).toList();
+      list.sort((a, b) => a['name']!.compareTo(b['name']!));
+      return list;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Usa a voz escolhida; sem escolha, uma do celular (sem internet) parecida
+  /// com a padrão.
+  Future<void> _applyVoice() async {
+    final list = await voices();
+    if (list.isEmpty) return;
+    Map<String, String>? v;
+    for (final x in list) {
+      if (x['name'] == voiceName.value) v = x;
+    }
+    if (v == null) {
+      final def = await _tts.getDefaultVoice;
+      final name = def is Map ? '${def['name']}' : '';
+      final base = name.replaceAll(RegExp(r'-(local|network)$'), '');
+      for (final x in list) {
+        if (base.isNotEmpty && x['name']!.startsWith(base)) v = x;
+      }
+      if (v == null && def is Map && '${def['network_required']}' != '1') return;
+      v ??= list.first;
+    }
+    debugPrint('Voz: ${v['name']} (${list.length} sem internet)');
+    await _tts.setVoice({'name': v['name']!, 'locale': v['locale']!});
+  }
+
+  /// Escolhe a voz (Configurações) e fala uma frase de exemplo.
+  Future<void> setVoice(Map<String, String> v) async {
+    voiceName.value = v['name'];
+    (await SharedPreferences.getInstance()).setString(_kVoice, v['name']!);
+    try {
+      await _tts.setVoice({'name': v['name']!, 'locale': v['locale']!});
+    } catch (_) {}
+    test(tr('Em 300 metros, vire à direita.'));
   }
 
   /// Liga/desliga os avisos falados (radar, perigos, SOS).
@@ -179,4 +246,16 @@ class VoiceService {
     _speaking = false;
     speaking.value = false;
   }
+}
+
+/// Nome da voz para a lista: "Voz 2 · masculina" quando o nome do Android
+/// indica o gênero (Samsung: ...SMTf00 / ...SMTm00); senão, "Voz 2" e o código.
+String voiceLabel(String name, [int? n]) {
+  final g = RegExp(r'SMT([fm])\d', caseSensitive: false).firstMatch(name);
+  final head = n == null ? tr('Voz') : tr('Voz {0}', [n]);
+  if (g != null) {
+    return '$head · ${g[1]!.toLowerCase() == 'm' ? tr('masculina') : tr('feminina')}';
+  }
+  final code = RegExp(r'-x-([a-z]+)').firstMatch(name)?[1];
+  return code == null ? head : '$head ($code)';
 }

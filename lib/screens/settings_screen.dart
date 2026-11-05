@@ -274,6 +274,45 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   /// Cadastra/troca/apaga o contato de emergência (fica só no celular).
+  /// Lista as vozes do celular: tocar fala um exemplo e já escolhe.
+  Future<void> _pickVoice(BuildContext context) async {
+    final voice = VoiceService.instance;
+    final list = await voice.voices();
+    if (!context.mounted) return;
+    if (list.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Nenhuma voz extra instalada. Em Configurações do Android > Conversão de texto em voz, baixe vozes em português.'))));
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('Voz')),
+        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ValueListenableBuilder<String?>(
+            valueListenable: voice.voiceName,
+            builder: (_, sel, __) => ListView(shrinkWrap: true, children: [
+              for (final (i, v) in list.indexed)
+                ListTile(
+                  leading: Icon(sel == v['name']
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off),
+                  title: Text(voiceLabel(v['name']!, i + 1)),
+                  trailing: const Icon(Icons.volume_up),
+                  onTap: () => voice.setVoice(v),
+                ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Fechar'))),
+        ],
+      ),
+    );
+  }
+
   Future<void> _editEmergency(BuildContext context, (String, String)? c) async {
     final name = TextEditingController(text: c?.$1 ?? '');
     final phone = TextEditingController(text: c?.$2 ?? '');
@@ -755,6 +794,17 @@ class SettingsScreen extends StatelessWidget {
               title: Text(tr('Narração das curvas na navegação')),
               value: on,
               onChanged: voice.setNarration,
+            ),
+          ),
+          ValueListenableBuilder<String?>(
+            valueListenable: voice.voiceName,
+            builder: (ctx, name, __) => ListTile(
+              leading: const Icon(Icons.record_voice_over),
+              title: Text(tr('Voz')),
+              subtitle: Text(name == null
+                  ? tr('Automática. Toque para ouvir e escolher outra (feminina ou masculina).')
+                  : voiceLabel(name)),
+              onTap: () => _pickVoice(ctx),
             ),
           ),
           if (VoiceCommandService.supported) ...[

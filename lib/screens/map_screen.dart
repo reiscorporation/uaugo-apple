@@ -4654,7 +4654,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         Positioned(
           left: 6,
           top: landscape ? 8 : null,
-          bottom: _sim != null ? 196 : (landscape ? 96 : 104),
+          // Embaixo, mas acima do logo do Google (o mapa exige que ele apareça).
+          bottom: _sim != null ? 196 : (landscape ? 96 : 36),
           child: _landscapeFit(landscape, Alignment.bottomLeft, Column(
             key: _kLeftCol,
             mainAxisSize: MainAxisSize.min,
@@ -4766,12 +4767,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             child: _groupGridPanel(),
           ),
 
-        // Canto de baixo, à esquerda: reportar perigo e, ao lado, o radar
-        // móvel com UM toque (o alerta mais usado, precisa ser rápido).
+        // Reportar perigo e, ao lado, o radar móvel com UM toque (o alerta
+        // mais usado, precisa ser rápido): à esquerda do SOS, no mapa e no 3D
+        // (pedido de 04/11). Deitado, o SOS sobe: ficam no canto esquerdo.
         if (_sim == null)
         Positioned(
-          left: 6,
-          bottom: 24,
+          left: landscape ? 6 : null,
+          right: landscape ? null : 6 + 88 + 10,
+          bottom: landscape ? 24 : 24 + (88 - 62) / 2,
           child: Row(key: _kBottomLeft, mainAxisSize: MainAxisSize.min, children: [
             SizedBox(
               width: 62,
