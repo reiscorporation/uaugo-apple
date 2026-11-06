@@ -5943,12 +5943,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Sempre entre as colunas (nunca por baixo delas): se o espaço for
     // pequeno, a página compacta o painel para caber.
     final left = (lc != null ? lc.right : web.left) + 6;
-    final right = (rc != null ? rc.left : web.right) - 6;
+    var right = (rc != null ? rc.left : web.right) - 6;
     // O mais alto dos botões de baixo que ficam na faixa do painel.
     var top = web.bottom - 8;
     for (final k in [_kBottomLeft, _kSimBar]) {
       final r = rect(k);
       if (r == null || r.right <= left || r.left >= right) continue;
+      // Celular deitado: cabe AO LADO do alerta/radar, embaixo. Subir por
+      // cima deles deixava o velocímetro no meio da tela (06/11).
+      if (k == _kBottomLeft && r.left - 6 - left >= 300) {
+        right = min(right, r.left - 6);
+        continue;
+      }
       top = min(top, r.top);
     }
     _sim3d.layout(
