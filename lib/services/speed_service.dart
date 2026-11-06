@@ -177,19 +177,37 @@ class SpeedService {
     // Correção de Gold/administração neste trecho e sentido: vale primeiro.
     final fix = SpeedFixService.instance.roadKmh(lat, lng, heading);
     if (fix != null) return RoadLimit(fix, false, src: 'fix');
-    // Praça de pedágio: reduz nas cabines (40, salvo correção), mesmo onde
-    // o mapa não tem a placa (05/11: nem toda praça reduzia).
-    final toll = tollNear(lat, lng);
-    if (toll != null) {
-      return RoadLimit(SpeedFixService.instance.tollKmh(toll), false, src: 'toll');
-    }
+    RoadLimit? road;
     for (final idx in _loaded.values) {
-      final r = idx.lookup(lat, lng,
+      road = idx.lookup(lat, lng,
           heading: heading,
           speed: speed,
           maxAngle: maxAngle,
           routeOffset: routeOffset);
-      if (r != null) return r;
+      if (road != null) break;
+    }
+    // Praça de pedágio: a velocidade cai em degraus, como nas placas da
+    // rodovia (110 -> 90 -> 80 -> 60 -> 40 nas cabines), e não de uma vez
+    // (Ricardo, 06/11). Só vale se for menor que a da via.
+    final staged = tollStage(lat, lng);
+    if (staged != null && (road == null || staged.kmh < road.kmh)) return staged;
+    return road;
+  }
+
+  /// Degraus antes da praça (distância até a cabine mais próxima, m).
+  static const tollSteps = [(150.0, 0), (400.0, 60), (700.0, 80), (1000.0, 90)];
+
+  /// Limite do degrau do pedágio neste ponto (null = longe de praça).
+  /// O degrau das cabines usa a velocidade da praça (40, salvo correção).
+  RoadLimit? tollStage(double lat, double lng) {
+    final hit = tollNearDist(lat, lng, radius: tollSteps.last.$1);
+    if (hit == null) return null;
+    final (plaza, d) = hit;
+    for (final (max, kmh) in tollSteps) {
+      if (d <= max) {
+        return RoadLimit(kmh == 0 ? SpeedFixService.instance.tollKmh(plaza) : kmh,
+            false, src: 'toll');
+      }
     }
     return null;
   }
@@ -197,16 +215,23 @@ class SpeedService {
 
 extension TollNear on SpeedService {
   /// Praça de pedágio com cabine a até [radius] m do ponto.
-  TollPlaza? tollNear(double lat, double lng, {double radius = 120}) {
+  TollPlaza? tollNear(double lat, double lng, {double radius = 120}) =>
+      tollNearDist(lat, lng, radius: radius)?.$1;
+
+  /// Praça mais próxima a até [radius] m e a distância até a cabine.
+  (TollPlaza, double)? tollNearDist(double lat, double lng, {double radius = 120}) {
     final t = TollService.instance.cached;
     if (t == null) return null;
+    final box = radius / 90000 + 0.001;
+    (TollPlaza, double)? best;
     for (final p in t.plazas) {
       for (final (la, lo) in p.pts) {
-        if ((la - lat).abs() > 0.002 || (lo - lng).abs() > 0.002) continue;
-        if (distanceMeters(lat, lng, la, lo) <= radius) return p;
+        if ((la - lat).abs() > box || (lo - lng).abs() > box) continue;
+        final d = distanceMeters(lat, lng, la, lo);
+        if (d <= radius && (best == null || d < best.$2)) best = (p, d);
       }
     }
-    return null;
+    return best;
   }
 }
 
