@@ -3242,9 +3242,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           duration: const Duration(milliseconds: 500));
       return;
     }
-    _camFrom = cur;
-    _camTo = to;
-    _ensureGlideTimer();
+    // Animação do próprio Google, no mesmo tempo do deslize do ícone. (Mover
+    // a câmera 20x por segundo deixou o mapa em branco no Galaxy, 05/11.)
+    _camShown = to;
+    map.animateCamera(CameraUpdate.newCameraPosition(to), duration: _glideTime);
   }
 
   /// Posição da câmera no instante [t] (0 a 1) do deslize.
