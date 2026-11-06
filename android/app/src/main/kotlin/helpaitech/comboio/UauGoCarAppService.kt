@@ -42,6 +42,7 @@ import androidx.car.app.model.Distance
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
+import androidx.car.app.model.SearchTemplate
 import androidx.car.app.model.Template
 import androidx.car.app.navigation.NavigationManager
 import androidx.car.app.navigation.NavigationManagerCallback
@@ -432,10 +433,83 @@ class MapRenderer {
 }
 
 /** Lista de alertas na tela do carro (aberta pelo botão ⚠). */
+/** Busca de destino novo no carro: o app (Dart) procura e devolve a lista. */
+class SearchPlaceScreen(ctx: CarContext) : Screen(ctx) {
+    private var query = ""
+
+    init {
+        CarState.searchResults = emptyList()
+        CarState.onSearchResults = { invalidate() }
+    }
+
+    override fun onGetTemplate(): Template {
+        val list = ItemList.Builder()
+        val res = CarState.searchResults
+        if (res.isEmpty()) {
+            list.setNoItemsMessage(when {
+                CarState.searching -> if (CarState.en) "Searching…" else "Buscando…"
+                query.isNotEmpty() -> if (CarState.en) "Nothing found" else "Nada encontrado"
+                else -> if (CarState.en) "Type or say the place" else "Digite ou fale o lugar"
+            })
+        }
+        for ((id, name, addr) in res.take(6)) {
+            val row = Row.Builder().setTitle(name)
+            if (addr.isNotEmpty()) row.addText(addr)
+            row.setOnClickListener {
+                val sink = CarState.actionSink
+                if (sink == null) {
+                    CarToast.makeText(carContext,
+                        if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+                        CarToast.LENGTH_LONG).show()
+                } else {
+                    sink("place:$id|$name")
+                    CarToast.makeText(carContext,
+                        if (CarState.en) "Calculating route…" else "Calculando a rota…",
+                        CarToast.LENGTH_SHORT).show()
+                }
+                CarState.onSearchResults = null
+                screenManager.popToRoot()
+            }
+            list.addItem(row.build())
+        }
+        return SearchTemplate.Builder(object : SearchTemplate.SearchCallback {
+            override fun onSearchTextChanged(searchText: String) {}
+            override fun onSearchSubmitted(searchText: String) {
+                val t = searchText.trim()
+                if (t.length < 3) return
+                query = t
+                CarState.searching = true
+                CarState.searchResults = emptyList()
+                invalidate()
+                val sink = CarState.actionSink
+                if (sink == null) {
+                    CarState.searching = false
+                    CarToast.makeText(carContext,
+                        if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+                        CarToast.LENGTH_LONG).show()
+                } else {
+                    sink("search:$t")
+                }
+            }
+        })
+            .setHeaderAction(Action.BACK)
+            .setSearchHint(if (CarState.en) "Where to?" else "Para onde?")
+            .setShowKeyboardByDefault(true)
+            .setItemList(list.build())
+            .setLoading(false)
+            .build()
+    }
+}
+
 /** Destinos para escolher no carro (casa, salvos, recentes). */
 class DestinationsScreen(ctx: CarContext) : Screen(ctx) {
     override fun onGetTemplate(): Template {
         val list = ItemList.Builder()
+        // Destino novo: busca pelo nome (teclado ou voz do carro).
+        list.addItem(Row.Builder()
+            .setTitle(if (CarState.en) "Search a new place" else "Buscar outro destino")
+            .setOnClickListener { screenManager.push(SearchPlaceScreen(carContext)) }
+            .build())
         val all = CarState.destinations
         if (all.isEmpty()) {
             list.setNoItemsMessage(if (CarState.en) "Save places or search on the phone first"

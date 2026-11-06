@@ -26,6 +26,7 @@ import '../models/hazard.dart';
 import 'auth_service.dart';
 import 'hazard_service.dart';
 import '../l10n/i18n.dart';
+import 'places_service.dart';
 import 'recent_places_service.dart';
 import 'saved_places_service.dart';
 import 'shared_place_service.dart';
@@ -53,6 +54,16 @@ class CarService {
     _ch.setMethodCallHandler((c) async {
       if (c.method == 'action') {
         final a = c.arguments as String;
+        // Busca de destino feita no carro: o app procura e responde (com o
+        // mapa aberto ou não).
+        if (a.startsWith('search:')) {
+          _searchFromCar(a.substring(7));
+          return;
+        }
+        if (a.startsWith('place:')) {
+          _placeFromCar(a.substring(6));
+          return;
+        }
         debugPrint('Carro: $a (mapa aberto: ${_actions.hasListener}, '
             'app: ${WidgetsBinding.instance.lifecycleState})');
         // Mapa aberto no celular: ele cuida. Senão, os botões ainda valem.
@@ -187,6 +198,49 @@ class CarService {
   void clearNavigation() {
     _routeSig = '';
     _ch.invokeMethod('clearNav').catchError((_) => null);
+  }
+
+  final _found = <String, PlaceSuggestion>{};
+  final _places = PlacesService();
+
+  /// Procura [text] perto da posição atual e manda até 6 lugares ao carro.
+  Future<void> _searchFromCar(String text) async {
+    Position? me;
+    try {
+      me = await Geolocator.getLastKnownPosition();
+    } catch (_) {}
+    final res = await _places
+        .search(text, nearLat: me?.latitude, nearLng: me?.longitude);
+    _found
+      ..clear()
+      ..addEntries(res.map((s) => MapEntry(s.placeId, s)));
+    await _ch.invokeMethod('searchResults', [
+      for (final s in res.take(6)) {'id': s.placeId, 'n': s.title, 's': s.subtitle},
+    ]).catchError((_) => null);
+    if (res.isEmpty && _places.lastFailed) {
+      toast(tr('Sem internet para buscar agora'));
+    }
+  }
+
+  /// Lugar escolhido na busca do carro: pega a posição e abre a rota, igual
+  /// aos destinos salvos ("navigate:geo:...").
+  Future<void> _placeFromCar(String arg) async {
+    final i = arg.indexOf('|');
+    final id = i < 0 ? arg : arg.substring(0, i);
+    final s = _found[id];
+    if (s == null) return;
+    final d = await _places.details(s);
+    if (d == null) {
+      toast(tr('Não foi possível abrir este lugar. Tente de novo.'));
+      return;
+    }
+    final name = s.title.replaceAll('(', ' ').replaceAll(')', ' ');
+    final a = 'navigate:geo:${d.lat},${d.lng}?q=${Uri.encodeComponent(name)}';
+    if (_actions.hasListener) {
+      _actions.add(a);
+    } else {
+      _handleWithoutMap(a);
+    }
   }
 
   void toast(String text) =>

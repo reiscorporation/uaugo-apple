@@ -6465,6 +6465,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           _applyWakelock();
         });
         if (_helpTarget != null) _endHelp();
+        // Encerrada pelo carro: apaga a viagem salva NA HORA. Com o celular
+        // bloqueado a tela só fechava depois, e ao ligar o carro de novo o
+        // Android Auto retomava a viagem encerrada (relato de testador, 06/11).
+        if (!_isExpedition) {
+          ActiveTrip.clear();
+          MinimizedTrip.trip.value = null;
+        }
         await _voice.stop();
         CarService.instance.clearNavigation();
         CarService.instance.toast(tr('Navegação encerrada'));

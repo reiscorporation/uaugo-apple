@@ -60,6 +60,11 @@ object CarState {
     @Volatile var zoomOffset = 0f
     /** Destinos para escolher no carro: (nome, lat, lng). */
     @Volatile var destinations: List<Triple<String, Double, Double>> = emptyList()
+    /** Resultado da busca feita no carro: (id, nome, endereço). */
+    @Volatile var searchResults: List<Triple<String, String, String>> = emptyList()
+    @Volatile var searching = false
+    /** Tela de busca aberta no carro (atualiza ao chegar o resultado). */
+    @Volatile var onSearchResults: (() -> Unit)? = null
     /** Pedidos do carro que chegaram antes de o app (Dart) estar pronto. */
     val pending = java.util.concurrent.ConcurrentLinkedQueue<String>()
     @Volatile var dartReady = false
@@ -180,6 +185,17 @@ class CarBridge(messenger: BinaryMessenger) {
                             channel.invokeMethod("action", a)
                         }
                     }
+                }
+                "searchResults" -> {
+                    val l = call.arguments as? List<*> ?: emptyList<Any>()
+                    CarState.searchResults = l.mapNotNull { e ->
+                        val m = e as? Map<*, *> ?: return@mapNotNull null
+                        Triple(m["id"] as? String ?: return@mapNotNull null,
+                            m["n"] as? String ?: "", m["s"] as? String ?: "")
+                    }
+                    CarState.searching = false
+                    CarState.onSearchResults?.invoke()
+                    result.success(null)
                 }
                 "destinations" -> {
                     val l = call.arguments as? List<*> ?: emptyList<Any>()
