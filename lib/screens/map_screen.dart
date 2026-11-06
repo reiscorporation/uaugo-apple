@@ -3109,7 +3109,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _moveCamera(CameraUpdate u) {
     final map = _map;
     if (map == null) return;
-    map.animateCamera(u, duration: const Duration(milliseconds: 900));
+    map.animateCamera(u, duration: _glideTime);
   }
 
   /// Ponto [meters] à frente de (lat, lng) na direção [bearing].
@@ -3967,7 +3967,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   LatLng? _glideFrom, _glideTo;
   DateTime _glideStart = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _glideTimer;
-  static const _glideTime = Duration(milliseconds: 900);
+  // Um pouco MAIS que o intervalo do GPS (1 s): o deslize nunca termina
+  // antes da leitura seguinte. Com 0,9 s o ícone parava 0,1 s a cada
+  // segundo e andava "dando tranco, cavalgando" (05/11).
+  static const _glideTime = Duration(milliseconds: 1100);
 
   /// Quanto o piloto já andou desde a leitura do GPS até o fim do deslize
   /// (idade da leitura + tempo do deslize, na velocidade atual). Sem isso o
