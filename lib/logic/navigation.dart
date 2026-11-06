@@ -306,6 +306,22 @@ class TurnByTurn {
     _alongs = [for (final s in steps) alongOf(s.lat, s.lng)];
   }
 
+  /// Recomeça na 1ª manobra À FRENTE de [riderAlong], medindo pela rota.
+  /// (Em linha reta, perto do destino, a saída que ainda falta era dada
+  /// como passada: o aviso verde e o 3D pulavam a saída, 05/11.)
+  void syncAlong(double riderAlong) {
+    final a = _alongs;
+    if (a == null) return;
+    var i = 0;
+    while (i < a.length && a[i] < riderAlong - 10) {
+      i++;
+    }
+    _farDone.removeWhere((k) => k >= i);
+    _nearDone.removeWhere((k) => k >= i);
+    _earlyDone.removeWhere((k) => k >= i);
+    _jump(i);
+  }
+
   /// Esquece as posições na rota (a rota mudou: serão recalculadas).
   void detachRoute() => _alongs = null;
 

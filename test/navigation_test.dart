@@ -142,6 +142,20 @@ void main() {
       expect(said.any((s) => s.contains('Rua X')), isFalse);
     });
 
+    test('voltar para trás (simulação/GPS) recomeça na saída que falta', () {
+      const ss = [
+        NavStep(-28.000, -49.000, 'Siga na direção sul na BR 101', ''),
+        NavStep(-28.020, -49.000, 'Pegue a saída 206', 'ramp-right'),
+        NavStep(-28.030, -49.000, 'O seu destino fica à esquerda.', 'destination'),
+      ];
+      final nav = TurnByTurn(ss)
+        ..attachRoute((la, lo) => (la + 28.0).abs() * 111320);
+      nav.updateAlong(3000, 25); // já passou da saída
+      expect(nav.nextIndex, 2);
+      nav.syncAlong(1500); // pulou para antes dela
+      expect(nav.nextIndex, 1);
+    });
+
     test('saída na rodovia: avisa a 2 km, a ~900 m e na hora', () {
       const ss = [NavStep(-28.0, -49.0, 'Pegue a saída 210, para a BR 101', 'ramp-right')];
       final nav = TurnByTurn(ss)..attachRoute((_, __) => 5000);

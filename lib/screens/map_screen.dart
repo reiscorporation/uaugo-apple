@@ -2083,7 +2083,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!on || nav == null) return;
     void say(String t) => _voice.narrate(t, force: sim != null);
     if (!_navSynced) {
-      nav.syncTo(p.latitude, p.longitude);
+      // Pela rota quando dá (em linha reta pulava a saída perto do fim).
+      final pr = _proj;
+      if (nav.hasRoute && pr != null && pr.offset < 250) {
+        nav.syncAlong(pr.along);
+      } else {
+        nav.syncTo(p.latitude, p.longitude);
+      }
       _navSynced = true;
     }
     // Posição medida na rota (para a narração e para saber se saiu dela).
