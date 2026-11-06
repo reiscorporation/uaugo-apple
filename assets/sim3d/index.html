@@ -102,7 +102,7 @@
     box-shadow: 0 2px 10px rgba(0,0,0,0.45); border: 3px solid rgba(255,255,255,0.85);
     background: rgba(20,30,42,0.82); touch-action: none; }
   #mini.off { width: 34px !important; height: 34px !important; opacity: 0.85; }
-  body.car #mini { display: none; }
+  body.car #mini { border-width: 2px; }
   /* celular em pé: sem a chegada (fica no topo do app) */
   @media (max-width: 560px) {
     #eta { display: none; }
@@ -1343,13 +1343,15 @@ let lookInit = false;
 let MINI_ROADS = [], miniOn = true, miniAt = 0, miniPress = 0, miniLong = false;
 const mini = document.getElementById('mini'), mg = mini.getContext('2d');
 function miniSize() {
-  const d = Math.round(Math.max(96, Math.min(150, Math.min(innerWidth, innerHeight) * 0.3)));
+  // no carro um pouco menor: a tela é baixa e o painel do Android Auto ocupa espaço
+  const d = Math.round(CAR ? Math.max(80, Math.min(120, innerHeight * 0.32))
+    : Math.max(96, Math.min(150, Math.min(innerWidth, innerHeight) * 0.3)));
   const dpr = Math.min(2, devicePixelRatio || 1);
   if (mini.width !== d * dpr) { mini.width = mini.height = d * dpr; mini.style.width = mini.style.height = d + 'px'; }
   return { d, dpr };
 }
 function drawMini(now) {
-  if (!hasRoute || CAR) return;
+  if (!hasRoute) return;
   mini.classList.toggle('off', !miniOn);
   document.body.classList.toggle('mini', miniOn);
   const mr = mini.getBoundingClientRect();

@@ -67,7 +67,9 @@ class Car3DView(context: Context) {
         val left = (r.left / d).toInt() + 8
         val right = ((view.width - r.right) / d).toInt() + 8
         val bottom = ((view.height - r.bottom) / d).toInt() + 8
-        view.evaluateJavascript("sim3d.layout({l:$left,r:$right,b:$bottom})", null)
+        // topo livre (abaixo do cartão de manobra do Android Auto): minimapa
+        val top = (r.top / d).toInt()
+        view.evaluateJavascript("sim3d.layout({l:$left,r:$right,b:$bottom,t:$top})", null)
     }
 
     fun destroy() {
