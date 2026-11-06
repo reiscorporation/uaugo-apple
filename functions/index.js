@@ -782,7 +782,8 @@ exports.onSpeedReport = onDocumentWritten(
   { document: "speedReports/{key}/reports/{uid}", region },
   async (event) => {
     const mine = event.data?.after?.data();
-    if (!mine || !(mine.kmh >= 20 && mine.kmh <= 130)) return;
+    // kmh 0 = "radar não existe" (só radar): some para todos.
+    if (!mine || !((mine.kmh >= 20 && mine.kmh <= 130) || (mine.kmh === 0 && mine.kind === "r"))) return;
     const { key, uid } = event.params;
     const isAdmin = async (u) => (await db.doc(`platformAdmins/${u}`).get()).exists;
     const isGold = async (u) => (await isAdmin(u)) || (await db.doc(`gold/${u}`).get()).exists;

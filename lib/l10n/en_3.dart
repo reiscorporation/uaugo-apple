@@ -278,6 +278,8 @@ const en3 = <String, String>{
   'Corrigir para:': 'Correct to:',
   'Vale para todos com 1 administrador ou 2 usuários Gold informando a mesma velocidade.': 'Applies to everyone once 1 administrator or 2 Gold users report the same speed.',
   'Obrigado! {0} km/h registrado.': 'Thanks! {0} km/h recorded.',
+  'Radar não existe': 'Speed camera does not exist',
+  'Obrigado! Radar marcado como inexistente.': 'Thanks! Speed camera marked as nonexistent.',
   'Não foi possível salvar agora. Confira a internet.': 'Could not save now. Check your internet.',
   '"Velocidade reduzida para 60 em 300 metros"': '"Speed reduced to 60 in 300 meters"',
 };

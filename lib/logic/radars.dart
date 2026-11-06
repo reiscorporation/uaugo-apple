@@ -117,7 +117,8 @@ class RadarIndex {
     }
   }
 
-  /// Limite corrigido por Gold/administração (SpeedFixService); null = não.
+  /// Limite corrigido por Gold/administração (SpeedFixService); null = não;
+  /// 0 = "radar não existe" (some do mapa, do 3D e dos avisos).
   static int? Function(FixedRadar r)? limitFix;
 
   /// Radares nas 9 células em volta (~33 km x 33 km), já com as correções.
@@ -126,9 +127,9 @@ class RadarIndex {
     return [
       for (final c in _around(lat, lng))
         for (final r in _radars[c] ?? const <FixedRadar>[])
-          if (fix?.call(r) case final k? when k != r.limit)
-            FixedRadar(r.id, r.lat, r.lng, r.kind, k, r.direction)
-          else
+          if (fix?.call(r) case final k? when k != r.limit) ...[
+            if (k > 0) FixedRadar(r.id, r.lat, r.lng, r.kind, k, r.direction),
+          ] else
             r,
     ];
   }

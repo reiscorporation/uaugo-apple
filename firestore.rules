@@ -282,7 +282,9 @@ service cloud.firestore {
         && request.resource.data.dir is int
         && request.resource.data.dir >= -1 && request.resource.data.dir < 360
         && request.resource.data.kmh is int
-        && request.resource.data.kmh >= 20 && request.resource.data.kmh <= 130
+        && ((request.resource.data.kmh >= 20 && request.resource.data.kmh <= 130)
+            // 0 = "radar não existe"
+            || (request.resource.data.kmh == 0 && request.resource.data.kind == 'r'))
         && request.resource.data.at == request.time;
       allow delete: if false;
     }

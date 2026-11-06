@@ -129,7 +129,8 @@ class SpeedFixService {
       'lat': lat,
       'lng': lng,
       'dir': dir < 0 ? -1 : dir % 360,
-      'kmh': max(20, min(130, kmh)),
+      // 0 = radar não existe (só radar).
+      'kmh': kmh == 0 && kind == 'r' ? 0 : max(20, min(130, kmh)),
       'at': FieldValue.serverTimestamp(),
     });
   }

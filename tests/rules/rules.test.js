@@ -452,6 +452,11 @@ describe("speedReports / speedFixes", () => {
   });
   it("usuário comum não grava", () =>
     assertFails(setDoc(doc(user("comum"), "speedReports/r_x/reports/comum"), rep())));
+  it("radar não existe (0) só vale para radar", async () => {
+    await asAdmin("gold/gina", { since: serverTimestamp() });
+    await assertSucceeds(setDoc(doc(user("gina"), "speedReports/r_z/reports/gina"), rep({ kmh: 0 })));
+    await assertFails(setDoc(doc(user("gina"), "speedReports/v_z/reports/gina"), rep({ kind: "v", kmh: 0 })));
+  });
   it("velocidade fora de 20 a 130 é recusada", async () => {
     await asAdmin("gold/gina", { since: serverTimestamp() });
     await assertFails(setDoc(doc(user("gina"), "speedReports/r_x/reports/gina"), rep({ kmh: 200 })));

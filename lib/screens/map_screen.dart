@@ -532,6 +532,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     PoiService.instance.loaded.addListener(_onPoisLoaded);
     _radarSvc.init();
     SpeedFixService.instance.start();
+    SpeedFixService.instance.fixes.addListener(_onSpeedFixes);
     _speedSvc.loadSettings();
     // "Minhas viagens": grava o caminho e as estatísticas no celular.
     _startRecording();
@@ -680,6 +681,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _hazardSub?.cancel();
     _askTimer?.cancel();
     _radarSvc.index.removeListener(_onRadarIndex);
+    SpeedFixService.instance.fixes.removeListener(_onSpeedFixes);
     PoiService.instance.loaded.removeListener(_onPoisLoaded);
     _sim?.dispose();
     if (_sim != null) {
@@ -932,6 +934,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _policeIcon = await emojiMarker('🚔', Colors.blue.shade800);
     _signalIcon = await emojiMarker('🚦', Colors.green.shade700);
     if (mounted) setState(() {});
+  }
+
+  /// Correção nova (radar corrigido ou "não existe"): refaz os radares em
+  /// volta na hora, sem esperar andar até outra região.
+  void _onSpeedFixes() {
+    _radarCell = null;
+    _radarMarkersAt = null;
+    if (_me case final p?) _updateRadarsAround(p);
   }
 
   /// Radares e trechos da PRF perto do piloto (refeito a cada ~1 km).
@@ -3579,6 +3589,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   onPressed: () => Navigator.pop(ctx, current),
                 ),
               ),
+            if (kind == 'r') ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.block),
+                  label: Text(tr('Radar não existe')),
+                  onPressed: () => Navigator.pop(ctx, 0),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Text(tr('Corrigir para:')),
             const SizedBox(height: 8),
@@ -3604,7 +3625,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     try {
       await SpeedFixService.instance.report(key,
           kind: kind, lat: lat, lng: lng, dir: dir, kmh: picked);
-      _snack(tr('Obrigado! {0} km/h registrado.', [picked]));
+      _snack(picked == 0
+          ? tr('Obrigado! Radar marcado como inexistente.')
+          : tr('Obrigado! {0} km/h registrado.', [picked]));
     } catch (e) {
       debugPrint('Correção de velocidade recusada: $e');
       _snack(tr('Não foi possível salvar agora. Confira a internet.'));
