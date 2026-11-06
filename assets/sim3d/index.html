@@ -1456,7 +1456,9 @@ function frame(now) {
     // trás: antes corria na frente na rotatória e voltava a cada leitura
     // ("indo e voltando", 05/11). Se o GPS ficou para trás, ela só espera.
     const tNow = target + v * Math.min(1.5, (now - targetAt) / 1000);
-    const spd = Math.max(0, Math.min(v * 1.5 + 6, v + (tNow - s) * 1.2));
+    // Sem teto: na simulação acelerada (5x, 20x) o alvo anda muito mais que
+    // a velocidade mostrada e a câmera precisa alcançar (senão saltava).
+    const spd = Math.max(0, v + (tNow - s) * 1.5);
     s = Math.max(0, Math.min(TOTAL, s + spd * dt));
     updateChunks(s);
     // perto de saída/bifurcação a câmera sobe um pouco e olha mais longe

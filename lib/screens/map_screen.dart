@@ -3215,6 +3215,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // freia) o ícone ia para frente e para trás na tela (05/11).
   CameraPosition? _camFrom, _camTo, _camShown;
 
+  /// Distância que já não desliza (vai direto): GPS 300 m, simulação 3 km.
+  double get _jumpMeters => _sim != null ? 3000 : 300;
+
   void _followCamera(CameraPosition to, bool force) {
     final map = _map;
     if (map == null) return;
@@ -3222,7 +3225,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (cur == null || force ||
         distanceMeters(cur.target.latitude, cur.target.longitude,
                 to.target.latitude, to.target.longitude) >
-            300) {
+            _jumpMeters) {
       _camFrom = _camTo = null;
       _camShown = to;
       map.animateCamera(CameraUpdate.newCameraPosition(to),
@@ -4039,10 +4042,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   void _glideMeTo(LatLng to) {
     final from = _shownMe;
-    // 1ª posição ou salto grande (> 300 m, ex.: GPS voltou): vai direto.
+    // 1ª posição ou salto grande (ex.: GPS voltou): vai direto. Simulação
+    // acelerada anda centenas de metros por segundo: ali só um salto de
+    // verdade (> 3 km, arrastar a linha do tempo) vai direto.
     if (from == null ||
         distanceMeters(from.latitude, from.longitude, to.latitude, to.longitude) >
-            300) {
+            _jumpMeters) {
       _glideTimer?.cancel();
       _shownMe = to;
       return;
