@@ -791,7 +791,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // radares, limite da via e avisos à frente.
     _proj = _walker?.project(p.latitude, p.longitude,
         around: (_proj?.offset ?? 1e9) < 200 ? _proj!.along : null,
-        heading: _sim == null && p.speed > 3 && p.heading >= 0 ? p.heading : null);
+        // Simulação também: o rumo dela é exato e separa as duas pistas de
+        // um retorno na mesma avenida.
+        heading: p.speed > 3 && p.heading >= 0 ? p.heading : null);
     if (_inBackground) {
       _me = p;
     } else {
@@ -2243,7 +2245,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         lat: p.latitude, lng: p.longitude, nextStopIndex: next);
     if (!mounted || nt == null || _rerouting) return;
 
-    final remainingM = w.remainingFrom(p.latitude, p.longitude);
+    final remainingM = _leftOn(w, p);
     final remainingNowS = remainingM / (_etaSpeed ?? trip.averageSpeed);
     final pts = decodePolyline(nt.plan.polyline);
     final mid = pts.isEmpty ? null : pts[pts.length ~/ 2];
@@ -5901,7 +5903,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     String? eta, rem;
     final w = _walker, trip = _trip;
     if (w != null && trip != null) {
-      final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
+      final left = p == null ? w.length : _leftOn(w, p);
       rem = formatDistance(left.round());
       if (!widget.simulate) {
         final secs = (left / (_etaSpeed ?? trip.averageSpeed)).round();
@@ -6239,7 +6241,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _sendGroupToCar();
     final turn = _navigating || _sim != null ? _upcomingTurn(p) : null;
     final w = _walker;
-    final left = w == null ? 0.0 : w.remainingFrom(p.latitude, p.longitude);
+    final left = w == null ? 0.0 : _leftOn(w, p);
     final speed = _etaSpeed ?? _trip?.averageSpeed ?? 16.7;
     final pill = _radarPill;
     CarService.instance.update(
@@ -6838,11 +6840,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return null;
   }
 
+  /// Quanto falta pela rota. Usa a posição já medida na rota (_proj), que
+  /// segue o sentido e a continuidade: em retorno a rota volta pela mesma
+  /// avenida e a busca solta escolhia a outra pista ("Faltam" pulando, 06/11).
+  double _leftOn(RouteWalker w, Position p) {
+    final pr = _proj;
+    if (identical(w, _walker) && pr != null && pr.offset < 60) {
+      return max(0.0, w.length - pr.along);
+    }
+    return w.remainingFrom(p.latitude, p.longitude);
+  }
+
   /// "Chegada 10:43 · faltam 85 km" (navegação sozinho e simulação).
   String _etaText() {
     final w = _walker, p = _me, trip = _trip;
     if (w == null || trip == null) return tr('Radares, perigos e velocidade');
-    final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
+    final left = p == null ? w.length : _leftOn(w, p);
     final km = formatDistance(left.round());
     if (widget.simulate) return tr('Faltam {0}', [km]);
     // Com o trânsito conferido, usa a velocidade efetiva de agora.
@@ -6867,7 +6880,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (dist <= 0) return tr('Código: {0}', [_code]);
       return tr('{0} · {1}{2}\nCódigo {3}', [formatDistance(dist), formatDuration(dur), cost, _code]);
     }
-    final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
+    final left = p == null ? w.length : _leftOn(w, p);
     // Velocidade: a do trânsito conferido ou a média planejada do roteiro.
     final speed = _etaSpeed ?? (dur > 0 ? dist / dur : 16.7);
     final secs = (left / speed).round();
@@ -6944,7 +6957,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final totalS = _isExpedition
         ? _stops.fold<int>(0, (a, s) => a + s.legDurationS)
         : (_trip?.durationS ?? 0);
-    final left = p == null ? w.length : w.remainingFrom(p.latitude, p.longitude);
+    final left = p == null ? w.length : _leftOn(w, p);
     final speed = _etaSpeed ??
         (totalS > 0 ? totalM / totalS : (_trip?.averageSpeed ?? 16.7));
     final secs = (left / speed).round();
