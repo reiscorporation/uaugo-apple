@@ -33,7 +33,11 @@
   :root { --sky-top: #5f9fd6; --sky-low: #dbe7ee; }
   body.dark { --sky-top: #05080f; --sky-low: #16223a; }
   html, body { margin: 0; height: 100%; overflow: hidden; touch-action: none; }
-  body { background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-low) 58%, var(--sky-low) 100%); }
+  /* céu só depois do 1º quadro com a estrada: antes fica transparente e o
+     mapa do app aparece por baixo (sem tela vazia ao entrar no 3D) */
+  body { background: transparent; }
+  body.shown { background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-low) 58%, var(--sky-low) 100%); }
+  body:not(.shown) #hud, body:not(.shown) canvas { visibility: hidden; }
   canvas { display: block; width: 100%; height: 100%; }
 
   /* Painel do para-brisa (velocidade, limite, próxima conversão, chegada) */
@@ -1388,6 +1392,13 @@ window.sim3d = {
     clearChunks();
     if (hasRoute && ROADS_RAW) setRoadsData(ROADS_RAW);
   },
+  // Montada a viagem toda: escondida fica transparente e parada; ao aparecer
+  // desenha na hora (a página já carregou a rota).
+  setVisible(on) {
+    visible = !!on;
+    if (!visible) { document.body.classList.remove('shown'); shownFrames = 0; }
+    this.setActive(visible);
+  },
   setActive(on) {
     const was = active; active = !!on;
     if (active && !was) { t0 = performance.now(); requestAnimationFrame(frame); }
@@ -1418,6 +1429,7 @@ addEventListener('resize', resize); resize();
 
 let t0 = performance.now(), time = 0, lift = 0;
 let carDrawn = 0;
+let shownFrames = 0, visible = true;
 function frame(now) {
   if (!active) return;
   if (CAR && now - carDrawn < 45) { requestAnimationFrame(frame); return; }
@@ -1479,6 +1491,11 @@ function frame(now) {
     updateAlerts(s, time);
   }
   renderer.render(scene, camera);
+  // 1º quadro com a rota desenhada: mostra o céu, a estrada e o painel.
+  if (visible && hasRoute && !document.body.classList.contains('shown') && ++shownFrames > 2) {
+    document.body.classList.add('shown');
+    send('shown');
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

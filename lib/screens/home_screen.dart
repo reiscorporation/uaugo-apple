@@ -7,6 +7,7 @@
 // Onde mexer: Fluxo do "Para onde?": _whereTo (busca → prévia → MapScreen).
 // ============================================================================
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -121,6 +122,12 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     final raw = SharedPlaceService.instance.take()!;
+    // Só no app de testes (debug, por cabo): "uaugo-teste lat,lng lat,lng
+    // Nome" abre a prévia com a saída e o destino (bateria de simulações).
+    if (kDebugMode && raw.startsWith('uaugo-teste ')) {
+      await _testRoute(raw);
+      return;
+    }
     // Link do convite de clube (QR code da Administração UauGo).
     final club = clubCodeFromLink(raw);
     if (club != null) {
@@ -138,6 +145,34 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     await _whereTo(shared: place, byVoice: byVoice);
+  }
+
+  /// Bateria de testes (só debug): prévia com saída e destino escolhidos.
+  Future<void> _testRoute(String raw) async {
+    final parts = raw.split(' ');
+    if (parts.length < 3) return;
+    (double, double) ll(String s) {
+      final x = s.split(',');
+      return (double.parse(x[0]), double.parse(x[1]));
+    }
+    final (la1, lo1) = ll(parts[1]);
+    final (la2, lo2) = ll(parts[2]);
+    final name = parts.length > 3 ? parts.sublist(3).join(' ') : 'Teste';
+    final uid = await _prepareAlone();
+    if (uid == null || !mounted) return;
+    final res = await TripPreviewSheet.show(context, title: name, points: [
+      TripPoint('Saída do teste', la1, lo1, type: StopType.meet),
+      TripPoint(name, la2, lo2, type: StopType.destination),
+    ]);
+    if (res == null || !mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => MapScreen(
+        uid: uid,
+        userName: _riderName,
+        trip: res.$2,
+        simulate: res.$1 == TripAction.simulate,
+      ),
+    ));
   }
 
   /// Lê do celular o nome, o veículo, o clube e a última expedição.

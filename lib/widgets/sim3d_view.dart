@@ -30,6 +30,18 @@ class Sim3DController {
   String? _alertsJson;
   bool _dark = false;
   bool _active = true;
+  bool _visible = true;
+
+  /// A página já desenhou a estrada (true) ou está carregando/escondida.
+  final shown = ValueNotifier<bool>(false);
+
+  /// Montada e escondida (transparente e parada) ou aparecendo.
+  void visible(bool on) {
+    if (on == _visible) return;
+    _visible = on;
+    if (!on) shown.value = false;
+    if (_ready) _web?.runJavaScript('sim3d.setVisible($on)').catchError((_) {});
+  }
 
   /// Rota (lat, lng), manobras e nome do destino.
   void route(List<(double, double)> pts, List<NavStep> steps, String dest) {
@@ -139,6 +151,7 @@ class Sim3DController {
     if (_roadsJson != null) _run('sim3d.setRoads($_roadsJson)');
     if (_hudJson != null) _run('sim3d.hud($_hudJson)');
     _run('sim3d.setActive($_active)');
+    _web?.runJavaScript('sim3d.setVisible($_visible)').catchError((_) {});
   }
 }
 
@@ -160,12 +173,20 @@ class _Sim3DViewState extends State<Sim3DView> {
   @override
   void initState() {
     super.initState();
+    debugPrint('3D página criada');
     _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFFDBE7EE))
+      // Transparente até a estrada aparecer: enquanto a página carrega
+      // (8 a 20 s num celular simples) o mapa continua visível por baixo, em
+      // vez de uma tela vazia ou só o céu (bateria de testes em SP, 06/11).
+      ..setBackgroundColor(const Color(0x00000000))
       ..addJavaScriptChannel('Sim3D', onMessageReceived: (m) {
-        if (m.message == 'ready') widget.controller._onReady();
+        if (m.message == 'ready') {
+          debugPrint('3D página pronta');
+          widget.controller._onReady();
+        }
         if (m.message == 'map') widget.onBackToMap();
+        if (m.message == 'shown') widget.controller.shown.value = true;
         if (m.message.startsWith('log:')) debugPrint('Sim3D ${m.message.substring(4)}');
       })
       ..loadFlutterAsset('assets/sim3d/index.html');
@@ -176,7 +197,8 @@ class _Sim3DViewState extends State<Sim3DView> {
   void dispose() {
     widget.controller
       .._web = null
-      .._ready = false;
+      .._ready = false
+      ..shown.value = false;
     super.dispose();
   }
 

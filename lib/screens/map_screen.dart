@@ -15,6 +15,7 @@ import 'dart:io' show InternetAddress;
 import 'dart:math';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -533,6 +534,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _radarSvc.init();
     SpeedFixService.instance.start();
     SpeedFixService.instance.fixes.addListener(_onSpeedFixes);
+    _sim3d.shown.addListener(_onShown3d);
     _speedSvc.loadSettings();
     // "Minhas viagens": grava o caminho e as estatísticas no celular.
     _startRecording();
@@ -682,6 +684,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _askTimer?.cancel();
     _radarSvc.index.removeListener(_onRadarIndex);
     SpeedFixService.instance.fixes.removeListener(_onSpeedFixes);
+    _sim3d.shown.removeListener(_onShown3d);
     PoiService.instance.loaded.removeListener(_onPoisLoaded);
     _sim?.dispose();
     if (_sim != null) {
@@ -808,6 +811,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!_inBackground) _autoExit3d(p);
     // A cena 3D também alimenta o carro, mesmo com o celular apagado.
     if (!_inBackground || CarService.instance.connected.value) _feed3d();
+    if (kDebugMode && _sim != null) _logTest();
     // Grava o caminho (só no celular) na expedição ou navegando.
     if (_isExpedition || _navigating) {
       _recorder?.add(p.latitude, p.longitude, _speedMs, p.timestamp);
@@ -935,6 +939,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _radarIcons[RadarKind.redLight] = await emojiMarker('🚦', radarRed);
     _policeIcon = await emojiMarker('🚔', Colors.blue.shade800);
     _signalIcon = await emojiMarker('🚦', Colors.green.shade700);
+    if (mounted) setState(() {});
+  }
+
+  bool? _lastMount3d;
+  bool _mount3dLogged() {
+    final m = _mount3d;
+    if (kDebugMode && m != _lastMount3d) {
+      debugPrint('3D montado=$m show=$_show3d online=$_online3d vista=${_view.name} '
+          'sim=${_sim != null} nav=$_navigating rota=${_routeRecs.length} exp=$_isExpedition');
+    }
+    _lastMount3d = m;
+    return m;
+  }
+
+  /// O 3D desenhou a estrada (ou sumiu): troca o painel do mapa pelo dele.
+  void _onShown3d() {
     if (mounted) setState(() {});
   }
 
@@ -4564,8 +4584,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // v2: estrada em 3D por cima do mapa (os avisos e botões ficam por cima).
         // Com a economia de memória marcada e o carro conectado: 3D só no
         // carro (os dois juntos deixavam o carro uns 3 s atrás do celular).
-        if (_hud3d)
+        if (_mount3dLogged())
           Positioned.fill(
+            child: IgnorePointer(
+            ignoring: !_show3d,
             child: Sim3DView(
               key: _kWeb3d,
               controller: _sim3d,
@@ -4573,6 +4595,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 _manual3dUntil = DateTime.now().add(const Duration(seconds: 20));
                 _set3d(false);
               },
+            ),
             ),
           ),
 
@@ -5890,6 +5913,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _set3d(_nearExit(p));
   }
 
+
   /// v2: painel do 3D (no lugar do velocímetro e da faixa da próxima curva).
   void _feedHud3d() {
     final p = _me;
@@ -5993,19 +6017,53 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// v2: o painel do 3D substitui o velocímetro e a faixa da próxima curva.
   bool get _hud3d =>
-      _show3d && _canShow3d &&
+      _show3d && _canShow3d && _sim3d.shown.value &&
       !(CarService.instance.connected.value && AppSettings.instance.lightMode);
+
+  /// Página do 3D montada: aparecendo, ou no modo "3D nas saídas" a viagem
+  /// toda (escondida, transparente e parada). No Galaxy A14 a página leva 8
+  /// a 21 s para carregar: abrir só na saída deixava a tela vazia ou a saída
+  /// passava sem 3D (bateria de testes em SP, 06/11). Economia de memória:
+  /// só abre na hora.
+  bool get _mount3d =>
+      _canShow3d &&
+      !(CarService.instance.connected.value && AppSettings.instance.lightMode) &&
+      (_show3d ||
+          (_mode3d == _Mode3d.exits &&
+              (!AppSettings.instance.lightMode || _exitSoon())));
+
+  /// Celular com pouca memória: monta o 3D só perto das saídas — 1,5 km ou
+  /// 90 s antes (o que for maior) e até 2 min depois de ter aparecido.
+  DateTime _last3dShown = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _exitSoon() {
+    if (_show3d) _last3dShown = DateTime.now();
+    if (DateTime.now().difference(_last3dShown) < const Duration(minutes: 2)) {
+      return true;
+    }
+    final nav = _nav, ra = _riderAlong;
+    if (nav == null || nav.finished || ra == null) return false;
+    final reach = max(1500.0, _speedMs * 90);
+    for (var i = nav.nextIndex; i < nav.steps.length && i < nav.nextIndex + 6; i++) {
+      final d = nav.routeDistanceTo(i, ra);
+      if (d == null || d > reach) break;
+      if (_isExitStep(nav.steps[i])) return true;
+    }
+    return false;
+  }
 
   /// v2: liga/desliga a visão 3D. Voltando ao mapa, ele já vem acompanhando.
   void _set3d(bool on) {
     if (on == _show3d) return;
+    final wasMounted = _mount3d;
     setState(() {
       _show3d = on;
       _follow = true;
       if (!on) _zoomOffset = 0;
     });
+    _sim3d.visible(on);
     if (on) {
-      _sim3dSig = ''; // página nova: manda a rota de novo
+      // Página nova (não estava montada): manda a rota de novo.
+      if (!wasMounted) _sim3dSig = '';
       WidgetsBinding.instance.addPostFrameCallback((_) => _feed3d());
     } else if (_me case final p?) {
       _updateCamera(p, force: true);
@@ -6061,7 +6119,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// v2: mantém a visão 3D com a rota, as manobras e a posição atuais.
   void _feed3d() {
     final car = CarService.instance.connected.value;
-    if (!_canShow3d || (!_show3d && !car)) return;
+    if (!_canShow3d || (!_show3d && !car && !_mount3d)) return;
+    _sim3d.visible(_show3d);
     final steps = _nav?.steps ?? const <NavStep>[];
     final sig = '$_routeSig|${steps.length}';
     if (sig != _sim3dSig) {
@@ -6838,6 +6897,24 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       );
     }
     return null;
+  }
+
+  /// Bateria de testes (só debug, simulação): uma linha por leitura com a
+  /// posição na rota, quanto falta, a manobra, 3D, fora da rota e a câmera.
+  void _logTest() {
+    final w = _walker, pr = _proj, p = _me;
+    final left = w == null || p == null ? null : _leftOn(w, p);
+    final cam = _camShown?.target, me = _shownMe;
+    final c = cam == null || me == null
+        ? null
+        : distanceMeters(cam.latitude, cam.longitude, me.latitude, me.longitude);
+    final nav = _nav;
+    final step = nav == null || nav.finished ? '' : nav.steps[nav.nextIndex].text;
+    debugPrint('Teste: a=${pr?.along.round()} o=${pr?.offset.round()} '
+        'f=${left?.round()} n=${nav?.nextIndex} 3d=${_show3d ? 1 : 0} '
+        'off=${_offRoute ? 1 : 0} c=${c?.round()} '
+        'v=${(_speedMs * 3.6).round()} lim=${_roadLimit?.kmh} '
+        's=${step.length > 40 ? step.substring(0, 40) : step}');
   }
 
   /// Quanto falta pela rota. Usa a posição já medida na rota (_proj), que
