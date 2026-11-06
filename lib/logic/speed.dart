@@ -24,7 +24,14 @@ class RoadLimit {
 
   /// true = estimado pelo tipo de via (sem placa mapeada).
   final bool estimated;
-  const RoadLimit(this.kmh, this.estimated);
+
+  /// De onde veio, quando não é do mapa: 'toll' (praça de pedágio) ou 'fix'
+  /// (corrigido por Gold/administração). Esses valem na hora.
+  final String? src;
+  const RoadLimit(this.kmh, this.estimated, {this.src});
+
+  /// Pedágio ou correção: não é filtrado como saída/marginal.
+  bool get firm => src != null;
 
   @override
   bool operator ==(Object other) =>
@@ -229,6 +236,7 @@ class RouteLimitProfile {
         final from = start + step * i, to = start + step * j;
         final isExit = exits.any((e) => e >= from - exitReach && e <= to);
         final short = value != null &&
+            !value.firm &&
             !isExit &&
             (len < minLen || (big && len < bigLen));
         // Queda grande entre dois trechos de rodovia (ex.: 90 antes e 110
@@ -277,6 +285,15 @@ class LimitTracker {
   /// saída, então o limite dela vale mesmo com o piloto ainda rápido.
   RoadLimit? update(RoadLimit? found, DateTime now,
       {double kmh = 0, bool onExit = false}) {
+    // Pedágio ou correção de Gold/administração: vale na hora.
+    if (found != null && found.firm) {
+      _current = found;
+      _pending = null;
+      _pendingCount = 0;
+      _seenAt = now;
+      _sideSince = null;
+      return found;
+    }
     final cur = _current;
     if (found != null && cur != null && !onExit && isSideDrop(cur, found) &&
         kmh > found.kmh + 30) {

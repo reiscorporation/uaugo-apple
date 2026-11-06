@@ -30,6 +30,9 @@ class TollService {
 
   TollTable? _table;
 
+  /// Tabela já carregada (sem esperar); null se ainda não chegou.
+  TollTable? get cached => _table;
+
   /// Valores que este piloto informou nesta sessão (carro, moto), pela chave
   /// da praça: a tela mostra na hora, antes da tabela nova chegar.
   final Map<String, (double?, double?)> mine = {};

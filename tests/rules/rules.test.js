@@ -436,6 +436,37 @@ describe("Valores de pedágio informados pelos pilotos", () => {
   });
 });
 
+describe("speedReports / speedFixes", () => {
+  const rep = (extra = {}) => ({ kind: "r", lat: -21.4, lng: -47.6, dir: 325, kmh: 110,
+    at: serverTimestamp(), ...extra });
+  const user = (uid) => env.authenticatedContext(uid, {
+    firebase: { sign_in_provider: "google.com" } }).firestore();
+  const asAdmin = (p, data) => env.withSecurityRulesDisabled((c) => setDoc(doc(c.firestore(), p), data));
+  it("Gold grava a própria correção", async () => {
+    await asAdmin("gold/gina", { since: serverTimestamp() });
+    await assertSucceeds(setDoc(doc(user("gina"), "speedReports/r_x/reports/gina"), rep()));
+  });
+  it("administração grava", async () => {
+    await asAdmin("platformAdmins/adm", { on: true });
+    await assertSucceeds(setDoc(doc(user("adm"), "speedReports/v_1_2_3/reports/adm"), rep({ kind: "v" })));
+  });
+  it("usuário comum não grava", () =>
+    assertFails(setDoc(doc(user("comum"), "speedReports/r_x/reports/comum"), rep())));
+  it("velocidade fora de 20 a 130 é recusada", async () => {
+    await asAdmin("gold/gina", { since: serverTimestamp() });
+    await assertFails(setDoc(doc(user("gina"), "speedReports/r_x/reports/gina"), rep({ kmh: 200 })));
+  });
+  it("não grava em nome de outro", async () => {
+    await asAdmin("gold/gina", { since: serverTimestamp() });
+    await assertFails(setDoc(doc(user("gina"), "speedReports/r_x/reports/bob"), rep()));
+  });
+  it("correções publicadas: todos leem, ninguém grava pelo app", async () => {
+    await asAdmin("speedFixes/r_x", { kind: "r", lat: -21, lng: -47, dir: -1, kmh: 110 });
+    await assertSucceeds(getDoc(doc(user("comum"), "speedFixes/r_x")));
+    await assertFails(setDoc(doc(user("comum"), "speedFixes/r_y"), { kmh: 40 }));
+  });
+});
+
 describe("liveSos", () => {
   const T = "a".repeat(32);
   const base = () => ({ uid: "anon1", name: "Ana", lat: -21, lng: -47, active: true,

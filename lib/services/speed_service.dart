@@ -16,7 +16,11 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../logic/radars.dart' show distanceMeters;
 import '../logic/speed.dart';
+import '../logic/tolls.dart';
+import 'speed_fix_service.dart';
+import 'toll_service.dart';
 
 /// Limites de velocidade das vias (baixados por estado, sob demanda) e a
 /// configuração dos alertas de velocidade do piloto.
@@ -170,6 +174,15 @@ class SpeedService {
   RoadLimit? lookup(double lat, double lng, double heading, double speed,
       {double Function(double lat, double lng)? routeOffset,
       double maxAngle = 60}) {
+    // Correção de Gold/administração neste trecho e sentido: vale primeiro.
+    final fix = SpeedFixService.instance.roadKmh(lat, lng, heading);
+    if (fix != null) return RoadLimit(fix, false, src: 'fix');
+    // Praça de pedágio: reduz nas cabines (40, salvo correção), mesmo onde
+    // o mapa não tem a placa (05/11: nem toda praça reduzia).
+    final toll = tollNear(lat, lng);
+    if (toll != null) {
+      return RoadLimit(SpeedFixService.instance.tollKmh(toll), false, src: 'toll');
+    }
     for (final idx in _loaded.values) {
       final r = idx.lookup(lat, lng,
           heading: heading,
@@ -177,6 +190,21 @@ class SpeedService {
           maxAngle: maxAngle,
           routeOffset: routeOffset);
       if (r != null) return r;
+    }
+    return null;
+  }
+}
+
+extension TollNear on SpeedService {
+  /// Praça de pedágio com cabine a até [radius] m do ponto.
+  TollPlaza? tollNear(double lat, double lng, {double radius = 120}) {
+    final t = TollService.instance.cached;
+    if (t == null) return null;
+    for (final p in t.plazas) {
+      for (final (la, lo) in p.pts) {
+        if ((la - lat).abs() > 0.002 || (lo - lng).abs() > 0.002) continue;
+        if (distanceMeters(lat, lng, la, lo) <= radius) return p;
+      }
     }
     return null;
   }

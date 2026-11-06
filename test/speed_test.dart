@@ -38,6 +38,20 @@ void main() {
       expect(p.at(1300)?.kmh, 90);
       expect(p.at(2000)?.kmh, 110);
     });
+    test('pedágio (40 curto entre 110) continua valendo', () {
+      // 05/11: nem toda praça reduzia; o 40 da praça não é saída.
+      const toll = RoadLimit(40, false, src: 'toll');
+      final raw = [...List.filled(20, a), ...List.filled(5, toll), ...List.filled(20, a)];
+      final p = RouteLimitProfile(0, 50, raw);
+      expect(p.at(1100)?.kmh, 40);
+      expect(p.at(2000)?.kmh, 110);
+    });
+    test('limite do pedágio vale na hora no velocímetro', () {
+      final t = LimitTracker();
+      final t0 = DateTime(2026, 11, 5);
+      t.update(a, t0, kmh: 100);
+      expect(t.update(const RoadLimit(40, false, src: 'toll'), t0, kmh: 100)?.kmh, 40);
+    });
     test('sem dado no meio repete o anterior', () {
       final raw = <RoadLimit?>[a, a, null, null, a, a];
       final p = RouteLimitProfile(0, 50, raw);

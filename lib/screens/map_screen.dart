@@ -76,6 +76,7 @@ import '../logic/speech.dart';
 import '../logic/speed.dart';
 import '../services/radar_service.dart';
 import '../services/speed_service.dart';
+import '../services/speed_fix_service.dart';
 import '../services/voice_command_service.dart';
 import '../services/voice_service.dart';
 import '../services/app_settings.dart';
@@ -368,7 +369,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Semáforos perto do piloto (só com "Semáforos" ligado nas configurações).
   List<(double, double)> _signalMarkers = [];
   BitmapDescriptor? _signalIcon;
-  ({String emoji, String text, bool Function(Position) passed})? _radarBanner;
+  ({String emoji, String text, bool Function(Position) passed, VoidCallback? onTap})? _radarBanner;
 
   // ---- Visualização do mapa
   // Comboio: vista de cima (só a minha moto ou o grupo todo).
@@ -530,6 +531,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _radarSvc.index.addListener(_onRadarIndex);
     PoiService.instance.loaded.addListener(_onPoisLoaded);
     _radarSvc.init();
+    SpeedFixService.instance.start();
     _speedSvc.loadSettings();
     // "Minhas viagens": grava o caminho e as estatísticas no celular.
     _startRecording();
@@ -1168,6 +1170,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         passed: (q) => _passedPoint(q, r.lat, r.lng) ||
             distanceMeters(q.latitude, q.longitude, r.lat, r.lng) >
                 range + 200,
+        onTap: () => _editRadar(r, kmh),
       );
       return; // um aviso por vez
     }
@@ -1207,6 +1210,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     required String speech,
     required bool Function(Position) passed,
     bool speak = true, // false = só na tela (com vibração e bipe)
+    VoidCallback? onTap, // tocar/segurar a faixa: confirmar/corrigir
   }) {
     HapticFeedback.heavyImpact();
     if (speak && _voice.alertsOn.value) {
@@ -1215,7 +1219,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       SystemSound.play(SystemSoundType.alert);
     }
     setState(
-        () => _radarBanner = (emoji: emoji, text: text, passed: passed));
+        () => _radarBanner = (emoji: emoji, text: text, passed: passed, onTap: onTap));
   }
 
   // ------------------------------------------------------------ lombadas,
@@ -3384,6 +3388,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // com o mesmo limite: um ponto solto de saída/marginal não conta.
     int? prevKmh;
     int? prevD;
+    (double, double)? prevAt, foundAt;
+    var prevToll = false, foundToll = false;
     for (final d in const [100, 200, 300, 400, 500, 600]) {
       double la, lo, brg;
       if (along != null && w != null) {
@@ -3410,10 +3416,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           : null;
       if (reduced != null && reduced == prevKmh) {
         found = (reduced, prevD!);
+        foundAt = prevAt;
+        foundToll = prevToll || l?.src == 'toll';
         break;
       }
       prevKmh = reduced;
       prevD = d;
+      prevAt = (la, lo);
+      prevToll = l?.src == 'toll';
     }
     // E em duas leituras seguidas do GPS (não fala por um instante).
     final confirmed = found != null && found.$1 == _reducedPendingKmh;
@@ -3424,8 +3434,138 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Fala uma vez por redução (mesmo limite num raio de ~1 km).
     final key =
         '${found.$1}_${(p.latitude * 100).round()}_${(p.longitude * 100).round()}';
-    if (_reducedAnnounced.add(key) && found.$2 >= 200) {
-      _voice.alert(tr('Atenção: velocidade reduzida para {0} em {1} metros', [found.$1, found.$2]));
+    // Pedágio: faixa própria (tocar corrige a velocidade da praça) e voz.
+    final f = found;
+    if (foundToll && foundAt != null) {
+      final plaza = _speedSvc.tollNear(foundAt.$1, foundAt.$2);
+      if (plaza != null && _tollBannerShown.add(plaza.key)) {
+        final (pla, plo) = plaza.pts.first;
+        _reducedAnnounced.add(key);
+        _announceRadar(
+          emoji: '🛣️',
+          text: tr('Pedágio à frente · reduza para {0} km/h', [f.$1]),
+          speech: tr('Pedágio à frente. Velocidade {0} em {1} metros', [f.$1, f.$2]),
+          passed: (q) => _passedPoint(q, pla, plo) ||
+              distanceMeters(q.latitude, q.longitude, pla, plo) > 1500,
+          onTap: () => _editSpeed(
+              title: tr('Pedágio'),
+              kind: 't',
+              key: SpeedFixService.tollKey(plaza),
+              lat: pla,
+              lng: plo,
+              current: f.$1),
+        );
+        return;
+      }
+    }
+    if (_reducedAnnounced.add(key) && f.$2 >= 200) {
+      _voice.alert(tr('Atenção: velocidade reduzida para {0} em {1} metros', [f.$1, f.$2]));
+    }
+  }
+
+  final Set<String> _tollBannerShown = {};
+
+  /// Radar: confirmar ou corrigir o limite (Gold/administração).
+  void _editRadar(FixedRadar r, int? kmh) => _editSpeed(
+      title: switch (r.kind) {
+        RadarKind.fixed => tr('Radar fixo'),
+        RadarKind.section => tr('Radar de velocidade média'),
+        RadarKind.redLight => tr('Radar de avanço de sinal'),
+      },
+      kind: 'r',
+      key: SpeedFixService.radarKey(r),
+      lat: r.lat,
+      lng: r.lng,
+      dir: r.direction,
+      current: kmh);
+
+  /// Segurar o velocímetro: confirmar ou corrigir o limite da via aqui.
+  void _editRoadSpeed() {
+    final p = _me;
+    if (p == null) {
+      _snack(tr('Aguardando o GPS.'));
+      return;
+    }
+    final hd = _speedMs > 2 ? _bearing : -1.0;
+    _editSpeed(
+        title: tr('Limite da via aqui'),
+        kind: 'v',
+        key: SpeedFixService.roadKey(p.latitude, p.longitude, hd),
+        lat: p.latitude,
+        lng: p.longitude,
+        dir: hd < 0 ? -1 : hd.round() % 360,
+        current: _roadLimit?.kmh);
+  }
+
+  /// Folha "Confirmar / Corrigir velocidade". Só Gold ou administração; vale
+  /// para todos com 1 administrador ou 2 usuários Gold (regra de 05/11).
+  Future<void> _editSpeed({
+    required String title,
+    required String kind,
+    required String key,
+    required double lat,
+    required double lng,
+    int dir = -1,
+    int? current,
+  }) async {
+    if (!await SpeedFixService.instance.canEdit()) {
+      _snack(tr('Só usuários Gold ou administradores podem confirmar ou corrigir velocidades.'));
+      return;
+    }
+    if (!mounted) return;
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(title, style: Theme.of(ctx).textTheme.titleLarge),
+            const SizedBox(height: 6),
+            Text(current != null
+                ? tr('No app: {0} km/h', [current])
+                : tr('Sem velocidade no app')),
+            const SizedBox(height: 12),
+            if (current != null)
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.check),
+                  label: Text(tr('Confirmar {0} km/h', [current])),
+                  onPressed: () => Navigator.pop(ctx, current),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Text(tr('Corrigir para:')),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
+              for (final v in const [20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120])
+                ActionChip(
+                  label: Text('$v'),
+                  onPressed: () => Navigator.pop(ctx, v),
+                ),
+            ]),
+            const SizedBox(height: 12),
+            Text(
+              tr('Vale para todos com 1 administrador ou 2 usuários Gold informando a mesma velocidade.'),
+              textAlign: TextAlign.center,
+              style: Theme.of(ctx).textTheme.bodySmall,
+            ),
+          ]),
+        ),
+        ),
+      ),
+    );
+    if (picked == null) return;
+    try {
+      await SpeedFixService.instance.report(key,
+          kind: kind, lat: lat, lng: lng, dir: dir, kmh: picked);
+      _snack(tr('Obrigado! {0} km/h registrado.', [picked]));
+    } catch (e) {
+      debugPrint('Correção de velocidade recusada: $e');
+      _snack(tr('Não foi possível salvar agora. Confira a internet.'));
     }
   }
 
@@ -4173,6 +4313,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             RadarKind.redLight => tr('Radar de avanço de sinal'),
           },
           snippet: r.limit > 0 ? tr('Limite {0} km/h', [r.limit]) : null,
+          onTap: () => _editRadar(r, r.limit > 0 ? r.limit : null),
         ),
       ));
     }
@@ -4527,7 +4668,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       ? BorderSide(color: Colors.red.shade700, width: 4)
                       : BorderSide.none,
                 ),
-                child: Padding(
+                child: InkWell(
+                  // Tocar ou segurar: confirmar/corrigir a velocidade.
+                  onTap: _radarBanner!.onTap,
+                  onLongPress: _radarBanner!.onTap,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
                   child: Row(children: [
                     Text(_radarBanner!.emoji,
@@ -4556,6 +4702,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       onPressed: () => setState(() => _radarBanner = null),
                     ),
                   ]),
+                ),
                 ),
               ),
             ],
@@ -4768,6 +4915,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         ? SpeedLevel.normal
                         : SpeedAlerter.level(kmh, _roadLimit, s.personalMax),
                     onTap: _showSpeedSettings,
+                    onLongPress: _editRoadSpeed,
                   );
                 },
               ),

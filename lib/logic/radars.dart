@@ -117,9 +117,21 @@ class RadarIndex {
     }
   }
 
-  /// Radares nas 9 células em volta (~33 km x 33 km).
-  List<FixedRadar> radarsAround(double lat, double lng) =>
-      [for (final c in _around(lat, lng)) ...?_radars[c]];
+  /// Limite corrigido por Gold/administração (SpeedFixService); null = não.
+  static int? Function(FixedRadar r)? limitFix;
+
+  /// Radares nas 9 células em volta (~33 km x 33 km), já com as correções.
+  List<FixedRadar> radarsAround(double lat, double lng) {
+    final fix = limitFix;
+    return [
+      for (final c in _around(lat, lng))
+        for (final r in _radars[c] ?? const <FixedRadar>[])
+          if (fix?.call(r) case final k? when k != r.limit)
+            FixedRadar(r.id, r.lat, r.lng, r.kind, k, r.direction)
+          else
+            r,
+    ];
+  }
 
   /// Trechos de fiscalização da PRF que passam perto do ponto.
   List<PrfStretch> stretchesAround(double lat, double lng) {

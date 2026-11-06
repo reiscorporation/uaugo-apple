@@ -267,6 +267,30 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Correção de velocidade (radar 'r', pedágio 't', via 'v'): só usuários
+    // Gold ou administração; um relato por pessoa e lugar. O servidor
+    // (onSpeedReport) publica em speedFixes com 1 administrador ou 2 Gold.
+    match /speedReports/{key}/reports/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if hasAccount() && request.auth.uid == uid
+        && (exists(/databases/$(database)/documents/gold/$(uid))
+            || exists(/databases/$(database)/documents/platformAdmins/$(uid)))
+        && key.size() <= 60
+        && request.resource.data.keys().hasOnly(['kind', 'lat', 'lng', 'dir', 'kmh', 'at'])
+        && request.resource.data.kind in ['r', 't', 'v']
+        && isLat(request.resource.data.lat) && isLng(request.resource.data.lng)
+        && request.resource.data.dir is int
+        && request.resource.data.dir >= -1 && request.resource.data.dir < 360
+        && request.resource.data.kmh is int
+        && request.resource.data.kmh >= 20 && request.resource.data.kmh <= 130
+        && request.resource.data.at == request.time;
+      allow delete: if false;
+    }
+    match /speedFixes/{key} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     // SOS em tempo real: só o dono grava. O link lê pela função sosLive.
     // Vale por até 3 h e o TTL apaga depois de expiresAt.
     function validLiveSos(d) {

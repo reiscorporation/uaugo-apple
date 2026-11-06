@@ -20,12 +20,16 @@ class Speedometer extends StatelessWidget {
     required this.limit,
     required this.level,
     this.onTap,
+    this.onLongPress,
   });
 
   final double? kmh; // null = sem GPS
   final RoadLimit? limit;
   final SpeedLevel level;
   final VoidCallback? onTap;
+
+  /// Segurar: confirmar/corrigir o limite da via (Gold/administração).
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +43,7 @@ class Speedometer extends StatelessWidget {
     };
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: SizedBox(
         width: 112,
         height: 104,
