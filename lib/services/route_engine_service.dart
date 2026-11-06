@@ -207,6 +207,17 @@ class RouteEngineService {
   /// O motor manda a entrada de rotatória em inglês mesmo no pedido em português.
   static String roundaboutText(String t) {
     if (I18n.isEn) return t;
+    // Retorno: o motor manda meio em inglês ("Make a à esquerda U-turn
+    // toward Aguai/São João.", teste de 06/11).
+    final u = RegExp(r'^Make a (à esquerda|à direita|left|right) U-turn'
+            r'(?: (?:onto|on) (.+?))?(?: toward (.+?))?\.?$')
+        .firstMatch(t);
+    if (u != null) {
+      final side = u[1]!.contains('esq') || u[1] == 'left' ? 'à esquerda' : 'à direita';
+      final on = u[2] == null ? '' : ' em ${u[2]}';
+      final to = u[3] == null ? '' : ' em direção a ${u[3]}';
+      return 'Faça o retorno $side$on$to.';
+    }
     final m = RegExp(r'^Enter (.+?) and take the (\d+)\S* exit(?: onto (.+?))?\.?$').firstMatch(t);
     if (m == null) return t;
     final to = m[3] == null ? '' : ' para ${m[3]}';

@@ -13,6 +13,10 @@ void main() {
     expect(RouteEngineService.roundaboutText('Vire à esquerda.'), 'Vire à esquerda.');
     expect(
         RouteEngineService.roundaboutText(
+            'Make a à esquerda U-turn toward Aguai/São João da Boa Vista.'),
+        'Faça o retorno à esquerda em direção a Aguai/São João da Boa Vista.');
+    expect(
+        RouteEngineService.roundaboutText(
             'Enter the roundabout and take the 3rd exit onto Avenida da Universidade.'),
         'Na rotatória, pegue a 3ª saída para Avenida da Universidade.');
   });

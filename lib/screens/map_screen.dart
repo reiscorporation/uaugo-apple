@@ -5905,10 +5905,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// (acima de 50 km/h) também costuma ser uma saída.
   bool _isExitStep(NavStep s) {
     final m = s.maneuver;
-    if (RegExp('ramp|fork|keep|roundabout').hasMatch(m)) return true;
+    // Retorno também: a alça do retorno é tão confusa quanto uma saída.
+    if (RegExp('ramp|fork|keep|roundabout|uturn').hasMatch(m)) return true;
     if (m.startsWith('turn-slight') && _speedMs > 14) return true;
     return RegExp(
-            r'sa[íi]da|bifurca|rotat[óo]ria|mantenha-se|pegue a rampa|pegue o acesso|'
+            r'sa[íi]da|bifurca|rotat[óo]ria|retorno|mantenha-se|pegue a rampa|pegue o acesso|'
             r'\bexit\b|\bfork\b|\bkeep (left|right)\b|take the ramp|slip road|roundabout',
             caseSensitive: false)
         .hasMatch(s.text);
@@ -6035,7 +6036,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// v2: o painel do 3D substitui o velocímetro e a faixa da próxima curva.
   bool get _hud3d =>
-      _show3d && _canShow3d && _sim3d.shown.value &&
+      _show3d && _canShow3d &&
       !(CarService.instance.connected.value && AppSettings.instance.lightMode);
 
   /// Página do 3D montada: aparecendo, ou no modo "3D nas saídas" a viagem
