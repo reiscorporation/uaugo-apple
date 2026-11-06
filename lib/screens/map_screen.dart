@@ -5985,7 +5985,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// v2: o que vira objeto na pista 3D (a página só mostra o que cai na rota).
   List<Map<String, Object?>> _alertsFor3d(Position p) => [
+        // Só os radares que o app também avisa: com limite ou sentido e na
+        // pista da rota (não na marginal/alça ao lado). Antes o 3D mostrava
+        // radar de 40 que não existia na pista (05/11).
         for (final r in _radarMarkers.take(40))
+          if (!r.unverified && (_walker == null || _radarOnRouteRoad(r, _walker!)))
           {
             'la': r.lat,
             'lo': r.lng,

@@ -803,7 +803,9 @@ function placeAlerts() {
   ALERTS = [];
   if (!C.length) return;
   for (const r of ALERT_RAW) {
-    const pr = project(r.la, r.lo, r.k === 'post' || r.k === 'toll' || r.k === 'tollMoto' ? 60 : 35);
+    // Lombada fica NA pista: só a até 15 m da rota (a da marginal, a 20-30 m,
+    // aparecia na rodovia, 05/11). Posto e pedágio ficam ao lado: 60 m.
+    const pr = project(r.la, r.lo, r.k === 'post' || r.k === 'toll' || r.k === 'tollMoto' ? 60 : r.k === 'bump' ? 15 : 35);
     if (!pr) continue;
     // radar com sentido: só o do nosso sentido
     if (r.dir >= 0 && /^radar/.test(r.k)) {
