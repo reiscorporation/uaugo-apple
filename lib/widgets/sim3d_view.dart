@@ -30,6 +30,16 @@ class Sim3DController {
   String? _alertsJson;
   bool _dark = false;
   bool _active = true;
+  bool _mini = true;
+
+  /// Minimapa no canto (tocar nele esconde/mostra; escolha guardada).
+  void mini(bool on) {
+    _mini = on;
+    if (_ready) _web?.runJavaScript('sim3d.setMini($on)').catchError((_) {});
+  }
+
+  /// O piloto tocou no minimapa: guardar a escolha.
+  void Function(bool on)? onMini;
   bool _visible = true;
 
   /// A página já desenhou a estrada (true) ou está carregando/escondida.
@@ -115,8 +125,8 @@ class Sim3DController {
 
   /// Espaço livre para o painel (px a partir das bordas da visão 3D),
   /// medido pelo app em volta dos botões.
-  void layout({required double left, required double right, required double bottom}) {
-    final j = jsonEncode({'l': left.round(), 'r': right.round(), 'b': bottom.round()});
+  void layout({required double left, required double right, required double bottom, double top = 0}) {
+    final j = jsonEncode({'l': left.round(), 'r': right.round(), 'b': bottom.round(), 't': top.round()});
     if (j == _layoutJson) return;
     _layoutJson = j;
     _run('sim3d.layout($j)');
@@ -152,6 +162,7 @@ class Sim3DController {
     if (_hudJson != null) _run('sim3d.hud($_hudJson)');
     _run('sim3d.setActive($_active)');
     _web?.runJavaScript('sim3d.setVisible($_visible)').catchError((_) {});
+    _web?.runJavaScript('sim3d.setMini($_mini)').catchError((_) {});
   }
 }
 
@@ -187,6 +198,10 @@ class _Sim3DViewState extends State<Sim3DView> {
         }
         if (m.message == 'map') widget.onBackToMap();
         if (m.message == 'shown') widget.controller.shown.value = true;
+        if (m.message.startsWith('mini:')) {
+          widget.controller._mini = m.message.endsWith('1');
+          widget.controller.onMini?.call(widget.controller._mini);
+        }
         if (m.message.startsWith('log:')) debugPrint('Sim3D ${m.message.substring(4)}');
       })
       ..loadFlutterAsset('assets/sim3d/index.html');

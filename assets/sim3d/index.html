@@ -95,6 +95,14 @@
     font: 600 15px/1.3 "Roboto", sans-serif; text-align: center; pointer-events: none;
   }
   #say[hidden] { display: none; }
+  /* com o minimapa: a frase fica à direita dele (não cobre o mapa) */
+  body.mini #say { left: calc(var(--mini-r, 0px) + 10px); transform: none; max-width: calc(100% - var(--mini-r, 0px) - 20px); }
+  /* minimapa (pedido de 06/11, estilo jogo): canto de cima à esquerda */
+  #mini { position: absolute; top: 10px; left: 10px; border-radius: 50%;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.45); border: 3px solid rgba(255,255,255,0.85);
+    background: rgba(20,30,42,0.82); touch-action: none; }
+  #mini.off { width: 34px !important; height: 34px !important; opacity: 0.85; }
+  body.car #mini { display: none; }
   /* celular em pé: sem a chegada (fica no topo do app) */
   @media (max-width: 560px) {
     #eta { display: none; }
@@ -145,6 +153,7 @@
 </head>
 <body>
 <div id="say" hidden></div>
+<canvas id="mini"></canvas>
 <div id="hud" hidden>
   <div class="hex" id="eta"><span class="k">Chegada</span><span class="v" id="etaT">--:--</span><span class="k" id="etaD">--</span></div>
   <div id="speedo">
@@ -503,6 +512,7 @@ function setRoadsData(list) {
     }
     if (pts.length >= 2) roads.push({ cls: w[0], n: Math.max(1, w[1]), ow: !!w[2], pts });
   }
+  MINI_ROADS = roads;
   if (!roads.length) { COVER = null; CORR = null; return; }
   // desenho
   const o = roads[0].pts[0];
@@ -1329,6 +1339,69 @@ let s = 0, v = 0, target = 0, targetAt = 0, offRoute = false;
 const look = new THREE.Vector3();
 let lookInit = false;
 
+/* ---------- minimapa: mapa de cima, girando com o piloto ---------- */
+let MINI_ROADS = [], miniOn = true, miniAt = 0, miniPress = 0, miniLong = false;
+const mini = document.getElementById('mini'), mg = mini.getContext('2d');
+function miniSize() {
+  const d = Math.round(Math.max(96, Math.min(150, Math.min(innerWidth, innerHeight) * 0.3)));
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  if (mini.width !== d * dpr) { mini.width = mini.height = d * dpr; mini.style.width = mini.style.height = d + 'px'; }
+  return { d, dpr };
+}
+function drawMini(now) {
+  if (!hasRoute || CAR) return;
+  mini.classList.toggle('off', !miniOn);
+  document.body.classList.toggle('mini', miniOn);
+  const mr = mini.getBoundingClientRect();
+  document.body.style.setProperty('--mini-r', Math.round(mr.right) + 'px');
+  if (!miniOn || now - miniAt < 120) return; // ~8 quadros por segundo bastam
+  miniAt = now;
+  const { d, dpr } = miniSize(), r = d / 2;
+  // posição e direção do piloto (na rota ou, fora dela, a do GPS)
+  let px, py, dx, dy;
+  if (offRoute && freePos) { px = freePos.x; py = freePos.y; dx = freeDir.x; dy = freeDir.y; }
+  else { const p = posAt(s); px = p.x; py = p.y; dx = p.dx; dy = p.dy; }
+  const range = 260, k = r / range; // ~260 m do centro até a borda
+  const ang = Math.atan2(dx, dy);    // gira para a frente ficar para cima
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const tx = (x, y) => { const ex = x - px, ey = y - py; return [r + (ex * ca - ey * sa) * k, r - (ex * sa + ey * ca) * k]; };
+  mg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  mg.clearRect(0, 0, d, d);
+  mg.save(); mg.beginPath(); mg.arc(r, r, r - 1, 0, Math.PI * 2); mg.clip();
+  mg.fillStyle = document.body.classList.contains('dark') ? '#152231' : '#dfe8ee'; mg.fillRect(0, 0, d, d);
+  const near = (x, y) => Math.abs(x - px) < range * 1.6 && Math.abs(y - py) < range * 1.6;
+  const line = (pts, w, c) => {
+    mg.beginPath(); let on = false;
+    for (const q of pts) {
+      if (!near(q[0], q[1])) { on = false; continue; }
+      const [x, y] = tx(q[0], q[1]); on ? mg.lineTo(x, y) : mg.moveTo(x, y); on = true;
+    }
+    mg.lineWidth = w; mg.strokeStyle = c; mg.lineCap = mg.lineJoin = 'round'; mg.stroke();
+  };
+  const dark = document.body.classList.contains('dark');
+  for (const rd of MINI_ROADS) line(rd.pts, rd.cls <= 2 ? 2.5 : 1.5, dark ? '#3a4d61' : '#ffffff');
+  // rota: de 300 m atrás até 1,5 km à frente
+  const ahead = [];
+  for (let q = Math.max(0, s - 300); q <= Math.min(TOTAL, s + 1500); q += 8) { const c = centerAt(q); ahead.push([c.x, c.y]); }
+  line(ahead, 2.5, '#1e88e5'); // fino (pedido de 06/11)
+  mg.restore();
+  // piloto: seta pequena no centro
+  mg.save(); mg.translate(r, r);
+  mg.beginPath(); mg.moveTo(0, -8); mg.lineTo(6, 7); mg.lineTo(0, 3.5); mg.lineTo(-6, 7); mg.closePath();
+  mg.fillStyle = '#ff7a00'; mg.strokeStyle = '#fff'; mg.lineWidth = 2; mg.fill(); mg.stroke();
+  mg.restore();
+  // "N" na borda, onde fica o norte
+  const nx = r - Math.sin(-ang) * (r - 10), ny = r - Math.cos(-ang) * (r - 10);
+  mg.font = '700 11px ' + FONT; mg.textAlign = 'center'; mg.textBaseline = 'middle';
+  mg.fillStyle = dark ? '#cfe3ff' : '#0e1824'; mg.fillText('N', nx, ny);
+}
+// tocar: esconde/mostra (fica guardado no app); segurar: volta ao mapa grande
+mini.addEventListener('touchstart', e => { e.stopPropagation(); miniPress = performance.now(); miniLong = false;
+  setTimeout(() => { if (miniPress && performance.now() - miniPress >= 650) { miniLong = true; send('map'); } }, 700); }, { passive: true });
+mini.addEventListener('touchend', e => { e.stopPropagation();
+  if (!miniLong && miniPress) { miniOn = !miniOn; miniAt = 0; send('mini:' + (miniOn ? 1 : 0)); }
+  miniPress = 0; }, { passive: true });
+
 window.sim3d = {
   setRoute(d) {
     clearChunks(); clearMarkers();
@@ -1354,12 +1427,18 @@ window.sim3d = {
     if (Math.abs(ns - s) > 200) { s = ns; lookInit = false; }
     target = ns; targetAt = performance.now();
   },
+  setMini(on) { miniOn = !!on; miniAt = 0; },
   // Espaço livre medido pelo app em volta dos botões: {l, r, b} em px.
   layout(d) {
     if (typeof d === 'string') d = JSON.parse(d);
     const h = document.getElementById('hud');
     h.style.left = d.l + 'px'; h.style.right = d.r + 'px'; h.style.bottom = d.b + 'px';
     h.style.padding = '0';
+    // minimapa: à direita da coluna de botões quando ela fica em cima (deitado)
+    mini.style.left = (innerWidth > innerHeight ? Math.max(10, d.l) : 10) + 'px';
+    // avisos do app no topo (radar, metade do trajeto...): desce para baixo deles
+    mini.style.top = Math.max(10, (d.t || 0) + 8) + 'px';
+    document.getElementById('say').style.top = Math.max(10, (d.t || 0) + 8) + 'px';
     const w = innerWidth - d.l - d.r;
     h.classList.toggle('narrow', !CAR && w < 470);
     h.classList.toggle('tiny', !CAR && w < 280);
@@ -1503,6 +1582,7 @@ function frame(now) {
     updateAlerts(s, time);
   }
   renderer.render(scene, camera);
+  drawMini(now);
   // 1º quadro com a rota desenhada: mostra o céu, a estrada e o painel.
   if (visible && hasRoute && !document.body.classList.contains('shown') && ++shownFrames > 2) {
     document.body.classList.add('shown');

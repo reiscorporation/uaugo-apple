@@ -535,6 +535,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     SpeedFixService.instance.start();
     SpeedFixService.instance.fixes.addListener(_onSpeedFixes);
     _sim3d.shown.addListener(_onShown3d);
+    // Minimapa do 3D: começa ligado; a escolha do piloto fica guardada.
+    SharedPreferences.getInstance().then((p) => _sim3d.mini(p.getBool('mini3d') ?? true));
+    _sim3d.onMini = (on) =>
+        SharedPreferences.getInstance().then((p) => p.setBool('mini3d', on));
     _speedSvc.loadSettings();
     // "Minhas viagens": grava o caminho e as estatísticas no celular.
     _startRecording();
@@ -4621,7 +4625,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           // Deitado: no meio, entre a coluna do velocímetro e a dos botões.
           left: landscape ? 140 : 8,
           right: landscape ? 120 : 8,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
+          child: Column(key: _kTopBanners, mainAxisSize: MainAxisSize.min, children: [
             if (_rerouting)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -5969,6 +5973,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   // v2: botões que o painel do 3D não pode cobrir (medidos na tela).
+  final _kTopBanners = GlobalKey();
   final _kWeb3d = GlobalKey(), _kLeftCol = GlobalKey(), _kRightCol = GlobalKey();
   final _kBottomLeft = GlobalKey(), _kSimBar = GlobalKey();
 
@@ -6003,7 +6008,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       }
       top = min(top, r.top);
     }
+    // Avisos do app no topo: o minimapa e a frase do 3D descem para baixo.
+    final tb = rect(_kTopBanners);
+    final topUsed = tb == null || tb.height < 4 ? 0.0 : tb.bottom - web.top;
     _sim3d.layout(
+      top: max(0.0, topUsed),
       left: left - web.left,
       right: web.right - right,
       bottom: web.bottom - top + 8,
