@@ -3109,7 +3109,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _moveCamera(CameraUpdate u) {
     final map = _map;
     if (map == null) return;
-    map.animateCamera(u, duration: _glideTime);
+    _camFrom = _camTo = _camShown = null; // movida à mão/zoom: recomeça
+    map.animateCamera(u, duration: const Duration(milliseconds: 900));
   }
 
   /// Ponto [meters] à frente de (lat, lng) na direção [bearing].
@@ -3146,12 +3147,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
     if (_view == _MapView.solo && AppSettings.instance.northUp.value) {
       // Norte para cima: mapa plano, sem girar, centrado no piloto.
-      _moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
+      _followCamera((CameraPosition(
         target: here,
         zoom: (17 + _zoomOffset).clamp(12.0, 20.0),
         tilt: 0,
         bearing: 0,
-      )));
+      )), force);
       return;
     }
 
@@ -3163,14 +3164,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final nearTurn = turn != null && turn.meters < 400 && !turn.step.isSilent &&
           turn.step.maneuver.isNotEmpty && turn.step.maneuver != 'straight';
       final zoom = (18 + _zoomOffset + (nearTurn ? 0.8 : 0)).clamp(12.0, 20.0);
-      _moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
+      _followCamera((CameraPosition(
         // Quanto mais afastado o zoom, mais à frente fica o centro.
         target: _ahead(here.latitude, here.longitude, _bearing,
             90 * pow(2, 18 - zoom).toDouble()),
         zoom: zoom,
         tilt: 65,
         bearing: _bearing,
-      )));
+      )), force);
       return;
     }
 
@@ -3205,8 +3206,46 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       return;
     }
     // Comboio, só a minha moto: vista de cima, norte para cima.
-    _moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
-        target: here, zoom: (15.5 + _zoomOffset).clamp(5.0, 20.0))));
+    _followCamera((CameraPosition(
+        target: here, zoom: (15.5 + _zoomOffset).clamp(5.0, 20.0))), force);
+  }
+
+  // ---- Câmera acompanhando: desliza no MESMO passo do ícone "Você"
+  // (mesmo relógio, sem aceleração). Com a animação do Google (acelera e
+  // freia) o ícone ia para frente e para trás na tela (05/11).
+  CameraPosition? _camFrom, _camTo, _camShown;
+
+  void _followCamera(CameraPosition to, bool force) {
+    final map = _map;
+    if (map == null) return;
+    final cur = _camShown;
+    if (cur == null || force ||
+        distanceMeters(cur.target.latitude, cur.target.longitude,
+                to.target.latitude, to.target.longitude) >
+            300) {
+      _camFrom = _camTo = null;
+      _camShown = to;
+      map.animateCamera(CameraUpdate.newCameraPosition(to),
+          duration: const Duration(milliseconds: 500));
+      return;
+    }
+    _camFrom = cur;
+    _camTo = to;
+    _ensureGlideTimer();
+  }
+
+  /// Posição da câmera no instante [t] (0 a 1) do deslize.
+  static CameraPosition _lerpCam(CameraPosition a, CameraPosition b, double t) {
+    double l(double x, double y) => x + (y - x) * t;
+    var db = (b.bearing - a.bearing) % 360;
+    if (db > 180) db -= 360;
+    return CameraPosition(
+      target: LatLng(l(a.target.latitude, b.target.latitude),
+          l(a.target.longitude, b.target.longitude)),
+      zoom: l(a.zoom, b.zoom),
+      tilt: l(a.tilt, b.tilt),
+      bearing: (a.bearing + db * t) % 360,
+    );
   }
 
   /// Botões + e −: acompanhando, ajusta o zoom de acompanhamento;
@@ -4010,18 +4049,29 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     _glideFrom = from;
     _glideTo = to;
+    _ensureGlideTimer();
+  }
+
+  /// ~20 quadros por segundo: ícone e câmera andam juntos, sem pesar.
+  void _ensureGlideTimer() {
     _glideStart = DateTime.now();
-    // ~15 quadros por segundo: suave sem pesar no celular.
-    _glideTimer ??= Timer.periodic(const Duration(milliseconds: 66), (_) {
+    _glideTimer ??= Timer.periodic(const Duration(milliseconds: 50), (_) {
       if (!mounted || _inBackground) return;
-      final a = _glideFrom, b = _glideTo;
-      if (a == null || b == null) return;
       final t = (DateTime.now().difference(_glideStart).inMilliseconds /
               _glideTime.inMilliseconds)
           .clamp(0.0, 1.0);
-      setState(() => _shownMe = LatLng(
-          a.latitude + (b.latitude - a.latitude) * t,
-          a.longitude + (b.longitude - a.longitude) * t));
+      final a = _glideFrom, b = _glideTo;
+      if (a != null && b != null) {
+        setState(() => _shownMe = LatLng(
+            a.latitude + (b.latitude - a.latitude) * t,
+            a.longitude + (b.longitude - a.longitude) * t));
+      }
+      final ca = _camFrom, cb = _camTo, map = _map;
+      if (ca != null && cb != null && map != null && (_follow)) {
+        final c = _lerpCam(ca, cb, t);
+        _camShown = c;
+        map.moveCamera(CameraUpdate.newCameraPosition(c));
+      }
       if (t >= 1) {
         _glideTimer?.cancel();
         _glideTimer = null;
