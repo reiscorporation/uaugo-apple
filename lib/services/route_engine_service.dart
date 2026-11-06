@@ -13,6 +13,8 @@
 
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
@@ -102,6 +104,7 @@ class RouteEngineService {
   }) async {
     if (DateTime.now().isBefore(_skipUntil)) return null;
     if (!await _alive()) {
+      debugPrint('Motor: sem resposta em 2 s, usando o Google');
       _skipUntil = DateTime.now().add(const Duration(minutes: 2));
       return null;
     }
@@ -139,7 +142,10 @@ class RouteEngineService {
               headers: {'Content-Type': 'application/json', ..._auth},
               body: jsonEncode(body))
           .timeout(const Duration(seconds: 20));
-      if (res.statusCode != 200) return null;
+      if (res.statusCode != 200) {
+        debugPrint('Motor: rota ${res.statusCode}');
+        return null;
+      }
       final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final best = _parse(j['trip'] as Map<String, dynamic>);
       if (best == null) return null;
@@ -150,7 +156,8 @@ class RouteEngineService {
       ]..sort((a, b) => a.durationS.compareTo(b.durationS));
       return RouteResult(best.polyline, best.legs, best.legSteps, 0,
           best.hasToll, best.summary, alternatives ? alts : const []);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Motor: rota falhou: $e');
       return null;
     }
   }

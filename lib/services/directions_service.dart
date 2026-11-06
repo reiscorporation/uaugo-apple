@@ -13,6 +13,8 @@
 
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -327,7 +329,9 @@ class DirectionsService {
       ]..sort((x, y) => x.durationS.compareTo(y.durationS));
       return RouteResult(best.polyline, best.legs, best.legSteps,
           best.riskCount, best.hasToll, best.summary, others);
-    } catch (_) {
+    } catch (e) {
+      // Fica no registro do celular: diz se foi rede, servidor ou App Check.
+      debugPrint('Rota Google falhou: $e');
       return null;
     }
   }

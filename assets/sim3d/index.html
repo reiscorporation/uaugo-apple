@@ -1307,7 +1307,7 @@ const fmtDist = d => d >= 1000 ? (d / 1000).toFixed(1).replace('.', ',') + ' km'
 
 /* ---------- estado vindo do app ---------- */
 let hasRoute = false, active = true;
-let s = 0, v = 0, target = 0, offRoute = false;
+let s = 0, v = 0, target = 0, targetAt = 0, offRoute = false;
 const look = new THREE.Vector3();
 let lookInit = false;
 
@@ -1334,7 +1334,7 @@ window.sim3d = {
     if (wasOff && !offRoute) { s = ns; lookInit = false; clearTrail(); }
     // salto grande (recálculo, GPS voltou): vai direto; senão, só corrige
     if (Math.abs(ns - s) > 200) { s = ns; lookInit = false; }
-    target = ns;
+    target = ns; targetAt = performance.now();
   },
   // Espaço livre medido pelo app em volta dos botões: {l, r, b} em px.
   layout(d) {
@@ -1449,10 +1449,13 @@ function frame(now) {
     updateAlerts(s, time);
   } else if (hasRoute) {
     if (trailGroup) clearTrail();
-    // anda na velocidade atual e encosta aos poucos na posição do GPS
-    s += v * dt;
-    s += (target + v * 0.5 - s) * Math.min(1, dt * 1.5);
-    s = Math.max(0, Math.min(TOTAL, s));
+    // Anda junto com o GPS: o alvo avança na velocidade atual entre as
+    // leituras e a câmera acelera/freia para encostar nele. NUNCA anda para
+    // trás: antes corria na frente na rotatória e voltava a cada leitura
+    // ("indo e voltando", 05/11). Se o GPS ficou para trás, ela só espera.
+    const tNow = target + v * Math.min(1.5, (now - targetAt) / 1000);
+    const spd = Math.max(0, Math.min(v * 1.5 + 6, v + (tNow - s) * 1.2));
+    s = Math.max(0, Math.min(TOTAL, s + spd * dt));
     updateChunks(s);
     // perto de saída/bifurcação a câmera sobe um pouco e olha mais longe
     const ex = MAN.find(m => m.exit && m.s - s < 350 && m.s - s > -40);

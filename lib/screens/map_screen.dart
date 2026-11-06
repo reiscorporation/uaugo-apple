@@ -1625,15 +1625,29 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: t.color, width: 2),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(t.emoji, style: const TextStyle(fontSize: 36)),
-                          const SizedBox(height: 4),
-                          Text(t.label,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 12)),
-                        ],
+                      // Letra grande no celular: o desenho encolhe e o nome
+                      // cabe em 2 linhas (antes cortava "Perigo na pista").
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(t.emoji,
+                                    style: const TextStyle(fontSize: 36)),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(t.label,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 12, height: 1.1)),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -4778,16 +4792,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           right: 6 + 88 + 10,
           bottom: 24 + (88 - 62) / 2,
           child: Row(key: _kBottomLeft, mainAxisSize: MainAxisSize.min, children: [
-            SizedBox(
-              width: 62,
-              height: 62,
-              child: FloatingActionButton(
-                heroTag: 'hazard',
-                tooltip: tr('Reportar perigo'),
-                backgroundColor: Colors.amber,
-                foregroundColor: Colors.black,
-                onPressed: _showReportSheet,
-                child: const Icon(Icons.warning_amber_rounded, size: 32),
+            // Tocar OU segurar abre as opções (segurar só mostrava a dica).
+            Semantics(
+              label: tr('Reportar perigo'),
+              button: true,
+              child: GestureDetector(
+                onLongPress: _showReportSheet,
+                child: SizedBox(
+                  width: 62,
+                  height: 62,
+                  child: FloatingActionButton(
+                    heroTag: 'hazard',
+                    backgroundColor: Colors.amber,
+                    foregroundColor: Colors.black,
+                    onPressed: _showReportSheet,
+                    child: const Icon(Icons.warning_amber_rounded, size: 32),
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -5774,11 +5795,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       }
       return _off3d;
     }
-    final far = pr.offset > max(18.0, acc * 1.5);
+    // Rotatória/curva perto: a linha da rota corta a rotatória e o rumo muda
+    // a cada segundo; a cena soltava da rota, seguia o GPS e voltava, "indo e
+    // voltando" (05/11). Ali só solta bem longe e depois de mais leituras.
+    final curve = (_nav?.steps ?? const <NavStep>[]).any((st) =>
+        st.maneuver.isNotEmpty &&
+        distanceMeters(me.latitude, me.longitude, st.lat, st.lng) < 150);
+    final far = pr.offset > (curve ? max(45.0, acc * 2) : max(18.0, acc * 1.5));
     final turned = _speedMs > 2 &&
         angleDiff(me.heading >= 0 ? me.heading : _bearing, pr.bearing) > 30;
     _off3dCount = far && (turned || pr.offset > max(60.0, acc * 2.5)) ? _off3dCount + 1 : 0;
-    if (_off3dCount >= 3) _off3d = true;
+    if (_off3dCount >= (curve ? 5 : 3)) _off3d = true;
     return _off3d;
   }
 
@@ -6773,6 +6800,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final m when m.contains('right') => Icons.turn_right,
       _ => Icons.straight,
     };
+    // Próximo ponto é uma parada programada: mostra também o tempo até lá
+    // (pedido de 05/11), na velocidade efetiva de agora (com trânsito).
+    final trip = _trip;
+    final toStop = trip != null &&
+        [..._stops, ...trip.stops].any((st) =>
+            distanceMeters(s.lat, s.lng, st.lat, st.lng) < 150);
+    final stopTime = toStop
+        ? formatDuration((d / (_etaSpeed ?? trip.averageSpeed)).round())
+        : null;
+    final distText = Text(formatDistance(d.round()),
+        style: const TextStyle(
+            color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900));
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -6784,11 +6823,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           child: Row(children: [
             Icon(icon, color: Colors.white, size: 40),
             const SizedBox(width: 10),
-            Text(formatDistance(d.round()),
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900)),
+            if (stopTime == null)
+              distText
+            else
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                distText,
+                Text(stopTime,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800)),
+              ]),
             const SizedBox(width: 12),
             Expanded(
               child: Text(s.text,
