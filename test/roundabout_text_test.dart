@@ -11,5 +11,9 @@ void main() {
 
   test('outros textos não mudam', () {
     expect(RouteEngineService.roundaboutText('Vire à esquerda.'), 'Vire à esquerda.');
+    expect(
+        RouteEngineService.roundaboutText(
+            'Enter the roundabout and take the 3rd exit onto Avenida da Universidade.'),
+        'Na rotatória, pegue a 3ª saída para Avenida da Universidade.');
   });
 }

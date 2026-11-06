@@ -3204,8 +3204,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final zoom = (18 + _zoomOffset + (nearTurn ? 0.8 : 0)).clamp(12.0, 20.0);
       _followCamera((CameraPosition(
         // Quanto mais afastado o zoom, mais à frente fica o centro.
+        // Deitado a tela é baixa: centro menos à frente, senão o "Você"
+        // ficava embaixo dos botões (bateria de testes em SP, 06/11).
         target: _ahead(here.latitude, here.longitude, _bearing,
-            90 * pow(2, 18 - zoom).toDouble()),
+            90 * pow(2, 18 - zoom).toDouble() *
+                (MediaQuery.of(context).orientation == Orientation.landscape ? 0.3 : 1)),
         zoom: zoom,
         tilt: 65,
         bearing: _bearing,
@@ -4896,7 +4899,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
         // Controles da simulação (pausar, velocidade, linha do tempo)
         if (_sim != null)
-          Positioned(left: 8, right: 8, bottom: 16,
+          Positioned(left: 8, bottom: landscape ? 4 : 16,
+              right: landscape ? null : 8,
+              width: landscape ? min(MediaQuery.of(context).size.width * 0.6, 620) : null,
               child: KeyedSubtree(key: _kSimBar, child: _simControls())),
 
         // Recentralizar (aparece ao arrastar o mapa) + Iniciar / encerrar.
@@ -4905,7 +4910,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         Positioned(
           left: landscape ? 210 : 112,
           right: landscape ? null : 76,
-          bottom: _sim != null ? 196 : (landscape ? 28 : 104),
+          bottom: _sim != null ? (landscape ? 64 : 196) : (landscape ? 28 : 104),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             if (!_follow && _me != null)
               Padding(
@@ -4937,7 +4942,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           left: 6,
           top: landscape ? 8 : null,
           // Embaixo, mas acima do logo do Google (o mapa exige que ele apareça).
-          bottom: _sim != null ? 196 : 36,
+          bottom: _sim != null ? (landscape ? 64 : 196) : 36,
           child: _landscapeFit(landscape, Alignment.bottomLeft, Column(
             key: _kLeftCol,
             mainAxisSize: MainAxisSize.min,
@@ -7191,15 +7196,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Barra da simulação: pausar, 1x/5x/20x, visão, encerrar e linha do tempo.
   Widget _simControls() {
     final sim = _sim!;
-    return Material(
-      elevation: 8,
-      borderRadius: BorderRadius.circular(16),
-      color: Theme.of(context).colorScheme.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Row(children: [
-            ValueListenableBuilder<bool>(
+    // Celular deitado: uma linha só e meia tela (antes ocupava metade da
+    // altura e escondia o mapa e o 3D, bateria de testes em SP, 06/11).
+    final compact = MediaQuery.of(context).orientation == Orientation.landscape;
+    final Widget play = ValueListenableBuilder<bool>(
               valueListenable: sim.paused,
               builder: (_, paused, __) => IconButton.filled(
                 iconSize: 32,
@@ -7222,10 +7222,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         ? Icons.play_arrow
                         : Icons.pause),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ValueListenableBuilder<int>(
+            );
+    final Widget speed = ValueListenableBuilder<int>(
                 valueListenable: sim.multiplier,
                 builder: (_, m, __) => SegmentedButton<int>(
                   showSelectedIcon: false,
@@ -7236,29 +7234,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ],
                   selected: {m},
                   onSelectionChanged: (s) => sim.multiplier.value = s.first,
-                ),
-              ),
-            ),
-            IconButton(
+                ),);
+    final Widget view = IconButton(
               tooltip: _view == _MapView.convoy ? tr('Ver em primeira pessoa') : tr('Ver de cima'),
               onPressed: _toggleView,
               icon: Icon(_view == _MapView.convoy
                   ? Icons.visibility
                   : Icons.map_outlined),
-            ),
-          ]),
-          if (_simStarted)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close),
-                label: Text(tr('Encerrar simulação'),
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ValueListenableBuilder<double>(
+            );
+    final Widget timeline = ValueListenableBuilder<double>(
             valueListenable: sim.progress,
             builder: (_, v, __) => Slider(
               value: v.clamp(0.0, 1.0),
@@ -7278,8 +7262,47 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 _announced.clear();
               },
             ),
-          ),
-        ]),
+          );
+    final Widget close = IconButton(
+      tooltip: tr('Encerrar simulação'),
+      color: Colors.red,
+      onPressed: () => Navigator.of(context).pop(),
+      icon: const Icon(Icons.close),
+    );
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(16),
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      child: Padding(
+        padding: compact ? const EdgeInsets.all(2) : const EdgeInsets.fromLTRB(4, 4, 12, 4),
+        child: compact
+            ? Row(children: [
+                play,
+                SizedBox(width: 170, child: speed),
+                view,
+                Expanded(child: timeline),
+                if (_simStarted) close,
+              ])
+            : Column(mainAxisSize: MainAxisSize.min, children: [
+                Row(children: [
+                  play,
+                  const SizedBox(width: 8),
+                  Expanded(child: speed),
+                  view,
+                ]),
+                if (_simStarted)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                      label: Text(tr('Encerrar simulação'),
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                timeline,
+              ]),
       ),
     );
   }

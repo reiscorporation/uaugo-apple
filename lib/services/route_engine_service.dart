@@ -210,7 +210,9 @@ class RouteEngineService {
     final m = RegExp(r'^Enter (.+?) and take the (\d+)\S* exit(?: onto (.+?))?\.?$').firstMatch(t);
     if (m == null) return t;
     final to = m[3] == null ? '' : ' para ${m[3]}';
-    return 'Na rotatória ${m[1]}, pegue a ${m[2]}ª saída$to.';
+    // Rotatória sem nome no mapa: o motor manda "Enter the roundabout".
+    final name = m[1]!.toLowerCase() == 'the roundabout' ? '' : ' ${m[1]}';
+    return 'Na rotatória$name, pegue a ${m[2]}ª saída$to.';
   }
 
   /// Tipo de manobra do Valhalla -> o mesmo nome usado pelo Google no app.
