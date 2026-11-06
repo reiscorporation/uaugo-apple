@@ -4048,7 +4048,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (from == null ||
         distanceMeters(from.latitude, from.longitude, to.latitude, to.longitude) >
             _jumpMeters) {
+      // Para o deslize E libera o relógio (antes ficava cancelado mas não
+      // nulo: nunca mais religava e o ícone/câmera travavam, vídeo de 05/11).
       _glideTimer?.cancel();
+      _glideTimer = null;
+      _glideFrom = _glideTo = null;
       _shownMe = to;
       return;
     }
