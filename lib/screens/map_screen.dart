@@ -5010,7 +5010,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                           fontSize: 16)),
                 ),
               // Velocidade reduzida à frente.
-              if (_reducedAhead case (final lim, final m))
+              // No 3D o painel do para-brisa fica no lugar: a pílula cobria a
+              // velocidade dele (testes em SP, 06/11). A voz continua avisando.
+              if (_reducedAhead case (final lim, final m) when !_hud3d)
                 Container(
                   margin: const EdgeInsets.only(bottom: 6),
                   padding:
@@ -5915,8 +5917,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Modo "nas saídas": entra no 3D perto de saídas e volta ao mapa depois.
   void _autoExit3d(Position p) {
     if (_mode3d != _Mode3d.exits || DateTime.now().isBefore(_manual3dUntil)) return;
-    _set3d(_nearExit(p));
+    final want = _nearExit(p);
+    if (want == _show3d) return;
+    // Sem piscar: fica no 3D pelo menos 8 s e no mapa pelo menos 4 s
+    // (saídas próximas ligavam e desligavam a cada 2-3 s, testes em SP).
+    final since = DateTime.now().difference(_exit3dToggledAt);
+    if (since < (want ? const Duration(seconds: 4) : const Duration(seconds: 8))) {
+      return;
+    }
+    _exit3dToggledAt = DateTime.now();
+    _set3d(want);
   }
+
+  DateTime _exit3dToggledAt = DateTime.fromMillisecondsSinceEpoch(0);
 
 
   /// v2: painel do 3D (no lugar do velocímetro e da faixa da próxima curva).
