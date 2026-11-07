@@ -46,6 +46,11 @@ class VoiceCommandService {
   static const _modelPath = 'public/voz/$_modelName.zip';
   static const _kEnabled = 'voiceCommands';
   static const _kRoute = 'voiceRoute';
+  static const _kHelmet = 'voiceHelmet';
+
+  /// Ouvir pelo microfone do comunicador do capacete (Bluetooth), aberto o
+  /// tempo todo. A música do comunicador fica com qualidade de ligação.
+  final helmetMic = ValueNotifier<bool>(false);
 
   /// Disponível neste aparelho? (por enquanto, só Android)
   static bool get supported => !kIsWeb && Platform.isAndroid;
@@ -86,6 +91,7 @@ class VoiceCommandService {
     final p = await SharedPreferences.getInstance();
     enabled.value = p.getBool(_kEnabled) ?? false;
     routeByVoice.value = p.getBool(_kRoute) ?? false;
+    helmetMic.value = p.getBool(_kHelmet) ?? false;
     if (enabled.value && await _modelReady()) status.value = VoiceCmdStatus.ready;
   }
 
@@ -134,6 +140,16 @@ class VoiceCommandService {
   }
 
   /// Liga/desliga a pesquisa de trajeto por voz.
+  /// Liga/desliga o microfone do comunicador e recomeça a ouvir.
+  Future<void> setHelmetMic(bool v) async {
+    helmetMic.value = v;
+    (await SharedPreferences.getInstance()).setBool(_kHelmet, v);
+    if (_listening) {
+      await stop();
+      await start();
+    }
+  }
+
   Future<void> setRouteByVoice(bool v) async {
     routeByVoice.value = v;
     (await SharedPreferences.getInstance()).setBool(_kRoute, v);
@@ -215,6 +231,7 @@ class VoiceCommandService {
       await _method.invokeMethod('start', {
         'modelDir': '${await _modelDir()}/$_modelName',
         'grammar': voiceGrammar(),
+        'helmet': helmetMic.value,
       });
       _listening = true;
       VoiceService.instance.speaking.addListener(_onSpeaking);

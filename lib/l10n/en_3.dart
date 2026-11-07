@@ -280,6 +280,8 @@ const en3 = <String, String>{
   'Obrigado! {0} km/h registrado.': 'Thanks! {0} km/h recorded.',
   'Radar não existe': 'Speed camera does not exist',
   'Sem internet para buscar agora': 'No internet to search now',
+  'Microfone do comunicador do capacete': 'Helmet communicator microphone',
+  'Ouve pelo comunicador Bluetooth, com o microfone sempre aberto. Enquanto ligado, a música no comunicador fica com qualidade de ligação. Sem comunicador conectado, usa o microfone do celular.': 'Listens through the Bluetooth communicator with the microphone always open. While on, music on the communicator has call quality. Without a communicator, the phone microphone is used.',
   'Não foi possível abrir este lugar. Tente de novo.': 'Could not open this place. Try again.',
   'Obrigado! Radar marcado como inexistente.': 'Thanks! Speed camera marked as nonexistent.',
   'Não foi possível salvar agora. Confira a internet.': 'Could not save now. Check your internet.',

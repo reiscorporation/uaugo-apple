@@ -922,6 +922,17 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
           ),
         if (on)
           ValueListenableBuilder<bool>(
+            valueListenable: _svc.helmetMic,
+            builder: (_, helmet, __) => SwitchListTile(
+              secondary: const Icon(Icons.headset_mic),
+              title: Text(tr('Microfone do comunicador do capacete')),
+              subtitle: Text(tr('Ouve pelo comunicador Bluetooth, com o microfone sempre aberto. Enquanto ligado, a música no comunicador fica com qualidade de ligação. Sem comunicador conectado, usa o microfone do celular.')),
+              value: helmet,
+              onChanged: _svc.setHelmetMic,
+            ),
+          ),
+        if (on)
+          ValueListenableBuilder<bool>(
             valueListenable: _svc.routeByVoice,
             builder: (_, route, __) => SwitchListTile(
               secondary: const Icon(Icons.record_voice_over),

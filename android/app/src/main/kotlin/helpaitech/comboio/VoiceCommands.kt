@@ -58,6 +58,9 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
     private var micResult: MethodChannel.Result? = null
     private val channel = MethodChannel(messenger, "rodajunto/voice")
     private var dest: SpeechRecognizer? = null
+    /** Microfone do comunicador do capacete (Bluetooth) aberto o tempo todo. */
+    private var helmet = false
+    private var helmetOn = false
     private var destResult: MethodChannel.Result? = null
 
     init {
@@ -79,6 +82,7 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
             }
             "start" -> worker.execute {
                 try {
+                    helmet = call.argument<Boolean>("helmet") ?: false
                     start(call.argument<String>("modelDir")!!, call.argument<String>("grammar")!!)
                     main.post { result.success(true) }
                 } catch (e: Exception) {
@@ -154,6 +158,7 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
         }
         val rec = Recognizer(model, SAMPLE_RATE, grammar)
         rec.setWords(true)
+        if (helmet) main.post { helmetMic(true) }
         service = SpeechService(rec, SAMPLE_RATE).also { it.startListening(this) }
     }
 
@@ -161,6 +166,52 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
         service?.stop()
         service?.shutdown()
         service = null
+        main.post { helmetMic(false) }
+    }
+
+    /**
+     * Comunicador Bluetooth: liga o modo de chamada (HFP/SCO) para o
+     * microfone do capacete virar a entrada. Sem comunicador conectado, não
+     * faz nada (fica o microfone do celular). A música do comunicador fica
+     * com qualidade de ligação enquanto está ligado (escolha do piloto).
+     */
+    private fun helmetMic(on: Boolean) {
+        val am = activity.getSystemService(android.content.Context.AUDIO_SERVICE)
+            as android.media.AudioManager
+        try {
+            if (on) {
+                if (Build.VERSION.SDK_INT >= 31) {
+                    val dev = am.availableCommunicationDevices.firstOrNull {
+                        it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                            it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET
+                    } ?: return
+                    am.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
+                    helmetOn = am.setCommunicationDevice(dev)
+                } else {
+                    if (!am.isBluetoothScoAvailableOffCall) return
+                    am.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
+                    @Suppress("DEPRECATION")
+                    am.startBluetoothSco()
+                    @Suppress("DEPRECATION")
+                    am.isBluetoothScoOn = true
+                    helmetOn = true
+                }
+                android.util.Log.i("UauGoVoz", "microfone do comunicador: $helmetOn")
+            } else if (helmetOn) {
+                if (Build.VERSION.SDK_INT >= 31) {
+                    am.clearCommunicationDevice()
+                } else {
+                    @Suppress("DEPRECATION")
+                    am.isBluetoothScoOn = false
+                    @Suppress("DEPRECATION")
+                    am.stopBluetoothSco()
+                }
+                am.mode = android.media.AudioManager.MODE_NORMAL
+                helmetOn = false
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("UauGoVoz", "comunicador: ${e.message}")
+        }
     }
 
     fun shutdown() {
