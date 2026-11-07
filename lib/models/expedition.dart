@@ -136,6 +136,7 @@ class Member {
   final double? lat;
   final double? lng;
   final double speed; // m/s
+  final double heading; // graus (0 = norte)
   final DateTime? updatedAt;
   final BikeProfile bike;
 
@@ -145,6 +146,7 @@ class Member {
     this.lat,
     this.lng,
     this.speed = 0,
+    this.heading = 0,
     this.updatedAt,
     this.bike = const BikeProfile(),
   });
@@ -164,6 +166,7 @@ class Member {
       lat: _num(d['lat']),
       lng: _num(d['lng']),
       speed: _num(d['speed']) ?? 0,
+      heading: _num(d['heading']) ?? 0,
       updatedAt: _date(d['updatedAt']),
       bike: BikeProfile.fromMap(d['bike'] as Map<String, dynamic>?),
     );

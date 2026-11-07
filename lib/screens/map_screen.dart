@@ -320,7 +320,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // Envio da posição ao grupo: no máximo 1 vez por minuto (o GPS só avisa
   // quando a moto anda 25 m, então parado não envia nada). Cada envio é
   // cobrado como 1 gravação + 1 leitura por membro no Firestore.
-  static const _sendInterval = Duration(minutes: 1);
+  static const _sendInterval = Duration(seconds: 10);
 
   final _svc = ExpeditionService.instance;
   final List<StreamSubscription> _subs = [];
@@ -687,6 +687,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     BatteryService.instance.stop();
     WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
+    _memberTimer?.cancel();
     _hazardSub?.cancel();
     _askTimer?.cancel();
     _radarSvc.index.removeListener(_onRadarIndex);
@@ -729,7 +730,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _updateRoute();
         _maybeUpgradeRoute();
       }))
-      ..add(_svc.members(_code).listen((m) => setState(() => _members = m)))
+      ..add(_svc.members(_code).listen(_onMembers))
       ..add(_svc.stops(_code).listen((s) {
         _onStops(s);
         _stopsLoaded = true;
@@ -767,6 +768,72 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           Timer.periodic(const Duration(minutes: 5), (_) => _checkTraffic());
       Future.delayed(const Duration(seconds: 30), _checkTraffic);
     }
+  }
+
+  /// Hora (deste celular) em que chegou a última posição de cada piloto: a
+  /// estimativa anda a partir daí (o relógio de cada celular pode diferir).
+  final _memberSeen = <String, (double, double, DateTime)>{};
+  Timer? _memberTimer;
+  int _memberTick = 0;
+
+  void _onMembers(List<Member> list) {
+    final now = DateTime.now();
+    for (final m in list) {
+      if (!m.hasLocation) continue;
+      final o = _memberSeen[m.uid];
+      if (o == null || o.$1 != m.lat || o.$2 != m.lng) {
+        _memberSeen[m.uid] = (m.lat!, m.lng!, now);
+      }
+    }
+    setState(() => _members = list);
+    // Enquanto alguém do grupo anda, redesenha a cada 2 s com a posição
+    // estimada (a moto não fica parada esperando o próximo envio).
+    _memberTimer ??= Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted || _inBackground) return;
+      if (_members.any((m) => m.uid != widget.uid && _memberMoving(m))) {
+        setState(() => _memberTick++);
+      }
+    });
+  }
+
+  bool _memberMoving(Member m) => m.hasLocation && !m.isStale && m.speed >= 2;
+
+  /// Posição estimada do piloto: a última recebida, avançada pela velocidade
+  /// e pelo rumo dele desde que chegou, por até 30 s.
+  LatLng _memberPos(Member m) {
+    final raw = LatLng(m.lat!, m.lng!);
+    final seen = _memberSeen[m.uid];
+    if (!_memberMoving(m) || seen == null) return raw;
+    final secs = DateTime.now().difference(seen.$3).inMilliseconds / 1000;
+    if (secs <= 0) return raw;
+    final d = m.speed * min(secs, 30.0);
+    final h = m.heading * pi / 180;
+    final dLat = d * cos(h) / 111320;
+    final dLng = d * sin(h) / (111320 * cos(m.lat! * pi / 180));
+    return LatLng(m.lat! + dLat, m.lng! + dLng);
+  }
+
+  /// Outros pilotos para a pista 3D (a cada 2 s, com a posição estimada).
+  DateTime _riders3dAt = DateTime(0);
+  void _feedRiders3d() {
+    if (!_isExpedition) return;
+    final now = DateTime.now();
+    if (now.difference(_riders3dAt).inMilliseconds < 2000) return;
+    _riders3dAt = now;
+    _sim3d.riders([
+      for (final m in _members)
+        if (m.uid != widget.uid && m.hasLocation && !m.isStale)
+          () {
+            final p = _memberPos(m);
+            return <String, Object?>{
+              'id': m.uid,
+              'n': m.name,
+              'c': m.bike.color & 0xFFFFFF,
+              'la': p.latitude,
+              'lo': p.longitude,
+            };
+          }()
+    ]);
   }
 
   /// Tela sempre ligada navegando (a navegação não roda com o app fora da
@@ -841,7 +908,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (_isExpedition || _navigating) {
       _recorder?.add(p.latitude, p.longitude, _speedMs, p.timestamp);
     }
-    // Envio ao grupo: no máximo 1x/min, e parado só a cada 5 min.
+    // Envio ao grupo: andando, a cada 10 s ou 200 m (o que vier antes);
+    // parado, só a cada 5 min. Antes era 1x/min: a 90 km/h o grupo via o
+    // piloto 1,5 km atrás de onde ele estava (07/11).
     final now = DateTime.now();
     final elapsed = now.difference(_lastSent);
     final last = _lastSentPos;
@@ -850,8 +919,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         : distanceMeters(
             last.latitude, last.longitude, p.latitude, p.longitude);
     if (_isExpedition &&
-        elapsed >= _sendInterval &&
-        (moved >= 20 || elapsed >= const Duration(minutes: 5))) {
+        ((elapsed >= _sendInterval && moved >= 20) ||
+            (elapsed >= const Duration(seconds: 3) && moved >= 200) ||
+            elapsed >= const Duration(minutes: 5))) {
       _lastSent = now;
       _lastSentPos = p;
       _svc.updateLocation(_code, widget.uid, p);
@@ -3276,7 +3346,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final others = [
       for (final m in _members)
         if (m.uid != widget.uid && m.hasLocation && !m.isStale)
-          LatLng(m.lat!, m.lng!)
+          _memberPos(m)
     ];
     if (_showAll && others.isNotEmpty) {
       // O grupo muda pouco: reenquadra a cada 10 s.
@@ -4205,6 +4275,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final sig = Object.hashAll([
       identityHashCode(_stops),
       identityHashCode(_members),
+      _memberTick,
       identityHashCode(_alerts),
       identityHashCode(_hazards),
       identityHashCode(_radarMarkers),
@@ -4417,7 +4488,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final icon = _bikeIcon(m.name, m.bike);
       markers.add(Marker(
         markerId: MarkerId('member_${m.uid}'),
-        position: LatLng(m.lat!, m.lng!),
+        position: _memberPos(m),
         alpha: m.isStale ? 0.5 : 1,
         zIndex: 2,
         anchor: icon != null ? bikeMarkerAnchor : const Offset(0.5, 1),
@@ -6217,6 +6288,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     _feedHud3d();
     _feedRoads3d();
+    _feedRiders3d();
     final me = _me;
     if (me != null && DateTime.now().difference(_alerts3dAt).inSeconds >= 4) {
       _alerts3dAt = DateTime.now();

@@ -473,7 +473,15 @@ class SettingsScreen extends StatelessWidget {
               subtitle: Text(
                   tr('Só no comboio: o grupo continua vendo você com o app fora da tela (notificação "UauGo ativo"). Desligado, o GPS para ao sair do app. Ligar aumenta o consumo de bateria.')),
               value: on,
-              onChanged: s.setBackgroundShare,
+              onChanged: (v) {
+                s.setBackgroundShare(v);
+                if (!v) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      duration: const Duration(seconds: 6),
+                      content: Text(tr(
+                          'No comboio, o grupo deixa de ver você sempre que o UauGo sair da tela (tela bloqueada, ligação, outro app).'))));
+                }
+              },
             ),
           ),
           // Idioma: o do celular ou escolhido (por enquanto português e inglês).

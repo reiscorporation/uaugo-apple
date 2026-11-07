@@ -28,6 +28,7 @@ class Sim3DController {
   String? _routeJson;
   String? _lastUpdate;
   String? _alertsJson;
+  String? _ridersJson;
   bool _dark = false;
   bool _active = true;
   bool _mini = true;
@@ -73,6 +74,15 @@ class Sim3DController {
     if (j == _alertsJson) return;
     _alertsJson = j;
     _run('sim3d.setAlerts($j)');
+  }
+
+  /// Outros pilotos do comboio: [{id, n (nome), c (cor RGB), la, lo}].
+  /// Viram uma moto com o nome na pista quando estão na rota, à frente.
+  void riders(List<Map<String, Object?>> list) {
+    final j = jsonEncode(list);
+    if (j == _ridersJson) return;
+    _ridersJson = j;
+    _run('sim3d.setRiders($j)');
   }
 
   /// Posição na rota (metros desde o início), velocidade (m/s), se saiu
@@ -147,6 +157,7 @@ class Sim3DController {
     if (_routeJson != null) car.sim3d('sim3d.setRoute($_routeJson)');
     if (_roadsJson != null) car.sim3d('sim3d.setRoads($_roadsJson)');
     if (_alertsJson != null) car.sim3d('sim3d.setAlerts($_alertsJson)');
+    if (_ridersJson != null) car.sim3d('sim3d.setRiders($_ridersJson)');
     if (_lastUpdate != null) car.sim3d('sim3d.update($_lastUpdate)');
     if (_hudJson != null) car.sim3d('sim3d.hud($_hudJson)');
   }
@@ -156,6 +167,7 @@ class Sim3DController {
     _run('sim3d.setDark($_dark)');
     if (_routeJson != null) _run('sim3d.setRoute($_routeJson)');
     if (_alertsJson != null) _run('sim3d.setAlerts($_alertsJson)');
+    if (_ridersJson != null) _run('sim3d.setRiders($_ridersJson)');
     if (_lastUpdate != null) _run('sim3d.update($_lastUpdate)');
     if (_layoutJson != null) _run('sim3d.layout($_layoutJson)');
     if (_roadsJson != null) _run('sim3d.setRoads($_roadsJson)');

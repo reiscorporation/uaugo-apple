@@ -974,6 +974,51 @@ function updateAlerts(s_, time) {
   }
 }
 
+/* ---------- outros pilotos do comboio ---------- */
+// Cada um vira uma moto na cor dele com o nome em cima, na pista, quando
+// está na rota e à frente. Entre as posições a moto desliza (1,5 s).
+let RIDER_RAW = [], RIDERS = [];
+function placeRiders() {
+  const old = new Map(RIDERS.map(r => [r.id, r]));
+  const next = [];
+  for (const r of RIDER_RAW) {
+    const pr = C.length ? project(r.la, r.lo, 40) : null;
+    let o = old.get(r.id);
+    if (o) old.delete(r.id);
+    if (!pr) { if (o && o.obj) scene.remove(o.obj); continue; }
+    if (o && (o.n !== r.n || o.c !== r.c)) { if (o.obj) scene.remove(o.obj); o = null; }
+    if (!o) o = { id: r.id, n: r.n, c: r.c, obj: null, s: pr.s };
+    o.s0 = o.s; o.s1 = pr.s; o.t = performance.now();
+    if (Math.abs(o.s1 - o.s0) > 1500) o.s0 = o.s1; // salto grande: vai direto
+    next.push(o);
+  }
+  for (const o of old.values()) if (o.obj) scene.remove(o.obj);
+  RIDERS = next;
+}
+function buildRider(r) {
+  const g = new THREE.Group(), col = r.c & 0xffffff;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.0, 2.0), new THREE.MeshBasicMaterial({ color: col }));
+  body.position.y = 0.75; g.add(body);
+  const rider = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.8, 0.5), MAT.dark); rider.position.set(0, 1.6, -0.2); g.add(rider);
+  const t = tag(r.n, '#' + col.toString(16).padStart(6, '0'), '🏍️');
+  t.position.y = 3.4; g.add(t); g.userData.tag = t;
+  scene.add(g);
+  return g;
+}
+function updateRiders(s_) {
+  const now = performance.now();
+  for (const r of RIDERS) {
+    r.s = r.s0 + (r.s1 - r.s0) * Math.min(1, (now - r.t) / 1500);
+    const d = r.s - s_, want = d > 4 && d < 900;
+    if (want && !r.obj) r.obj = buildRider(r);
+    if (!want && r.obj) { scene.remove(r.obj); r.obj = null; }
+    if (!r.obj) continue;
+    onLane(r.obj, r.s, 0);
+    const t = r.obj.userData.tag, z = Math.max(1, Math.min(5, d / 55)); // legível de longe
+    t.scale.set(8 * z, 2 * z, 1); t.position.y = 3.4 + (z - 1) * 1.2;
+  }
+}
+
 /* ---------- setas nas conversões, saídas e destino ---------- */
 const chevGeo = new THREE.ExtrudeGeometry(
   new THREE.Shape([[-0.55, 1], [0.05, 1], [0.75, 0], [0.05, -1], [-0.55, -1], [0.15, 0]].map(([x, y]) => new THREE.Vector2(x, y))),
@@ -1410,6 +1455,7 @@ window.sim3d = {
     hasRoute = setRouteData(typeof d === 'string' ? JSON.parse(d) : d);
     s = 0; target = 0;
     placeAlerts();
+    placeRiders();
     if (!hasRoute) return;
     COVER = null; CORR = null;
     if (ROADS_RAW) setRoadsData(ROADS_RAW); // origem nova: desenha as vias de novo
@@ -1476,6 +1522,11 @@ window.sim3d = {
     if (typeof list === 'string') list = JSON.parse(list);
     ALERT_RAW = list || [];
     placeAlerts();
+  },
+  setRiders(list) {
+    if (typeof list === 'string') list = JSON.parse(list);
+    RIDER_RAW = list || [];
+    placeRiders();
   },
   setDark(on) {
     pal = on ? PAL.night : PAL.day;
@@ -1554,6 +1605,7 @@ function frame(now) {
     updateMarkers(s, time);
     updateCurves(s, time);
     updateAlerts(s, time);
+    updateRiders(s);
   } else if (hasRoute) {
     if (trailGroup) clearTrail();
     // Anda junto com o GPS: o alvo avança na velocidade atual entre as
@@ -1582,6 +1634,7 @@ function frame(now) {
     updateMarkers(s, time);
     updateCurves(s, time);
     updateAlerts(s, time);
+    updateRiders(s);
   }
   renderer.render(scene, camera);
   drawMini(now);

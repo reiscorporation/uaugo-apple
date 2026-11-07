@@ -212,7 +212,7 @@ class AppSettings {
 
   /// Comboio: continuar enviando a posição ao grupo com o app fora da tela
   /// (GPS econômico, a cada 15 s). Desligado = o GPS para ao sair do app.
-  final backgroundShare = ValueNotifier<bool>(false);
+  final backgroundShare = ValueNotifier<bool>(true);
 
   /// Estatísticas anônimas de uso e relatório de erros (ligado por padrão;
   /// o usuário pode recusar). Ver AnalyticsService.
@@ -311,7 +311,7 @@ class AppSettings {
     maxBrightnessNav.value = p.getBool('maxBrightnessNav') ?? true;
     language.value = p.getString('language') ?? 'auto';
     _applyLanguage();
-    backgroundShare.value = p.getBool('backgroundShare') ?? false;
+    backgroundShare.value = p.getBool('backgroundShare') ?? true;
     shareStats.value = p.getBool('shareStats') ?? true;
     lightModeChoice.value =
         p.containsKey('lightMode') ? p.getBool('lightMode') : null;
