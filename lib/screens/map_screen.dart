@@ -5914,8 +5914,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Próxima manobra "de verdade" (pula "Continue para...") e a distância
   /// até ela (pela rota, quando houver).
   /// v2: a visão 3D cabe aqui? (sozinho, primeira pessoa, com rota)
+  /// Vale também no comboio (na visão solo): os outros pilotos aparecem na
+  /// pista com o veículo de cada um (_feedRiders3d).
   bool get _canShow3d =>
-      !_isExpedition && _view == _MapView.solo && _routeRecs.length >= 2 &&
+      _view == _MapView.solo && _routeRecs.length >= 2 &&
       (_navigating || _sim != null) && _online3d;
 
   /// O 3D só funciona com internet. Duas falhas seguidas (30 s) para um
