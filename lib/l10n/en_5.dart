@@ -136,5 +136,6 @@ const en5 = <String, String>{
   'Histórico': 'Historic site',
   'Parque': 'Park',
   'Brilho de tela máximo ao navegar': 'Maximum screen brightness while navigating',
-  'Para enxergar o mapa no sol. Vale só no UauGo enquanto navega; ao parar, volta ao brilho do celular.': 'To see the map in the sun. Applies only to UauGo while navigating; when you stop, the phone brightness comes back.',
+  'Para enxergar o mapa no sol. Vale só no UauGo enquanto navega; ao parar, volta ao brilho do celular. Atenção: com a economia de bateria ligada, o celular limita o brilho e a tela não fica no máximo.': 'To see the map in the sun. Applies only to UauGo while navigating; when you stop, the phone brightness comes back. Note: with battery saver on, the phone limits brightness and the screen will not reach maximum.',
+  '⚠️ A economia de bateria está ligada agora.': '⚠️ Battery saver is on right now.',
 };

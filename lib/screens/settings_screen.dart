@@ -8,6 +8,7 @@
 // Onde mexer: Valores e padrões: services/app_settings.dart.
 // ============================================================================
 
+import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/material.dart';
 
 import '../logic/speech.dart';
@@ -427,8 +428,17 @@ class SettingsScreen extends StatelessWidget {
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.wb_sunny_outlined),
               title: Text(tr('Brilho de tela máximo ao navegar')),
-              subtitle: Text(tr(
-                  'Para enxergar o mapa no sol. Vale só no UauGo enquanto navega; ao parar, volta ao brilho do celular.')),
+              subtitle: FutureBuilder<bool>(
+                future: Battery().isInBatterySaveMode.catchError((_) => false),
+                builder: (_, snap) => Text.rich(TextSpan(children: [
+                  TextSpan(text: tr(
+                      'Para enxergar o mapa no sol. Vale só no UauGo enquanto navega; ao parar, volta ao brilho do celular. Atenção: com a economia de bateria ligada, o celular limita o brilho e a tela não fica no máximo.')),
+                  if (snap.data == true)
+                    TextSpan(
+                        text: '\n${tr('⚠️ A economia de bateria está ligada agora.')}',
+                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                ])),
+              ),
               value: on,
               onChanged: s.setMaxBrightnessNav,
             ),
