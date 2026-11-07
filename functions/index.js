@@ -35,6 +35,7 @@ const { buildRadarData } = require("./radars");
 const { buildSpeedLimits } = require("./speedlimits");
 const { buildPois } = require("./pois");
 const { buildTolls, boothsFromPois } = require("./tolls");
+const { buildTurismo, buildCombustivel } = require("./turismo");
 const maps = require("./maps");
 const clubs = require("./clubs");
 const gold = require("./gold");
@@ -652,6 +653,56 @@ exports.updatePois = onSchedule(
     });
     await metaRef.set({ ufs, builtAt: new Date().toISOString() });
     console.log(`POIs: ${changed} estados atualizados`);
+  }
+);
+
+/** Grava um arquivo público (gz) no Storage. */
+const savePublic = (folder, uf, gz) =>
+  getStorage().bucket().file(`public/${folder}/${uf}.json.gz`).save(gz, {
+    contentType: "application/octet-stream",
+    resumable: false,
+    metadata: { cacheControl: "no-cache" },
+  });
+
+/**
+ * Todo dia: "Na rota" (atrações turísticas e postos, OpenStreetMap), por
+ * estado. Refaz os estados com mais de 25 dias até acabar o tempo.
+ */
+exports.updateTurismo = onSchedule(
+  {
+    schedule: "every day 03:20",
+    timeZone: "America/Sao_Paulo",
+    region,
+    memory: "1GiB",
+    timeoutSeconds: 1800,
+  },
+  async () => {
+    const metaRef = db.doc("meta/turismo");
+    const previous = (await metaRef.get()).data() || {};
+    const { ufs, changed } = await buildTurismo({ previous, save: savePublic });
+    await metaRef.set({ ufs, builtAt: new Date().toISOString() });
+    console.log(`Turismo: ${changed} estados atualizados`);
+  }
+);
+
+/**
+ * Todo dia: preços de combustível por posto (pesquisa semanal da ANP). Só
+ * grava quando sai uma semana nova.
+ */
+exports.updateCombustivel = onSchedule(
+  {
+    schedule: "every day 07:40",
+    timeZone: "America/Sao_Paulo",
+    region,
+    memory: "1GiB",
+    timeoutSeconds: 540,
+  },
+  async () => {
+    const metaRef = db.doc("meta/combustivel");
+    const previous = (await metaRef.get()).data() || {};
+    const r = await buildCombustivel({ previousUrl: previous.url, save: savePublic });
+    if (!r.changed) return;
+    await metaRef.set({ url: r.url, semana: r.semana, ufs: r.ufs, builtAt: new Date().toISOString() });
   }
 );
 

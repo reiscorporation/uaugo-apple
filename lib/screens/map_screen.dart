@@ -83,6 +83,7 @@ import '../services/voice_service.dart';
 import '../services/app_settings.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'plan_screen.dart';
+import 'na_rota_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
@@ -3064,6 +3065,24 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             subtitle: Text(_dist(s.lat, s.lng).replaceFirst(' · ', '')),
           ),
           ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: Text(tr('Detalhes de turismo')),
+            subtitle: Text(tr('Atrações num raio de 50 km, com fotos')),
+            onTap: () {
+              Navigator.pop(ctx);
+              _openNaRota(s.lat, s.lng, s.name, 0);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.hotel_outlined),
+            title: Text(tr('Hospedagem e postos')),
+            subtitle: Text(tr('Hotéis mais baratos e postos famosos entre motociclistas')),
+            onTap: () {
+              Navigator.pop(ctx);
+              _openNaRota(s.lat, s.lng, s.name, s.type == StopType.overnight ? 1 : 2);
+            },
+          ),
+          ListTile(
             leading: Icon(Icons.navigation),
             title: Text(tr('Navegar até aqui (Google Maps)')),
             onTap: () {
@@ -3094,6 +3113,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ]),
       ),
     );
+  }
+
+  /// "Na rota": turismo, hospedagem e postos perto do ponto. Navegando sem
+  /// comboio, dá para incluir o lugar como parada.
+  void _openNaRota(double lat, double lng, String name, int tab) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => NaRotaScreen(
+        lat: lat,
+        lng: lng,
+        lugar: name,
+        aba: tab,
+        onAddStop: _canAddSoloStop ? _insertSoloStop : null,
+      ),
+    ));
   }
 
   /// Abre o app do Google Maps navegando até o ponto.

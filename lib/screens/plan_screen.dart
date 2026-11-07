@@ -35,6 +35,7 @@ import '../logic/find_places.dart';
 import '../logic/simulation.dart' show RouteWalker;
 import '../services/places_service.dart';
 import 'map_screen.dart';
+import 'na_rota_screen.dart';
 import 'profile_screen.dart';
 import '../l10n/i18n.dart';
 import '../widgets/toll_confirm_sheet.dart';
@@ -1262,6 +1263,18 @@ class _StopEditorState extends State<_StopEditor> {
                 tooltip: tr('Navegar até aqui'),
                 icon: const Icon(Icons.navigation_outlined),
                 onPressed: widget.onNavigate,
+              ),
+              IconButton(
+                tooltip: tr('Turismo, hospedagem e postos'),
+                icon: const Icon(Icons.travel_explore),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => NaRotaScreen(
+                    lat: widget.stop.lat,
+                    lng: widget.stop.lng,
+                    lugar: widget.stop.name,
+                    aba: widget.stop.type == StopType.overnight ? 1 : 0,
+                  ),
+                )),
               ),
               const Spacer(),
               TextButton(
