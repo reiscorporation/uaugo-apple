@@ -813,6 +813,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return LatLng(m.lat! + dLat, m.lng! + dLng);
   }
 
+  /// Tipo do veículo desenhado na pista 3D (veja vehicle() na página).
+  static String _vehicle3d(BikeStyle s) => switch (s) {
+        BikeStyle.tricycle => 'trike',
+        BikeStyle.car || BikeStyle.suv || BikeStyle.jeep => 'car',
+        BikeStyle.pickup => 'pickup',
+        BikeStyle.motorhome => 'van',
+        BikeStyle.bus => 'bus',
+        BikeStyle.truck || BikeStyle.bitrain => 'truck',
+        _ => 'moto',
+      };
+
   /// Outros pilotos para a pista 3D (a cada 2 s, com a posição estimada).
   DateTime _riders3dAt = DateTime(0);
   void _feedRiders3d() {
@@ -829,6 +840,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               'id': m.uid,
               'n': m.name,
               'c': m.bike.color & 0xFFFFFF,
+              'v': _vehicle3d(m.bike.style),
               'la': p.latitude,
               'lo': p.longitude,
             };

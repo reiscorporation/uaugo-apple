@@ -986,8 +986,8 @@ function placeRiders() {
     let o = old.get(r.id);
     if (o) old.delete(r.id);
     if (!pr) { if (o && o.obj) scene.remove(o.obj); continue; }
-    if (o && (o.n !== r.n || o.c !== r.c)) { if (o.obj) scene.remove(o.obj); o = null; }
-    if (!o) o = { id: r.id, n: r.n, c: r.c, obj: null, s: pr.s };
+    if (o && (o.n !== r.n || o.c !== r.c || o.v !== r.v)) { if (o.obj) scene.remove(o.obj); o = null; }
+    if (!o) o = { id: r.id, n: r.n, c: r.c, v: r.v, obj: null, s: pr.s };
     o.s0 = o.s; o.s1 = pr.s; o.t = performance.now();
     if (Math.abs(o.s1 - o.s0) > 1500) o.s0 = o.s1; // salto grande: vai direto
     next.push(o);
@@ -995,13 +995,46 @@ function placeRiders() {
   for (const o of old.values()) if (o.obj) scene.remove(o.obj);
   RIDERS = next;
 }
+// Veículo do piloto (frente para -Z), na cor dele: moto, triciclo, carro,
+// picape, motorhome/van, ônibus ou caminhão.
+const RIDER_ICON = { moto: '🏍️', trike: '🛺', car: '🚗', pickup: '🛻', van: '🚐', bus: '🚌', truck: '🚚' };
+function vehicle(kind, col) {
+  const g = new THREE.Group(), paint = new THREE.MeshBasicMaterial({ color: col });
+  const box = (w, h, l, x, y, z, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, l), m || paint); b.position.set(x, y, z); g.add(b); return b; };
+  const wheel = (x, z, r) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.26, 10), MAT.dark); w.rotation.z = Math.PI / 2; w.position.set(x, r, z); g.add(w); };
+  const wheels = (hw, zs, r) => { for (const z of zs) { wheel(-hw, z, r); wheel(hw, z, r); } };
+  let h = 2.2; // altura do topo (a etiqueta fica acima)
+  switch (kind) {
+    case 'trike':
+      box(1.0, 0.6, 2.2, 0, 0.75, 0); box(0.55, 0.8, 0.5, 0, 1.5, 0.1, MAT.dark);
+      wheel(0, -1.0, 0.34); wheels(0.62, [0.8], 0.36); h = 2.0; break;
+    case 'car':
+      box(1.8, 0.62, 4.3, 0, 0.62, 0); box(1.56, 0.56, 2.1, 0, 1.2, 0.25, MAT.glass);
+      wheels(0.86, [-1.35, 1.35], 0.34); h = 1.6; break;
+    case 'pickup':
+      box(1.9, 0.75, 5.3, 0, 0.75, 0); box(1.7, 0.65, 2.0, 0, 1.45, -0.7, MAT.glass);
+      wheels(0.9, [-1.7, 1.7], 0.4); h = 1.9; break;
+    case 'van':
+      box(2.2, 2.4, 6.5, 0, 1.6, 0); box(2.0, 0.8, 0.2, 0, 2.0, -3.26, MAT.glass);
+      wheels(1.0, [-2.2, 2.2], 0.45); h = 2.9; break;
+    case 'bus':
+      box(2.5, 2.8, 12, 0, 1.9, 0); box(2.52, 0.8, 10, 0, 2.4, 0.4, MAT.glass);
+      wheels(1.15, [-4, 3.6], 0.5); h = 3.4; break;
+    case 'truck':
+      box(2.4, 2.3, 2.4, 0, 1.6, -5.2); box(2.2, 0.8, 0.2, 0, 2.2, -6.42, MAT.glass);
+      box(2.5, 3.0, 9, 0, 2.1, 0.8, MAT.white);
+      wheels(1.1, [-5.2, -1.5, 3, 4.4], 0.5); h = 3.7; break;
+    default: // moto
+      box(0.7, 0.9, 2.0, 0, 0.75, 0); box(0.55, 0.8, 0.5, 0, 1.55, 0.2, MAT.dark);
+      wheel(0, -0.85, 0.34); wheel(0, 0.85, 0.34);
+  }
+  g.userData.h = h;
+  return g;
+}
 function buildRider(r) {
-  const g = new THREE.Group(), col = r.c & 0xffffff;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.0, 2.0), new THREE.MeshBasicMaterial({ color: col }));
-  body.position.y = 0.75; g.add(body);
-  const rider = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.8, 0.5), MAT.dark); rider.position.set(0, 1.6, -0.2); g.add(rider);
-  const t = tag(r.n, '#' + col.toString(16).padStart(6, '0'), '🏍️');
-  t.position.y = 3.4; g.add(t); g.userData.tag = t;
+  const col = r.c & 0xffffff, g = vehicle(r.v, col);
+  const t = tag(r.n, '#' + col.toString(16).padStart(6, '0'), RIDER_ICON[r.v] || RIDER_ICON.moto);
+  g.userData.top = g.userData.h + 1.4; t.position.y = g.userData.top; g.add(t); g.userData.tag = t;
   scene.add(g);
   return g;
 }
@@ -1015,7 +1048,7 @@ function updateRiders(s_) {
     if (!r.obj) continue;
     onLane(r.obj, r.s, 0);
     const t = r.obj.userData.tag, z = Math.max(1, Math.min(5, d / 55)); // legível de longe
-    t.scale.set(8 * z, 2 * z, 1); t.position.y = 3.4 + (z - 1) * 1.2;
+    t.scale.set(8 * z, 2 * z, 1); t.position.y = r.obj.userData.top + (z - 1) * 1.2;
   }
 }
 
