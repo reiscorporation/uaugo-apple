@@ -422,6 +422,17 @@ class SettingsScreen extends StatelessWidget {
               onChanged: s.setKeepScreenOn,
             ),
           ),
+          ValueListenableBuilder<bool>(
+            valueListenable: s.maxBrightnessNav,
+            builder: (_, on, __) => SwitchListTile(
+              secondary: const Icon(Icons.wb_sunny_outlined),
+              title: Text(tr('Brilho de tela máximo ao navegar')),
+              subtitle: Text(tr(
+                  'Para enxergar o mapa no sol. Vale só no UauGo enquanto navega; ao parar, volta ao brilho do celular.')),
+              value: on,
+              onChanged: s.setMaxBrightnessNav,
+            ),
+          ),
           ValueListenableBuilder<bool?>(
             valueListenable: s.lightModeChoice,
             builder: (_, choice, __) => SwitchListTile(

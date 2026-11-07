@@ -206,6 +206,10 @@ class AppSettings {
   /// Manter a tela ligada enquanto o mapa estiver aberto.
   final keepScreenOn = ValueNotifier<bool>(true);
 
+  /// Brilho da tela no máximo enquanto navega (só na tela do UauGo; volta
+  /// ao brilho do celular ao parar de navegar ou sair do app).
+  final maxBrightnessNav = ValueNotifier<bool>(true);
+
   /// Comboio: continuar enviando a posição ao grupo com o app fora da tela
   /// (GPS econômico, a cada 15 s). Desligado = o GPS para ao sair do app.
   final backgroundShare = ValueNotifier<bool>(false);
@@ -304,6 +308,7 @@ class AppSettings {
     _loaded = true;
     final p = await SharedPreferences.getInstance();
     keepScreenOn.value = p.getBool('keepScreenOn') ?? true;
+    maxBrightnessNav.value = p.getBool('maxBrightnessNav') ?? true;
     language.value = p.getString('language') ?? 'auto';
     _applyLanguage();
     backgroundShare.value = p.getBool('backgroundShare') ?? false;
@@ -447,6 +452,12 @@ class AppSettings {
   Future<void> setKeepScreenOn(bool v) async {
     keepScreenOn.value = v;
     (await SharedPreferences.getInstance()).setBool('keepScreenOn', v);
+  }
+
+  /// Liga/desliga o brilho máximo ao navegar.
+  Future<void> setMaxBrightnessNav(bool v) async {
+    maxBrightnessNav.value = v;
+    (await SharedPreferences.getInstance()).setBool('maxBrightnessNav', v);
   }
 
   /// Salva as preferências de rota.

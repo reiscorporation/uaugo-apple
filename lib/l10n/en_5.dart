@@ -135,4 +135,6 @@ const en5 = <String, String>{
   'Pico': 'Peak',
   'Histórico': 'Historic site',
   'Parque': 'Park',
+  'Brilho de tela máximo ao navegar': 'Maximum screen brightness while navigating',
+  'Para enxergar o mapa no sol. Vale só no UauGo enquanto navega; ao parar, volta ao brilho do celular.': 'To see the map in the sun. Applies only to UauGo while navigating; when you stop, the phone brightness comes back.',
 };

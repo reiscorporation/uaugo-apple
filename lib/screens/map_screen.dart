@@ -81,6 +81,7 @@ import '../services/speed_fix_service.dart';
 import '../services/voice_command_service.dart';
 import '../services/voice_service.dart';
 import '../services/app_settings.dart';
+import 'package:screen_brightness/screen_brightness.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'plan_screen.dart';
 import 'na_rota_screen.dart';
@@ -546,6 +547,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Tela: sempre ligada navegando; no resto, pela opção (Configurações → Tela).
     _applyWakelock();
     AppSettings.instance.keepScreenOn.addListener(_applyWakelock);
+    AppSettings.instance.maxBrightnessNav.addListener(_applyWakelock);
     SharedPreferences.getInstance().then((prefs) {
       final m = _Mode3d.values.where((x) => x.name == prefs.getString('mode3d'));
       if (m.isNotEmpty && mounted) _setMode3d(m.first, save: false);
@@ -697,7 +699,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _voice.setFastMode(1);
     }
     AppSettings.instance.keepScreenOn.removeListener(_applyWakelock);
+    AppSettings.instance.maxBrightnessNav.removeListener(_applyWakelock);
     WakelockPlus.disable();
+    _setMaxBrightness(false);
     _trafficTimer?.cancel();
     _trafficBannerTimer?.cancel();
     _autosave?.cancel();
@@ -767,10 +771,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Tela sempre ligada navegando (a navegação não roda com o app fora da
   /// tela) ou na simulação; no resto, conforme a configuração.
-  void _applyWakelock() =>
-      AppSettings.instance.keepScreenOn.value || _navigating || _sim != null
-          ? WakelockPlus.enable()
-          : WakelockPlus.disable();
+  /// Também aplica o brilho máximo ao navegar (Configurações → Tela).
+  void _applyWakelock() {
+    final nav = _navigating || _sim != null;
+    AppSettings.instance.keepScreenOn.value || nav
+        ? WakelockPlus.enable()
+        : WakelockPlus.disable();
+    _setMaxBrightness(nav && AppSettings.instance.maxBrightnessNav.value);
+  }
+
+  bool? _maxBright;
+
+  /// Brilho só da janela do UauGo: não mexe no ajuste do celular e volta
+  /// sozinho ao sair do app.
+  void _setMaxBrightness(bool on) {
+    if (_maxBright == on) return;
+    _maxBright = on;
+    final b = ScreenBrightness.instance;
+    (on ? b.setApplicationScreenBrightness(1.0) : b.resetApplicationScreenBrightness())
+        .catchError((_) {});
+  }
 
   // ------------------------------------------------------------ eventos
 
