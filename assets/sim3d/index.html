@@ -1683,6 +1683,9 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 send('ready');
+// sinal de vida: se o processo da página morrer (Android mata o WebView ao
+// minimizar), o app percebe o silêncio e recria a página (08/11)
+setInterval(() => send('beat'), 2000);
 setInterval(() => {
   if (!active) return;
   const kinds = {}; for (const a of ALERT_RAW) kinds[a.k] = (kinds[a.k] || 0) + 1;

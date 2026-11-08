@@ -253,6 +253,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     if (_inBackground && !wasBackground) _pauseWork();
     if (!_inBackground && wasBackground) {
+      // Sem GPS em segundo plano, a última leitura ficou velha: o 3D não
+      // continua "fora da rota" por causa dela (voltava sem a rota, 08/11).
+      _off3d = false;
+      _off3dCount = 0;
       _resumeWork();
       final p = _me;
       if (mounted) setState(() {});

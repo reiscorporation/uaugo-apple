@@ -12,6 +12,7 @@
 //   (Sim3DController.route / update / dark / active).
 // ============================================================================
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -190,13 +191,69 @@ class Sim3DView extends StatefulWidget {
   State<Sim3DView> createState() => _Sim3DViewState();
 }
 
-class _Sim3DViewState extends State<Sim3DView> {
-  late final WebViewController _web;
+class _Sim3DViewState extends State<Sim3DView> with WidgetsBindingObserver {
+  late WebViewController _web;
+  int _gen = 0;
+
+  /// Última mensagem da página (ela manda 'beat' a cada 2 s).
+  DateTime _lastMsg = DateTime.now();
+  bool _resumed = true;
+  Timer? _watch;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _create();
+    // O Android mata o processo do WebView ao minimizar (log "Renderer
+    // process crash detected"): a página fica morta, só a estrada escura,
+    // sem a rota. Página calada com o app na tela = recria; o controle
+    // reenvia rota, vias e alertas quando ela fica pronta (08/11).
+    _watch = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || !_resumed) return;
+      if (DateTime.now().difference(_lastMsg) > const Duration(seconds: 9)) {
+        _recreate('parou de responder');
+      }
+    });
+  }
+
+  DateTime? _leftAt;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final was = _resumed;
+    _resumed = state == AppLifecycleState.resumed;
+    if (!_resumed && was) _leftAt = DateTime.now();
+    if (_resumed && !was) {
+      // De volta à tela depois de minimizar: o Android pode ter perdido o
+      // desenho da página (contexto do WebGL; ela segue viva, mas mostra só
+      // a estrada escura, sem a rota, teste de 08/11). Recarrega a página;
+      // o controle reenvia rota, vias e alertas quando ela fica pronta.
+      final away = _leftAt == null ? Duration.zero : DateTime.now().difference(_leftAt!);
+      if (away > const Duration(seconds: 3)) {
+        _recreate('voltou para a tela');
+      } else {
+        _lastMsg = DateTime.now();
+      }
+    }
+  }
+
+  void _recreate(String why) {
+    if (!mounted) return;
+    debugPrint('3D página recriada ($why)');
+    widget.controller
+      .._web = null
+      .._ready = false
+      ..shown.value = false;
+    setState(() {
+      _gen++;
+      _create();
+    });
+  }
+
+  void _create() {
     debugPrint('3D página criada');
+    _lastMsg = DateTime.now().add(const Duration(seconds: 20)); // carregando
     _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       // Transparente até a estrada aparecer: enquanto a página carrega
@@ -204,6 +261,8 @@ class _Sim3DViewState extends State<Sim3DView> {
       // vez de uma tela vazia ou só o céu (bateria de testes em SP, 06/11).
       ..setBackgroundColor(const Color(0x00000000))
       ..addJavaScriptChannel('Sim3D', onMessageReceived: (m) {
+        _lastMsg = DateTime.now();
+        if (m.message == 'beat') return;
         if (m.message == 'ready') {
           debugPrint('3D página pronta');
           widget.controller._onReady();
@@ -222,6 +281,8 @@ class _Sim3DViewState extends State<Sim3DView> {
 
   @override
   void dispose() {
+    _watch?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     widget.controller
       .._web = null
       .._ready = false
@@ -230,5 +291,6 @@ class _Sim3DViewState extends State<Sim3DView> {
   }
 
   @override
-  Widget build(BuildContext context) => WebViewWidget(controller: _web);
+  Widget build(BuildContext context) =>
+      WebViewWidget(key: ValueKey(_gen), controller: _web);
 }
