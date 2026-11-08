@@ -103,6 +103,9 @@
     background: rgba(20,30,42,0.82); touch-action: none; }
   #mini.off { width: 34px !important; height: 34px !important; opacity: 0.85; }
   body.car #mini { border-width: 2px; }
+  /* celular: a manobra e a chegada ficam no topo do app, igual à visão mapa
+     (pedido de 08/11); aqui fica só o velocímetro. No carro continua tudo. */
+  body:not(.car) #next, body:not(.car) #eta { display: none; }
   /* celular em pé: sem a chegada (fica no topo do app) */
   @media (max-width: 560px) {
     #eta { display: none; }

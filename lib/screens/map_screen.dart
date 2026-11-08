@@ -7319,7 +7319,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// já mostra a manobra.
   ({IconData icon, String dist, String? stopTime, String text})? _turnInfo() {
     final nav = _nav, p = _me;
-    final show = !_hud3d && nav != null &&
+    // Mesmo topo no mapa e no 3D (pedido de 08/11): manobra, chegada e km
+    // ficam sempre na faixa do topo; antes o 3D tirava a faixa e a chegada
+    // sumia (a página do 3D esconde a chegada com o celular em pé).
+    final show = nav != null &&
         p != null &&
         !nav.finished &&
         (_sim != null ? _simStarted : _navigating);
@@ -7353,8 +7356,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Próximo ponto é uma parada programada: mostra também o tempo até lá
     // (pedido de 05/11), na velocidade efetiva de agora (com trânsito).
     final trip = _trip;
+    // (Sem o ponto de saída: "0 min" logo na primeira curva, 08/11.)
     final toStop = trip != null &&
-        [..._stops, ...trip.stops].any((st) =>
+        [..._stops.skip(1), ...trip.stops.skip(1)].any((st) =>
             distanceMeters(s.lat, s.lng, st.lat, st.lng) < 150);
     final stopTime = toStop
         ? formatDuration((d / (_etaSpeed ?? trip.averageSpeed)).round())
