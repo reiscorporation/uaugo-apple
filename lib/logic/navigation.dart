@@ -80,6 +80,70 @@ const _abbrev = {
   'Pça.': 'Praça',
   'Tv.': 'Travessa',
   'Al.': 'Alameda',
+  // Placas e endereços (pente fino de 08/11).
+  'Rib.': 'Ribeirão',
+  'Jd.': 'Jardim',
+  'Jd': 'Jardim',
+  'Vl.': 'Vila',
+  'Pq.': 'Parque',
+  'Res.': 'Residencial',
+  'Cond.': 'Condomínio',
+  'Mte.': 'Monte',
+  'Pto.': 'Porto',
+  'Pte.': 'Ponte',
+  'Marg.': 'Marginal',
+  'Visc.': 'Visconde',
+  'Cap.': 'Capitão',
+  'Ten.': 'Tenente',
+  'Maj.': 'Major',
+  'Brig.': 'Brigadeiro',
+  'Com.': 'Comendador',
+  'Comend.': 'Comendador',
+  'Des.': 'Desembargador',
+  'Min.': 'Ministro',
+  'Alm.': 'Almirante',
+  'Gal.': 'General',
+  'Cons.': 'Conselheiro',
+  'Pe.': 'Padre',
+  'Fr.': 'Frei',
+  'Sra.': 'Senhora',
+  'Fco.': 'Francisco',
+  'Est.': 'Estrada',
+  'Viad.': 'Viaduto',
+  'Lgo.': 'Largo',
+  'Faz.': 'Fazenda',
+  'Bal.': 'Balneário',
+  'Ver.': 'Vereador',
+  'Arq.': 'Arquiteto',
+  'Profa.': 'Professora',
+  'Dra.': 'Doutora',
+  'Pç.': 'Praça',
+  'Trav.': 'Travessa',
+};
+
+/// Cidades abreviadas nas placas, por extenso. Vêm antes das abreviações
+/// soltas (que não sabem o que é "S. J." ou "R. Preto").
+const _places = {
+  'S. J. do Rio Preto': 'São José do Rio Preto',
+  'S.J. do Rio Preto': 'São José do Rio Preto',
+  'S. J. Rio Preto': 'São José do Rio Preto',
+  'S.J. Rio Preto': 'São José do Rio Preto',
+  'S. J. dos Campos': 'São José dos Campos',
+  'S.J. dos Campos': 'São José dos Campos',
+  'S. J. Campos': 'São José dos Campos',
+  'S. J. da Boa Vista': 'São João da Boa Vista',
+  'S. J. Boa Vista': 'São João da Boa Vista',
+  'S. B. do Campo': 'São Bernardo do Campo',
+  'S. B. Campo': 'São Bernardo do Campo',
+  'S. C. do Sul': 'São Caetano do Sul',
+  'R. Preto': 'Ribeirão Preto',
+  'Rib Preto': 'Ribeirão Preto',
+  'B. Horizonte': 'Belo Horizonte',
+  'B. Paulista': 'Bragança Paulista',
+  'P. Prudente': 'Presidente Prudente',
+  'Fco. Morato': 'Francisco Morato',
+  'N. Sra.': 'Nossa Senhora',
+  'N. Senhora': 'Nossa Senhora',
 };
 
 const _ordinals = {
@@ -110,10 +174,30 @@ String cleanInstruction(String html) {
       .replaceAll(RegExp(r'<[^>]+>'), '')
       .replaceAll('&nbsp;', ' ')
       .replaceAll('&amp;', 'e');
-  for (final e in _abbrev.entries) {
-    t = t.replaceAllMapped(RegExp('(^|\\s)${RegExp.escape(e.key)}(?=\\s)'),
+  return _tidyExit(spokenText(t));
+}
+
+/// Texto para a voz (qualquer frase: instruções do Google e do motor
+/// próprio, nomes de paradas, avisos): cidades e abreviações por extenso
+/// ("Rib. Preto" -> "Ribeirão Preto"), romanos ("Leão XIII" -> "Leão
+/// Treze"), "BR-101" -> "BR 101". Aplicar duas vezes não estraga.
+String spokenText(String text) {
+  var t = text;
+  for (final e in _places.entries) {
+    t = t.replaceAllMapped(
+        RegExp(r'(^|[\s/(,])' + RegExp.escape(e.key) + r'(?=$|[\s/),.;:])'),
         (m) => '${m[1]}${e.value}');
   }
+  for (final e in _abbrev.entries) {
+    t = t.replaceAllMapped(
+        RegExp(r'(^|[\s/(])' + RegExp.escape(e.key) + r'(?=$|[\s/),;:])'),
+        (m) => '${m[1]}${e.value}');
+  }
+  // Placas: "S. Carlos", "S. Paulo" = São; "D. Pedro" = Dom.
+  t = t.replaceAllMapped(
+      RegExp(r'(^|[\s/(])S\. (?=[A-ZÁÉÍÓÚ][a-záéíóúâêôãõç])'), (m) => '${m[1]}São ');
+  t = t.replaceAllMapped(
+      RegExp(r'(^|[\s/(])D\. (?=[A-Z][a-z])'), (m) => '${m[1]}Dom ');
   for (final e in _ordinals.entries) {
     t = t.replaceAll(e.key, e.value);
   }
@@ -123,8 +207,7 @@ String cleanInstruction(String html) {
   t = t.replaceAllMapped(
       RegExp(r'\b([A-Z]{2,3})-(\d{2,3})\b'), (m) => '${m[1]} ${m[2]}');
   t = spokenRomanNumerals(t);
-  return _tidyExit(
-      t.replaceAll(RegExp(r'\s+'), ' ').replaceAll(' .', '.').trim());
+  return t.replaceAll(RegExp(r'\s+'), ' ').replaceAll(' .', '.').trim();
 }
 
 const _units = [

@@ -56,6 +56,21 @@ class MainActivity : FlutterActivity() {
                     } catch (e: android.content.ActivityNotFoundException) {
                         result.success(false)
                     }
+                } else if (call.method == "openTtsSettings") {
+                    // Voz: tela do Android para baixar vozes do Google/Samsung.
+                    // Primeiro a do mecanismo ("Instalar dados de voz"); se não
+                    // houver, a de Conversão de texto em voz.
+                    val tries = listOf(
+                        Intent("android.speech.tts.engine.INSTALL_TTS_DATA"),
+                        Intent("com.android.settings.TTS_SETTINGS"),
+                    )
+                    var ok = false
+                    for (i in tries) {
+                        try {
+                            startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); ok = true; break
+                        } catch (_: Exception) {}
+                    }
+                    result.success(ok)
                 } else {
                     result.notImplemented()
                 }

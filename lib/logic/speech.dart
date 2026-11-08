@@ -48,8 +48,31 @@ String sosSpeech(String name, double? meters) => meters == null
 
 /// Aviso de que a próxima parada está chegando.
 String nextStopSpeech(String name, double meters) =>
-    tr('Próxima parada: {0}, a {1}', [name, spokenDistance(meters)]);
+    tr('Próxima parada: {0}, a {1}', [spokenPlace(name), spokenDistance(meters)]);
 
 /// Chegou numa parada (ou no destino final).
 String arrivalSpeech(String name, {required bool isDestination}) =>
-    isDestination ? tr('Você chegou ao destino: {0}', [name]) : tr('Chegando em {0}', [name]);
+    isDestination
+        ? tr('Você chegou ao destino: {0}', [spokenPlace(name)])
+        : tr('Chegando em {0}', [spokenPlace(name)]);
+
+/// Nome de lugar para a voz: só o que ajuda a reconhecer o lugar.
+/// "Av. Leão XIII, 3900 - Jardim Sumaré, Ribeirão Preto - SP, 14025-000,
+/// Brasil" -> "Av. Leão XIII, 3900" (sem bairro, distrito, cidade, estado,
+/// CEP e país; pedido de 08/11). "Posto Graal - Rod. Anhanguera" ->
+/// "Posto Graal". "Ribeirão Preto, SP" -> "Ribeirão Preto".
+String spokenPlace(String name) {
+  final parts = name.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return name.trim();
+  String cut(String p) => p.split(RegExp(r'\s+[-–—]\s+')).first.trim();
+  final head = cut(parts.first);
+  if (parts.length > 1) {
+    // Número da casa logo depois da rua ("3900", "3900 - Jardim Sumaré", "s/n").
+    final num = RegExp(r'^(\d+[A-Za-z]?|s/n)\b', caseSensitive: false)
+        .firstMatch(cut(parts[1]))?[1];
+    if (num != null && !RegExp(r'^\d{5}-?\d{3}$').hasMatch(parts[1])) {
+      return '$head, $num';
+    }
+  }
+  return head;
+}

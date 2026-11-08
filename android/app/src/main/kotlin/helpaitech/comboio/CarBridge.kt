@@ -71,7 +71,7 @@ object CarState {
     /** Bússola do carro: norte sempre para cima (sem inclinar o mapa). */
     @Volatile var northUp = false
     /** Estrada em 3D no carro: 0 = só mapa, 1 = nas saídas, 2 = sempre. */
-    @Volatile var mode3d = 1
+    @Volatile var mode3d = 0
     /** Imagem do veículo (PNG), a mesma do mapa do celular. */
     @Volatile var vehicleImage: ByteArray? = null
     /** Cena 3D: último comando de cada tipo ("sim3d.update" -> js) e quem executa. */

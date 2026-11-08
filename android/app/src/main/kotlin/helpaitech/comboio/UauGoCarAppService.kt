@@ -250,11 +250,11 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 if (carMap.running) carMap.update()
             }
             .build()
-        // Estrada em 3D: mapa -> 3D nas saídas -> 3D sempre.
+        // Estrada em 3D: mapa <-> 3D sempre ("nas saídas" oculto por enquanto).
         val view3d = Action.Builder()
             .setIcon(icon(R.drawable.car_3d))
             .setOnClickListener {
-                CarState.mode3d = (CarState.mode3d + 1) % 3
+                CarState.mode3d = if (CarState.mode3d == 2) 0 else 2
                 toast(when (CarState.mode3d) {
                     0 -> if (CarState.en) "Map view" else "Só mapa"
                     1 -> if (CarState.en) "3D at exits" else "3D nas saídas"

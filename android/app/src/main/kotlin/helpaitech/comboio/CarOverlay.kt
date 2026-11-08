@@ -46,7 +46,7 @@ class CarOverlay(private val ctx: Context) {
             addView(turnDist); addView(turnText)
         })
     }
-    private val info = tv(13f, Color.WHITE).apply {
+    private val info = tv(16f, Color.WHITE).apply {
         gravity = Gravity.CENTER_VERTICAL; maxLines = 2
         background = box(Color.argb(238, 15, 27, 45), 14); setPadding(dp(12), dp(5), dp(12), dp(5))
     }

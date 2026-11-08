@@ -448,6 +448,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool _rerouting = false;
   DateTime _lastReroute = DateTime.fromMillisecondsSinceEpoch(0);
   double _zoomOffset = 0; // botões + e − (somam ao zoom de acompanhamento)
+  /// Mapa navegando: começa no zoom mais perto (pedido de 08/11); o − afasta.
+  static const _navZoomMax = 20.0;
 
   // v2: estrada em 3D, em primeira pessoa, por cima do mapa. Pinça para
   // afastar volta ao mapa de cima; zoom bem perto no mapa volta para o 3D.
@@ -456,7 +458,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   String _sim3dSig = '';
   /// v2: 3D sempre, só mapa, ou mapa que vira 3D perto de saídas/bifurcações.
   /// Começa no híbrido; depois vale sempre a escolha salva do piloto.
-  _Mode3d _mode3d = _Mode3d.exits;
+  _Mode3d _mode3d = _Mode3d.map;
   /// Pinça/zoom do piloto: o modo "nas saídas" não troca sozinho por um tempo.
   DateTime _manual3dUntil = DateTime(0);
   DateTime _alerts3dAt = DateTime(0);
@@ -549,8 +551,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     AppSettings.instance.keepScreenOn.addListener(_applyWakelock);
     AppSettings.instance.maxBrightnessNav.addListener(_applyWakelock);
     SharedPreferences.getInstance().then((prefs) {
-      final m = _Mode3d.values.where((x) => x.name == prefs.getString('mode3d'));
-      if (m.isNotEmpty && mounted) _setMode3d(m.first, save: false);
+      // "Mapa + 3D nas saídas" está oculto por enquanto: quem tinha escolhido
+      // volta para o mapa.
+      final m = _Mode3d.shown.where((x) => x.name == prefs.getString('mode3d'));
+      if (mounted) _setMode3d(m.isNotEmpty ? m.first : _Mode3d.map, save: false);
     });
     if (_isExpedition) {
       SharedPreferences.getInstance().then((prefs) {
@@ -2225,27 +2229,30 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final w = _walker;
     final proj = _proj;
     _riderAlong = proj != null && proj.offset < 250 ? proj.along : null;
-    // Fora da rota: a ~60 m dela (mais, se o GPS estiver impreciso) em 3
-    // leituras seguidas (3 s). Uma leitura só não basta: o GPS "pula" em
-    // túneis e viadutos.
+    // Fora da rota (mais rápido desde 08/11, perto do Waze/Google): a ~40 m
+    // dela (até 100 m com GPS impreciso) em 2 leituras seguidas (~2 s); ou
+    // já a 25 m indo na direção contrária à da rota (pegou a saída errada).
+    // Uma leitura só não basta: o GPS "pula" em túneis e viadutos.
     if (proj != null && sim == null) {
       final d = proj.offset;
-      final limit = max(60.0, min(150.0, p.accuracy * 2.5));
-      if (d > limit) {
+      final limit = max(40.0, min(100.0, p.accuracy * 2));
+      final wrongWay = d > 25 && w != null && p.speed > 4 && p.heading >= 0 &&
+          _angleDiff(p.heading, w.at(proj.along).bearing) > 60;
+      if (d > limit || wrongWay) {
         // Parado (saída demorada, estacionamento, GPS solto dentro de casa):
         // não recalcula a cada leitura; só conta fora da rota andando.
-        if (_speedMs < 3) return;
+        if (_speedMs < 2) return;
         _offRouteCount++;
-        if (_offRouteCount >= 3 && _helpTarget != null) {
+        if (_offRouteCount >= 2 && _helpTarget != null) {
           // Indo até um colega: refaz a rota dele, nunca a do grupo.
           _retraceHelp(p);
-        } else if (_offRouteCount >= 3 && !_isExpedition && _trip != null) {
+        } else if (_offRouteCount >= 2 && !_isExpedition && _trip != null) {
           // Navegando sozinho: recalcula como o Waze.
           _reroute(p);
-        } else if (_offRouteCount >= 3 && _isExpedition && _stops.length >= 2) {
+        } else if (_offRouteCount >= 2 && _isExpedition && _stops.length >= 2) {
           // Expedição: capitão recalcula para todos; os outros, só para si.
           _expeditionOffRoute(p);
-        } else if (_offRouteCount == 3 && !_offRoute) {
+        } else if (_offRouteCount == 2 && !_offRoute) {
           _offRoute = true;
           say(tr('Você saiu da rota planejada'));
         }
@@ -2282,7 +2289,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _reroute(Position p) async {
     final trip = _trip;
     if (trip == null || _rerouting) return;
-    if (DateTime.now().difference(_lastReroute) < const Duration(seconds: 10)) {
+    // Entre um recálculo e outro, 5 s (antes 10 s).
+    if (DateTime.now().difference(_lastReroute) < const Duration(seconds: 5)) {
       return;
     }
     setState(() => _rerouting = true);
@@ -2315,6 +2323,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// O último recálculo falhou (sem internet).
   bool _rerouteOffline = false;
+
+  /// Diferença entre dois rumos (0 a 180 graus).
+  static double _angleDiff(double a, double b) {
+    final d = (a - b).abs() % 360;
+    return d > 180 ? 360 - d : d;
+  }
 
   /// Roteiro antigo (rota que cortava as curvas): o líder recalcula uma vez,
   /// sozinho, ao abrir o mapa; os participantes recebem a rota nova.
@@ -2521,7 +2535,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _expeditionOffRoute(Position p) async {
     final exp = _exp;
     if (exp == null || _rerouting) return;
-    if (DateTime.now().difference(_lastReroute) < const Duration(seconds: 20)) return;
+    // Entre um recálculo e outro, 8 s (antes 20 s; pedido de 08/11).
+    if (DateTime.now().difference(_lastReroute) < const Duration(seconds: 8)) return;
     _lastReroute = DateTime.now();
     var next = 1;
     while (next < _stops.length - 1 && _stopArrived.contains(_stops[next].id)) {
@@ -2575,7 +2590,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final (lat, lng) = _helpPosition(help);
       if (distanceMeters(p.latitude, p.longitude, lat, lng) < 80) {
         _endHelp();
-        _voice.alert(tr('Você chegou até {0}. Ao seguir, volto para a rota da expedição.', [help.name]));
+        _voice.alert(tr('Você chegou até {0}. Ao seguir, volto para a rota da expedição.', [spokenPlace(help.name)]));
       } else if (distanceMeters(lat, lng, help.lat, help.lng) > 300) {
         // O colega andou: a rota acompanha.
         _retraceHelp(p);
@@ -2637,7 +2652,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _retraceHelp(Position p) async {
     final t = _helpTarget;
     if (t == null || _rerouting) return;
-    if (DateTime.now().difference(_lastReroute) < const Duration(seconds: 20)) return;
+    // Entre um recálculo e outro, 8 s (antes 20 s; pedido de 08/11).
+    if (DateTime.now().difference(_lastReroute) < const Duration(seconds: 8)) return;
     _lastReroute = DateTime.now();
     final (lat, lng) = _helpPosition(t);
     setState(() => _rerouting = true);
@@ -2678,7 +2694,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _helpTarget = (name: name, uid: uid, lat: lat, lng: lng);
     _useHelpTrip(nt);
     if (!_navigating) _startNavigation();
-    _voice.alert(tr('Rota até {0}. {1}.', [name, formatDistance(nt.distanceM)]));
+    _voice.alert(tr('Rota até {0}. {1}.', [spokenPlace(name), formatDistance(nt.distanceM)]));
     if (_isExpedition && !_isCaptain) {
       _svc.sendHelping(_code, widget.uid, widget.userName, name, p.latitude, p.longitude);
     }
@@ -3326,7 +3342,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // Norte para cima: mapa plano, sem girar, centrado no piloto.
       _followCamera((CameraPosition(
         target: here,
-        zoom: (17 + _zoomOffset).clamp(12.0, 20.0),
+        zoom: (_navZoomMax + _zoomOffset).clamp(12.0, _navZoomMax),
         tilt: 0,
         bearing: 0,
       )), force);
@@ -3340,7 +3356,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final turn = _navigating ? _upcomingTurn(p) : null;
       final nearTurn = turn != null && turn.meters < 400 && !turn.step.isSilent &&
           turn.step.maneuver.isNotEmpty && turn.step.maneuver != 'straight';
-      final zoom = (18 + _zoomOffset + (nearTurn ? 0.8 : 0)).clamp(12.0, 20.0);
+      final zoom = (_navZoomMax + _zoomOffset + (nearTurn ? 0.8 : 0)).clamp(12.0, _navZoomMax);
       _followCamera((CameraPosition(
         // Quanto mais afastado o zoom, mais à frente fica o centro.
         // Deitado a tela é baixa: centro menos à frente, senão o "Você"
@@ -3438,7 +3454,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _zoom(double delta) {
     final p = _me;
     if (_follow && p != null && !(_view == _MapView.convoy && _showAll)) {
-      _zoomOffset = (_zoomOffset + delta).clamp(-10.0, 4.0);
+      _zoomOffset = (_zoomOffset + delta).clamp(-10.0, 0.0);
       _updateCamera(p, force: true);
     } else {
       _moveCamera(CameraUpdate.zoomBy(delta));
@@ -4616,7 +4632,25 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         // Topo com as informações da viagem em 2 linhas, letra maior; deitado
         // ou no "Dirigir agora" sem destino, uma linha só (sobra mapa).
-        toolbarHeight: landscape || _justDriving ? 52 : 84,
+        // Navegando: a próxima manobra e a chegada ficam numa faixa logo
+        // abaixo do título (pedido de 08/11: antes a manobra era uma faixa
+        // verde separada, por cima do mapa).
+        toolbarHeight: _turnInfo() != null
+            ? (landscape ? 44 : 48)
+            : (landscape || _justDriving ? 52 : 90),
+        bottom: _turnInfo() == null
+            ? null
+            : PreferredSize(
+                preferredSize: Size.fromHeight(landscape ? 50 : 76),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _showTripSummary,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 12, 8),
+                    child: _turnTitle(landscape),
+                  ),
+                ),
+              ),
         // Toque no título: resumo da viagem (tempo, km, custo).
         title: GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -4632,7 +4666,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         : (_trip?.title ?? tr('Navegação')),
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: landscape ? 16 : 19, fontWeight: FontWeight.bold)),
-            if (!_justDriving) ...[
+            if (!_justDriving && _turnInfo() == null) ...[
               if (!landscape) const SizedBox(height: 2),
               Text(
                   (_isExpedition ? _expeditionSubtitle() : _etaText())
@@ -4640,9 +4674,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   maxLines: landscape ? 1 : 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      fontSize: landscape ? 13 : 15,
-                      fontWeight: FontWeight.w600,
-                      height: 1.25)),
+                      fontSize: landscape ? 16 : 18,
+                      fontWeight: FontWeight.w700,
+                      height: 1.2)),
             ],
           ],
         ),
@@ -4786,9 +4820,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     ]),
                   ),
                 ),
-              )
-            else
-              _nextTurnCard(),
+              ),
             // "UauGo, procurar posto": até 3 opções, a perguntada em destaque.
             if (_found.isNotEmpty) _foundCard(),
             // "UauGo, ir para": ouvindo o destino (e o que já entendeu).
@@ -5193,7 +5225,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           Positioned(
             left: 8,
             // Logo abaixo da faixa da próxima curva (ou no topo, parado).
-            top: _navigating ? 92 : 8,
+            top: _rerouting ? 72 : 8,
             child: _groupGridPanel(),
           ),
 
@@ -5203,7 +5235,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (_sim == null)
         Positioned(
           right: 6 + 88 + 10,
-          bottom: 24 + (88 - 62) / 2,
+          bottom: 24 + (88 - 50) / 2,
           child: Row(key: _kBottomLeft, mainAxisSize: MainAxisSize.min, children: [
             // Tocar OU segurar abre as opções (segurar só mostrava a dica).
             Semantics(
@@ -5212,22 +5244,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               child: GestureDetector(
                 onLongPress: _showReportSheet,
                 child: SizedBox(
-                  width: 62,
-                  height: 62,
+                  width: 50,
+                  height: 50,
                   child: FloatingActionButton(
                     heroTag: 'hazard',
                     backgroundColor: Colors.amber,
                     foregroundColor: Colors.black,
                     onPressed: _showReportSheet,
-                    child: const Icon(Icons.warning_amber_rounded, size: 32),
+                    child: const Icon(Icons.warning_amber_rounded, size: 26),
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 10),
             SizedBox(
-              width: 62,
-              height: 62,
+              width: 50,
+              height: 50,
               child: FloatingActionButton(
                 heroTag: 'radar',
                 tooltip: tr('Avisar radar móvel aqui'),
@@ -5235,7 +5267,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 foregroundColor: Colors.white,
                 onPressed: _quickRadar,
                 child: Text(HazardType.radar.emoji,
-                    style: const TextStyle(fontSize: 26)),
+                    style: const TextStyle(fontSize: 21)),
               ),
             ),
           ]),
@@ -5962,7 +5994,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               title: Text(tr('Visão da navegação'), style: Theme.of(ctx).textTheme.titleMedium),
               subtitle: Text(tr('O 3D só funciona com internet.')),
             ),
-            for (final x in _Mode3d.values)
+            for (final x in _Mode3d.shown)
               ListTile(
                 leading: Icon(x.icon),
                 title: Text(x.label),
@@ -6743,16 +6775,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final sim = _sim;
     if (sim != null) {
       sim.paused.value = true;
-      _voice.narrate(tr('Você chegou ao destino: {0}. Fim da simulação.', [s.name]),
+      _voice.narrate(tr('Você chegou ao destino: {0}. Fim da simulação.', [spokenPlace(s.name)]),
           force: true);
       return;
     }
     if (_isExpedition) {
-      _voice.alert(tr('Você chegou ao destino: {0}. Navegação encerrada.', [s.name]));
+      _voice.alert(tr('Você chegou ao destino: {0}. Navegação encerrada.', [spokenPlace(s.name)]));
       _snack(tr('🏁 Chegada! A navegação foi encerrada; você continua no comboio.'));
       return;
     }
-    _voice.alert(tr('Você chegou ao destino: {0}. Viagem encerrada.', [s.name]));
+    _voice.alert(tr('Você chegou ao destino: {0}. Viagem encerrada.', [spokenPlace(s.name)]));
     await _saveRecord();
     _stopGps();
     if (!mounted) return;
@@ -7281,14 +7313,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Próxima manobra no topo da tela (como no Waze/Google Maps).
-  Widget _nextTurnCard() {
+  /// Próxima manobra (seta, distância, rua e, indo para uma parada, o tempo
+  /// até ela). Fica no topo, junto com a chegada (pedido de 08/11; antes era
+  /// uma faixa verde separada que cobria o mapa). No 3D o painel da página
+  /// já mostra a manobra.
+  ({IconData icon, String dist, String? stopTime, String text})? _turnInfo() {
     final nav = _nav, p = _me;
     final show = !_hud3d && nav != null &&
         p != null &&
         !nav.finished &&
         (_sim != null ? _simStarted : _navigating);
-    if (!show) return const SizedBox.shrink();
+    if (!show) return null;
     // Mostra a próxima manobra "de verdade" (pula "Continue para...").
     var i = nav.nextIndex;
     while (i < nav.steps.length - 1 && nav.steps[i].isSilent) {
@@ -7324,42 +7359,66 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final stopTime = toStop
         ? formatDuration((d / (_etaSpeed ?? trip.averageSpeed)).round())
         : null;
-    final distText = Text(formatDistance(d.round()),
-        style: const TextStyle(
-            color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900));
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: Colors.green.shade800,
-        elevation: 6,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(children: [
-            Icon(icon, color: Colors.white, size: 40),
-            const SizedBox(width: 10),
-            if (stopTime == null)
-              distText
-            else
-              Column(mainAxisSize: MainAxisSize.min, children: [
-                distText,
-                Text(stopTime,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800)),
-              ]),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(s.text,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 15)),
-            ),
-          ]),
+    return (icon: icon, dist: formatDistance(d.round()), stopTime: stopTime, text: s.text);
+  }
+
+  /// Topo navegando: seta e distância da próxima manobra à esquerda; a rua e
+  /// a chegada (hora, tempo e km que faltam, letra grande) à direita.
+  Widget _turnTitle(bool landscape) {
+    final t = _turnInfo()!;
+    final cs = Theme.of(context).colorScheme;
+    final eta = (_isExpedition ? _expeditionSubtitle() : _etaText());
+    final turn = Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(t.icon, size: landscape ? 30 : 40),
+      const SizedBox(width: 6),
+      Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(t.dist,
+            style: TextStyle(
+                fontSize: landscape ? 19 : 23, fontWeight: FontWeight.w900, height: 1.1)),
+        if (t.stopTime != null)
+          Text(t.stopTime!,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+      ]),
+    ]);
+    Widget themed(Widget w) => IconTheme.merge(
+        data: IconThemeData(color: cs.onSurface),
+        child: DefaultTextStyle.merge(style: TextStyle(color: cs.onSurface), child: w));
+    if (landscape || _justDriving) {
+      return themed(Row(children: [
+        turn,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(_justDriving ? t.text : eta.replaceAll('\n', ' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        ),
+      ]));
+    }
+    return themed(Row(children: [
+      turn,
+      const SizedBox(width: 10),
+      Container(width: 1, height: 58, color: cs.outlineVariant),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 2),
+            Text(eta,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w700, height: 1.2)),
+          ],
         ),
       ),
-    );
+    ]));
   }
 
   /// Barra da simulação: pausar, 1x/5x/20x, visão, encerrar e linha do tempo.
@@ -7582,6 +7641,8 @@ enum _Mode3d {
   exits('Mapa + 3D nas saídas', 'Mapa normal; vira 3D 400 m antes e até 400 m depois de saídas, bifurcações e rotatórias', Icons.alt_route);
 
   const _Mode3d(this._label, this._hint, this.icon);
+  /// Opções no seletor. "Nas saídas" fica oculto por enquanto (08/11).
+  static const shown = [always, map];
   final String _label;
   final String _hint;
   final IconData icon;

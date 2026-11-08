@@ -12,6 +12,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/i18n.dart';
+import 'offline_voice_service.dart';
+import '../logic/navigation.dart' show spokenText;
 
 /// Voz do app (sintetizador do próprio celular: funciona sem internet).
 ///
@@ -48,7 +50,8 @@ class VoiceService {
   static const _kNarration = 'voiceNarration';
   static const _kVoice = 'voiceName';
 
-  /// Voz escolhida em Configurações (nome do Android); null = automática.
+  /// Voz escolhida em Configurações: nome do Android, "uaugo:<id>" (voz do
+  /// UauGo, [OfflineVoice]) ou null = automática.
   final voiceName = ValueNotifier<String?>(null);
 
   /// Prepara a voz em português (uma vez).
@@ -72,6 +75,7 @@ class VoiceService {
         await _tts.setAudioAttributesForNavigation();
       }
       voiceName.value = prefs.getString(_kVoice);
+      await OfflineVoiceService.instance.refresh();
       await _applyVoice();
       await _tts.awaitSpeakCompletion(true);
       await _tts.setIosAudioCategory(
@@ -111,6 +115,8 @@ class VoiceService {
   /// Usa a voz escolhida; sem escolha, uma do celular (sem internet) parecida
   /// com a padrão.
   Future<void> _applyVoice() async {
+    // Voz do UauGo: a do celular fica como reserva (automática).
+    if (OfflineVoice.byKey(voiceName.value) != null) return;
     final list = await voices();
     if (list.isEmpty) return;
     Map<String, String>? v;
@@ -129,6 +135,20 @@ class VoiceService {
     }
     debugPrint('Voz: ${v['name']} (${list.length} sem internet)');
     await _tts.setVoice({'name': v['name']!, 'locale': v['locale']!});
+  }
+
+  /// Escolhe uma voz do UauGo (já baixada) e fala uma frase de exemplo.
+  Future<void> setOfflineVoice(OfflineVoice v) async {
+    voiceName.value = v.key;
+    (await SharedPreferences.getInstance()).setString(_kVoice, v.key);
+    test(tr('Em 300 metros, vire à direita.'));
+  }
+
+  /// Volta para a voz automática do celular.
+  Future<void> clearVoice() async {
+    voiceName.value = null;
+    (await SharedPreferences.getInstance()).remove(_kVoice);
+    await _applyVoice();
   }
 
   /// Escolhe a voz (Configurações) e fala uma frase de exemplo.
@@ -174,12 +194,16 @@ class VoiceService {
 
   bool _fast = false;
 
+  /// Velocidade para a voz do UauGo (1 = normal), igual à do celular.
+  double _offlineSpeed = 1;
+
   /// Simulação acelerada: fala mais rápido e descarta frases atrasadas
   /// (só a mais recente fica na fila). [multiplier] = 1, 5, 20...
   Future<void> setFastMode(int multiplier) async {
     _fast = multiplier > 1;
     if (!_ready) await init();
     try {
+      _offlineSpeed = switch (multiplier) { >= 20 => 1.4, >= 5 => 1.2, _ => 1.0 };
       await _tts.setSpeechRate(switch (multiplier) {
         >= 20 => 0.7,
         >= 5 => 0.6,
@@ -198,6 +222,7 @@ class VoiceService {
   /// Cala a voz e limpa a fila.
   Future<void> stop() async {
     _queue.clear();
+    await OfflineVoiceService.instance.stop();
     try {
       await _tts.stop();
     } catch (_) {}
@@ -213,6 +238,7 @@ class VoiceService {
       _queue.insert(0, text);
       // Interrompe a frase atual; o laço que já está falando pega esta a seguir.
       if (_speaking) {
+        await OfflineVoiceService.instance.stop();
         try {
           await _tts.stop();
         } catch (_) {}
@@ -236,9 +262,17 @@ class VoiceService {
         debugPrint('Voz (descartada, ficou velha): $next');
         continue;
       }
-      debugPrint('Voz: $next');
+      // Abreviações, cidades das placas e romanos por extenso (vale para
+      // toda frase: Google, motor próprio, paradas, avisos).
+      final say = spokenText(next);
+      debugPrint('Voz: $say');
       try {
-        await _tts.speak(next, focus: true);
+        // Voz do UauGo; se falhar (arquivo apagado etc.), a do celular.
+        final ov = OfflineVoice.byKey(voiceName.value);
+        if (ov == null ||
+            !await OfflineVoiceService.instance.speak(ov, say, speed: _offlineSpeed)) {
+          await _tts.speak(say, focus: true);
+        }
       } catch (e) {
         debugPrint('Falha ao falar: $e');
       }

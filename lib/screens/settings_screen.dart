@@ -10,6 +10,8 @@
 
 import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../services/offline_voice_service.dart';
 
 import '../logic/speech.dart';
 import '../services/app_settings.dart';
@@ -275,16 +277,14 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   /// Cadastra/troca/apaga o contato de emergência (fica só no celular).
-  /// Lista as vozes do celular: tocar fala um exemplo e já escolhe.
+  /// Vozes: as do UauGo (baixar uma vez, funcionam sem internet), as do
+  /// celular e um atalho para baixar mais vozes do Google/Samsung.
   Future<void> _pickVoice(BuildContext context) async {
     final voice = VoiceService.instance;
+    final ov = OfflineVoiceService.instance;
+    await ov.refresh();
     final list = await voice.voices();
     if (!context.mounted) return;
-    if (list.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(tr('Nenhuma voz extra instalada. Em Configurações do Android > Conversão de texto em voz, baixe vozes em português.'))));
-      return;
-    }
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -292,19 +292,105 @@ class SettingsScreen extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(vertical: 8),
         content: SizedBox(
           width: double.maxFinite,
-          child: ValueListenableBuilder<String?>(
-            valueListenable: voice.voiceName,
-            builder: (_, sel, __) => ListView(shrinkWrap: true, children: [
-              for (final (i, v) in list.indexed)
+          child: ListenableBuilder(
+            listenable: Listenable.merge([voice.voiceName, ov.installed, ov.downloading]),
+            builder: (_, __) {
+              final sel = voice.voiceName.value;
+              Widget head(String t, [String? sub]) => Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(t, style: Theme.of(ctx).textTheme.titleSmall),
+                      if (sub != null)
+                        Text(sub, style: Theme.of(ctx).textTheme.bodySmall),
+                    ]),
+                  );
+              return ListView(shrinkWrap: true, children: [
+                head(tr('Vozes do UauGo'),
+                    tr('Baixe uma vez (cerca de 21 MB, de preferência no Wi-Fi). Funcionam sem internet.')),
+                for (final v in OfflineVoice.catalog)
+                  Builder(builder: (_) {
+                    final has = ov.isInstalled(v);
+                    final dl = ov.downloading.value;
+                    final busy = dl.containsKey(v.id);
+                    return ListTile(
+                      leading: Icon(sel == v.key
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off),
+                      title: Text(tr('{0} · masculina', [v.label])),
+                      subtitle: busy
+                          ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(dl[v.id] == null ? tr('Preparando...') : tr('Baixando...')),
+                              const SizedBox(height: 4),
+                              LinearProgressIndicator(value: dl[v.id]),
+                            ])
+                          : (has ? null : Text(tr('Toque para baixar'))),
+                      trailing: busy
+                          ? null
+                          : has
+                              ? PopupMenuButton<String>(
+                                  icon: const Icon(Icons.more_vert),
+                                  onSelected: (_) async {
+                                    if (sel == v.key) await voice.clearVoice();
+                                    await ov.remove(v);
+                                  },
+                                  itemBuilder: (_) => [
+                                    PopupMenuItem(value: 'del', child: Text(tr('Apagar do celular'))),
+                                  ],
+                                )
+                              : const Icon(Icons.download),
+                      onTap: busy
+                          ? null
+                          : () async {
+                              if (!has) {
+                                final ok = await ov.download(v);
+                                if (!ok) {
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                        content: Text(tr('Não deu para baixar a voz. Confira a internet e tente de novo.'))));
+                                  }
+                                  return;
+                                }
+                              }
+                              await voice.setOfflineVoice(v);
+                            },
+                    );
+                  }),
+                head(tr('Vozes do celular')),
                 ListTile(
-                  leading: Icon(sel == v['name']
+                  leading: Icon(sel == null
                       ? Icons.radio_button_checked
                       : Icons.radio_button_off),
-                  title: Text(voiceLabel(v['name']!, i + 1)),
-                  trailing: const Icon(Icons.volume_up),
-                  onTap: () => voice.setVoice(v),
+                  title: Text(tr('Automática')),
+                  onTap: () async {
+                    await voice.clearVoice();
+                    voice.test(tr('Em 300 metros, vire à direita.'));
+                  },
                 ),
-            ]),
+                for (final (i, v) in list.indexed)
+                  ListTile(
+                    leading: Icon(sel == v['name']
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_off),
+                    title: Text(voiceLabel(v['name']!, i + 1)),
+                    trailing: const Icon(Icons.volume_up),
+                    onTap: () => voice.setVoice(v),
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.add_circle_outline),
+                  title: Text(tr('Baixar mais vozes do Google')),
+                  subtitle: Text(tr('Abre o Android: escolha Português (Brasil) e baixe as vozes. Depois volte aqui.')),
+                  onTap: () async {
+                    final ok = await const MethodChannel('uaugo/device')
+                        .invokeMethod<bool>('openTtsSettings')
+                        .catchError((_) => false);
+                    if (ok != true && ctx.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(tr('Em Configurações do Android > Conversão de texto em voz, baixe vozes em português.'))));
+                    }
+                  },
+                ),
+              ]);
+            },
           ),
         ),
         actions: [
@@ -832,7 +918,9 @@ class SettingsScreen extends StatelessWidget {
               title: Text(tr('Voz')),
               subtitle: Text(name == null
                   ? tr('Automática. Toque para ouvir e escolher outra (feminina ou masculina).')
-                  : voiceLabel(name)),
+                  : OfflineVoice.byKey(name) != null
+                      ? tr('{0} (voz do UauGo)', [OfflineVoice.byKey(name)!.label])
+                      : voiceLabel(name)),
               onTap: () => _pickVoice(ctx),
             ),
           ),
