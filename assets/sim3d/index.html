@@ -583,7 +583,11 @@ function computeLanes() {
         const hw = roadHW(s.r);
         // O traçado da rota e o do mapa aberto diferem alguns metros: com
         // folga pequena, o trecho ficava fora da via desenhada ao lado.
-        if (Math.abs(lat) > hw + 8 || Math.abs(lat) >= bd) continue;
+        // Pista de mão única: o sentido já descarta a pista contrária, então
+        // a folga pode ser maior (o traçado do Google em rodovia duplicada
+        // chega a ficar no canteiro, a 10–20 m do eixo da pista; 09/11 a rota
+        // ficava no canteiro, fora das pistas desenhadas).
+        if (Math.abs(lat) > hw + (s.r.ow ? 22 : 8) || Math.abs(lat) >= bd) continue;
         best = s; bd = Math.abs(lat); bside = lat;
       }
     }
@@ -1717,7 +1721,10 @@ setInterval(() => {
   const kinds = {}; for (const a of ALERT_RAW) kinds[a.k] = (kinds[a.k] || 0) + 1;
   send('log:' + JSON.stringify({ s: Math.round(s), total: Math.round(TOTAL), v, man: MAN.length,
     saidas: MAN.filter(m => m.exit).length, tipos: [...new Set(MAN.map(m => m.m))].join(','),
-    recebidos: kinds, naRota: ALERTS.length, visiveis: ALERTS.filter(a => a.obj).length }));
+    recebidos: kinds, naRota: ALERTS.length, visiveis: ALERTS.filter(a => a.obj).length,
+    vias: MINI_ROADS ? MINI_ROADS.length : 0,
+    // trecho da rota sobre via do mapa (300 m à frente)
+    sobreVia: COVER ? (() => { const i0 = idxAt(s), i1 = idxAt(s + 300); let c = 0; for (let i = i0; i <= i1; i++) c += COVER[i] || 0; return Math.round(100 * c / Math.max(1, i1 - i0 + 1)) + '%'; })() : '-' }));
 }, 10000);
 </script>
 </body>

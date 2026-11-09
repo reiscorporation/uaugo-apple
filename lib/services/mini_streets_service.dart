@@ -29,6 +29,11 @@ class MiniStreetsService {
   final _mem = <String, List<dynamic>?>{};
   final _loading = <String, Future<List<dynamic>?>>{};
 
+  /// Falhou há pouco (servidor fora, sem internet): espera antes de pedir
+  /// de novo (09/11: pedia os 9 quadrados a cada segundo).
+  final _failedAt = <String, DateTime>{};
+  static const _retryAfter = Duration(minutes: 5);
+
   static String keyOf(double lat, double lng) =>
       '${(lat / tile).floor()}_${(lng / tile).floor()}';
 
@@ -49,6 +54,8 @@ class MiniStreetsService {
 
   Future<List<dynamic>?> _get(String k) async {
     if (_mem.containsKey(k)) return _mem[k];
+    final f0 = _failedAt[k];
+    if (f0 != null && DateTime.now().difference(f0) < _retryAfter) return null;
     return _loading[k] ??= () async {
       List<dynamic>? ways;
       try {
@@ -76,6 +83,7 @@ class MiniStreetsService {
         // Memória: guarda só os mais recentes.
         if (_mem.length > 36) _mem.remove(_mem.keys.first);
       } catch (e) {
+        _failedAt[k] = DateTime.now();
         debugPrint('Ruas do minimapa ($k): $e');
         // Falhou (sem internet): tenta de novo na próxima vez.
       } finally {
