@@ -583,11 +583,11 @@ function computeLanes() {
         const hw = roadHW(s.r);
         // O traçado da rota e o do mapa aberto diferem alguns metros: com
         // folga pequena, o trecho ficava fora da via desenhada ao lado.
-        // Pista de mão única: o sentido já descarta a pista contrária, então
+        // Rodovia de mão única: o sentido já descarta a pista contrária, então
         // a folga pode ser maior (o traçado do Google em rodovia duplicada
         // chega a ficar no canteiro, a 10–20 m do eixo da pista; 09/11 a rota
         // ficava no canteiro, fora das pistas desenhadas).
-        if (Math.abs(lat) > hw + (s.r.ow ? 22 : 8) || Math.abs(lat) >= bd) continue;
+        if (Math.abs(lat) > hw + (s.r.ow && s.r.cls <= 2 ? 22 : 8) || Math.abs(lat) >= bd) continue;
         best = s; bd = Math.abs(lat); bside = lat;
       }
     }
