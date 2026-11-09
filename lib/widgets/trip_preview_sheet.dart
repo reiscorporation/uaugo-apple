@@ -12,6 +12,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../screens/na_rota_screen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../logic/best_order.dart';
@@ -741,6 +742,19 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
               // Iniciar / Simular logo aqui, junto das rotas sugeridas.
               const SizedBox(height: 8),
               _actions(t),
+              // Turismo, hospedagem e postos perto do destino (08/11).
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.travel_explore),
+                  label: Text(tr('Turismo e hospedagem no destino')),
+                  onPressed: () {
+                    final d = _points.last;
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => NaRotaScreen(lat: d.lat, lng: d.lng, lugar: d.name)));
+                  },
+                ),
+              ),
               const SizedBox(height: 4),
               // Versão de teste do motor próprio: mostra de onde veio a rota.
               if (RouteEngineService.enabled)

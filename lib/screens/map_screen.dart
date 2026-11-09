@@ -4539,6 +4539,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           snippet: tr('Toque para opções'),
           onTap: () => _stopOptions(s),
         ),
+        // Um toque já abre as opções (turismo, hospedagem, navegar), 08/11.
+        onTap: () => _stopOptions(s),
       ));
     }
     for (final m in _members) {
@@ -7325,6 +7327,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               tolls == null ? '—' : (tolls.plazas == 0 ? tr('sem pedágio') : formatMoney(tolls.total))),
           if (_expCost != null)
             row(Icons.payments, tr('Custo estimado'), formatMoney(_expCost!)),
+          // Turismo, hospedagem e postos no destino (08/11).
+          if (_stops.isNotEmpty)
+            ListTile(
+              leading: const Icon(Icons.travel_explore),
+              title: Text(tr('Turismo e hospedagem no destino')),
+              subtitle: Text(_stops.last.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.pop(ctx);
+                final d = _stops.last;
+                _openNaRota(d.lat, d.lng, d.name, 0);
+              },
+            ),
           // Paradas da rota (as que faltam e as já visitadas), com a distância
           // daqui e a hora prevista de chegada em cada uma.
           if (_stops.length > 1) ...[

@@ -166,4 +166,8 @@ const en5 = <String, String>{
   'Área de risco': 'Risk area',
   'Trechos que podem ter radar móvel': 'Stretches that may have mobile speed cameras',
   'Trechos divulgados pela PRF (lista oficial): aviso ao entrar e linha roxa no mapa': 'Stretches published by the PRF (official list): warning when entering and a purple line on the map',
+  'Turismo e hospedagem no destino': 'Tourism and lodging at the destination',
+  'Explorar por perto': 'Explore nearby',
+  'Perto de você': 'Near you',
+  'Não deu para saber onde você está. Ligue a localização.': 'Could not find where you are. Turn on location.',
 };

@@ -10,6 +10,7 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'na_rota_screen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -710,6 +711,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Histórico de viagens (guardado só no celular).
+  /// Turismo, hospedagem e postos perto da posição atual.
+  Future<void> _exploreNearby() async {
+    try {
+      final p = await Geolocator.getLastKnownPosition() ??
+          await Geolocator.getCurrentPosition().timeout(const Duration(seconds: 10));
+      if (!mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => NaRotaScreen(lat: p.latitude, lng: p.longitude, lugar: tr('Perto de você'))));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(tr('Não deu para saber onde você está. Ligue a localização.'))));
+      }
+    }
+  }
+
   Future<void> _openHistory() async {
     var uid = '';
     try {
@@ -941,6 +958,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: _openHistory,
                 icon: const Icon(Icons.history),
                 label: Text(tr('Minhas viagens')),
+              ),
+              const SizedBox(height: 8),
+              // Turismo, hospedagem e postos em volta de onde estou (08/11).
+              OutlinedButton.icon(
+                onPressed: _exploreNearby,
+                icon: const Icon(Icons.travel_explore),
+                label: Text(tr('Explorar por perto')),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
