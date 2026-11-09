@@ -1425,6 +1425,22 @@ let lookInit = false;
 
 /* ---------- minimapa: mapa de cima, girando com o piloto ---------- */
 let MINI_ROADS = [], miniOn = true, miniAt = 0, miniPress = 0, miniLong = false;
+// todas as ruas em volta (quadrados do OpenStreetMap baixados pelo app), só
+// para o minimapa: [classe, lat0, lng0, dlat, dlng, ...] em 1e-5 grau (08/11)
+let MINI_STREETS = [], STREETS_RAW = null;
+function setStreetsData(list) {
+  STREETS_RAW = list;
+  const out = [];
+  for (const w of list || []) {
+    let la = w[1], lo = w[2];
+    const pts = [proj(la / 1e5, lo / 1e5)];
+    for (let i = 3; i + 1 < w.length; i += 2) { la += w[i]; lo += w[i + 1]; pts.push(proj(la / 1e5, lo / 1e5)); }
+    out.push({ cls: w[0], pts });
+  }
+  MINI_STREETS = out;
+  miniAt = 0;
+}
+const STREET_W = [0, 3.2, 2.8, 2.4, 2.0, 1.4];
 const mini = document.getElementById('mini'), mg = mini.getContext('2d');
 function miniSize() {
   // no carro um pouco menor: a tela é baixa e o painel do Android Auto ocupa espaço
@@ -1465,6 +1481,7 @@ function drawMini(now) {
     mg.lineWidth = w; mg.strokeStyle = c; mg.lineCap = mg.lineJoin = 'round'; mg.stroke();
   };
   const dark = document.body.classList.contains('dark');
+  for (const st of MINI_STREETS) line(st.pts, STREET_W[st.cls] || 1.4, dark ? (st.cls <= 2 ? '#4a6078' : '#33465a') : (st.cls <= 2 ? '#ffffff' : '#f4f7f9'));
   for (const rd of MINI_ROADS) line(rd.pts, rd.cls <= 2 ? 2.5 : 1.5, dark ? '#3a4d61' : '#ffffff');
   // rota: de 300 m atrás até 1,5 km à frente
   const ahead = [];
@@ -1498,6 +1515,7 @@ window.sim3d = {
     if (!hasRoute) return;
     COVER = null; CORR = null;
     if (ROADS_RAW) setRoadsData(ROADS_RAW); // origem nova: desenha as vias de novo
+    if (STREETS_RAW) setStreetsData(STREETS_RAW);
     buildDest();
     lookInit = false;
   },
@@ -1556,6 +1574,11 @@ window.sim3d = {
     if (typeof list === 'string') list = JSON.parse(list);
     ROADS_RAW = list || [];
     if (hasRoute) setRoadsData(ROADS_RAW);
+  },
+  setStreets(list) {
+    if (typeof list === 'string') list = JSON.parse(list);
+    STREETS_RAW = list || [];
+    if (hasRoute) setStreetsData(STREETS_RAW);
   },
   setAlerts(list) {
     if (typeof list === 'string') list = JSON.parse(list);

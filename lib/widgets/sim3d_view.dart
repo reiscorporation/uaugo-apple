@@ -127,6 +127,13 @@ class Sim3DController {
   String? _hudJson;
   String? _layoutJson;
   String? _roadsJson;
+  String? _streetsJson;
+
+  /// Todas as ruas em volta (MiniStreetsService), só para o minimapa.
+  void streets(String json) {
+    _streetsJson = json;
+    _run('sim3d.setStreets($_streetsJson)');
+  }
 
   /// Rodovias reais perto do piloto (ViasService.near): faixas e saídas.
   void roads(String json) {
@@ -157,6 +164,7 @@ class Sim3DController {
     car.sim3d('sim3d.setDark($_dark)');
     if (_routeJson != null) car.sim3d('sim3d.setRoute($_routeJson)');
     if (_roadsJson != null) car.sim3d('sim3d.setRoads($_roadsJson)');
+    if (_streetsJson != null) car.sim3d('sim3d.setStreets($_streetsJson)');
     if (_alertsJson != null) car.sim3d('sim3d.setAlerts($_alertsJson)');
     if (_ridersJson != null) car.sim3d('sim3d.setRiders($_ridersJson)');
     if (_lastUpdate != null) car.sim3d('sim3d.update($_lastUpdate)');
@@ -172,6 +180,7 @@ class Sim3DController {
     if (_lastUpdate != null) _run('sim3d.update($_lastUpdate)');
     if (_layoutJson != null) _run('sim3d.layout($_layoutJson)');
     if (_roadsJson != null) _run('sim3d.setRoads($_roadsJson)');
+    if (_streetsJson != null) _run('sim3d.setStreets($_streetsJson)');
     if (_hudJson != null) _run('sim3d.hud($_hudJson)');
     _run('sim3d.setActive($_active)');
     _web?.runJavaScript('sim3d.setVisible($_visible)').catchError((_) {});

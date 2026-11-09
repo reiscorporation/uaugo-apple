@@ -96,6 +96,7 @@ import '../services/directions_service.dart';
 import '../services/route_engine_service.dart';
 import '../services/minimized_trip.dart';
 import '../services/vias_service.dart';
+import '../services/mini_streets_service.dart';
 
 /// Tela de mapa/navegação. Três usos:
 /// - expedição em grupo: [code] preenchido;
@@ -6241,6 +6242,24 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }, onError: (_) => _roads3dBusy = false);
   }
 
+  /// Ruas do minimapa: os 9 quadrados em volta; troca quando o piloto muda
+  /// de quadrado (cada um tem ~2,2 km).
+  String? _streets3dKey;
+  bool _streets3dBusy = false;
+  void _feedStreets3d() {
+    final p = _me;
+    if (p == null || _streets3dBusy) return;
+    final key = MiniStreetsService.keyOf(p.latitude, p.longitude);
+    if (key == _streets3dKey) return;
+    _streets3dBusy = true;
+    MiniStreetsService.instance.nearJson(p.latitude, p.longitude).then((json) {
+      _streets3dBusy = false;
+      if (!mounted || json == null) return;
+      _streets3dKey = key;
+      _sim3d.streets(json);
+    }, onError: (_) => _streets3dBusy = false);
+  }
+
   /// v2: o painel do 3D substitui o velocímetro e a faixa da próxima curva.
   bool get _hud3d =>
       _show3d && _canShow3d &&
@@ -6362,6 +6381,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     _feedHud3d();
     _feedRoads3d();
+    _feedStreets3d();
     _feedRiders3d();
     final me = _me;
     if (me != null && DateTime.now().difference(_alerts3dAt).inSeconds >= 4) {
