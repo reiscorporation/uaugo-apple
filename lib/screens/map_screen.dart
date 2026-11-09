@@ -1450,10 +1450,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _poiSpoken[poi.id] = next;
       if (toll) {
         // Uma praça = vários pontos no mapa (uma cabine em cada pista; na
-        // Anhanguera, a do outro sentido fica a ~40 m). Avisa uma vez só
-        // por praça (09/11: testador ouviu "pedágio a 50 metros" depois de
-        // passar a praça).
-        for (final o in PoiService.instance.near(poi.lat, poi.lng, 400)) {
+        // Anhanguera, a do outro sentido fica a ~40 m; em Valinhos, a ~900 m;
+        // na simulação da BR-050 a mesma praça foi falada 4 vezes). Avisa
+        // uma vez só por praça (09/11: testador ouviu "pedágio a 50 metros"
+        // depois de passar a praça).
+        for (final o in PoiService.instance.near(poi.lat, poi.lng, 1200)) {
           if (o.kind.isToll) _poiSpoken[o.id] = 1;
         }
         // Perto demais: já está na praça (ou passou); aviso agora só confunde.
