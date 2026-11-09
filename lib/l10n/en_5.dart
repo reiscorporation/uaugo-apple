@@ -164,4 +164,6 @@ const en5 = <String, String>{
   'Também em viagens curtas (menos de 40 km)': 'Also on short trips (less than 40 km)',
   'Trânsito e rota mais rápida': 'Traffic and faster route',
   'Área de risco': 'Risk area',
+  'Trechos que podem ter radar móvel': 'Stretches that may have mobile speed cameras',
+  'Trechos divulgados pela PRF (lista oficial): aviso ao entrar e linha roxa no mapa': 'Stretches published by the PRF (official list): warning when entering and a purple line on the map',
 };

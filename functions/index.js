@@ -514,6 +514,45 @@ exports.updateGold = onSchedule(
 // ===================== Radares =====================
 
 /**
+ * Listas oficiais das prefeituras (functions/data/radares-prefeituras.json),
+ * já com a posição. Fonte oficial: ganha dos outros na posição.
+ */
+function cityRadars() {
+  try {
+    const j = require("./data/radares-prefeituras.json");
+    return j.cidades.flatMap((c) => c.radares.map((r) => ({ item: r.slice(0, 5), official: true })));
+  } catch (e) {
+    console.log(`Lista das prefeituras indisponível: ${e.message}`);
+    return [];
+  }
+}
+
+/**
+ * Radares fixos marcados pelos pilotos: alerta "Radar fixo" que virou
+ * permanente (3 confirmações ou 1 Gold) e não foi removido. Entram no
+ * arquivo de radares de todos (pedido de 08/11). Limite em kmh, se houver.
+ */
+async function communityRadars() {
+  try {
+    const snap = await db.collection("hazards")
+      .where("type", "==", "fixedRadar").where("permanent", "==", true).get();
+    return snap.docs.map((d) => d.data())
+      // Removido = prazo (expiresAt) jogado para agora/ontem.
+      .filter((h) => isFinite(h.lat) && isFinite(h.lng) &&
+        (h.expiresAt?.toMillis?.() || 0) > Date.now())
+      .map((h) => ({
+        item: [Math.round(h.lat * 1e5) / 1e5, Math.round(h.lng * 1e5) / 1e5, 0,
+          h.kmh >= 20 && h.kmh <= 130 ? Math.round(h.kmh) : 0,
+          isFinite(h.hd) && h.hd >= 0 ? Math.round(h.hd) % 360 : -1],
+        official: false,
+      }));
+  } catch (e) {
+    console.log(`Radares dos pilotos indisponíveis: ${e.message}`);
+    return [];
+  }
+}
+
+/**
  * Todo dia: monta o arquivo de radares (fixos do Brasil +
  * trechos de radar portátil da PRF) e publica em public/radares.json.gz.
  * O app confere a versão em meta/radars (1 leitura) e só baixa se mudou.
@@ -528,7 +567,10 @@ exports.updateRadars = onSchedule(
     timeoutSeconds: 900,
   },
   async () => {
-    const data = await buildRadarData({ log: (m) => console.log(m) });
+    const data = await buildRadarData({
+      log: (m) => console.log(m),
+      extra: [...cityRadars(), ...(await communityRadars())],
+    });
     if (data.radars.length < 1000) {
       throw new Error(`Poucos radares (${data.radars.length}); mantendo a versão anterior`);
     }

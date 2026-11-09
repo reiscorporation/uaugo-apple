@@ -136,6 +136,10 @@ class AlertPrefs {
   /// Postos policiais rodoviários (PRF / polícia rodoviária estadual).
   final bool policePosts;
 
+  /// Trechos onde a polícia/órgão divulgou que pode haver radar móvel
+  /// (PRF, Resolução CONTRAN 798/20): aviso ao entrar e linha no mapa.
+  final bool mobileStretches;
+
   /// Lombadas e faixas elevadas (opcional: os dados só são baixados se ligar).
   final AlertMode bumps;
 
@@ -169,6 +173,7 @@ class AlertPrefs {
     this.policeMeters = 1000,
     this.policeRepeats = 1,
     this.policePosts = true,
+    this.mobileStretches = true,
     this.bumps = AlertMode.off,
     this.signals = true,
     this.reducedSpeed = true,
@@ -186,6 +191,7 @@ class AlertPrefs {
     int? policeMeters,
     int? policeRepeats,
     bool? policePosts,
+    bool? mobileStretches,
     AlertMode? bumps,
     bool? signals,
     bool? reducedSpeed,
@@ -201,6 +207,7 @@ class AlertPrefs {
         policeMeters: policeMeters ?? this.policeMeters,
         policeRepeats: policeRepeats ?? this.policeRepeats,
         policePosts: policePosts ?? this.policePosts,
+        mobileStretches: mobileStretches ?? this.mobileStretches,
         bumps: bumps ?? this.bumps,
         signals: signals ?? this.signals,
         reducedSpeed: reducedSpeed ?? this.reducedSpeed,
@@ -397,6 +404,7 @@ class AppSettings {
       policeMeters: p.getInt('alertPoliceMeters') ?? 1000,
       policeRepeats: p.getInt('alertPoliceRepeats') ?? 1,
       policePosts: p.getBool('alertPolicePosts') ?? true,
+      mobileStretches: p.getBool('alertMobileStretches') ?? true,
       bumps: AlertMode.values.firstWhere(
           (m) => m.name == p.getString('alertBumps'),
           orElse: () => AlertMode.off),
@@ -419,6 +427,7 @@ class AppSettings {
     await p.setInt('alertPoliceMeters', a.policeMeters);
     await p.setInt('alertPoliceRepeats', a.policeRepeats);
     await p.setBool('alertPolicePosts', a.policePosts);
+    await p.setBool('alertMobileStretches', a.mobileStretches);
     await p.setString('alertBumps', a.bumps.name);
     await p.setBool('alertSignals2', a.signals);
     await p.setBool('alertReducedSpeed', a.reducedSpeed);

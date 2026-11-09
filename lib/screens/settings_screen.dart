@@ -850,6 +850,15 @@ class SettingsScreen extends StatelessWidget {
                 value: a.policePosts,
                 onChanged: (v) => s.setAlerts(a.copyWith(policePosts: v)),
               ),
+              SwitchListTile(
+                secondary: const Icon(Icons.speed),
+                title: Text(tr('Trechos que podem ter radar móvel')),
+                subtitle: Text(tr('Trechos divulgados pela PRF (lista oficial): aviso ao entrar e linha roxa no mapa')),
+                value: a.mobileStretches,
+                onChanged: (v) {
+                  s.setAlerts(a.copyWith(mobileStretches: v));
+                },
+              ),
               Padding(
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: Text(

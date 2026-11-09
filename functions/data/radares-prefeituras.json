@@ -1,0 +1,18 @@
+{
+  "_sobre": "Radares das listas oficiais das prefeituras, com a posição pelo endereço (número da casa). Só entram os de posição exata; os localizados só pela avenida ficam de fora (avisaria no lugar errado). Formato: [lat, lng, tipo 0=fixo 1=trecho 2=avanço de sinal, limite km/h, sentido em graus ou -1 = os dois].",
+  "cidades": [
+    {
+      "cidade": "Ribeirão Preto - SP",
+      "fonte": "RP Mobi / Prefeitura, outubro de 2026 (https://www.ribeiraopreto.sp.gov.br/portal/noticia/ribeirao-preto-inicia-operacao-gradual-de-radares-fixos)",
+      "conferido": "2026-11-08",
+      "radares": [
+        [-21.20913, -47.78139, 0, 70, -1, "Av. Maurílio Biagi, 2727"],
+        [-21.13719, -47.75947, 0, 60, -1, "Av. Antônia Mugnatto Marincek, 1350"],
+        [-21.19759, -47.79415, 0, 40, -1, "Av. Costábile Romano, 540 (lombada eletrônica)"],
+        [-21.22424, -47.78556, 0, 40, -1, "Av. Heráclito Fontoura Sobral Pinto, 351 (lombada eletrônica)"],
+        [-21.21953, -47.79503, 0, 40, -1, "Av. Norma Valério Corrêa, 776 (lombada eletrônica)"],
+        [-21.20961, -47.82919, 0, 40, -1, "Av. Adelmo Perdizza, 495 (lombada eletrônica)"]
+      ]
+    }
+  ]
+}

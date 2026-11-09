@@ -85,7 +85,45 @@ async function loadFixedRadars() {
     // Fonte oficial (ANTT, DNIT, DER...) tem posição mais confiável que o OSM.
     official.push(iSrc >= 0 && /ANTT|DNIT|DER|PRF|DETRAN|PREF/i.test(r[iSrc] || ""));
   }
-  return mergeDuplicates(out, official);
+  return { items: out, official };
+}
+
+// ------------------------------------------------------------ 1b. OSM
+
+const OVERPASS = "https://overpass-api.de/api/interpreter";
+
+/**
+ * Radares do OpenStreetMap direto (o Pardal também usa o OSM, mas atualiza
+ * em outro ritmo): câmeras highway=speed_camera no Brasil, com limite
+ * (maxspeed) e sentido (direction), quando houver. Pedido de 08/11.
+ */
+async function loadOsmRadars() {
+  const q = '[out:json][timeout:240];area["ISO3166-1"="BR"][admin_level=2]->.br;' +
+    'node["highway"="speed_camera"](area.br);out;';
+  const res = await fetch(OVERPASS, {
+    method: "POST",
+    body: "data=" + encodeURIComponent(q),
+    // Sem User-Agent próprio o Overpass responde 406 (teste de 08/11).
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      "user-agent": "UauGo-radares/1.0 (helpaitech.com.br)",
+    },
+    signal: AbortSignal.timeout(300000),
+  });
+  if (!res.ok) throw new Error(`Overpass HTTP ${res.status}`);
+  const j = await res.json();
+  return (j.elements || []).map((e) => osmRadarItem(e)).filter(Boolean);
+}
+
+/** Nó do OSM -> [lat, lng, tipo, limite, sentido]. */
+function osmRadarItem(e) {
+  if (!isFinite(e.lat) || !isFinite(e.lon)) return null;
+  const t = e.tags || {};
+  const lim = parseInt(String(t.maxspeed || "").replace(/[^0-9]/g, ""), 10);
+  const dir = parseFloat(t.direction);
+  return [round5(e.lat), round5(e.lon), KIND.FIXED,
+    isFinite(lim) && lim >= 20 && lim <= 130 ? lim : 0,
+    isFinite(dir) ? Math.round(dir) % 360 : -1];
 }
 
 /**
@@ -322,9 +360,23 @@ async function mapLimit(items, limit, fn) {
 
 // ------------------------------------------------------------ montagem
 
-async function buildRadarData({ log = console.log, today = new Date() } = {}) {
-  const radars = await loadFixedRadars();
-  log(`Pardal: ${radars.length} radares`);
+async function buildRadarData({ log = console.log, today = new Date(), extra = [] } = {}) {
+  const base = await loadFixedRadars();
+  log(`Pardal: ${base.items.length} radares`);
+  const items = [...base.items], official = [...base.official];
+  try {
+    const osm = await loadOsmRadars();
+    log(`OpenStreetMap: ${osm.length} radares`);
+    for (const r of osm) { items.push(r); official.push(false); }
+  } catch (e) {
+    log(`OpenStreetMap indisponível: ${e.message}`);
+  }
+  // Marcados pelos pilotos (alerta "Radar fixo" que virou permanente) e
+  // listas oficiais das prefeituras (extra, montado em index.js).
+  for (const r of extra) { items.push(r.item); official.push(!!r.official); }
+  if (extra.length) log(`Pilotos e prefeituras: ${extra.length} radares`);
+  const radars = mergeDuplicates(items, official);
+  log(`Radares depois de juntar repetidos: ${radars.length}`);
 
   let prf = null;
   try {
@@ -371,7 +423,7 @@ async function buildRadarData({ log = console.log, today = new Date() } = {}) {
     builtAt: new Date().toISOString(),
     attribution:
       "Radares fixos: projeto Pardal (ODbL) – DNIT, ANTT, DERs, prefeituras e " +
-      "© colaboradores do OpenStreetMap. Trechos de radar portátil: Polícia " +
+      "© colaboradores do OpenStreetMap; pilotos do UauGo. Trechos de radar portátil: Polícia " +
       "Rodoviária Federal; traçado: DNIT/SNV.",
     radars,
     prf,
@@ -380,6 +432,8 @@ async function buildRadarData({ log = console.log, today = new Date() } = {}) {
 
 module.exports = {
   loadFixedRadars,
+  loadOsmRadars,
+  osmRadarItem,
   mergeDuplicates,
   buildRadarData,
   // exportados para testes

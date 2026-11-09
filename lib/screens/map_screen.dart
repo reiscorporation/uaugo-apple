@@ -995,6 +995,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final prefs = AppSettings.instance.alerts.value;
     for (final h in _activeHazards) {
       if (h.createdBy == widget.uid) continue;
+      // Radar fixo marcado por piloto que já entrou no arquivo de radares
+      // (08/11): o aviso de radar (com limite) já cobre; não fala duas vezes.
+      if (h.type == HazardType.fixedRadar &&
+          _radarsAround.any((r) => distanceMeters(r.lat, r.lng, h.lat, h.lng) < 60)) {
+        continue;
+      }
       final (range, repeats) = switch (h.type) {
         HazardType.police => (prefs.policeMeters.toDouble(), prefs.policeRepeats),
         HazardType.radar => (prefs.radarMeters.toDouble(), prefs.radarRepeats),
@@ -1323,7 +1329,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       return; // um aviso por vez
     }
 
-    for (final s in _stretchesAround) {
+    for (final s in AppSettings.instance.alerts.value.mobileStretches
+        ? _stretchesAround
+        : const <PrfStretch>[]) {
       if (_stretchAnnounced.contains(s.id)) continue;
       final n = nearestOnLine(p.latitude, p.longitude, s.points);
       if (n.meters > 1000) continue;
@@ -4356,14 +4364,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   Set<Polyline> _prfPolylines = {};
   Object? _prfFor;
+  bool _prfOn = true;
 
   /// Linhas do mapa: trechos da PRF (roxo tracejado) e a rota (azul).
   Set<Polyline> _buildPolylines() {
-    if (!identical(_prfFor, _stretchesAround)) {
+    final prfOn = AppSettings.instance.alerts.value.mobileStretches;
+    if (!identical(_prfFor, _stretchesAround) || prfOn != _prfOn) {
       _prfFor = _stretchesAround;
+      _prfOn = prfOn;
       _prfPolylines = {
         // Trechos onde a PRF pode fiscalizar com radar portátil.
-        for (final s in _stretchesAround)
+        for (final s in AppSettings.instance.alerts.value.mobileStretches
+            ? _stretchesAround
+            : const <PrfStretch>[])
           Polyline(
             polylineId: PolylineId('prf_${s.id}'),
             points: [for (final (la, lo) in s.points) LatLng(la, lo)],
