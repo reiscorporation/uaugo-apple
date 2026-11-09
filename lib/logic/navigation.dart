@@ -396,9 +396,31 @@ class TurnByTurn {
 
   bool get hasRoute => _alongs != null;
 
+  /// Rumo da rota num ponto (metros desde o início): para não falar a
+  /// manobra antes de uma curva da rua anterior.
+  double Function(double along)? _bearingAt;
+
   /// [alongOf] = distância percorrida na rota até o ponto (lat, lng).
-  void attachRoute(double Function(double lat, double lng) alongOf) {
+  /// [bearingAt] = rumo da rota no ponto (opcional).
+  void attachRoute(double Function(double lat, double lng) alongOf,
+      {double Function(double along)? bearingAt}) {
     _alongs = [for (final s in steps) alongOf(s.lat, s.lng)];
+    _bearingAt = bearingAt;
+  }
+
+  /// Entre o piloto e a manobra a rua faz uma curva forte (que não é a
+  /// manobra)? Ex.: a rua vira à esquerda e logo depois a manobra é "vire à
+  /// direita": falar antes da curva confunde (09/11).
+  bool _bendBefore(double riderAlong, double turnAlong) {
+    final b = _bearingAt;
+    if (b == null) return false;
+    final ref = b(riderAlong + 5);
+    for (var x = riderAlong + 15; x < turnAlong - 25; x += 10) {
+      var diff = (b(x) - ref).abs() % 360;
+      if (diff > 180) diff = 360 - diff;
+      if (diff > 50) return true;
+    }
+    return false;
   }
 
   /// Recomeça na 1ª manobra À FRENTE de [riderAlong], medindo pela rota.
@@ -448,9 +470,13 @@ class TurnByTurn {
     final s = steps[j];
     final d = max(0.0, al[j] - riderAlong);
     final v = speed.isFinite && speed > 0 ? speed : 0.0;
-    final nearAt = max(max(100.0, v * 8), jump * 1.2);
+    // Na cidade (até ~70 km/h) o aviso "na hora" sai mais perto da esquina
+    // (~6 s, mínimo 70 m): com 8 s / 100 m a voz falava a próxima rua antes
+    // da esquina anterior (09/11).
+    final nearAt = max(v < 20 ? max(70.0, v * 6) : max(100.0, v * 8), jump * 1.2);
     final farAt = max(800.0, v * 30) + jump;
-    if (!_nearDone.contains(j) && d <= nearAt) {
+    if (!_nearDone.contains(j) && d <= nearAt &&
+        (d <= 40 || jump > 0 || !_bendBefore(riderAlong, al[j]))) {
       _nearDone.add(j);
       // Já avisou de longe com a frase inteira: na hora, só a manobra
       // ("Vire à direita"), sem repetir rua e destino (pedido de 08/11: a

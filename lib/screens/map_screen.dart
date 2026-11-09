@@ -2420,7 +2420,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (!nav.hasRoute) {
         // Em ordem: a saída da rotatória não cai na entrada, que fica ao lado.
         var prev = 0.0;
-        nav.attachRoute((la, lo) => prev = w.project(la, lo, after: prev).along);
+        nav.attachRoute((la, lo) => prev = w.project(la, lo, after: prev).along,
+            bearingAt: (a) => w.at(a).bearing);
       }
       speech = nav.updateAlong(proj.along, p.speed, jump: jump);
     } else {

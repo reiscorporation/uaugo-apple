@@ -143,6 +143,25 @@ void main() {
       expect(said.any((s) => s.contains('Rua X')), isFalse);
     });
 
+    test('cidade: "vire à direita" só depois da curva da rua anterior', () {
+      // A rua faz uma curva forte para a esquerda aos 300 m e a manobra
+      // (vire à direita) está aos 360 m: a voz não fala antes da curva.
+      const ss = [
+        NavStep(-28.000, -49.000, 'Siga na Rua A', ''),
+        NavStep(-28.001, -49.000, 'Vire à direita na Rua B', 'turn-right'),
+      ];
+      final at = <double, String>{};
+      final nav = TurnByTurn(ss)
+        ..attachRoute((la, lo) => la == -28.000 ? 0 : 360,
+            bearingAt: (a) => a < 300 ? 0 : 270);
+      for (var along = 0.0; along <= 360; along += 5) {
+        final s = nav.updateAlong(along, 14); // ~50 km/h
+        if (s != null) at[along] = s;
+      }
+      final turn = at.entries.firstWhere((e) => e.value.contains('direita') && !e.value.startsWith('Em '));
+      expect(turn.key, greaterThanOrEqualTo(295));
+    });
+
     test('voltar para trás (simulação/GPS) recomeça na saída que falta', () {
       const ss = [
         NavStep(-28.000, -49.000, 'Siga na direção sul na BR 101', ''),
