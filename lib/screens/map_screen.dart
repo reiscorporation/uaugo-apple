@@ -511,7 +511,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Com a direção da moto: evita pegar o limite da via marginal.
         targetSpeedAt: (lat, lng, bearing) {
           final l = _speedSvc.lookup(lat, lng, bearing, 20);
-          if (l == null) return trip.averageSpeed;
+          if (l == null) {
+            // Sem limite conhecido: perto de manobras (cidade) anda a 45 km/h;
+            // com a média da viagem (82 km/h numa rota de rodovia) a
+            // simulação passava a 82 nas ruas e a voz vinha cedo demais (09/11).
+            final steps = _nav?.steps ?? const <NavStep>[];
+            final city = steps.any((s) =>
+                !s.isSilent && distanceMeters(lat, lng, s.lat, s.lng) < 700);
+            return city ? min(trip.averageSpeed, 45 / 3.6) : trip.averageSpeed;
+          }
           return l.kmh / 3.6 * (l.estimated ? 0.85 : 0.95);
         },
       );
