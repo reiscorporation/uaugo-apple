@@ -269,11 +269,15 @@ service cloud.firestore {
 
     // Correção de velocidade (radar 'r', pedágio 't', via 'v'): só usuários
     // Gold ou administração; um relato por pessoa e lugar. O servidor
-    // (onSpeedReport) publica em speedFixes com 1 administrador ou 2 Gold.
+    // (onSpeedReport) publica em speedFixes com 1 administrador ou 2 Gold
+    // (radar: também com 3 pilotos quaisquer concordando).
     match /speedReports/{key}/reports/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
+      // Radar ('r'): qualquer piloto com conta responde à pergunta "o radar
+      // existe?" (08/11); pedágio e via continuam só Gold/administração.
       allow create, update: if hasAccount() && request.auth.uid == uid
-        && (exists(/databases/$(database)/documents/gold/$(uid))
+        && (request.resource.data.kind == 'r'
+            || exists(/databases/$(database)/documents/gold/$(uid))
             || exists(/databases/$(database)/documents/platformAdmins/$(uid)))
         && key.size() <= 60
         && request.resource.data.keys().hasOnly(['kind', 'lat', 'lng', 'dir', 'kmh', 'at'])

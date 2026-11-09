@@ -425,6 +425,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final Set<String> _passedNear = {};
   final Set<String> _askedHazards = {};
   Hazard? _askHazard;
+
+  /// Radar da base sem limite e sem sentido (não é falado): ao passar por
+  /// ele navegando, pergunta se existe (pedido de 04/11, feito em 08/11).
+  FixedRadar? _askRadar;
+  final _radarNear = <int>{};
+  final _radarAsked = <int>{};
+  Timer? _askRadarTimer;
   Timer? _askTimer;
 
   // ---- Clube
@@ -699,6 +706,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _memberTimer?.cancel();
     _hazardSub?.cancel();
     _askTimer?.cancel();
+    _askRadarTimer?.cancel();
     _radarSvc.index.removeListener(_onRadarIndex);
     SpeedFixService.instance.fixes.removeListener(_onSpeedFixes);
     _sim3d.shown.removeListener(_onShown3d);
@@ -2037,6 +2045,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// pergunta na simulação, sem conta ou se já votou.
   void _askIfPassed(Position p) {
     if (_sim != null || AuthService.isAnonymous) return;
+    _askRadarIfPassed(p);
     for (final h in _activeHazards) {
       if (h.createdBy == widget.uid ||
           h.permanent || // já validado (3 confirmações, Gold ou administrador)
@@ -2069,6 +2078,104 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         break;
       }
     }
+  }
+
+  /// Passou (navegando) por um radar sem limite nem sentido na base: pergunta
+  /// se ele existe. "Não existe" e o limite informado vão para a correção
+  /// de velocidade (speedReports); valem para todos com 1 administrador, 2
+  /// Gold ou 3 pilotos concordando (onSpeedReport).
+  void _askRadarIfPassed(Position p) {
+    final w = _walker;
+    if (w == null || _askHazard != null || _askRadar != null || !_navigating) return;
+    for (final r in _radarsAround) {
+      if (!r.unverified || _radarAsked.contains(r.id)) continue;
+      final d = distanceMeters(p.latitude, p.longitude, r.lat, r.lng);
+      if (d > 300) continue;
+      if (!_radarOnRouteRoad(r, w)) continue;
+      if (d <= 40) {
+        _radarNear.add(r.id);
+        continue;
+      }
+      final ahead = angleDiff(bearingBetween(p.latitude, p.longitude, r.lat, r.lng), _bearing) < 90;
+      if (_radarNear.contains(r.id) && !ahead && d > 60) {
+        _radarAsked.add(r.id);
+        _radarNear.remove(r.id);
+        HapticFeedback.mediumImpact();
+        _voice.alert(tr('Você passou por um radar sem limite informado. Ele existe? Responda na tela.'));
+        setState(() => _askRadar = r);
+        _askRadarTimer?.cancel();
+        _askRadarTimer = Timer(const Duration(seconds: 25), () {
+          if (mounted) setState(() => _askRadar = null);
+        });
+        return;
+      }
+    }
+  }
+
+  /// Faixa da pergunta do radar sem limite: "Existe" (escolhe o limite) ou
+  /// "Não existe".
+  Widget _askRadarBanner(FixedRadar r) {
+    Widget big(String label, Color color, VoidCallback onTap) => Expanded(
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(56),
+              textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            onPressed: onTap,
+            child: Text(label),
+          ),
+        );
+    void close() {
+      _askRadarTimer?.cancel();
+      setState(() => _askRadar = null);
+    }
+    return Material(
+      color: Colors.red.shade700,
+      elevation: 8,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 4, 10),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            const Text('📸', style: TextStyle(fontSize: 26)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(tr('Radar sem limite informado aqui. Ele existe?'),
+                  style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+            ),
+            IconButton(
+                onPressed: close, icon: const Icon(Icons.close, color: Colors.white)),
+          ]),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Row(children: [
+              big(tr('Existe'), Colors.green.shade700, () {
+                close();
+                _editSpeed(
+                    title: tr('Limite do radar'),
+                    kind: 'r',
+                    key: SpeedFixService.radarKey(r),
+                    lat: r.lat,
+                    lng: r.lng,
+                    dir: r.direction,
+                    current: null,
+                    anyone: true);
+              }),
+              const SizedBox(width: 8),
+              big(tr('Não existe'), Colors.grey.shade800, () {
+                close();
+                SpeedFixService.instance.report(SpeedFixService.radarKey(r),
+                    kind: 'r', lat: r.lat, lng: r.lng, dir: r.direction, kmh: 0);
+                _snack(tr('Obrigado! Quando outros pilotos confirmarem, o radar sai do mapa.'));
+              }),
+            ]),
+          ),
+        ]),
+      ),
+    );
   }
 
   /// Pergunta "ainda está lá?" depois de passar pelo alerta: botões grandes
@@ -3773,8 +3880,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     required double lng,
     int dir = -1,
     int? current,
+    bool anyone = false, // pergunta "o radar existe?": qualquer piloto responde
   }) async {
-    if (!await SpeedFixService.instance.canEdit()) {
+    if (!anyone && !await SpeedFixService.instance.canEdit()) {
       _snack(tr('Só usuários Gold ou administradores podem confirmar ou corrigir velocidades.'));
       return;
     }
@@ -4976,6 +5084,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             if (_askHazard != null) ...[
               if (_alerts.isNotEmpty) const SizedBox(height: 8),
               _askBanner(_askHazard!),
+            ] else if (_askRadar != null) ...[
+              if (_alerts.isNotEmpty) const SizedBox(height: 8),
+              _askRadarBanner(_askRadar!),
             ] else if (_shownHazard != null) ...[
               if (_alerts.isNotEmpty) const SizedBox(height: 8),
               _hazardBanner(_shownHazard!),

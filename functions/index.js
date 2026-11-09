@@ -867,9 +867,10 @@ exports.onTollReport = onDocumentWritten(
 /**
  * Correção de velocidade (radar, pedágio ou trecho da via) feita no app:
  * speedReports/{chave}/reports/{uid} = { kind, lat, lng, dir, kmh, at }.
- * Só conta usuário Gold ou administração. Vale para todos (speedFixes/{chave})
- * com 1 administrador, ou com 2 usuários Gold diferentes informando a mesma
- * velocidade nos últimos 180 dias (regra do Ricardo, 05/11).
+ * Vale para todos (speedFixes/{chave}) com 1 administrador, ou com 2 usuários
+ * Gold diferentes informando a mesma velocidade nos últimos 180 dias (regra
+ * do Ricardo, 05/11). Radar: também com 3 pilotos quaisquer concordando
+ * (pergunta "o radar existe?" do app, 08/11).
  */
 exports.onSpeedReport = onDocumentWritten(
   { document: "speedReports/{key}/reports/{uid}", region },
@@ -881,19 +882,25 @@ exports.onSpeedReport = onDocumentWritten(
     const isAdmin = async (u) => (await db.doc(`platformAdmins/${u}`).get()).exists;
     const isGold = async (u) => (await isAdmin(u)) || (await db.doc(`gold/${u}`).get()).exists;
     const admin = await isAdmin(uid);
+    let method = admin ? "admin" : "gold";
     if (!admin) {
-      if (!(await isGold(uid))) return;
+      const gold = await isGold(uid);
+      // Pilotos comuns só respondem sobre radar ("o radar existe?", 08/11).
+      if (!gold && mine.kind !== "r") return;
       const since = Date.now() - 180 * 24 * 3600 * 1000;
       const snap = await db.collection(`speedReports/${key}/reports`).get();
-      let agree = 0;
+      let goldAgree = 0, allAgree = 0;
       for (const d of snap.docs) {
         const r = d.data();
         if (r.kmh !== mine.kmh) continue;
         if (d.id !== uid && (r.at?.toMillis?.() || 0) < since) continue;
-        if (await isGold(d.id)) agree++;
+        allAgree++;
+        if (await isGold(d.id)) goldAgree++;
       }
-      if (agree < 2) {
-        console.log(`Velocidade ${key}: ${mine.kmh} km/h aguardando outro Gold`);
+      if (goldAgree >= 2) method = "gold";
+      else if (mine.kind === "r" && allAgree >= 3) method = "pilotos";
+      else {
+        console.log(`Velocidade ${key}: ${mine.kmh} km/h aguardando confirmação (${goldAgree} Gold, ${allAgree} no total)`);
         return;
       }
     }
@@ -903,11 +910,11 @@ exports.onSpeedReport = onDocumentWritten(
       lng: mine.lng,
       dir: mine.dir ?? -1,
       kmh: mine.kmh,
-      method: admin ? "admin" : "gold",
+      method,
       by: uid,
       at: FieldValue.serverTimestamp(),
     });
-    console.log(`Velocidade ${key}: ${mine.kmh} km/h (${admin ? "administração" : "2 Gold"})`);
+    console.log(`Velocidade ${key}: ${mine.kmh} km/h (${method})`);
   }
 );
 

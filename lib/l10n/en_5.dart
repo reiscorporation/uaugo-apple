@@ -170,4 +170,10 @@ const en5 = <String, String>{
   'Explorar por perto': 'Explore nearby',
   'Perto de você': 'Near you',
   'Não deu para saber onde você está. Ligue a localização.': 'Could not find where you are. Turn on location.',
+  'Você passou por um radar sem limite informado. Ele existe? Responda na tela.': 'You passed a speed camera with no known limit. Does it exist? Answer on the screen.',
+  'Radar sem limite informado aqui. Ele existe?': 'Speed camera with no known limit here. Does it exist?',
+  'Existe': 'It exists',
+  'Não existe': 'It does not exist',
+  'Limite do radar': 'Speed camera limit',
+  'Obrigado! Quando outros pilotos confirmarem, o radar sai do mapa.': 'Thanks! Once other riders confirm, the camera leaves the map.',
 };
