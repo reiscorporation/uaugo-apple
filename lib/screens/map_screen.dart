@@ -1012,7 +1012,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (done == 0 && _shownHazard != null) continue;
       _announced[h.id] = next;
       HapticFeedback.heavyImpact();
-      if (_voice.alertsOn.value) {
+      if (_speak(h.type.name)) {
         _voice.alert(hazardSpeech(h.type.spoken, d));
       } else {
         SystemSound.play(SystemSoundType.alert);
@@ -1292,12 +1292,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       }
       if (!first) {
         // Repetição: só a voz (a faixa na tela continua aberta).
-        if (_voice.alertsOn.value) {
+        if (_speak('fixedRadar')) {
           _voice.alert(radarSpeech(r, d, roadLimit: roadKmh));
         }
         return;
       }
       _announceRadar(
+        kind: 'fixedRadar',
         emoji: switch (r.kind) {
           RadarKind.fixed => '📸',
           RadarKind.section => '⏱️',
@@ -1339,6 +1340,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       }
       _stretchAnnounced.add(s.id);
       _announceRadar(
+        kind: 'radar',
         emoji: '🚔',
         text: tr('Trecho com radar portátil da PRF · BR-{0} km {1}–{2}', [s.br, s.kmFrom.round(), s.kmTo.round()]),
         speech: prfStretchSpeech(s, n.meters),
@@ -1350,8 +1352,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Fala este tipo de aviso? (voz ligada e o tipo não foi calado em
+  /// Configurações → Voz por tipo de aviso.)
+  bool _speak(String kind) =>
+      _voice.alertsOn.value &&
+      !AppSettings.instance.alerts.value.mutedVoice.contains(kind);
+
   /// Mostra a faixa de aviso no topo, vibra e fala (ou só bipa).
   void _announceRadar({
+    String kind = '', // tipo para "voz por tipo de aviso" (voiceKinds)
     required String emoji,
     required String text,
     required String speech,
@@ -1360,7 +1369,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     VoidCallback? onTap, // tocar/segurar a faixa: confirmar/corrigir
   }) {
     HapticFeedback.heavyImpact();
-    if (speak && _voice.alertsOn.value) {
+    if (speak && _speak(kind)) {
       _voice.alert(speech);
     } else {
       SystemSound.play(SystemSoundType.alert);
@@ -1447,10 +1456,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ? tr('Praça de pedágio a {0}{1}', [spokenDistance(d), tollNote.isEmpty ? '' : '. $tollNote'])
               : tr('Posto policial a {0}', [spokenDistance(d)]);
       if (done > 0) {
-        if (_voice.alertsOn.value) _voice.alert(speech);
+        if (_speak(bump ? 'bump' : toll ? 'toll' : 'policePost')) _voice.alert(speech);
         return;
       }
       _announceRadar(
+        kind: bump ? 'bump' : toll ? 'toll' : 'policePost',
         emoji: bump
             ? '🔺'
             : toll
@@ -1509,14 +1519,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// "Você chegou à metade do trajeto" (opção em Configurações).
   void _checkHalfway() {
-    if (_halfwaySaid || !AppSettings.instance.alerts.value.halfway) return;
+    final a = AppSettings.instance.alerts.value;
+    if (_halfwaySaid || !(a.halfway || a.halfwayCity)) return;
     if (!(_navigating || _simStarted)) return;
     final w = _walker, pr = _proj;
     if (w == null || pr == null || pr.offset > 250 || w.length < 2000) return;
+    // Estrada (40 km ou mais) e cidade são opções separadas (08/11).
+    if (!(w.length >= 40000 ? a.halfway : a.halfwayCity)) return;
     if (pr.along < w.length / 2) return;
     _halfwaySaid = true;
     final left = formatDistance((w.length - pr.along).round());
-    _voice.alert(tr('Você chegou à metade do trajeto. Faltam {0}', [left]));
+    if (_speak('halfway')) _voice.alert(tr('Você chegou à metade do trajeto. Faltam {0}', [left]));
     _showTrafficBanner(tr('🏁 Metade do trajeto! Faltam {0}', [left]));
   }
 
@@ -1555,7 +1568,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         return;
       }
       _lastRainAlert = DateTime.now();
-      _voice.alert(rainSpeech(levels[i], dists[i].toDouble()));
+      if (_speak('rain')) _voice.alert(rainSpeech(levels[i], dists[i].toDouble()));
       _showTrafficBanner(
           tr('🌧️ {0} a ~{1} km à frente', [rainWord(levels[i]), dists[i] ~/ 1000]));
       return;
@@ -2400,7 +2413,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final saving = remainingNowS - nt.durationS;
     if (otherWay && saving >= 300) {
       final mins = (saving / 60).round();
-      _voice.alert(tr('Rota mais rápida encontrada: economia de {0} minutos', [mins]));
+      if (_speak('traffic')) _voice.alert(tr('Rota mais rápida encontrada: economia de {0} minutos', [mins]));
       _showTrafficBanner(tr('🚀 Rota mais rápida: economia de {0} min', [mins]));
       _applyTrip(nt);
       return;
@@ -2419,7 +2432,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         mins >= _lastDelayMin + 5) {
       _lastDelayAlert = now;
       _lastDelayMin = mins;
-      _voice.alert(tr('Trânsito intenso na rota: mais {0} minutos', [mins]));
+      if (_speak('traffic')) _voice.alert(tr('Trânsito intenso na rota: mais {0} minutos', [mins]));
       _showTrafficBanner(tr('🚗 Trânsito intenso na rota: +{0} min', [mins]));
     }
     return true;
@@ -3126,9 +3139,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           onPressed: () => _svc.resolveAlert(_code, id),
         ),
       ));
-      // Também os telefones de emergência e o envio da localização
-      // (WhatsApp), como fora da expedição.
-      _showEmergency();
+      // Também o contato de emergência (WhatsApp com a localização).
+      _sosToContact();
     } catch (e) {
       _snack(tr('Não foi possível obter sua posição: {0}', [e]));
     }
@@ -3686,6 +3698,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         final (pla, plo) = plaza.pts.first;
         _reducedAnnounced.add(key);
         _announceRadar(
+          kind: 'toll',
           emoji: '🛣️',
           text: tr('Pedágio à frente · reduza para {0} km/h', [f.$1]),
           speech: tr('Pedágio à frente. Velocidade {0} em {1} metros', [f.$1, f.$2]),
@@ -3702,7 +3715,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         return;
       }
     }
-    if (_reducedAnnounced.add(key) && f.$2 >= 200) {
+    if (_reducedAnnounced.add(key) && f.$2 >= 200 && _speak('reducedSpeed')) {
       _voice.alert(tr('Atenção: velocidade reduzida para {0} em {1} metros', [f.$1, f.$2]));
     }
   }
@@ -5186,9 +5199,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                           fontSize: 16)),
                 ),
               // Velocidade reduzida à frente.
-              // No 3D o painel do para-brisa fica no lugar: a pílula cobria a
-              // velocidade dele (testes em SP, 06/11). A voz continua avisando.
-              if (_reducedAhead case (final lim, final m) when !_hud3d)
+              if (_reducedAhead case (final lim, final m))
                 Container(
                   margin: const EdgeInsets.only(bottom: 6),
                   padding:
@@ -5204,7 +5215,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                           fontWeight: FontWeight.w900,
                           fontSize: 16)),
                 ),
-              if (!_hud3d)
+              // Também no 3D: o velocímetro fica no canto, igual ao mapa (antes
+              // ficava no meio, no painel da página; pedido de 08/11).
               ValueListenableBuilder<SpeedAlertSettings>(
                 valueListenable: _speedSvc.settings,
                 builder: (_, s, __) {
@@ -5397,13 +5409,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ],
             if (_sim == null) ...[
             const SizedBox(height: 20),
-            // Precisa SEGURAR para evitar SOS acidental (luva, vibração).
-            // Sozinho (sem grupo), abre os telefones de emergência.
+            // Um toque: opções (telefones, WhatsApp, compartilhar). Segurar:
+            // pede ajuda direto (contato de emergência pelo WhatsApp com a
+            // localização e, no comboio, SOS aos pilotos). Pedido de 08/11.
             GestureDetector(
-              onLongPress: _isExpedition ? _sendSos : _showEmergency,
-              onTap: () => _snack(_isExpedition
-                  ? tr('Segure o botão para enviar o SOS')
-                  : tr('Segure o botão para ver os telefones de emergência')),
+              onLongPress: _sosHold,
+              onTap: () => _showEmergency(openChat: false),
               child: Container(
                 width: 88,
                 height: 88,
@@ -7567,12 +7578,32 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   String _sosNumber(String fone) =>
       fone.startsWith('55') && fone.length >= 12 ? fone : '55$fone';
 
-  void _showEmergency() {
+  /// Segurou o SOS: pede ajuda direto, sem passar pelas opções.
+  void _sosHold() {
     HapticFeedback.heavyImpact();
-    // Com contato cadastrado, o WhatsApp abre direto com a mensagem pronta;
-    // os telefones ficam atrás, para quando voltar ao app.
+    if (_isExpedition) {
+      _sendSos(); // grupo + contato
+      return;
+    }
+    if (!_sosToContact()) {
+      _snack(tr('Cadastre um contato de emergência em Configurações para pedir ajuda segurando o SOS.'));
+      _showEmergency(openChat: false);
+    }
+  }
+
+  /// Abre o WhatsApp do contato de emergência com a mensagem e a localização.
+  /// false se não houver contato cadastrado.
+  bool _sosToContact() {
     final contact = AppSettings.instance.emergencyContact.value;
-    if (contact != null) _openSosChat(_sosNumber(contact.$2));
+    if (contact == null) return false;
+    _openSosChat(_sosNumber(contact.$2));
+    return true;
+  }
+
+  /// Opções de emergência. [openChat]: também abre o WhatsApp do contato.
+  void _showEmergency({bool openChat = true}) {
+    HapticFeedback.heavyImpact();
+    if (openChat) _sosToContact();
     showSafeSheet(
       context: context,
       builder: (ctx) => SafeArea(

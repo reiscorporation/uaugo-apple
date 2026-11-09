@@ -145,8 +145,16 @@ class AlertPrefs {
   /// "Velocidade reduzida para 60 em 300 metros".
   final bool reducedSpeed;
 
-  /// "Você chegou à metade do trajeto".
+  /// "Você chegou à metade do trajeto": viagem de estrada (40 km ou mais).
   final bool halfway;
+
+  /// "Metade do trajeto" também em viagem na cidade (menos de 40 km).
+  /// Desligado por padrão (pedido de 08/11: na cidade pouco ajuda).
+  final bool halfwayCity;
+
+  /// Tipos de aviso SEM voz (só faixa na tela e vibração), escolhidos pelo
+  /// piloto: nomes de HazardType e os extras de [voiceKinds].
+  final Set<String> mutedVoice;
 
   /// Chuva à frente (a pelo menos 2 km).
   final bool rain;
@@ -165,6 +173,8 @@ class AlertPrefs {
     this.signals = true,
     this.reducedSpeed = true,
     this.halfway = false,
+    this.halfwayCity = false,
+    this.mutedVoice = const {},
     this.rain = false,
     this.shareStopped = false,
   });
@@ -180,6 +190,8 @@ class AlertPrefs {
     bool? signals,
     bool? reducedSpeed,
     bool? halfway,
+    bool? halfwayCity,
+    Set<String>? mutedVoice,
     bool? rain,
     bool? shareStopped,
   }) =>
@@ -193,10 +205,36 @@ class AlertPrefs {
         signals: signals ?? this.signals,
         reducedSpeed: reducedSpeed ?? this.reducedSpeed,
         halfway: halfway ?? this.halfway,
+        halfwayCity: halfwayCity ?? this.halfwayCity,
+        mutedVoice: mutedVoice ?? this.mutedVoice,
         rain: rain ?? this.rain,
         shareStopped: shareStopped ?? this.shareStopped,
       );
 }
+
+/// Avisos com voz que o piloto pode calar um por um (além dos alertas da
+/// comunidade, HazardType). Chave -> nome na tela.
+const voiceKinds = {
+  'fixedRadar': 'Radar fixo',
+  'radar': 'Radar móvel',
+  'police': 'Polícia',
+  'policePost': 'Posto policial',
+  'bump': 'Lombada',
+  'toll': 'Pedágio',
+  'reducedSpeed': 'Velocidade reduzida à frente',
+  'rain': 'Chuva à frente',
+  'traffic': 'Trânsito e rota mais rápida',
+  'halfway': 'Metade do trajeto',
+  'pothole': 'Buraco',
+  'danger': 'Perigo na pista',
+  'oil': 'Óleo / areia',
+  'animal': 'Animal na pista',
+  'accident': 'Acidente',
+  'fog': 'Neblina',
+  'kite': 'Pipas / cerol',
+  'risk': 'Área de risco',
+  'stoppedVehicle': 'Veículo parado',
+};
 
 /// Configurações gerais do app (ficam só no celular).
 class AppSettings {
@@ -365,6 +403,8 @@ class AppSettings {
       signals: p.getBool('alertSignals2') ?? true,
       reducedSpeed: p.getBool('alertReducedSpeed') ?? true,
       halfway: p.getBool('alertHalfway') ?? false,
+      halfwayCity: p.getBool('alertHalfwayCity') ?? false,
+      mutedVoice: (p.getStringList('alertMutedVoice') ?? const []).toSet(),
       rain: p.getBool('alertRain') ?? false,
       shareStopped: p.getBool('alertShareStopped') ?? false,
     );
@@ -383,6 +423,8 @@ class AppSettings {
     await p.setBool('alertSignals2', a.signals);
     await p.setBool('alertReducedSpeed', a.reducedSpeed);
     await p.setBool('alertHalfway', a.halfway);
+    await p.setBool('alertHalfwayCity', a.halfwayCity);
+    await p.setStringList('alertMutedVoice', a.mutedVoice.toList());
     await p.setBool('alertRain', a.rain);
     await p.setBool('alertShareStopped', a.shareStopped);
   }

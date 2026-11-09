@@ -175,7 +175,8 @@ class CarOverlay(private val ctx: Context) {
     fun update() {
         val n = CarState.nav
         turn.visibility = if (n == null || hud3d) View.GONE else View.VISIBLE
-        speedArea.visibility = if (hud3d) View.GONE else View.VISIBLE
+        // Velocímetro sempre no canto, também com o 3D (08/11).
+        speedArea.visibility = View.VISIBLE
         if (n != null) {
             turnIcon.setImageResource(icon(n.maneuver))
             turnIcon.setColorFilter(Color.WHITE)

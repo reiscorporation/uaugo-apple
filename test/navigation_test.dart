@@ -83,7 +83,8 @@ void main() {
       expect(said, contains(startsWith('Em ')));
       expect(said.where((s) => s.contains('vire à direita na SC 390')),
           hasLength(1));
-      expect(said, contains('Vire à direita na SC 390'));
+      // Na hora, só a manobra (a rua já foi dita no aviso de longe).
+      expect(said, contains('Vire à direita'));
     });
 
     test('com semáforo na esquina: "No semáforo, vire..." (antes e na hora)', () {
@@ -91,10 +92,10 @@ void main() {
       final nav = TurnByTurn(steps,
           signalAt: (lat, lng) => (lat - -28.020).abs() < 0.0003);
       final said = drive(nav, -28.000, -28.045);
-      expect(said, contains('No semáforo, vire à direita na SC 390'));
+      expect(said, contains('No semáforo, vire à direita'));
       expect(said, contains(matches(RegExp(r'^Em .+, no semáforo, vire à direita na SC 390$'))));
       // Sem semáforo na outra esquina; a saída ("Siga...") nunca ganha o aviso.
-      expect(said, contains('Vire à esquerda na Rua Y'));
+      expect(said, contains('Vire à esquerda'));
       expect(said.first, 'Siga na direção sul na BR 101');
     });
 
@@ -102,7 +103,7 @@ void main() {
       final nav = TurnByTurn(steps);
       final said = drive(nav, -28.000, -28.045);
       expect(said.any((s) => s.contains('Rua X')), isFalse);
-      expect(said, contains('Vire à esquerda na Rua Y'));
+      expect(said, contains('Vire à esquerda'));
       expect(nav.finished, isTrue);
     });
 
@@ -112,7 +113,7 @@ void main() {
       expect(nav.nextIndex, 3);
       final said = drive(nav, -28.033, -28.045);
       expect(said.any((s) => s.contains('SC 390')), isFalse);
-      expect(said, contains('Vire à esquerda na Rua Y'));
+      expect(said, contains('Vire à esquerda'));
     });
 
     test('ligando logo depois de uma manobra, não volta para ela', () {
@@ -156,7 +157,7 @@ void main() {
       expect(nav.nextIndex, 1);
     });
 
-    test('saída na rodovia: avisa a 2 km, a ~900 m e na hora', () {
+    test('saída na rodovia: avisa a ~900 m e na hora (só 2 vezes)', () {
       const ss = [NavStep(-28.0, -49.0, 'Pegue a saída 210, para a BR 101', 'ramp-right')];
       final nav = TurnByTurn(ss)..attachRoute((_, __) => 5000);
       final said = <String>[];
@@ -164,10 +165,9 @@ void main() {
         final s = nav.updateAlong(a, 30); // 108 km/h, 1 leitura por segundo
         if (s != null) said.add(s);
       }
-      expect(said.length, 3);
-      expect(said[0], startsWith('Em 2 quilômetros'));
-      expect(said[1], startsWith('Em 900 metros'));
-      expect(said[2], 'Pegue a saída 210, para a BR 101');
+      expect(said.length, 2);
+      expect(said[0], startsWith('Em 900 metros'));
+      expect(said[1], 'Pegue a saída 210');
     });
 
     test('pela rota: distância falada é a da estrada', () {

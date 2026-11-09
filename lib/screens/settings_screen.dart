@@ -400,6 +400,40 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  /// Liga/desliga a voz de cada tipo de aviso.
+  Future<void> _pickVoiceKinds(BuildContext context) async {
+    final s = AppSettings.instance;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('Voz por tipo de aviso')),
+        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ValueListenableBuilder<AlertPrefs>(
+            valueListenable: s.alerts,
+            builder: (_, a, __) => ListView(shrinkWrap: true, children: [
+              for (final e in voiceKinds.entries)
+                CheckboxListTile(
+                  dense: true,
+                  title: Text(tr(e.value)),
+                  value: !a.mutedVoice.contains(e.key),
+                  onChanged: (on) {
+                    final m = {...a.mutedVoice};
+                    on == true ? m.remove(e.key) : m.add(e.key);
+                    s.setAlerts(a.copyWith(mutedVoice: m));
+                  },
+                ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Fechar'))),
+        ],
+      ),
+    );
+  }
+
   Future<void> _editEmergency(BuildContext context, (String, String)? c) async {
     final name = TextEditingController(text: c?.$1 ?? '');
     final phone = TextEditingController(text: c?.$2 ?? '');
@@ -874,10 +908,17 @@ class SettingsScreen extends StatelessWidget {
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.flag_circle),
-                title: Text(tr('Metade do trajeto')),
-                subtitle: Text(tr('Avisa quando chegar a 50% da viagem')),
+                title: Text(tr('Metade do trajeto: na estrada')),
+                subtitle: Text(tr('Avisa quando chegar a 50% da viagem (viagens de 40 km ou mais)')),
                 value: a.halfway,
                 onChanged: (v) => s.setAlerts(a.copyWith(halfway: v)),
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.location_city),
+                title: Text(tr('Metade do trajeto: na cidade')),
+                subtitle: Text(tr('Também em viagens curtas (menos de 40 km)')),
+                value: a.halfwayCity,
+                onChanged: (v) => s.setAlerts(a.copyWith(halfwayCity: v)),
               ),
             ]),
           ),
@@ -901,6 +942,12 @@ class SettingsScreen extends StatelessWidget {
               value: on,
               onChanged: voice.setAlerts,
             ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.tune),
+            title: Text(tr('Voz por tipo de aviso')),
+            subtitle: Text(tr('Escolha quais avisos são falados. Os outros aparecem só na tela, com vibração.')),
+            onTap: () => _pickVoiceKinds(context),
           ),
           ValueListenableBuilder<bool>(
             valueListenable: voice.narrationOn,

@@ -106,6 +106,9 @@
   /* celular: a manobra e a chegada ficam no topo do app, igual à visão mapa
      (pedido de 08/11); aqui fica só o velocímetro. No carro continua tudo. */
   body:not(.car) #next, body:not(.car) #eta { display: none; }
+  /* velocímetro: o do app/carro, no canto (08/11); no celular o painel some */
+  #speedo { display: none !important; }
+  body:not(.car) #hud { display: none !important; }
   /* celular em pé: sem a chegada (fica no topo do app) */
   @media (max-width: 560px) {
     #eta { display: none; }

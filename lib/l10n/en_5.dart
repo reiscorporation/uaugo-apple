@@ -154,4 +154,14 @@ const en5 = <String, String>{
   'Abre o Android: escolha Português (Brasil) e baixe as vozes. Depois volte aqui.': 'Opens Android: pick Portuguese (Brazil) and download the voices. Then come back here.',
   'Em Configurações do Android > Conversão de texto em voz, baixe vozes em português.': 'In Android Settings > Text-to-speech, download Portuguese voices.',
   '{0} (voz do UauGo)': '{0} (UauGo voice)',
+  // 08/11: SOS, voz por tipo, metade do trajeto
+  'Cadastre um contato de emergência em Configurações para pedir ajuda segurando o SOS.': 'Set an emergency contact in Settings to ask for help by holding SOS.',
+  'Voz por tipo de aviso': 'Voice by warning type',
+  'Escolha quais avisos são falados. Os outros aparecem só na tela, com vibração.': 'Choose which warnings are spoken. The others only show on screen, with vibration.',
+  'Metade do trajeto: na estrada': 'Halfway: on the road',
+  'Avisa quando chegar a 50% da viagem (viagens de 40 km ou mais)': 'Warns when you reach 50% of the trip (trips of 40 km or more)',
+  'Metade do trajeto: na cidade': 'Halfway: in the city',
+  'Também em viagens curtas (menos de 40 km)': 'Also on short trips (less than 40 km)',
+  'Trânsito e rota mais rápida': 'Traffic and faster route',
+  'Área de risco': 'Risk area',
 };

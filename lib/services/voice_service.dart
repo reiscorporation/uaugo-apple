@@ -188,11 +188,20 @@ class VoiceService {
   /// descartada ("vire à direita" depois de passar a esquina só confunde).
   void narrate(String text, {bool force = false}) {
     if (!(narrationOn.value || force)) return;
+    // A mesma frase de novo em menos de 30 s (recálculo, GPS que volta para
+    // trás) não é repetida (pedido de 08/11).
+    final now = DateTime.now();
+    _recent.removeWhere((_, t) => now.difference(t) > const Duration(seconds: 30));
+    if (!force && _recent.containsKey(text)) return;
+    _recent[text] = now;
     _expires[text] = DateTime.now().add(alertMaxAge);
     _say(text);
   }
 
   bool _fast = false;
+
+  /// Frases da narração faladas há pouco (texto -> quando).
+  final _recent = <String, DateTime>{};
 
   /// Velocidade para a voz do UauGo (1 = normal), igual à do celular.
   double _offlineSpeed = 1;

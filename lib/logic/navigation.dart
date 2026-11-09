@@ -300,6 +300,18 @@ String _tidyExit(String t) {
   return t.replaceAll(RegExp(r',\s*,'), ',').replaceAll(RegExp(r',$'), '').trim();
 }
 
+/// Só a manobra, sem rua e destino: "Vire à direita na Rua X" -> "Vire à
+/// direita"; "Pegue a saída 210, para a BR 101" -> "Pegue a saída 210".
+/// Usada no aviso "na hora", depois do aviso de longe com a frase inteira.
+String shortTurn(String text) {
+  final m = RegExp(
+          r'^(.+?)(?:,)?\s+(?:na|no|nas|nos|pela|pelo|para a|para o|para as|para os|para|em direção|e continue|onto|on|toward|to stay)\s')
+      .firstMatch(text);
+  final head = m?.group(1)?.trim();
+  if (head == null || head.split(' ').length < 2) return text;
+  return head.replaceAll(RegExp(r',$'), '');
+}
+
 /// "Vire à direita..." -> "vire à direita..." para encaixar em "Em 300 metros, ...".
 String _lowerFirst(String s) =>
     s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
@@ -440,17 +452,15 @@ class TurnByTurn {
     final farAt = max(800.0, v * 30) + jump;
     if (!_nearDone.contains(j) && d <= nearAt) {
       _nearDone.add(j);
+      // Já avisou de longe com a frase inteira: na hora, só a manobra
+      // ("Vire à direita"), sem repetir rua e destino (pedido de 08/11: a
+      // voz falava 2 a 3 vezes a mesma coisa).
+      final short = _farDone.contains(j);
       _farDone.add(j);
-      return _say(s);
+      return short ? shortTurn(_say(s)) : _say(s);
     }
-    // Saída em rodovia (acima de ~55 km/h): aviso extra a 2 km.
-    if (s.isExit &&
-        v > 15 &&
-        d <= 2000 + jump &&
-        d > farAt + 300 &&
-        _earlyDone.add(j)) {
-      return tr('Em {0}, {1}', [spokenDistance(d), _lowerFirst(_say(s))]);
-    }
+    // (Aviso extra a 2 km nas saídas de rodovia retirado em 08/11: eram 3
+    // falas da mesma saída.)
     if (!_farDone.contains(j) && d <= farAt && d > nearAt) {
       _farDone.add(j);
       return tr('Em {0}, {1}', [spokenDistance(d), _lowerFirst(_say(s))]);
@@ -490,8 +500,9 @@ class TurnByTurn {
       final farAt = max(800.0, v * 30);
       if (!_nearSaid && d <= nearAt) {
         _nearSaid = true;
+        final short = _farSaid;
         _farSaid = true;
-        return _say(s);
+        return short ? shortTurn(_say(s)) : _say(s);
       }
       if (!_farSaid && d <= farAt && d > nearAt) {
         _farSaid = true;
