@@ -83,6 +83,71 @@ class Atracao {
   /// Pontos para ordenar: o que tem Wikipédia/foto costuma ser o mais
   /// conhecido; o resto vai por distância.
   int get fama => (wiki != null ? 2 : 0) + (wikidata != null ? 1 : 0) + (foto != null ? 1 : 0);
+
+  /// Quanto de informação tem (para escolher qual fica entre repetidas).
+  int get riqueza =>
+      fama * 10 +
+      [site, horario, descricao, cidade].where((v) => v != null && v.isNotEmpty).length;
+}
+
+/// Palavras que não ajudam a diferenciar nomes ("Cachoeira do Itambé").
+const _vazias = {'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'O', 'A', 'OS', 'AS', 'NO', 'NA', 'EM'};
+
+Set<String> _palavrasNome(String nome) =>
+    normaliza(nome).split(' ').where((w) => w.isNotEmpty && !_vazias.contains(w)).toSet();
+
+/// Duas atrações são o mesmo lugar? Mesmo Wikidata/Wikipédia, ou nomes
+/// equivalentes perto uma da outra (o mapa às vezes tem o ponto e a área do
+/// mesmo lugar, ou "Cachoeira do Itambé" e "Itambé").
+bool mesmoLugar(Atracao a, Atracao b) {
+  if (a.wikidata != null && a.wikidata == b.wikidata) return true;
+  if (a.wiki != null && a.wiki == b.wiki) return true;
+  // Itens diferentes no Wikidata são lugares diferentes, mesmo com nome igual.
+  if (a.wikidata != null && b.wikidata != null) return false;
+  final d = distM(a.lat, a.lng, b.lat, b.lng);
+  if (d > 1500) return false;
+  final pa = _palavrasNome(a.nome), pb = _palavrasNome(b.nome);
+  if (pa.isEmpty || pb.isEmpty) return false;
+  if (pa.length == pb.length && pa.containsAll(pb)) return true;
+  final (menor, maior) = pa.length < pb.length ? (pa, pb) : (pb, pa);
+  if (!maior.containsAll(menor)) return false;
+  // Nome contido no outro: com 2+ palavras basta estar perto; com 1 só
+  // ("Itambé"), tem de estar bem perto.
+  return menor.length >= 2 || d <= 300;
+}
+
+/// Tira as repetidas (fica a de mais informação) e ordena da mais perto
+/// para a mais longe. [distM] de cada uma já deve estar calculada.
+List<Atracao> semRepetidas(List<Atracao> l) {
+  final porRiqueza = [...l]
+    ..sort((x, y) => x.riqueza != y.riqueza ? y.riqueza - x.riqueza : x.distM.compareTo(y.distM));
+  // Grade de ~1,7 km para comparar só com as vizinhas.
+  const passo = 0.015;
+  final grade = <(int, int), List<Atracao>>{};
+  final porWiki = <String, Atracao>{};
+  final out = <Atracao>[];
+  for (final a in porRiqueza) {
+    final gx = (a.lat / passo).floor(), gy = (a.lng / passo).floor();
+    var rep = (a.wikidata != null && porWiki.containsKey('q:${a.wikidata}')) ||
+        (a.wiki != null && porWiki.containsKey('w:${a.wiki}'));
+    for (var i = -1; i <= 1 && !rep; i++) {
+      for (var j = -1; j <= 1 && !rep; j++) {
+        for (final b in grade[(gx + i, gy + j)] ?? const <Atracao>[]) {
+          if (mesmoLugar(a, b)) {
+            rep = true;
+            break;
+          }
+        }
+      }
+    }
+    if (rep) continue;
+    out.add(a);
+    (grade[(gx, gy)] ??= []).add(a);
+    if (a.wikidata != null) porWiki['q:${a.wikidata}'] = a;
+    if (a.wiki != null) porWiki['w:${a.wiki}'] = a;
+  }
+  out.sort((x, y) => x.distM.compareTo(y.distM));
+  return out;
 }
 
 /// Posto do mapa (com o preço da ANP quando achou o mesmo posto).

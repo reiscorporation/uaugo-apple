@@ -116,7 +116,8 @@ class NaRotaService {
     await Future.wait(jobs);
   }
 
-  /// Atrações a até [km] do ponto, as mais conhecidas e próximas primeiro.
+  /// Atrações a até [km] do ponto, sem repetidas, da mais perto para a mais
+  /// longe.
   Future<List<Atracao>> atracoes(double lat, double lng, {double km = 50}) async {
     await _carrega(lat, lng, km);
     final out = <Atracao>[];
@@ -126,10 +127,7 @@ class NaRotaService {
         if (d <= km * 1000) out.add(a..distM = d);
       }
     }
-    // Conhecidas (com artigo ou foto) primeiro; dentro do grupo, a mais perto.
-    int grupo(Atracao a) => a.fama > 1 ? 0 : 1;
-    out.sort((x, y) => grupo(x) != grupo(y) ? grupo(x) - grupo(y) : x.distM.compareTo(y.distM));
-    return out;
+    return semRepetidas(out);
   }
 
   /// Postos a até [km]: os famosos entre motociclistas primeiro, depois por

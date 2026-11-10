@@ -47,6 +47,63 @@ void main() {
     expect(a.fama, 3);
   });
 
+  group('atrações sem repetidas, da mais perto para a mais longe', () {
+    Atracao at(String nome, double lat, double lng, double dist,
+            {String? q, String? w, String? foto}) =>
+        Atracao(lat, lng, 'attraction', nome, wikidata: q, wiki: w, foto: foto)..distM = dist;
+
+    test('mesmo Wikidata longe (ponto e área): fica uma, a mais completa', () {
+      final l = semRepetidas([
+        at('Parque Estadual X', -21.13, -47.80, 4000, q: 'Q1', w: 'pt:Parque X', foto: 'f.jpg'),
+        at('Outro Parque', -21.30, -47.80, 2000, q: 'Q1'),
+      ]);
+      expect(l.length, 1);
+      expect(l.single.foto, 'f.jpg');
+    });
+
+    test('acento, caixa e "do/da" não fazem lugares diferentes', () {
+      final l = semRepetidas([
+        at('Cachoeira do Itambé', -21.0000, -47.0000, 100),
+        at('CACHOEIRA ITAMBE', -21.0050, -47.0000, 650),
+        at('Itambé', -21.0010, -47.0000, 210),
+      ]);
+      expect(l.length, 1);
+    });
+
+    test('nome contido com 1 palavra só vale bem perto', () {
+      final l = semRepetidas([
+        at('Museu do Café', -21.0000, -47.0000, 100),
+        at('Café', -21.0080, -47.0000, 1000),
+      ]);
+      expect(l.length, 2);
+    });
+
+    test('mesmo nome em cidades diferentes são lugares diferentes', () {
+      final l = semRepetidas([
+        at('Mirante', -21.00, -47.00, 3000),
+        at('Mirante', -21.30, -47.00, 30000),
+      ]);
+      expect(l.length, 2);
+    });
+
+    test('Wikidata diferentes com nome igual perto: os dois ficam', () {
+      final l = semRepetidas([
+        at('Igreja Matriz', -21.0000, -47.0000, 100, q: 'Q1'),
+        at('Igreja Matriz', -21.0020, -47.0000, 300, q: 'Q2'),
+      ]);
+      expect(l.length, 2);
+    });
+
+    test('ordem: da mais perto para a mais longe, famosa ou não', () {
+      final l = semRepetidas([
+        at('Famoso', -21.20, -47.00, 20000, q: 'Q9', w: 'pt:Famoso', foto: 'x'),
+        at('Perto', -21.00, -47.00, 500),
+        at('Meio', -21.10, -47.00, 9000),
+      ]);
+      expect(l.map((a) => a.nome), ['Perto', 'Meio', 'Famoso']);
+    });
+  });
+
   test('busca de hotéis leva a cidade e a noite', () {
     final u = googleHoteisUri('Cravinhos, SP', DateTime(2026, 11, 20));
     expect(u.queryParameters['q'], 'hotéis em Cravinhos, SP 20/11 a 21/11');
