@@ -2,7 +2,7 @@
 // na_rota_screen.dart — "Na rota": turismo, hospedagem e postos perto de um
 // ponto (parada, destino ou onde o piloto está)
 //
-// O que faz: Três abas. Turismo: atrações a até 50 km, toque abre os
+// O que faz: Três abas. Turismo: atrações no raio que o piloto escolhe (10 a 200 km), toque abre os
 //   detalhes (foto e o básico) com "Ver mais". Hospedagem: hotéis da noite
 //   escolhida, mais barato primeiro (página de hotéis do Google, que junta
 //   Booking, Decolar, Hoteis.com...). Postos: famosos entre motociclistas
@@ -61,12 +61,18 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
   late DateTime _noite;
   String? _cidade;
 
+  /// Raio do turismo (km), escolhido pelo piloto; lembra a última escolha.
+  int _raio = 50;
+
   @override
   void initState() {
     super.initState();
     final n = widget.noite ?? DateTime.now();
     _noite = DateTime(n.year, n.month, n.day);
-    _atracoes = _svc.atracoes(widget.lat, widget.lng);
+    _atracoes = _svc.raioTurismo().then((km) {
+      if (mounted && km != _raio) setState(() => _raio = km);
+      return _svc.atracoes(widget.lat, widget.lng, km: km.toDouble());
+    });
     _postos = _svc.postos(widget.lat, widget.lng);
     _precosCidade = _svc.precosCidade(widget.lat, widget.lng);
     _svc.cidadeDe(widget.lat, widget.lng).then((c) {
@@ -141,25 +147,65 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
 
   // ------------------------------- Turismo -------------------------------
 
+  void _trocaRaio(int km) {
+    if (km == _raio) return;
+    _svc.salvaRaioTurismo(km);
+    setState(() {
+      _raio = km;
+      _atracoes = _svc.atracoes(widget.lat, widget.lng, km: km.toDouble());
+    });
+  }
+
+  /// Escolha do raio (10 a 200 km), no topo da aba Turismo.
+  Widget _raios() => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+        child: Row(children: [
+          Text(tr('Raio'), style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(width: 8),
+          for (final km in NaRotaService.raiosTurismo)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: ChoiceChip(
+                label: Text('$km km'),
+                selected: km == _raio,
+                onSelected: (_) => _trocaRaio(km),
+              ),
+            ),
+        ]),
+      );
+
   Widget _turismo() => FutureBuilder<List<Atracao>>(
         future: _atracoes,
         builder: (_, s) {
-          if (s.connectionState != ConnectionState.done) return _carregando();
+          if (s.connectionState != ConnectionState.done) {
+            return Column(children: [_raios(), Expanded(child: _carregando())]);
+          }
           final l = s.data ?? const [];
           if (l.isEmpty) {
-            return _vazio(Icons.photo_camera_outlined, tr('Nenhuma atração no mapa num raio de 50 km.'),
-                retry: () => setState(() => _atracoes = _svc.atracoes(widget.lat, widget.lng)));
+            return Column(children: [
+              _raios(),
+              Expanded(
+                child: _vazio(Icons.photo_camera_outlined,
+                    tr('Nenhuma atração no mapa num raio de {0} km.', [_raio]),
+                    retry: () => setState(
+                        () => _atracoes = _svc.atracoes(widget.lat, widget.lng, km: _raio.toDouble()))),
+              ),
+            ]);
           }
           return ListView.separated(
             itemCount: l.length + 1,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, i) => i == 0 ? const SizedBox.shrink() : const Divider(height: 1),
             itemBuilder: (_, i) {
               if (i == 0) {
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: Text(tr('{0} atrações num raio de 50 km', [l.length]),
-                      style: Theme.of(context).textTheme.labelLarge),
-                );
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  _raios(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    child: Text(tr('{0} atrações num raio de {1} km', [l.length, _raio]),
+                        style: Theme.of(context).textTheme.labelLarge),
+                  ),
+                ]);
               }
               final a = l[i - 1];
               return ListTile(
@@ -399,25 +445,7 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
                         }));
               }
               return ListView(children: [
-                if (anp.isNotEmpty)
-                  Card(
-                    margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-                    child: ExpansionTile(
-                      leading: const Icon(Icons.price_check),
-                      title: Text(tr('Gasolina mais barata em {0}: {1}',
-                          [anp.first.cidade, _preco(anp.first.gasolina!)])),
-                      subtitle: Text(tr('Pesquisa da ANP · {0}', [_svc.semanaAnp])),
-                      children: [
-                        for (final a in anp.take(15))
-                          ListTile(
-                            dense: true,
-                            title: Text(a.nome.isEmpty ? a.bandeira : a.nome),
-                            subtitle: Text('${a.rua}, ${a.numero} · ${a.bandeira}'),
-                            trailing: Text(_preco(a.gasolina!), style: const TextStyle(fontWeight: FontWeight.bold)),
-                          ),
-                      ],
-                    ),
-                  ),
+                if (anp.isNotEmpty) _melhoresPrecos(anp),
                 for (final p in l) _posto(p),
                 Padding(
                   padding: const EdgeInsets.all(16),
@@ -429,6 +457,56 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
           );
         },
       );
+
+  /// Combustíveis da pesquisa da ANP, na ordem em que aparecem.
+  static const _combustiveis = [
+    ('g', 'Gasolina comum'),
+    ('ga', 'Gasolina aditivada'),
+    ('e', 'Etanol'),
+    ('d10', 'Diesel S10'),
+    ('d', 'Diesel S500'),
+    ('gnv', 'GNV'),
+  ];
+
+  /// Melhor preço de cada combustível na cidade; tocar mostra os mais
+  /// baratos daquele combustível.
+  Widget _melhoresPrecos(List<PrecoAnp> anp) {
+    final linhas = <Widget>[];
+    for (final (k, nome) in _combustiveis) {
+      final l = [for (final a in anp) if (a.precos[k] != null) a]
+        ..sort((x, y) => x.precos[k]!.compareTo(y.precos[k]!));
+      if (l.isEmpty) continue;
+      final m = l.first;
+      linhas.add(ExpansionTile(
+        dense: true,
+        title: Text(tr(nome)),
+        subtitle: Text(m.nome.isEmpty ? m.bandeira : m.nome, overflow: TextOverflow.ellipsis),
+        trailing: Text(_preco(m.precos[k]!), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        children: [
+          for (final a in l.take(10))
+            ListTile(
+              dense: true,
+              title: Text(a.nome.isEmpty ? a.bandeira : a.nome),
+              subtitle: Text('${a.rua}, ${a.numero} · ${a.bandeira}'),
+              trailing: Text(_preco(a.precos[k]!), style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+        ],
+      ));
+    }
+    if (linhas.isEmpty) return const SizedBox.shrink();
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ListTile(
+          leading: const Icon(Icons.price_check),
+          title: Text(tr('Melhor preço em {0}', [anp.first.cidade]),
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text(tr('Pesquisa da ANP · {0}', [_svc.semanaAnp])),
+        ),
+        ...linhas,
+      ]),
+    );
+  }
 
   Widget _posto(PostoRota p) {
     final g = p.preco?.gasolina, e = p.preco?.precos['e'];

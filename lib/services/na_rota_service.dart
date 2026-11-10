@@ -152,18 +152,29 @@ class NaRotaService {
     return out;
   }
 
-  /// Postos da pesquisa da ANP na cidade da parada (mais barato primeiro).
+  /// Postos da pesquisa da ANP na cidade da parada (todos os combustíveis;
+  /// a tela separa o mais barato de cada um).
   Future<List<PrecoAnp>> precosCidade(double lat, double lng) async {
     await _carrega(lat, lng, 10);
     final c = normaliza((await cidadeDe(lat, lng))?.split(',').first ?? '');
     if (c.isEmpty) return const [];
-    final out = [
+    return [
       for (final l in _anp.values)
         for (final a in l)
-          if (normaliza(a.cidade) == c && a.gasolina != null) a
-    ]..sort((x, y) => x.gasolina!.compareTo(y.gasolina!));
-    return out;
+          if (normaliza(a.cidade) == c && a.precos.isNotEmpty) a
+    ];
   }
+
+  /// Raio do turismo escolhido pelo piloto (km), guardado no aparelho.
+  static const raiosTurismo = [10, 25, 50, 100, 200];
+
+  Future<int> raioTurismo() async {
+    final v = (await SharedPreferences.getInstance()).getInt('naRotaRaioTurismo');
+    return raiosTurismo.contains(v) ? v! : 50;
+  }
+
+  Future<void> salvaRaioTurismo(int km) async =>
+      (await SharedPreferences.getInstance()).setInt('naRotaRaioTurismo', km);
 
   /// Semana da pesquisa da ANP carregada (para mostrar a data).
   String get semanaAnp => _semana.values.firstOrNull ?? '';
