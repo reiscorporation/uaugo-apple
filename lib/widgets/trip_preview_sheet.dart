@@ -751,7 +751,21 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                   onPressed: () {
                     final d = _points.last;
                     Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => NaRotaScreen(lat: d.lat, lng: d.lng, lugar: d.name)));
+                        builder: (_) => NaRotaScreen(
+                              lat: d.lat,
+                              lng: d.lng,
+                              lugar: d.name,
+                              // Atração/posto/hotel vira parada antes do destino (09/11).
+                              onAddStop: _points.length >= 12
+                                  ? null
+                                  : (name, lat, lng, type) async {
+                                      if (!mounted) return;
+                                      _cancelAuto();
+                                      setState(() => _points.insert(_points.length - 1,
+                                          TripPoint(name, lat, lng, type: type)));
+                                      _calc();
+                                    },
+                            )));
                   },
                 ),
               ),

@@ -20,7 +20,15 @@ class SimulatedDrive {
   SimulatedDrive(this.walker, {required this.speedMs, this.targetSpeedAt})
       : _speed = speedMs;
 
-  final RouteWalker walker;
+  RouteWalker walker;
+
+  /// Rota nova (parada incluída ou tirada no meio da simulação): segue por
+  /// ela a partir do começo, que é onde a moto está agora.
+  void followRoute(RouteWalker w) {
+    walker = w;
+    _meters = 0;
+    _emit();
+  }
 
   /// Velocidade média da rota (m/s): usada onde não há limite conhecido.
   final double speedMs;

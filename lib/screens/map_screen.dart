@@ -2503,6 +2503,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Troca a rota em uso (recálculo ou rota mais rápida).
   void _applyTrip(Trip nt) {
     _trip = nt;
+    // Simulação: a moto de mentira segue a rota nova (começa onde ela está).
+    _sim?.followRoute(RouteWalker([
+      for (final p in decodePolyline(nt.plan.polyline)) (p.latitude, p.longitude)
+    ]));
     ActiveTrip.save(nt);
     _etaSpeed = null;
     _stopArrived.clear();
@@ -5765,7 +5769,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Parada do meio da rota normal, ainda não visitada: dá para cancelar.
   bool _canCancelSoloStop(Stop s) {
     final t = _trip;
-    if (_isExpedition || t == null || _sim != null) return false;
+    if (_isExpedition || t == null) return false;
     final i = t.stops.indexWhere((x) => x.id == s.id);
     return i > 0 && i < t.stops.length - 1 && !_stopArrived.contains(s.id);
   }
@@ -5814,8 +5818,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Rota normal em andamento (sozinho): dá para incluir paradas.
+  /// Na simulação também (09/11): a simulação passa a seguir a rota nova.
   bool get _canAddSoloStop =>
-      !_isExpedition && _sim == null && _navigating && _trip != null &&
+      !_isExpedition && (_navigating || _sim != null) && _trip != null &&
       !_arrivedAtDestination;
 
   /// "Só dirigir" (ou já chegou ao destino): dá para traçar uma rota.
