@@ -75,7 +75,11 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
     _buscaHoteis();
   }
 
-  void _buscaHoteis() => _hoteis = _svc.hoteis(widget.lat, widget.lng, _noite);
+  void _buscaHoteis() => _hoteis = _svc.hoteis(widget.lat, widget.lng, _noite)
+    ..catchError((Object e) {
+      debugPrint('Hotéis: erro $e');
+      return const <Hotel>[];
+    });
 
   String _km(double m) =>
       m < 1000 ? '${m.round()} m' : '${(m / 1000).toStringAsFixed(m < 10000 ? 1 : 0).replaceAll('.', ',')} km';

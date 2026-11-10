@@ -192,13 +192,21 @@ class NaRotaService {
     final key = '$lugar|${noite.year}-${noite.month}-${noite.day}';
     final cached = _hoteis[key];
     if (cached != null) return cached;
-    final res = await http.get(googleHoteisUri(lugar, noite), headers: {
+    final uri = googleHoteisUri(lugar, noite);
+    debugPrint('Hotéis: buscando $uri');
+    final res = await http.get(uri, headers: {
       'User-Agent': _uaCelular,
       'Accept-Language': 'pt-BR,pt;q=0.9',
     }).timeout(const Duration(seconds: 25));
-    if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
-    final list = await compute(parseHoteisGoogle, utf8.decode(res.bodyBytes, allowMalformed: true));
-    if (list.isEmpty) throw const FormatException('sem hotéis na página');
+    final html = utf8.decode(res.bodyBytes, allowMalformed: true);
+    final list = res.statusCode == 200 ? await compute(parseHoteisGoogle, html) : const <Hotel>[];
+    if (list.isEmpty) {
+      // No log: o que o Google devolveu (para ajustar a leitura da página).
+      final title = RegExp(r'<title>([^<]*)').firstMatch(html)?.group(1);
+      debugPrint('Hotéis: falhou HTTP ${res.statusCode}, ${html.length} bytes, '
+          'título "$title", url ${res.request?.url}');
+      throw FormatException('sem hotéis na página (HTTP ${res.statusCode})');
+    }
     for (final h in list) {
       h.distM = distM(lat, lng, h.lat, h.lng);
     }
