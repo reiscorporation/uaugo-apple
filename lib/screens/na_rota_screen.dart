@@ -123,13 +123,14 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
 
   Widget _carregando() => const Center(child: CircularProgressIndicator());
 
-  Widget _vazio(IconData i, String txt, {VoidCallback? retry}) => Center(
+  Widget _vazio(IconData i, String txt, {VoidCallback? retry, Widget? acao}) => Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(i, size: 48, color: Colors.grey),
             const SizedBox(height: 12),
             Text(txt, textAlign: TextAlign.center),
+            if (acao != null) ...[const SizedBox(height: 16), acao],
             if (retry != null) ...[
               const SizedBox(height: 12),
               OutlinedButton(onPressed: retry, child: Text(tr('Tentar de novo'))),
@@ -286,8 +287,16 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
           builder: (_, s) {
             if (s.connectionState != ConnectionState.done) return _carregando();
             if (s.hasError || (s.data ?? const []).isEmpty) {
+              // A lista vem da página de hotéis do Google, que muda de formato.
+              // Enquanto a fonte própria (API de afiliado) não entra, abre a
+              // mesma busca no navegador, com a cidade e a noite escolhidas.
               return _vazio(Icons.hotel_outlined,
-                  tr('Não deu para buscar os hotéis agora. Confira a internet e tente de novo.'),
+                  tr('A lista de hotéis não carregou agora. Veja os hotéis da cidade no Google, com a data escolhida.'),
+                  acao: FilledButton.icon(
+                    icon: const Icon(Icons.open_in_new),
+                    label: Text(tr('Ver hotéis no Google')),
+                    onPressed: () => _abre(googleHoteisUri(_cidade ?? widget.lugar, _noite)),
+                  ),
                   retry: () => setState(_buscaHoteis));
             }
             final l = s.data!;

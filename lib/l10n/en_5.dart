@@ -109,6 +109,8 @@ const en5 = <String, String>{
   'Nenhuma atração no mapa num raio de 50 km.': 'No attractions on the map within 50 km.',
   'Noite de {0} para {1}': 'Night of {0} to {1}',
   'Não deu para buscar os hotéis agora. Confira a internet e tente de novo.': 'Could not search hotels now. Check the internet and try again.',
+  'A lista de hotéis não carregou agora. Veja os hotéis da cidade no Google, com a data escolhida.': 'The hotel list did not load now. See the city\'s hotels on Google, for the chosen date.',
+  'Ver hotéis no Google': 'See hotels on Google',
   'Postos': 'Gas stations',
   'Preços de uma noite, com taxas, das agências (Booking, Decolar, Hoteis.com e outras) reunidas pelo Google. Toque para comparar as ofertas.': 'One-night prices with taxes from agencies (Booking, Decolar, Hotels.com and others) gathered by Google. Tap to compare offers.',
   'Site': 'Website',
