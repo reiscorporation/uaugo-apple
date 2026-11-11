@@ -80,6 +80,11 @@ class TripPlan {
   final int routeVersion;
   static const currentRouteVersion = 2;
 
+  /// Pontos de passagem (11/11): o piloto arrastou a rota para passar por
+  /// ali. Só mudam o caminho: não são paradas (não aparecem na lista nem
+  /// são anunciados). Ao recalcular, os que ainda estão à frente continuam.
+  final List<(double, double)> vias;
+
   const TripPlan({
     this.startDate = '',
     this.startTime = '08:00',
@@ -87,6 +92,7 @@ class TripPlan {
     this.avoidHighways = false,
     this.polyline = '',
     this.routeVersion = 1,
+    this.vias = const [],
   });
 
   factory TripPlan.fromMap(Map<String, dynamic>? d) {
@@ -98,6 +104,11 @@ class TripPlan {
       avoidHighways: d['avoidHighways'] == true,
       polyline: d['polyline'] ?? '',
       routeVersion: (d['routeVersion'] as num?)?.toInt() ?? 1,
+      vias: [
+        for (final v in (d['vias'] as List? ?? const []))
+          if (v is Map && v['la'] is num && v['lo'] is num)
+            ((v['la'] as num).toDouble(), (v['lo'] as num).toDouble()),
+      ],
     );
   }
 
@@ -109,6 +120,7 @@ class TripPlan {
         'avoidHighways': avoidHighways,
         'polyline': polyline,
         'routeVersion': routeVersion,
+        if (vias.isNotEmpty) 'vias': [for (final v in vias) {'la': v.$1, 'lo': v.$2}],
       };
 
   /// Cópia com alguns campos trocados (a versão da rota é mantida).
@@ -118,6 +130,7 @@ class TripPlan {
     bool? avoidTolls,
     bool? avoidHighways,
     String? polyline,
+    List<(double, double)>? vias,
   }) =>
       TripPlan(
         startDate: startDate ?? this.startDate,
@@ -126,6 +139,7 @@ class TripPlan {
         avoidHighways: avoidHighways ?? this.avoidHighways,
         polyline: polyline ?? this.polyline,
         routeVersion: routeVersion,
+        vias: vias ?? this.vias,
       );
 }
 

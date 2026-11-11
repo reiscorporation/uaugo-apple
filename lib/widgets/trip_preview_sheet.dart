@@ -266,6 +266,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
       final t = await TripService.build(
           title: pts.last.name,
           points: pts,
+          vias: _vias,
           avoidTolls: _tolls,
           avoidHighways: _highways);
       if (!mounted) return;
@@ -390,10 +391,11 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     final t = await TripService.build(
       title: _title,
       points: _points,
+      vias: _vias,
       avoidTolls: _tolls,
       avoidHighways: _highways,
       // Sem paradas no meio: traz até 2 outras rotas para escolher.
-      alternatives: _points.length == 2,
+      alternatives: _points.length == 2 && _vias.isEmpty,
     );
     if (!mounted) return;
     setState(() {
@@ -470,7 +472,11 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
   // podem ser arrastadas; a rota recalcula enquanto arrasta (a cada ~1,2 s)
   // e de novo ao soltar. Segurar no mapa inclui um ponto de passagem ali.
 
-  static const _maxPoints = 12; // saída + até 10 paradas + destino
+  static const _maxVias = 8;
+
+  /// Pontos de passagem (arrastou a rota): só mudam o caminho, não são
+  /// paradas (11/11, pedido do Ricardo: parada só incluindo à mão).
+  final List<(double, double)> _vias = [];
   BitmapDescriptor? _handleIcon;
   BitmapDescriptor? _viaIcon;
 
@@ -511,7 +517,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
   List<LatLng> _handles() {
     if (_dragId != null) return _frozenHandles;
     final t = _trip;
-    if (t == null || _points.length >= _maxPoints) return const [];
+    if (t == null || _vias.length >= _maxVias) return const [];
     final pts = decodePolyline(t.plan.polyline);
     if (pts.length < 2) return const [];
     final acc = <double>[0];
@@ -529,42 +535,29 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
       }
       final q = pts[j];
       final nearStop = _points.any((p) =>
-          distanceMeters(p.lat, p.lng, q.latitude, q.longitude) < total * 0.08);
+              distanceMeters(p.lat, p.lng, q.latitude, q.longitude) < total * 0.08) ||
+          _vias.any((v) =>
+              distanceMeters(v.$1, v.$2, q.latitude, q.longitude) < total * 0.08);
       if (!nearStop) out.add(q);
     }
     return out;
   }
 
-  /// Onde entra um ponto novo: entre os dois pontos em que desvia menos.
-  int _insertIndexFor(LatLng q) {
-    var best = 1;
-    var bestCost = double.infinity;
-    for (var i = 1; i < _points.length; i++) {
-      final a = _points[i - 1], b = _points[i];
-      final cost = distanceMeters(a.lat, a.lng, q.latitude, q.longitude) +
-          distanceMeters(q.latitude, q.longitude, b.lat, b.lng) -
-          distanceMeters(a.lat, a.lng, b.lat, b.lng);
-      if (cost < bestCost) {
-        bestCost = cost;
-        best = i;
-      }
-    }
-    return best;
-  }
-
-  TripPoint _via(LatLng q) =>
-      TripPoint(tr('Passando por aqui'), q.latitude, q.longitude);
-
-  /// Pontos com o arrasto aplicado (bolinha vira parada; parada muda de lugar).
-  List<TripPoint> _pointsWithDrag(String id, LatLng q) {
+  /// Pontos e passagens com o arrasto aplicado: bolinha vira passagem nova,
+  /// passagem ou parada muda de lugar.
+  (List<TripPoint>, List<(double, double)>) _withDrag(String id, LatLng q) {
     final pts = [..._points];
+    final vias = [..._vias];
+    final ll = (q.latitude, q.longitude);
     if (id.startsWith('stop')) {
       final i = int.parse(id.substring(4));
       pts[i] = TripPoint(pts[i].name, q.latitude, q.longitude, type: pts[i].type);
+    } else if (id.startsWith('via')) {
+      vias[int.parse(id.substring(3))] = ll;
     } else {
-      pts.insert(_insertIndexFor(q), _via(q));
+      vias.add(ll);
     }
-    return pts;
+    return (pts, vias);
   }
 
   void _onDrag(String id, LatLng q) {
@@ -578,9 +571,11 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     _liveBusy = true;
     _lastLive = DateTime.now();
     final seq = ++_dragSeq;
+    final (pts, vias) = _withDrag(id, q);
     TripService.build(
       title: _title,
-      points: _pointsWithDrag(id, q),
+      points: pts,
+      vias: vias,
       avoidTolls: _tolls,
       avoidHighways: _highways,
     ).then((t) {
@@ -595,23 +590,34 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
 
   void _onDragEnd(String id, LatLng q) {
     _dragSeq++; // descarta cálculo do arrasto que ainda estiver chegando
-    final pts = _pointsWithDrag(id, q);
+    final (pts, vias) = _withDrag(id, q);
     setState(() {
       _dragId = null;
       _frozenHandles = const [];
       _points
         ..clear()
         ..addAll(pts);
+      _vias
+        ..clear()
+        ..addAll(vias);
     });
     _calc();
   }
 
-  /// Segurou no mapa: ponto de passagem ali.
+  /// Tocou num ponto de passagem: tira (a rota volta a escolher o caminho).
+  void _removeVia(int k) {
+    if (_loading) return;
+    _cancelAuto();
+    setState(() => _vias.removeAt(k));
+    _calc();
+  }
+
+  /// Segurou no mapa: a rota passa por ali (não é parada).
   void _addViaAt(LatLng q) {
-    if (_loading || _points.length >= _maxPoints) return;
+    if (_loading || _vias.length >= _maxVias) return;
     _cancelAuto();
     _userMoved = true;
-    setState(() => _points.insert(_insertIndexFor(q), _via(q)));
+    setState(() => _vias.add((q.latitude, q.longitude)));
     _calc();
   }
 
@@ -622,14 +628,22 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
             position: LatLng(_points[i].lat, _points[i].lng),
             draggable: !_loading || _dragId != null,
             zIndexInt: 3,
-            anchor: _points[i].name == tr('Passando por aqui')
-                ? const Offset(0.5, 0.5)
-                : const Offset(0.5, 1),
-            icon: _points[i].name == tr('Passando por aqui')
-                ? (_viaIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange))
-                : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
             onDrag: (q) => _onDrag('stop$i', q),
             onDragEnd: (q) => _onDragEnd('stop$i', q),
+          ),
+        for (final (k, v) in _vias.indexed)
+          Marker(
+            markerId: MarkerId('via$k'),
+            position: LatLng(v.$1, v.$2),
+            draggable: !_loading || _dragId != null,
+            zIndexInt: 3,
+            anchor: const Offset(0.5, 0.5),
+            icon: _viaIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+            consumeTapEvents: true,
+            onTap: () => _removeVia(k),
+            onDrag: (q) => _onDrag('via$k', q),
+            onDragEnd: (q) => _onDragEnd('via$k', q),
           ),
         if (_handleIcon != null && (!_loading || _dragId != null))
           for (final (k, q) in _handles().indexed)
@@ -877,7 +891,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                   label: Text(tr('Melhor sequência')),
                 ),
             ]),
-            Text(tr('Para mudar o caminho, segure e arraste uma bolinha da linha azul ou segure no mapa.'),
+            Text(tr('Para passar por outro caminho, segure e arraste uma bolinha da linha azul (ou segure no mapa). Isso não vira parada; tocar na bolinha laranja desfaz.'),
                 style: const TextStyle(fontSize: 12)),
             const SizedBox(height: 4),
             if (_loading)

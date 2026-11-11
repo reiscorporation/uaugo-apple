@@ -5789,6 +5789,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ],
       avoidTolls: trip.plan.avoidTolls,
       avoidHighways: trip.plan.avoidHighways,
+      vias: TripService.viasAhead(trip, p.latitude, p.longitude),
     );
     if (!mounted) return;
     setState(() => _rerouting = false);
@@ -5840,6 +5841,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ],
       avoidTolls: trip.plan.avoidTolls,
       avoidHighways: trip.plan.avoidHighways,
+      vias: TripService.viasAhead(trip, p.latitude, p.longitude),
     );
     if (!mounted) return;
     setState(() => _rerouting = false);
