@@ -46,6 +46,7 @@ import androidx.car.app.model.SearchTemplate
 import androidx.car.app.model.Template
 import androidx.car.app.navigation.NavigationManager
 import androidx.car.app.navigation.NavigationManagerCallback
+import androidx.car.app.navigation.model.Destination
 import androidx.car.app.navigation.model.Maneuver
 import androidx.car.app.navigation.model.MessageInfo
 import androidx.car.app.navigation.model.NavigationTemplate
@@ -91,6 +92,11 @@ class UauGoSession : Session() {
 
     // Já aberto no carro e o motorista pede outro destino ao Assistente.
     override fun onNewIntent(intent: Intent) = handleNavigate(intent)
+
+    // Dia/noite do carro mudou: a tela refaz o modelo e troca o estilo do mapa.
+    override fun onCarConfigurationChanged(newConfiguration: android.content.res.Configuration) {
+        runCatching { carContext.getCarService(androidx.car.app.ScreenManager::class.java).top.invalidate() }
+    }
 
     /** "Navegue até X" (Assistente/Gemini): manda o destino para o celular,
      *  que traça a rota e inicia sozinho (como o "UauGo, ir para"). */
@@ -165,6 +171,13 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 navigating = false
                 CarState.actionSink?.invoke("stop")
             }
+
+            // "Test drive" do Android Auto (exigência da Play, 11/11): o
+            // carro pede para simular a direção; o celular anda sozinho pela
+            // rota (simulação), sem GPS de verdade.
+            override fun onAutoDriveEnabled() {
+                UauGoEngine.send(carContext, "autodrive")
+            }
         })
         CarState.listen(onChange)
         lifecycle.addObserver(object : DefaultLifecycleObserver {
@@ -184,9 +197,41 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
     /** Avisa o carro quando a navegação começa/termina (painel, foco). */
     private fun updateNavigationState() {
         val active = CarState.nav != null
-        if (active == navigating) return
-        navigating = active
-        runCatching { if (active) nav.navigationStarted() else nav.navigationEnded() }
+        if (active != navigating) {
+            navigating = active
+            runCatching { if (active) nav.navigationStarted() else nav.navigationEnded() }
+        }
+        updateTripInfo()
+    }
+
+    private var lastTripAt = 0L
+
+    /** Próxima manobra e chegada para o painel do carro (cluster) e o
+     *  Android Auto (exigência da Play, 11/11). No máximo 1 vez por segundo. */
+    private fun updateTripInfo() {
+        val n = CarState.nav ?: return
+        if (!navigating) return
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastTripAt < 1000) return
+        lastTripAt = now
+        runCatching {
+            val tz = TimeZone.getDefault()
+            val etaMs = if (n.etaMillis > 0) n.etaMillis else System.currentTimeMillis()
+            val eta = DateTimeWithZone.create(etaMs, tz)
+            val left = ((etaMs - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            val step = Step.Builder(n.text.ifBlank { if (CarState.en) "Continue" else "Siga em frente" })
+                .setManeuver(maneuverOf(n.maneuver))
+                .build()
+            val stepEst = TravelEstimate.Builder(distance(n.meters), eta).build()
+            val destEst = TravelEstimate.Builder(distance(n.remainingM), eta)
+                .setRemainingTimeSeconds(left).build()
+            val dest = Destination.Builder()
+                .setName(if (CarState.en) "Destination" else "Destino").build()
+            nav.updateTrip(androidx.car.app.navigation.model.Trip.Builder()
+                .addStep(step, stepEst)
+                .addDestination(dest, destEst)
+                .build())
+        }.onFailure { android.util.Log.w("UauGoCar", "updateTrip: $it") }
     }
 
     private fun icon(res: Int) = CarIcon.Builder(IconCompat.createWithResource(carContext, res)).build()
@@ -224,6 +269,8 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         else Distance.create((m / 10).toInt() * 10.0, Distance.UNIT_METERS)
 
     override fun onGetTemplate(): Template {
+        // Modo noturno do carro: mapa escuro (exigência da Play, 11/11).
+        carMap.setDark(carContext.isDarkMode)
         fun action(title: String, code: String) = Action.Builder()
             .setTitle(title)
             .setOnClickListener {

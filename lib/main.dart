@@ -223,6 +223,45 @@ class ComboioApp extends StatelessWidget {
       navigatorKey: NotificationService.navigatorKey,
       theme: _theme(schemeFor(s.cleanTheme.value, s.accent.value)),
       home: const StartupGate(),
+      // Android Auto conectado: o celular não oferece nada para tocar
+      // (exigência da Play, "Visual info on phone", 11/11). Tudo segue
+      // rodando por baixo e a navegação continua na tela do carro.
+      builder: (ctx, child) => ValueListenableBuilder<bool>(
+        valueListenable: CarService.instance.connected,
+        builder: (_, car, __) => Stack(children: [
+          if (child != null) child,
+          if (car) const Positioned.fill(child: _CarLock()),
+        ]),
+      ),
     ));
   }
+}
+
+/// Tela do celular com o Android Auto conectado: só um aviso, sem botões.
+class _CarLock extends StatelessWidget {
+  const _CarLock();
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: const Color(0xFF0F1B2D),
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.directions_car, size: 72, color: Color(0xFFFF7A1A)),
+                const SizedBox(height: 20),
+                Text(tr('UauGo está na tela do carro'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Text(tr('Por segurança, use a tela do carro enquanto dirige.'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white70, fontSize: 16)),
+              ]),
+            ),
+          ),
+        ),
+      );
 }

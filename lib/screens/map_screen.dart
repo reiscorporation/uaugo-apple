@@ -6819,6 +6819,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       return;
     }
     switch (a) {
+      // "Test drive" pedido pelo Android Auto (exigência da Play): anda
+      // sozinho pela rota. Na simulação, só dá a partida; navegando de
+      // verdade, abre a simulação desta viagem a partir de onde está.
+      case 'autodrive':
+        await _autoDrive();
+        return;
       // Troca 3D/mapa feita no carro (botão 3D ou toque no minimapa):
       // vale também no celular.
       case 'view:3d':
@@ -7130,6 +7136,33 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     } else {
       Navigator.of(context).pop();
     }
+  }
+
+  Future<void> _autoDrive() async {
+    if (_sim != null) {
+      if (!_simStarted) _startSimulation();
+      return;
+    }
+    final trip = _trip;
+    if (trip == null || _isExpedition || trip.plan.polyline.isEmpty) {
+      CarService.instance.toast(tr('Escolha um destino para simular a viagem.'));
+      return;
+    }
+    final w = _walker, p = _me;
+    var at = 0.0;
+    if (w != null && p != null && w.length > 0) {
+      at = (w.project(p.latitude, p.longitude).along / w.length).clamp(0.0, 0.99);
+    }
+    await _voice.stop();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder: (_) => MapScreen(
+          uid: widget.uid,
+          userName: widget.userName,
+          trip: trip,
+          simulate: true,
+          simStart: at),
+    ));
   }
 
   /// "Iniciar simulação": a moto de mentira começa a andar.

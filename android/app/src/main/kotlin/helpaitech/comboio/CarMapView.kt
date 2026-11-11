@@ -44,6 +44,25 @@ import com.google.android.gms.maps.model.Polyline
 import com.google.android.gms.maps.model.PolylineOptions
 import kotlin.math.max
 
+/** Estilo noturno do mapa (fundo escuro, ruas e nomes claros). */
+private const val NIGHT = """[
+{"elementType":"geometry","stylers":[{"color":"#1d2c4d"}]},
+{"elementType":"labels.text.fill","stylers":[{"color":"#d0dcef"}]},
+{"elementType":"labels.text.stroke","stylers":[{"color":"#1a3646"}]},
+{"featureType":"administrative","elementType":"geometry","stylers":[{"color":"#4b6878"}]},
+{"featureType":"landscape","elementType":"geometry","stylers":[{"color":"#162338"}]},
+{"featureType":"poi","elementType":"geometry","stylers":[{"color":"#283d6a"}]},
+{"featureType":"poi.park","elementType":"geometry.fill","stylers":[{"color":"#023e58"}]},
+{"featureType":"road","elementType":"geometry","stylers":[{"color":"#304a7d"}]},
+{"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#a9bcd8"}]},
+{"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#2c6675"}]},
+{"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"color":"#255763"}]},
+{"featureType":"road.highway","elementType":"labels.text.fill","stylers":[{"color":"#b0d5ce"}]},
+{"featureType":"transit","elementType":"labels.text.fill","stylers":[{"color":"#98a5be"}]},
+{"featureType":"water","elementType":"geometry","stylers":[{"color":"#0e1626"}]},
+{"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#4e6d70"}]}
+]"""
+
 /** Mapa do Google desenhado na tela do carro. */
 class CarMapView(private val context: Context) {
     private var display: VirtualDisplay? = null
@@ -260,6 +279,9 @@ class CarMapView(private val context: Context) {
             g.uiSettings.isCompassEnabled = false
             g.isTrafficEnabled = false // o trânsito vai só na linha da rota
             g.isBuildingsEnabled = false // mais leve
+            if (dark) runCatching {
+                g.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions(NIGHT))
+            }
             applyPadding()
             update()
         }
@@ -270,6 +292,19 @@ class CarMapView(private val context: Context) {
         android.util.Log.w("UauGoCar", "Mapa do carro indisponível: $e")
         stop()
         false
+    }
+
+    private var dark = false
+
+    /** Noite no carro: mapa escuro com letras claras (exigência da Play). */
+    fun setDark(on: Boolean) {
+        if (on == dark && map != null) return
+        dark = on
+        map?.let { g ->
+            runCatching {
+                g.setMapStyle(if (on) com.google.android.gms.maps.model.MapStyleOptions(NIGHT) else null)
+            }
+        }
     }
 
     /** Toque na tela do carro: "alert", "radar", "hazard:id" ou null. */
