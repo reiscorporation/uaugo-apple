@@ -1498,15 +1498,21 @@ function drawMini(now) {
   mg.fillStyle = '#ff7a00'; mg.strokeStyle = '#fff'; mg.lineWidth = 2; mg.fill(); mg.stroke();
   mg.restore();
   // "N" na borda, onde fica o norte
-  const nx = r - Math.sin(-ang) * (r - 10), ny = r - Math.cos(-ang) * (r - 10);
+  // (11/11) o x estava com o sinal trocado: indo para leste o N aparecia à
+  // direita (o certo é à esquerda). Norte = (0,1) passado pelo mesmo tx.
+  const nx = r - sa * (r - 10), ny = r - ca * (r - 10);
   mg.font = '700 11px ' + FONT; mg.textAlign = 'center'; mg.textBaseline = 'middle';
   mg.fillStyle = dark ? '#cfe3ff' : '#0e1824'; mg.fillText('N', nx, ny);
 }
-// tocar: esconde/mostra (fica guardado no app); segurar: volta ao mapa grande
+// (11/11) tocar: vai para o mapa grande (celular e carro); escondido, tocar
+// mostra de novo. Segurar: esconde/mostra (fica guardado no app).
 mini.addEventListener('touchstart', e => { e.stopPropagation(); miniPress = performance.now(); miniLong = false;
-  setTimeout(() => { if (miniPress && performance.now() - miniPress >= 650) { miniLong = true; send('map'); } }, 700); }, { passive: true });
+  setTimeout(() => { if (miniPress && performance.now() - miniPress >= 650) {
+    miniLong = true; miniOn = !miniOn; miniAt = 0; send('mini:' + (miniOn ? 1 : 0)); } }, 700); }, { passive: true });
 mini.addEventListener('touchend', e => { e.stopPropagation();
-  if (!miniLong && miniPress) { miniOn = !miniOn; miniAt = 0; send('mini:' + (miniOn ? 1 : 0)); }
+  if (!miniLong && miniPress) {
+    if (miniOn) send('map'); else { miniOn = true; miniAt = 0; send('mini:1'); }
+  }
   miniPress = 0; }, { passive: true });
 
 window.sim3d = {

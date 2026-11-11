@@ -25,6 +25,23 @@ import android.webkit.WebView
 class Car3DView(context: Context) {
     val view = WebView(context)
     private var ready = false
+
+    /** Pedido de voltar ao mapa (toque no minimapa). */
+    var onMap: (() -> Unit)? = null
+
+    /** Toque na tela do carro repassado à página (o minimapa ouve toques). */
+    fun tap(x: Float, y: Float) {
+        val t = android.os.SystemClock.uptimeMillis()
+        val down = android.view.MotionEvent.obtain(t, t, android.view.MotionEvent.ACTION_DOWN, x, y, 0)
+        view.dispatchTouchEvent(down)
+        down.recycle()
+        view.postDelayed({
+            val t2 = android.os.SystemClock.uptimeMillis()
+            val up = android.view.MotionEvent.obtain(t, t2, android.view.MotionEvent.ACTION_UP, x, y, 0)
+            view.dispatchTouchEvent(up)
+            up.recycle()
+        }, 60)
+    }
     private val density = context.resources.displayMetrics.density
 
     /** Área livre (fora dos botões do Android Auto). */
@@ -42,6 +59,8 @@ class Car3DView(context: Context) {
             @JavascriptInterface
             fun postMessage(m: String) {
                 if (m == "ready") view.post { onReady() }
+                // Toque no minimapa: volta ao mapa (11/11).
+                if (m == "map") view.post { onMap?.invoke() }
             }
         }, "Sim3D")
         CarState.sim3dSink = { js -> if (ready) view.evaluateJavascript(js, null) }

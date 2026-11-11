@@ -81,6 +81,12 @@ class CarOverlay(private val ctx: Context) {
         background = box(Color.rgb(211, 47, 47), 14)
     }
 
+    /** No mapa: vai para a estrada em 3D (no 3D, tocar no minimapa volta). */
+    private val view3dBtn = tv(19f, Color.WHITE).apply {
+        text = "3D"; gravity = Gravity.CENTER
+        background = box(Color.rgb(15, 27, 45), 14)
+    }
+
     /** Qual botão do mapa foi tocado (com folga para o dedo). */
     fun hit(x: Float, y: Float): String? {
         fun inside(v: View): Boolean {
@@ -96,6 +102,7 @@ class CarOverlay(private val ctx: Context) {
             inside(sosBtn) -> "sos"
             inside(alertBtn) -> "alert"
             inside(radarBtn) -> "radar"
+            inside(view3dBtn) -> "to3d"
             else -> null
         }
     }
@@ -146,6 +153,7 @@ class CarOverlay(private val ctx: Context) {
         buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(requestBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(sosBtn, LinearLayout.LayoutParams(-2, dp(56)).apply { leftMargin = dp(8) })
+        buttons.addView(view3dBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         bottom.addView(speedBox, LinearLayout.LayoutParams(dp(118), dp(108)))
         bottom.addView(pill, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8); bottomMargin = dp(6) })
         column.addView(bottom)
@@ -177,6 +185,7 @@ class CarOverlay(private val ctx: Context) {
         turn.visibility = if (n == null || hud3d) View.GONE else View.VISIBLE
         // Velocímetro sempre no canto, também com o 3D (08/11).
         speedArea.visibility = View.VISIBLE
+        view3dBtn.visibility = if (!hud3d && CarState.route.size >= 2) View.VISIBLE else View.GONE
         if (n != null) {
             turnIcon.setImageResource(icon(n.maneuver))
             turnIcon.setColorFilter(Color.WHITE)

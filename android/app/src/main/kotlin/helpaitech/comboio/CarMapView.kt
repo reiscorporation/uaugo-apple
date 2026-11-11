@@ -176,6 +176,7 @@ class CarMapView(private val context: Context) {
         if (on) {
             val v = Car3DView(ctx3d ?: return)
             v.area = visible
+            v.onMap = { onMode?.invoke(0) }
             view3d = v
             // Entre o mapa e os avisos do carro.
             root.addView(v.view, 1, FrameLayout.LayoutParams(-1, -1))
@@ -272,7 +273,15 @@ class CarMapView(private val context: Context) {
     }
 
     /** Toque na tela do carro: "alert", "radar", "hazard:id" ou null. */
-    fun tap(x: Float, y: Float) = overlay?.hit(x, y) ?: myHazardAt(x, y)
+    fun tap(x: Float, y: Float): String? {
+        overlay?.hit(x, y)?.let { return it }
+        // No 3D o toque vai para a página (tocar no minimapa volta ao mapa).
+        view3d?.let { it.tap(x, y); return null }
+        return myHazardAt(x, y)
+    }
+
+    /** Troca pedida na tela do carro: 0 = mapa, 2 = 3D. */
+    var onMode: ((Int) -> Unit)? = null
 
     /** Toque no ícone de um alerta do próprio piloto (como no celular). */
     private fun myHazardAt(x: Float, y: Float): String? {

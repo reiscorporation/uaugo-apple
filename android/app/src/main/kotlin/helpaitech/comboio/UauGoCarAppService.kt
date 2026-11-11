@@ -110,6 +110,15 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
     init {
         CarState.northUp = ctx.getSharedPreferences("car", android.content.Context.MODE_PRIVATE)
             .getBoolean("northUp", false)
+        carMap.onMode = { setMode3d(it) }
+    }
+
+    /** 0 = mapa, 2 = 3D sempre. Vale também no celular (11/11). */
+    private fun setMode3d(m: Int) {
+        CarState.mode3d = m
+        CarState.actionSink?.invoke(if (m == 2) "view:3d" else "view:map")
+        if (carMap.running) carMap.update()
+        invalidate()
     }
     private var navigating = false
     private val nav: NavigationManager = ctx.getCarService(NavigationManager::class.java)
@@ -254,13 +263,12 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         val view3d = Action.Builder()
             .setIcon(icon(R.drawable.car_3d))
             .setOnClickListener {
-                CarState.mode3d = if (CarState.mode3d == 2) 0 else 2
+                setMode3d(if (CarState.mode3d == 2) 0 else 2)
                 toast(when (CarState.mode3d) {
                     0 -> if (CarState.en) "Map view" else "Só mapa"
                     1 -> if (CarState.en) "3D at exits" else "3D nas saídas"
                     else -> if (CarState.en) "3D always" else "3D sempre"
                 })
-                if (carMap.running) carMap.update()
             }
             .build()
         // Bússola: o motorista escolhe norte para cima ou o mapa girando com o carro.
@@ -340,6 +348,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 val sink = CarState.actionSink
                 if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("radar")
             }
+            hit == "to3d" -> setMode3d(2)
             hit == "requests" -> screenManager.push(GroupRequestScreen(carContext))
             hit == "sos" -> sosTap()
             hit?.startsWith("do:") == true -> CarState.actionSink?.invoke(hit.removePrefix("do:"))

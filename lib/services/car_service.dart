@@ -18,6 +18,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import '../widgets/bike_marker.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
+import '../logic/geo.dart' show simplifyPolyline;
 import 'profile_service.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -331,16 +333,20 @@ class CarService {
     }).catchError((_) => null);
   }
 
-  /// Rota (enviada só quando muda; no máximo ~800 pontos).
+  /// Rota (enviada só quando muda). Simplificada sem cortar esquinas
+  /// (Douglas-Peucker): pegar 1 ponto a cada N deixava a linha do carro
+  /// atravessando quarteirões, fora das ruas (11/11).
   void route(List<(double, double)> pts) {
     final sig = pts.isEmpty ? '' : '${pts.length}:${pts.first}:${pts.last}';
     if (sig == _routeSig) return;
     _routeSig = sig;
-    final step = (pts.length / 800).ceil().clamp(1, 1 << 20);
-    final flat = <double>[
-      for (var i = 0; i < pts.length; i += step) ...[pts[i].$1, pts[i].$2],
-      if (pts.isNotEmpty) ...[pts.last.$1, pts.last.$2],
-    ];
+    final ll = [for (final p in pts) LatLng(p.$1, p.$2)];
+    var s = ll;
+    for (final tol in [2.0, 4.0, 8.0, 16.0]) {
+      s = simplifyPolyline(ll, tol);
+      if (s.length <= 4000) break;
+    }
+    final flat = <double>[for (final p in s) ...[p.latitude, p.longitude]];
     _ch.invokeMethod('route', flat).catchError((_) => null);
   }
 

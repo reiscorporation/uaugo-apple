@@ -4942,13 +4942,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             final p = _me;
             if (p != null) _updateCamera(p, force: true);
           },
-          // v2: zoom bem perto com os dedos (primeira pessoa) volta para o 3D.
-          onCameraMove: (c) {
-            if (!_show3d && !_follow && _canShow3d && c.zoom >= 19.6) {
-              _manual3dUntil = DateTime.now().add(const Duration(seconds: 20));
-              _set3d(true);
-            }
-          },
+          // (11/11) Zoom perto com os dedos NÃO liga mais o 3D: navegando o
+          // mapa já fica no zoom 20, então qualquer arrasto entrava no 3D
+          // mesmo com "Mapa" escolhido. A troca agora é só pelo botão 3D
+          // (no mapa) ou tocando no minimapa (no 3D).
           onLongPress: _isExpedition
               ? _addStopAt
               : (_canAddSoloStop
@@ -4967,10 +4964,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             child: Sim3DView(
               key: _kWeb3d,
               controller: _sim3d,
-              onBackToMap: () {
-                _manual3dUntil = DateTime.now().add(const Duration(seconds: 20));
-                _set3d(false);
-              },
+              // Toque no minimapa (ou pinça): volta ao mapa e fica nele.
+              onBackToMap: () => _setMode3d(_Mode3d.map),
             ),
             ),
           ),
@@ -5502,12 +5497,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 12),
             // v2: 3D (estrada em primeira pessoa) ou mapa de cima.
+            // Toque: no mapa vai para o 3D, no 3D volta ao mapa (11/11).
+            // Segurar: escolher a visão.
             if (_canShow3d) ...[
-              FloatingActionButton.small(
-                heroTag: '3d',
-                tooltip: tr('Escolher a visão'),
-                onPressed: _chooseMode3d,
-                child: Icon(_mode3d.icon),
+              GestureDetector(
+                onLongPress: _chooseMode3d,
+                child: FloatingActionButton.small(
+                  heroTag: '3d',
+                  tooltip: _show3d ? tr('Ver o mapa') : tr('Ver em 3D'),
+                  onPressed: () =>
+                      _setMode3d(_show3d ? _Mode3d.map : _Mode3d.always),
+                  child: Icon(_show3d ? Icons.map : Icons.view_in_ar),
+                ),
               ),
               const SizedBox(height: 12),
             ],
@@ -6816,6 +6817,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       return;
     }
     switch (a) {
+      // Troca 3D/mapa feita no carro (botão 3D ou toque no minimapa):
+      // vale também no celular.
+      case 'view:3d':
+        if (_mode3d != _Mode3d.always) _setMode3d(_Mode3d.always);
+        return;
+      case 'view:map':
+        if (_mode3d != _Mode3d.map) _setMode3d(_Mode3d.map);
+        return;
       // Grupo pela tela do carro. Na simulação nada vai para o grupo.
       case 'sos' when _sim != null:
         CarService.instance.toast(tr('Na simulação nada é enviado ao grupo.'));
