@@ -121,6 +121,7 @@ const en5 = <String, String>{
   '{0} atrações num raio de {1} km': '{0} attractions within {1} km',
   'Radar removido para todos.': 'Speed camera removed for everyone.',
   'Limite de {0} km/h aplicado para todos.': '{0} km/h limit applied for everyone.',
+  'Voltar à melhor rota': 'Back to the best route',
   'Para passar por outro caminho, segure e arraste uma bolinha da linha azul (ou segure no mapa). Isso não vira parada; tocar na bolinha laranja desfaz.': 'To take another way, hold and drag a dot on the blue line (or hold on the map). It is not a stop; tap the orange dot to undo.',
   'Nenhuma atração no mapa num raio de {0} km.': 'No attractions on the map within {0} km.',
   'Raio': 'Radius',

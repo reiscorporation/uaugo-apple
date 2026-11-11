@@ -604,6 +604,17 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     _calc();
   }
 
+  /// Tira todos os pontos de passagem: volta à rota indicada pelo motor.
+  void _backToBestRoute() {
+    _cancelAuto();
+    setState(() {
+      _vias.clear();
+      _userMoved = false; // reenquadra a rota inteira de novo
+      _fittedSig = '';
+    });
+    _calc();
+  }
+
   /// Tocou num ponto de passagem: tira (a rota volta a escolher o caminho).
   void _removeVia(int k) {
     if (_loading) return;
@@ -893,6 +904,14 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
             ]),
             Text(tr('Para passar por outro caminho, segure e arraste uma bolinha da linha azul (ou segure no mapa). Isso não vira parada; tocar na bolinha laranja desfaz.'),
                 style: const TextStyle(fontSize: 12)),
+            // Mexeu no caminho e se atrapalhou: volta à rota que o motor
+            // escolheu (tira todos os pontos de passagem).
+            if (_vias.isNotEmpty)
+              TextButton.icon(
+                onPressed: _loading ? null : _backToBestRoute,
+                icon: const Icon(Icons.restore),
+                label: Text(tr('Voltar à melhor rota')),
+              ),
             const SizedBox(height: 4),
             if (_loading)
               const Padding(
