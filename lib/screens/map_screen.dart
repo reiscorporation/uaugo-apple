@@ -3441,6 +3441,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (p != null) _updateCamera(p, force: true);
   }
 
+  /// Botão 3D/mapa (celular e barra da simulação): no 3D vai para o mapa;
+  /// no mapa vai para o 3D, voltando antes à visão solo se estiver "de cima"
+  /// (de cima o 3D não existe e o botão sumia, 11/11).
+  Future<void> _toggle3dMap() async {
+    if (_show3d) {
+      _setMode3d(_Mode3d.map);
+      return;
+    }
+    if (_view == _MapView.convoy) await _toggleView();
+    if (mounted) _setMode3d(_Mode3d.always);
+  }
+
   /// Troca entre Comboio (de cima) e Solo (primeira pessoa).
   Future<void> _toggleView() async {
     setState(() {
@@ -5515,8 +5527,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 child: FloatingActionButton.small(
                   heroTag: '3d',
                   tooltip: _show3d ? tr('Ver o mapa') : tr('Ver em 3D'),
-                  onPressed: () =>
-                      _setMode3d(_show3d ? _Mode3d.map : _Mode3d.always),
+                  onPressed: _toggle3dMap,
                   child: Icon(_show3d ? Icons.map : Icons.view_in_ar),
                 ),
               ),
@@ -7783,12 +7794,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   selected: {m},
                   onSelectionChanged: (s) => sim.multiplier.value = s.first,
                 ),);
+    // Mesma troca do botão 3D/mapa (antes este ícone ia para a visão "de
+    // cima", o botão do cubo sumia e não dava para voltar ao 3D, 11/11).
     final Widget view = IconButton(
-              tooltip: _view == _MapView.convoy ? tr('Ver em primeira pessoa') : tr('Ver de cima'),
-              onPressed: _toggleView,
-              icon: Icon(_view == _MapView.convoy
-                  ? Icons.visibility
-                  : Icons.map_outlined),
+              tooltip: _show3d ? tr('Ver o mapa') : tr('Ver em 3D'),
+              onPressed: _toggle3dMap,
+              icon: Icon(_show3d ? Icons.map_outlined : Icons.view_in_ar),
             );
     final Widget timeline = ValueListenableBuilder<double>(
             valueListenable: sim.progress,
