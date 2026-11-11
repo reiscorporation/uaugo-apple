@@ -29,6 +29,16 @@ class Car3DView(context: Context) {
     /** Pedido de voltar ao mapa (toque no minimapa). */
     var onMap: (() -> Unit)? = null
 
+    /** Cena pronta para aparecer (até lá o mapa continua visível). */
+    var onShown: (() -> Unit)? = null
+
+    /** Noite pelo carro, não pelo celular (exigência da Play, 11/11). */
+    var dark = false
+        set(v) {
+            field = v
+            if (ready) view.evaluateJavascript("sim3d.setDark($v)", null)
+        }
+
     /** Toque na tela do carro repassado à página (o minimapa ouve toques). */
     fun tap(x: Float, y: Float) {
         val t = android.os.SystemClock.uptimeMillis()
@@ -63,7 +73,8 @@ class Car3DView(context: Context) {
                 if (m == "map") view.post { onMap?.invoke() }
             }
         }, "Sim3D")
-        CarState.sim3dSink = { js -> if (ready) view.evaluateJavascript(js, null) }
+        // O dia/noite do celular não vale aqui: quem manda é o carro.
+        CarState.sim3dSink = { js -> if (ready && !js.startsWith("sim3d.setDark")) view.evaluateJavascript(js, null) }
         // #car: resolução e quadros menores (o celular já projeta a tela do carro).
         view.loadUrl("file:///android_asset/flutter_assets/assets/sim3d/index.html#car")
     }
@@ -71,11 +82,14 @@ class Car3DView(context: Context) {
     private fun onReady() {
         ready = true
         // Rota antes das vias: a página posiciona as vias sobre a rota.
-        for (k in listOf("sim3d.setDark", "sim3d.setRoute", "sim3d.setRoads", "sim3d.setAlerts", "sim3d.update", "sim3d.hud")) {
+        view.evaluateJavascript("sim3d.setDark($dark)", null)
+        for (k in listOf("sim3d.setRoute", "sim3d.setRoads", "sim3d.setAlerts", "sim3d.update", "sim3d.hud")) {
             CarState.sim3dLast[k]?.let { view.evaluateJavascript(it, null) }
         }
         sendLayout()
         view.evaluateJavascript("sim3d.setActive(true)", null)
+        // Um instante para o primeiro quadro antes de cobrir o mapa.
+        view.postDelayed({ onShown?.invoke() }, 300)
     }
 
     /** Painel entre as bordas da área livre (em px da página). */

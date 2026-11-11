@@ -196,10 +196,18 @@ class CarMapView(private val context: Context) {
             val v = Car3DView(ctx3d ?: return)
             v.area = visible
             v.onMap = { onMode?.invoke(0) }
+            v.dark = dark
             view3d = v
-            // Entre o mapa e os avisos do carro.
+            // Entre o mapa e os avisos do carro. Invisível até a cena carregar
+            // (antes ficava uns 8 s de tela preta); só então pausa o mapa.
+            v.view.alpha = 0f
+            v.onShown = {
+                if (view3d === v) {
+                    v.view.alpha = 1f
+                    runCatching { mapView?.onPause() }
+                }
+            }
             root.addView(v.view, 1, FrameLayout.LayoutParams(-1, -1))
-            runCatching { mapView?.onPause() }
         } else {
             view3d?.let {
                 root.removeView(it.view)
@@ -298,6 +306,7 @@ class CarMapView(private val context: Context) {
 
     /** Noite no carro: mapa escuro com letras claras (exigência da Play). */
     fun setDark(on: Boolean) {
+        view3d?.dark = on
         if (on == dark && map != null) return
         dark = on
         map?.let { g ->
