@@ -277,6 +277,16 @@ class LimitTracker {
 
   RoadLimit? get current => _current;
 
+  /// Esquece a placa (pulo na simulação: o limite do ponto antigo não vale
+  /// no ponto novo; antes ficava 110 da rodovia dentro da cidade, 11/11).
+  void reset() {
+    _current = null;
+    _pending = null;
+    _pendingCount = 0;
+    _seenAt = null;
+    _sideSince = null;
+  }
+
   /// Novo resultado da busca. Um limite DIFERENTE só vale depois de aparecer
   /// em [confirmations] leituras seguidas (um ponto solto de uma saída não
   /// troca a placa); sem dado, mantém o anterior por até 15 s (cruzamentos e

@@ -3672,8 +3672,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _speedSvc.lookup(p.latitude, p.longitude, _bearing, _speedMs,
             routeOffset:
                 onRoute ? (la, lo) => w.offsetNear(la, lo, pr.along) : null);
+    final before = _roadLimit;
     _roadLimit = _limitTracker.update(found, DateTime.now(),
         kmh: kmh, onExit: prof != null && prof.onExit(pr!.along));
+    // Só no UauGo2 (debug): de onde veio cada troca de placa (11/11: 110
+    // dentro da cidade na simulação).
+    if (kDebugMode && _roadLimit?.kmh != before?.kmh) {
+      final pt = _speedSvc.lookup(p.latitude, p.longitude, _bearing, _speedMs);
+      debugPrint('Limite: ${before?.kmh} -> ${_roadLimit?.kmh} '
+          '(perfil ${prof?.at(pr?.along ?? -1)?.kmh}, ponto ${pt?.kmh}${pt?.estimated == true ? ' est' : ''}, '
+          'src ${_roadLimit?.src}, along ${pr?.along.round()}, '
+          '${p.latitude.toStringAsFixed(5)},${p.longitude.toStringAsFixed(5)}, ${kmh.round()} km/h)');
+    }
     final speech = _speedAlerter.update(
         kmh, _roadLimit, _speedSvc.settings.value, DateTime.now());
     if (speech != null) _voice.alert(speech);
@@ -7808,6 +7818,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 _clearAlertBanners();
                 _voice.stop();
                 _markPassedAfterJump();
+                _limitTracker.reset();
+                _limitProfile = null;
+                _roadLimit = null;
                 _simSeeking = false;
               },
             ),
