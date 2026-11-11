@@ -166,7 +166,11 @@ class OfflineVoiceService {
         _workerVoice = v.id;
       }
       final tmp = await getTemporaryDirectory();
+      final t0 = DateTime.now();
       final wav = await _worker!.say(text, speed, '${tmp.path}/uaugo_voz.wav');
+      // Tempo para montar a frase (10/11: testador achou a voz
+      // desincronizada; frase longa em celular simples pode demorar).
+      debugPrint('Voz do UauGo: ${DateTime.now().difference(t0).inMilliseconds} ms para ${text.length} letras');
       if (wav == null) return false;
       await _preparePlayer();
       final done = _player.onPlayerComplete.first;

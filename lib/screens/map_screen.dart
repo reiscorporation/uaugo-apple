@@ -934,8 +934,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _glideMeTo(_shownPoint(p));
     }
     _updateSpeed(p);
-    _checkPois(p);
-    _checkHalfway();
+    if (!_simSeeking) {
+      _checkPois(p);
+      _checkHalfway();
+    }
     if (!_inBackground) _updateCamera(p);
     if (!_inBackground) _autoExit3d(p);
     // A cena 3D também alimenta o carro, mesmo com o celular apagado.
@@ -966,6 +968,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _sendToCar(p);
     // Fora da tela: só a posição para o comboio (no modo carro, segue tudo).
     if (_inBackground && !_carMode) return;
+    // Arrastando a barra da simulação: nada de avisos até soltar.
+    if (_simSeeking) return;
     _checkStoppedOnShoulder(p);
     _watchHazardsAround(p);
     _checkHazardProximity(p);
@@ -2182,14 +2186,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     lng: r.lng,
                     dir: r.direction,
                     current: null,
-                    anyone: true);
+                    anyone: true,
+                    radar: r);
               }),
               const SizedBox(width: 8),
               big(tr('Não existe'), Colors.grey.shade800, () {
                 close();
-                SpeedFixService.instance.report(SpeedFixService.radarKey(r),
-                    kind: 'r', lat: r.lat, lng: r.lng, dir: r.direction, kmh: 0);
-                _snack(tr('Obrigado! Quando outros pilotos confirmarem, o radar sai do mapa.'));
+                _reportRadar(r, 0);
               }),
             ]),
           ),
@@ -3863,8 +3866,33 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   final Set<String> _tollBannerShown = {};
 
+  /// Grava a correção do radar (e dos gêmeos dele). Administrador: vale na
+  /// hora para todos, e o radar some/muda já neste aparelho (10/11: "sou
+  /// adm, deve acatar sempre minhas correções").
+  Future<void> _reportRadar(FixedRadar r, int kmh) async {
+    try {
+      final now = await SpeedFixService.instance.reportRadar(r, kmh, _radarsAround);
+      if (now && kmh == 0 && _activeRadar?.id == r.id) {
+        setState(() {
+          _activeRadar = null;
+          _radarBanner = null;
+        });
+      }
+      _snack(switch ((now, kmh)) {
+        (true, 0) => tr('Radar removido para todos.'),
+        (true, _) => tr('Limite de {0} km/h aplicado para todos.', [kmh]),
+        (false, 0) => tr('Obrigado! Quando outros pilotos confirmarem, o radar sai do mapa.'),
+        (false, _) => tr('Obrigado! {0} km/h registrado.', [kmh]),
+      });
+    } catch (e) {
+      debugPrint('Correção de velocidade recusada: $e');
+      _snack(tr('Não foi possível salvar agora. Confira a internet.'));
+    }
+  }
+
   /// Radar: confirmar ou corrigir o limite (Gold/administração).
   void _editRadar(FixedRadar r, int? kmh) => _editSpeed(
+      radar: r,
       title: switch (r.kind) {
         RadarKind.fixed => tr('Radar fixo'),
         RadarKind.section => tr('Radar de velocidade média'),
@@ -3906,6 +3934,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     int dir = -1,
     int? current,
     bool anyone = false, // pergunta "o radar existe?": qualquer piloto responde
+    FixedRadar? radar, // radar: corrige ele e os gêmeos (_reportRadar)
   }) async {
     if (!anyone && !await SpeedFixService.instance.canEdit()) {
       _snack(tr('Só usuários Gold ou administradores podem confirmar ou corrigir velocidades.'));
@@ -3969,6 +3998,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ),
     );
     if (picked == null) return;
+    if (radar != null) {
+      await _reportRadar(radar, picked);
+      return;
+    }
     try {
       await SpeedFixService.instance.report(key,
           kind: kind, lat: lat, lng: lng, dir: dir, kmh: picked);
@@ -6459,6 +6492,35 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// A barra da simulação pulou de lugar (para frente ou para trás): recomeça
   /// a posição na rota, as manobras e o estado de "fora da rota".
+  /// Arrastando a barra da simulação (sem avisos até soltar).
+  bool _simSeeking = false;
+
+  /// Tira as faixas de radar/pedágio do ponto antigo (pulo na simulação).
+  void _clearAlertBanners() => setState(() {
+        _radarBanner = null;
+        _activeRadar = null;
+        _activeRadarLast = null;
+        _radarPill = null;
+      });
+
+  /// Depois de pular na simulação: o que ficou para trás conta como passado
+  /// (paradas visitadas, "metade do trajeto" já dita), para não falar tudo
+  /// de uma vez no ponto novo.
+  void _markPassedAfterJump() {
+    final w = _walker, p = _me;
+    if (w == null || p == null) return;
+    final pr = w.project(p.latitude, p.longitude);
+    if (pr.offset > 250) return;
+    if (pr.along >= w.length / 2) _halfwaySaid = true;
+    for (var i = 0; i < _stops.length - 1; i++) {
+      final a = _stopAlong(i);
+      if (a != null && a < pr.along - 50) {
+        _stopArrived.add(_stops[i].id);
+        _stopNearAnnounced.add(_stops[i].id);
+      }
+    }
+  }
+
   void _afterSimJump() {
     _proj = null;
     _riderAlong = null;
@@ -7678,6 +7740,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             valueListenable: sim.progress,
             builder: (_, v, __) => Slider(
               value: v.clamp(0.0, 1.0),
+              // Arrastando: só move a moto (sem avisos dos pontos do meio do
+              // caminho; antes falava radar, parada e "metade" de tudo que
+              // passava e ficava perdido, 10/11).
+              onChangeStart: (_) {
+                _simSeeking = true;
+                _voice.stop();
+              },
               onChanged: (x) {
                 sim.seek(x);
                 _afterSimJump();
@@ -7692,6 +7761,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 _halfwaySaid = false;
                 _stretchAnnounced.clear();
                 _announced.clear();
+                _clearAlertBanners();
+                _voice.stop();
+                _markPassedAfterJump();
+                _simSeeking = false;
               },
             ),
           );

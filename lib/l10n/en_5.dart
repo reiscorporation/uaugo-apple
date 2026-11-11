@@ -119,6 +119,8 @@ const en5 = <String, String>{
   'Ver mais': 'See more',
   'a {0}': '{0} away',
   '{0} atrações num raio de {1} km': '{0} attractions within {1} km',
+  'Radar removido para todos.': 'Speed camera removed for everyone.',
+  'Limite de {0} km/h aplicado para todos.': '{0} km/h limit applied for everyone.',
   'Nenhuma atração no mapa num raio de {0} km.': 'No attractions on the map within {0} km.',
   'Raio': 'Radius',
   'Melhor preço em {0}': 'Best price in {0}',

@@ -57,6 +57,9 @@ class SpeedFixService {
       fixes.value = {
         for (final d in s.docs)
           if (_parse(d.data()) case final f?) d.id: f,
+        // Correções do administrador já aplicadas aqui (o servidor leva uns
+        // segundos para publicar; sem isso o radar voltava nesse meio tempo).
+        ..._local,
       };
     }, onError: (e) {
       debugPrint('Correções de velocidade indisponíveis: $e');
@@ -111,6 +114,53 @@ class SpeedFixService {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || FirebaseAuth.instance.currentUser!.isAnonymous) return false;
     return HazardService.instance.isGold(uid);
+  }
+
+  bool? _admin;
+  final _local = <String, SpeedFix>{};
+
+  /// Administrador da plataforma? A correção dele vale na hora para todos.
+  Future<bool> isAdmin() async {
+    final u = FirebaseAuth.instance.currentUser;
+    if (u == null || u.isAnonymous) return false;
+    if (_admin case final a?) return a;
+    try {
+      final d = await FirebaseFirestore.instance.doc('platformAdmins/${u.uid}').get();
+      return _admin = d.exists;
+    } catch (_) {
+      return false; // sem cache: tenta de novo na próxima
+    }
+  }
+
+  /// Radares "gêmeos" de [r]: o mesmo radar vindo de outra fonte (OSM,
+  /// prefeitura, pilotos) a até 60 m, mesmo tipo e sentido compatível. Sem
+  /// isso, marcar "não existe" num deixava o gêmeo avisando (10/11).
+  static List<FixedRadar> twinsOf(FixedRadar r, Iterable<FixedRadar> around) => [
+        for (final o in around)
+          if (o.id != r.id &&
+              o.kind == r.kind &&
+              distanceMeters(r.lat, r.lng, o.lat, o.lng) <= 60 &&
+              (r.direction < 0 ||
+                  o.direction < 0 ||
+                  angleDiff(r.direction.toDouble(), o.direction.toDouble()) <= 45))
+            o,
+      ];
+
+  /// Correção de radar ([kmh] 0 = não existe) para ele e os gêmeos. Devolve
+  /// true quando já vale para todos (administrador): aplica no aparelho na
+  /// hora, sem esperar o servidor.
+  Future<bool> reportRadar(FixedRadar r, int kmh, Iterable<FixedRadar> around) async {
+    final all = [r, ...twinsOf(r, around)];
+    for (final x in all) {
+      debugPrint('Correção de radar: ${radarKey(x)} -> $kmh km/h');
+      await report(radarKey(x), kind: 'r', lat: x.lat, lng: x.lng, dir: x.direction, kmh: kmh);
+    }
+    if (!await isAdmin()) return false;
+    for (final x in all) {
+      _local[radarKey(x)] = SpeedFix('r', x.lat, x.lng, x.direction, kmh);
+    }
+    fixes.value = {...fixes.value, ..._local};
+    return true;
   }
 
   /// Grava a confirmação/correção deste usuário (uma por pessoa e lugar).
