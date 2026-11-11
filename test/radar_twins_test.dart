@@ -18,4 +18,18 @@ void main() {
     const outraAlca = FixedRadar(6, -21.20924, -47.75857, RadarKind.fixed, 0, 90); // 187 m
     expect(SpeedFixService.twinsOf(marcado, [contraMao, sinal, outraAlca]), isEmpty);
   });
+
+  test('radar sem limite conhecido marcado como inexistente some (11/11)', () {
+    final idx = RadarIndex.fromJson({
+      'radars': [
+        [-21.21092, -47.75864, 0, 0, 183], // sem limite
+        [-21.20453, -47.7609, 0, 70, 127],
+      ],
+    });
+    RadarIndex.limitFix = (r) => r.lat == -21.21092 ? 0 : null;
+    final ids = idx.radarsAround(-21.21, -47.76).map((r) => r.lat).toList();
+    RadarIndex.limitFix = null;
+    expect(ids, [-21.20453]);
+  });
 }
+

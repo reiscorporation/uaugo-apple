@@ -127,7 +127,10 @@ class RadarIndex {
     return [
       for (final c in _around(lat, lng))
         for (final r in _radars[c] ?? const <FixedRadar>[])
-          if (fix?.call(r) case final k? when k != r.limit) ...[
+          // 0 = "não existe": some SEMPRE. Antes, radar sem limite conhecido
+          // (limite 0) marcado como inexistente continuava (0 == 0 parecia
+          // "sem mudança") — o admin marcava e o aviso seguia (11/11).
+          if (fix?.call(r) case final k? when k == 0 || k != r.limit) ...[
             if (k > 0) FixedRadar(r.id, r.lat, r.lng, r.kind, k, r.direction),
           ] else
             r,
