@@ -1335,17 +1335,22 @@ function buildDest() {
   // um feixe de luz azul fino, que parecia uma linha solta no céu).
   const red = new THREE.MeshBasicMaterial({ color: 0xe53935, fog: false });
   const mark = new THREE.Group();
-  const head = new THREE.Mesh(new THREE.SphereGeometry(2.6, 20, 14), red); head.position.y = 9;
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(2.25, 7.5, 20), red);
-  tip.rotation.x = Math.PI; tip.position.y = 4.4;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(3.2, 20, 14), red); head.position.y = 11;
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(2.8, 9.5, 20), red);
+  tip.rotation.x = Math.PI; tip.position.y = 5.4;
   const dot = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 10),
     new THREE.MeshBasicMaterial({ color: 0x7f0000, fog: false }));
-  dot.position.set(0, 9, 2.2);
+  dot.position.set(0, 11, 2.7);
   mark.add(head, tip, dot);
   mark.position.copy(toV(x, 0, y));
-  mark.userData.spin = true;
+  // De longe cresce (até 4x) para ser visto cedo; perto fica no tamanho real.
+  head.onBeforeRender = (r, sc, cam) => {
+    const z = Math.max(1, Math.min(4, cam.position.distanceTo(mark.position) / 45));
+    mark.scale.setScalar(z);
+    pin.position.y = 15 * z + 6; // o nome fica sempre acima do pin
+  };
   const pin = label(DEST || 'Destino', 'Destino');
-  pin.position.copy(toV(x, 17, y)); pin.scale.multiplyScalar(1.5);
+  pin.position.copy(toV(x, 20, y)); pin.scale.multiplyScalar(1.5);
   destObjs = [mark, pin];
   scene.add(mark, pin);
 }
