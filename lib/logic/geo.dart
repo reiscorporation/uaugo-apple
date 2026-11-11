@@ -129,14 +129,16 @@ List<LatLng> simplifyPolyline(List<LatLng> pts, double toleranceMeters) {
     final dx = xs[b] - xs[a], dy = ys[b] - ys[a];
     final len2 = dx * dx + dy * dy;
     for (var i = a + 1; i < b; i++) {
-      double d2;
-      if (len2 == 0) {
-        final ex = xs[i] - xs[a], ey = ys[i] - ys[a];
-        d2 = ex * ex + ey * ey;
-      } else {
-        final cross = (xs[i] - xs[a]) * dy - (ys[i] - ys[a]) * dx;
-        d2 = cross * cross / len2;
-      }
+      // Distância até o TRECHO a-b (não até a reta infinita): com a reta,
+      // uma alça/rotatória/retorno que sai e volta no mesmo alinhamento
+      // parecia "em cima da linha" e era apagada — a rota virava retas
+      // cortando quarteirões (11/11).
+      var t = len2 == 0
+          ? 0.0
+          : ((xs[i] - xs[a]) * dx + (ys[i] - ys[a]) * dy) / len2;
+      t = t < 0 ? 0.0 : (t > 1 ? 1.0 : t);
+      final ex = xs[i] - (xs[a] + t * dx), ey = ys[i] - (ys[a] + t * dy);
+      final d2 = ex * ex + ey * ey;
       if (d2 > maxD2) {
         maxD2 = d2;
         idx = i;
