@@ -10,6 +10,7 @@
 // ============================================================================
 
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import '../screens/na_rota_screen.dart';
@@ -306,6 +307,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     _tolls = s.avoidTolls;
     _highways = s.avoidHighways;
     _calc();
+    _loadDragIcons();
     ProfileService.load().then((b) {
       if (!mounted) return;
       setState(() => _bike = b);
@@ -464,7 +466,183 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     };
   }
 
+  // ---- Arrastar a rota (11/11): bolinhas na linha e as paradas do meio
+  // podem ser arrastadas; a rota recalcula enquanto arrasta (a cada ~1,2 s)
+  // e de novo ao soltar. Segurar no mapa inclui um ponto de passagem ali.
+
+  static const _maxPoints = 12; // saída + até 10 paradas + destino
+  BitmapDescriptor? _handleIcon;
+  BitmapDescriptor? _viaIcon;
+
+  /// O piloto mexeu na rota pelo mapa: não reenquadra (a câmera ficava
+  /// pulando enquanto arrastava).
+  bool _userMoved = false;
+
+  /// Arrastando: bolinha [handle] (vira parada nova) ou parada [stop].
+  String? _dragId;
+  List<LatLng> _frozenHandles = const [];
+  int _dragSeq = 0;
+  bool _liveBusy = false;
+  DateTime _lastLive = DateTime(0);
+
+  Future<BitmapDescriptor> _dot(Color fill, double r) async {
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    final size = r * 2 + 8;
+    final o = Offset(size / 2, size / 2);
+    c.drawCircle(o, r + 3, Paint()..color = Colors.white);
+    c.drawCircle(o, r, Paint()..color = fill);
+    final img = await rec.endRecording().toImage(size.toInt(), size.toInt());
+    final b = await img.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(b!.buffer.asUint8List(),
+        width: size / 2.6, height: size / 2.6);
+  }
+
+  Future<void> _loadDragIcons() async {
+    final h = await _dot(const Color(0xFF1A73E8), 22);
+    final v = await _dot(const Color(0xFFFF7A1A), 22);
+    if (mounted) setState(() {
+      _handleIcon = h;
+      _viaIcon = v;
+    });
+  }
+
+  /// Bolinhas na rota (a 20, 40, 60 e 80% do caminho), longe das paradas.
+  List<LatLng> _handles() {
+    if (_dragId != null) return _frozenHandles;
+    final t = _trip;
+    if (t == null || _points.length >= _maxPoints) return const [];
+    final pts = decodePolyline(t.plan.polyline);
+    if (pts.length < 2) return const [];
+    final acc = <double>[0];
+    for (var i = 1; i < pts.length; i++) {
+      acc.add(acc.last + distanceMeters(pts[i - 1].latitude, pts[i - 1].longitude,
+          pts[i].latitude, pts[i].longitude));
+    }
+    final total = acc.last;
+    if (total < 400) return const [];
+    final out = <LatLng>[];
+    var j = 0;
+    for (final f in [0.2, 0.4, 0.6, 0.8]) {
+      while (j < acc.length - 1 && acc[j] < total * f) {
+        j++;
+      }
+      final q = pts[j];
+      final nearStop = _points.any((p) =>
+          distanceMeters(p.lat, p.lng, q.latitude, q.longitude) < total * 0.08);
+      if (!nearStop) out.add(q);
+    }
+    return out;
+  }
+
+  /// Onde entra um ponto novo: entre os dois pontos em que desvia menos.
+  int _insertIndexFor(LatLng q) {
+    var best = 1;
+    var bestCost = double.infinity;
+    for (var i = 1; i < _points.length; i++) {
+      final a = _points[i - 1], b = _points[i];
+      final cost = distanceMeters(a.lat, a.lng, q.latitude, q.longitude) +
+          distanceMeters(q.latitude, q.longitude, b.lat, b.lng) -
+          distanceMeters(a.lat, a.lng, b.lat, b.lng);
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  TripPoint _via(LatLng q) =>
+      TripPoint(tr('Passando por aqui'), q.latitude, q.longitude);
+
+  /// Pontos com o arrasto aplicado (bolinha vira parada; parada muda de lugar).
+  List<TripPoint> _pointsWithDrag(String id, LatLng q) {
+    final pts = [..._points];
+    if (id.startsWith('stop')) {
+      final i = int.parse(id.substring(4));
+      pts[i] = TripPoint(pts[i].name, q.latitude, q.longitude, type: pts[i].type);
+    } else {
+      pts.insert(_insertIndexFor(q), _via(q));
+    }
+    return pts;
+  }
+
+  void _onDrag(String id, LatLng q) {
+    if (_dragId == null) {
+      _cancelAuto();
+      _userMoved = true;
+      _frozenHandles = _handles();
+      _dragId = id;
+    }
+    if (_liveBusy || DateTime.now().difference(_lastLive).inMilliseconds < 1200) return;
+    _liveBusy = true;
+    _lastLive = DateTime.now();
+    final seq = ++_dragSeq;
+    TripService.build(
+      title: _title,
+      points: _pointsWithDrag(id, q),
+      avoidTolls: _tolls,
+      avoidHighways: _highways,
+    ).then((t) {
+      _liveBusy = false;
+      if (!mounted || seq != _dragSeq || _dragId == null || t == null) return;
+      setState(() {
+        _trip = t;
+        _options = [t];
+      });
+    }, onError: (_) { _liveBusy = false; });
+  }
+
+  void _onDragEnd(String id, LatLng q) {
+    _dragSeq++; // descarta cálculo do arrasto que ainda estiver chegando
+    final pts = _pointsWithDrag(id, q);
+    setState(() {
+      _dragId = null;
+      _frozenHandles = const [];
+      _points
+        ..clear()
+        ..addAll(pts);
+    });
+    _calc();
+  }
+
+  /// Segurou no mapa: ponto de passagem ali.
+  void _addViaAt(LatLng q) {
+    if (_loading || _points.length >= _maxPoints) return;
+    _cancelAuto();
+    _userMoved = true;
+    setState(() => _points.insert(_insertIndexFor(q), _via(q)));
+    _calc();
+  }
+
   Set<Marker> _routeMarkers() => {
+        for (var i = 1; i < _points.length - 1; i++)
+          Marker(
+            markerId: MarkerId('stop$i'),
+            position: LatLng(_points[i].lat, _points[i].lng),
+            draggable: !_loading || _dragId != null,
+            zIndexInt: 3,
+            anchor: _points[i].name == tr('Passando por aqui')
+                ? const Offset(0.5, 0.5)
+                : const Offset(0.5, 1),
+            icon: _points[i].name == tr('Passando por aqui')
+                ? (_viaIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange))
+                : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
+            onDrag: (q) => _onDrag('stop$i', q),
+            onDragEnd: (q) => _onDragEnd('stop$i', q),
+          ),
+        if (_handleIcon != null && (!_loading || _dragId != null))
+          for (final (k, q) in _handles().indexed)
+            Marker(
+              markerId: MarkerId('h$k'),
+              position: q,
+              draggable: true,
+              zIndexInt: 2,
+              anchor: const Offset(0.5, 0.5),
+              icon: _handleIcon!,
+              onDrag: (p) => _onDrag('h$k', p),
+              onDragEnd: (p) => _onDragEnd('h$k', p),
+            ),
         if (_points.isNotEmpty)
           Marker(
               markerId: const MarkerId('from'),
@@ -479,7 +657,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
   /// Enquadra a rota (e as alternativas) no espaço livre acima do painel.
   void _fitRoute() {
     final t = _trip, m = _map;
-    if (t == null || m == null) return;
+    if (t == null || m == null || _userMoved || _dragId != null) return;
     final sig = '${t.plan.polyline.hashCode}-${_options.length}';
     if (sig == _fittedSig) return;
     _fittedSig = sig;
@@ -524,6 +702,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
           },
           polylines: _routeLines(),
           markers: _routeMarkers(),
+          onLongPress: _addViaAt,
           zoomControlsEnabled: false,
           mapToolbarEnabled: false,
           myLocationButtonEnabled: false,
@@ -698,6 +877,8 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                   label: Text(tr('Melhor sequência')),
                 ),
             ]),
+            Text(tr('Para mudar o caminho, segure e arraste uma bolinha da linha azul ou segure no mapa.'),
+                style: const TextStyle(fontSize: 12)),
             const SizedBox(height: 4),
             if (_loading)
               const Padding(
