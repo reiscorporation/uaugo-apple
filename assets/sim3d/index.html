@@ -1331,13 +1331,23 @@ function updateMarkers(s, time) {
 }
 function buildDest() {
   const end = posAt(TOTAL), x = end.x - end.dy * 5, y = end.y + end.dx * 5;
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 60, 18, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0x46dcff, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-  beam.position.copy(toV(x, 30, y));
+  // (11/11) pin vermelho de mapa na chegada, como no mapa de cima (antes era
+  // um feixe de luz azul fino, que parecia uma linha solta no céu).
+  const red = new THREE.MeshBasicMaterial({ color: 0xe53935, fog: false });
+  const mark = new THREE.Group();
+  const head = new THREE.Mesh(new THREE.SphereGeometry(2.6, 20, 14), red); head.position.y = 9;
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(2.25, 7.5, 20), red);
+  tip.rotation.x = Math.PI; tip.position.y = 4.4;
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 10),
+    new THREE.MeshBasicMaterial({ color: 0x7f0000, fog: false }));
+  dot.position.set(0, 9, 2.2);
+  mark.add(head, tip, dot);
+  mark.position.copy(toV(x, 0, y));
+  mark.userData.spin = true;
   const pin = label(DEST || 'Destino', 'Destino');
-  pin.position.copy(toV(x, 14, y)); pin.scale.multiplyScalar(1.5);
-  destObjs = [beam, pin];
-  scene.add(beam, pin);
+  pin.position.copy(toV(x, 17, y)); pin.scale.multiplyScalar(1.5);
+  destObjs = [mark, pin];
+  scene.add(mark, pin);
 }
 
 /* ---------- fora da rota: a câmera segue o GPS e desenha a rua por onde passou ----------
