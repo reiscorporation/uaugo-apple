@@ -21,7 +21,9 @@ Future<T?> showSafeSheet<T>({
     useSafeArea: true,
     builder: (ctx) => ConstrainedBox(
       constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.9),
-      child: SingleChildScrollView(child: builder(ctx)),
+      // useSafeArea só protege o topo: sem isto os últimos botões ficavam
+      // atrás da barra de navegação do Android (Turismo, 12/11).
+      child: SafeArea(top: false, child: SingleChildScrollView(child: builder(ctx))),
     ),
   );
 }
