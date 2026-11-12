@@ -50,8 +50,11 @@ class CarOverlay(private val ctx: Context) {
         gravity = Gravity.CENTER_VERTICAL; maxLines = 2
         background = box(Color.argb(238, 15, 27, 45), 14); setPadding(dp(12), dp(5), dp(12), dp(5))
     }
+    // Aviso amarelo igual ao do celular (12/11): faixa de lado a lado logo
+    // abaixo da manobra, emoji grande à esquerda e texto em negrito.
     private val banner = tv(16f, Color.BLACK).apply {
-        background = box(Color.rgb(255, 193, 7), 12); setPadding(dp(12), dp(8), dp(12), dp(8)); maxLines = 2
+        background = box(Color.rgb(255, 193, 7), 12); setPadding(dp(12), dp(6), dp(12), dp(6)); maxLines = 2
+        gravity = Gravity.CENTER_VERTICAL; elevation = dp(6).toFloat()
     }
     private val speed = tv(36f, Color.WHITE).apply { gravity = Gravity.CENTER }
     private val speedArea = FrameLayout(ctx)
@@ -129,7 +132,7 @@ class CarOverlay(private val ctx: Context) {
         row.addView(turn, LinearLayout.LayoutParams(0, -2, 1f))
         row.addView(info, LinearLayout.LayoutParams(-2, -1).apply { leftMargin = dp(6) })
         top.addView(row, LinearLayout.LayoutParams(-1, -2))
-        top.addView(banner, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
+        top.addView(banner, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         top.addView(groupBar, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
         topBox = top
         root.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
@@ -202,7 +205,7 @@ class CarOverlay(private val ctx: Context) {
         val b = CarState.banner
         banner.visibility = if (b.isNullOrBlank()) View.GONE else View.VISIBLE
         info.visibility = turn.visibility
-        banner.text = b ?: ""
+        banner.text = bannerText(b ?: "")
         val group = if (CarState.groupOn) View.VISIBLE else View.GONE
         requestBtn.visibility = group
         sosBtn.visibility = group
@@ -224,5 +227,14 @@ class CarOverlay(private val ctx: Context) {
         val a = CarState.alert
         pill.visibility = if (a.isNullOrBlank()) View.GONE else View.VISIBLE
         pill.text = a ?: ""
+    }
+
+    /** Emoji do começo maior que o texto, como no celular. */
+    private fun bannerText(t: String): CharSequence {
+        val sp = t.indexOf(' ')
+        if (sp <= 0 || sp > 8) return t
+        val ss = android.text.SpannableString(t.substring(0, sp) + "  " + t.substring(sp + 1))
+        ss.setSpan(android.text.style.RelativeSizeSpan(1.7f), 0, sp, 0)
+        return ss
     }
 }
