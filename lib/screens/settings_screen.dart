@@ -563,6 +563,16 @@ class SettingsScreen extends StatelessWidget {
               onChanged: s.setMaxBrightnessNav,
             ),
           ),
+          ValueListenableBuilder<bool>(
+            valueListenable: s.carPlaceNames,
+            builder: (_, on, __) => SwitchListTile(
+              secondary: const Icon(Icons.directions_car_outlined),
+              title: Text(tr('Nomes de lugares no mapa do carro')),
+              subtitle: Text(tr('Museus, escolas, lojas e outros lugares no mapa do Android Auto. Desligado, o mapa fica mais limpo (nomes de ruas continuam).')),
+              value: on,
+              onChanged: s.setCarPlaceNames,
+            ),
+          ),
           ValueListenableBuilder<bool?>(
             valueListenable: s.lightModeChoice,
             builder: (_, choice, __) => SwitchListTile(

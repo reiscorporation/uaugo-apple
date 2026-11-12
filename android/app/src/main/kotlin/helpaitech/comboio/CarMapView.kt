@@ -45,6 +45,16 @@ import com.google.android.gms.maps.model.PolylineOptions
 import kotlin.math.max
 
 /** Estilo noturno do mapa (fundo escuro, ruas e nomes claros). */
+/** Sem os nomes de lugares (opção "Nomes de lugares no mapa do carro"). */
+private const val NO_PLACES = """{"featureType":"poi","elementType":"labels.text","stylers":[{"visibility":"off"}]},
+{"featureType":"transit","elementType":"labels.text","stylers":[{"visibility":"off"}]},"""
+
+/** Estilo do mapa: noite/dia e, se pedido, sem nomes de lugares. */
+private fun styleFor(dark: Boolean, places: Boolean): String {
+    val base = if (dark) NIGHT else DAY
+    return if (places) base else "[" + NO_PLACES + base.trim().removePrefix("[")
+}
+
 /** Dia: nomes em cinza, mais discretos (12/11: "bem sutil"). */
 private const val DAY = """[
 {"elementType":"labels.text.fill","stylers":[{"color":"#6b7584"}]}
@@ -305,7 +315,8 @@ class CarMapView(private val context: Context) {
             g.isTrafficEnabled = false // o trânsito vai só na linha da rota
             g.isBuildingsEnabled = false // mais leve
             runCatching {
-                g.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions(if (dark) NIGHT else DAY))
+                g.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions(styleFor(dark, CarState.placeNames)))
+                stylePlaces = CarState.placeNames
             }
             applyPadding()
             update()
@@ -320,6 +331,8 @@ class CarMapView(private val context: Context) {
     }
 
     private var dark = false
+    /** Opção de nomes de lugares já aplicada ao estilo. */
+    private var stylePlaces = true
 
     /** Noite no carro: mapa escuro com letras claras (exigência da Play). */
     fun setDark(on: Boolean) {
@@ -328,7 +341,8 @@ class CarMapView(private val context: Context) {
         dark = on
         map?.let { g ->
             runCatching {
-                g.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions(if (on) NIGHT else DAY))
+                g.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions(styleFor(on, CarState.placeNames)))
+                stylePlaces = CarState.placeNames
             }
         }
     }
@@ -400,6 +414,11 @@ class CarMapView(private val context: Context) {
     /** Novo estado do celular: rota, posição, velocidade, limite, aviso. */
     fun update() {
         val g = map ?: return
+        // Opção "nomes de lugares" mudou no celular: refaz o estilo.
+        if (stylePlaces != CarState.placeNames) runCatching {
+            g.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions(styleFor(dark, CarState.placeNames)))
+            stylePlaces = CarState.placeNames
+        }
         // Rota (só redesenha quando muda).
         val pts = CarState.route
         val sig = pts.size * 31 + (pts.firstOrNull()?.contentHashCode() ?: 0) +

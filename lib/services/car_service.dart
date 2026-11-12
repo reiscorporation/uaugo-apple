@@ -28,6 +28,7 @@ import '../models/hazard.dart';
 import 'auth_service.dart';
 import 'hazard_service.dart';
 import '../l10n/i18n.dart';
+import 'app_settings.dart';
 import 'places_service.dart';
 import 'recent_places_service.dart';
 import 'saved_places_service.dart';
@@ -329,6 +330,7 @@ class CarService {
       'speedKmh': speedKmh,
       'limitKmh': limitKmh,
       'lang': I18n.lang.value, // textos da tela do carro
+      'placeNames': AppSettings.instance.carPlaceNames.value,
       // Valem com ou sem rota (Só dirigir): contagem do radar, faixa amarela
       // de aviso e o ícone do veículo.
       if (alert != null) 'alert': alert,

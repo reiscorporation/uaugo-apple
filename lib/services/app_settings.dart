@@ -268,6 +268,9 @@ class AppSettings {
   /// de 4,5 GB de RAM, ex.: Galaxy A14).
   final lightModeChoice = ValueNotifier<bool?>(null);
 
+  /// Nomes de lugares (museu, escola, comércio) no mapa do carro (12/11).
+  final carPlaceNames = ValueNotifier<bool>(true);
+
   /// RAM do aparelho em MB (0 = não sabe).
   int deviceMemMb = 0;
 
@@ -360,6 +363,7 @@ class AppSettings {
     shareStats.value = p.getBool('shareStats') ?? true;
     lightModeChoice.value =
         p.containsKey('lightMode') ? p.getBool('lightMode') : null;
+    carPlaceNames.value = p.getBool('carPlaceNames') ?? true;
     try {
       deviceMemMb = await const MethodChannel('uaugo/device')
               .invokeMethod<int>('totalMemMb') ??
@@ -479,6 +483,12 @@ class AppSettings {
       await p.setString('emergencyName', c.$1);
       await p.setString('emergencyPhone', c.$2);
     }
+  }
+
+  /// Mostrar ou não os nomes de lugares no mapa do Android Auto.
+  Future<void> setCarPlaceNames(bool v) async {
+    carPlaceNames.value = v;
+    (await SharedPreferences.getInstance()).setBool('carPlaceNames', v);
   }
 
   /// Liga/desliga o modo leve (escolha do usuário; vale sobre o automático).

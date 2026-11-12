@@ -56,6 +56,8 @@ object CarState {
      *  carro abre quando houver uma ([askSink] ou ao montar). */
     @Volatile var pendingAsk: Pair<String, String>? = null
     @Volatile var askSink: ((Pair<String, String>) -> Unit)? = null
+    /** Nomes de lugares no mapa do carro (opção do usuário). */
+    @Volatile var placeNames = true
     /** Emoji do veículo do piloto (🏍️ / 🚗 / 🚚). */
     @Volatile var vehicle = "🏍️"
     /** Textos da tela do carro em inglês (idioma do app, vem do celular). */
@@ -133,6 +135,7 @@ class CarBridge(messenger: BinaryMessenger) {
                         CarState.banner = a["banner"] as? String
                         (a["vehicle"] as? String)?.let { CarState.vehicle = it }
                         (a["lang"] as? String)?.let { CarState.en = it == "en" }
+                        (a["placeNames"] as? Boolean)?.let { CarState.placeNames = it }
                         val text = a["text"] as? String
                         CarState.nav = if (text == null) null else CarState.Nav(
                             text = text,

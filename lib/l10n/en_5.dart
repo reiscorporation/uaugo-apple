@@ -126,6 +126,8 @@ const en5 = <String, String>{
   'Rota para {0}.': 'Route to {0}.',
   'Rota para {0}. Faltam {1}.': 'Route to {0}. {1} to go.',
   'Rota retomada': 'Route resumed',
+  'Nomes de lugares no mapa do carro': 'Place names on the car map',
+  'Museus, escolas, lojas e outros lugares no mapa do Android Auto. Desligado, o mapa fica mais limpo (nomes de ruas continuam).': 'Museums, schools, shops and other places on the Android Auto map. Off, the map is cleaner (street names stay).',
   'Comunidade': 'Community',
   'Trocar ou remover': 'Change or remove',
   'Voltar à melhor rota': 'Back to the best route',
