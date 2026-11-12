@@ -121,6 +121,8 @@ const en5 = <String, String>{
   '{0} atrações num raio de {1} km': '{0} attractions within {1} km',
   'Radar removido para todos.': 'Speed camera removed for everyone.',
   'Limite de {0} km/h aplicado para todos.': '{0} km/h limit applied for everyone.',
+  'Comunidade': 'Community',
+  'Trocar ou remover': 'Change or remove',
   'Voltar à melhor rota': 'Back to the best route',
   'UauGo está na tela do carro': 'UauGo is on the car screen',
   'Por segurança, use a tela do carro enquanto dirige.': 'For safety, use the car screen while driving.',

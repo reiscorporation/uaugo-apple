@@ -13,6 +13,7 @@ import 'package:geolocator/geolocator.dart';
 import 'na_rota_screen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../brand.dart';
 import '../logic/shared_place.dart';
@@ -566,14 +567,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _savedChip(String key, String name, IconData icon) {
     final p = SavedPlacesService.instance.get(key);
-    return GestureDetector(
-      onLongPress: p == null ? null : () => _editSavedPlace(p),
-      child: ActionChip(
+    if (p == null) {
+      return ActionChip(
         avatar: Icon(icon, size: 18),
-        label: Text(p == null ? tr('{0} (definir)', [name]) : name),
-        onPressed: () => p == null
-            ? _pickSavedPlace(key, name)
-            : _whereTo(shared: SharedPlace(lat: p.lat, lng: p.lng, label: p.name)),
+        label: Text(tr('{0} (definir)', [name])),
+        onPressed: () => _pickSavedPlace(key, name),
+      );
+    }
+    // Já salvo: toque leva até lá; o lápis (ou toque longo) troca ou remove.
+    // Antes só havia o toque longo, que ninguém achava (12/11).
+    return GestureDetector(
+      onLongPress: () => _editSavedPlace(p),
+      child: InputChip(
+        avatar: Icon(icon, size: 18),
+        label: Text(name),
+        onPressed: () =>
+            _whereTo(shared: SharedPlace(lat: p.lat, lng: p.lng, label: p.name)),
+        deleteIcon: const Icon(Icons.edit, size: 18),
+        deleteButtonTooltipMessage: tr('Trocar ou remover'),
+        onDeleted: () => _editSavedPlace(p),
       ),
     );
   }
@@ -973,6 +985,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: Text(_clubName == null
                     ? tr('Clube')
                     : tr('Clube: {0}', [_clubName])),
+              ),
+              const SizedBox(height: 8),
+              // Comunidade UauGo (site uaugo.com.br), com a marca (12/11).
+              OutlinedButton.icon(
+                onPressed: () => launchUrl(Uri.parse('https://uaugo.com.br'),
+                    mode: LaunchMode.externalApplication),
+                icon: const Icon(Icons.forum_outlined),
+                label: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(tr('Comunidade')),
+                  const SizedBox(width: 6),
+                  Image.asset('assets/branding/uaugo_marca.png', height: 18),
+                ]),
               ),
               if (_myExps.isNotEmpty) ...[
                 const SizedBox(height: 24),

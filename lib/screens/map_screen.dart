@@ -159,7 +159,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Android Auto conectado e navegando: o celular costuma ficar bloqueado,
   /// mas GPS, voz e avisos continuam (a tela é a do carro).
   bool get _carMode =>
-      _sim == null && _navigating && CarService.instance.connected.value;
+      _sim == null &&
+      (_navigating || _trip != null) &&
+      CarService.instance.connected.value;
 
   /// O GPS atual roda no serviço com notificação fixa ("UauGo ativo")?
   bool _bgGps = false;
@@ -245,7 +247,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // a opção ligada, ou Android Auto); senão, desliga.
       final left = state == AppLifecycleState.paused ||
           state == AppLifecycleState.hidden;
-      if (left && !_bgGps) _stopGps();
+      // Android Auto navegando mas o GPS ainda no modo "só com a tela" (o
+      // carro conectou com o celular já guardado): passa para o serviço em
+      // vez de desligar. Sem isso o GPS parava e a rota não recalculava no
+      // carro (relato de testador, 12/11).
+      if (left && !_bgGps) _keepGpsInBackground ? _startGps() : _stopGps();
       // De volta à tela: religa, ou troca de modo se a situação mudou.
       if (state == AppLifecycleState.resumed &&
           (_gpsSub == null || _bgGps != _keepGpsInBackground)) {
@@ -6806,6 +6812,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _onCarConnected() {
     if (!mounted) return;
     setState(() {}); // o 3D do celular sai/volta com o carro
+    // Carro conectou/desconectou: GPS no serviço (segue com o celular
+    // bloqueado) ou volta ao normal, mesmo com o app fora da tela.
+    if (_sim == null && _bgGps != _keepGpsInBackground) {
+      (_keepGpsInBackground || !_inBackground) ? _startGps() : _stopGps();
+    }
     if (!CarService.instance.connected.value) return;
     if (_routeRecs.length >= 2) CarService.instance.route(_routeRecs);
     _sendPoisToCar();

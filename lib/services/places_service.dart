@@ -14,6 +14,7 @@ import 'dart:math';
 
 import 'package:cloud_functions/cloud_functions.dart';
 
+import '../logic/address_abbrev.dart';
 import '../logic/find_places.dart';
 import '../l10n/i18n.dart';
 
@@ -86,6 +87,28 @@ class PlacesService {
       {double? nearLat, double? nearLng}) async {
     if (text.trim().length < 3) return const [];
     lastFailed = false;
+    // "av. aparecido savegnago" não achava "Avenida Aparecido Savegnago":
+    // com abreviação, busca também por extenso e junta (por extenso primeiro).
+    final full = expandAddressAbbrev(text);
+    if (full != text.trim()) {
+      final both = await Future.wait([
+        _search(full, nearLat, nearLng),
+        _search(text, nearLat, nearLng),
+      ]);
+      final seen = <String>{};
+      final out = [
+        for (final l in both)
+          for (final s in l)
+            if (seen.add(s.placeId)) s
+      ];
+      lastFailed = both.every((l) => l.isEmpty) && lastFailed;
+      return sortByDistance(out);
+    }
+    return _search(text, nearLat, nearLng);
+  }
+
+  Future<List<PlaceSuggestion>> _search(
+      String text, double? nearLat, double? nearLng) async {
     try {
       final data = await _call({
         'action': 'autocomplete',
