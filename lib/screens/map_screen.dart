@@ -709,6 +709,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void dispose() {
     // Saiu do mapa por vontade própria; o Android fechar o app não passa aqui.
     if (!_isExpedition && _sim == null) ActiveTrip.clear();
+    // Simulação retomada e encerrada: apaga a guardada (senão reabria sozinha).
+    if (widget.simulate && MinimizedTrip.trip.value == null) ActiveTrip.clear();
     _clearSimSaved();
     LiveSos.active.removeListener(_onLiveSos);
     _onlineTimer?.cancel();
@@ -7265,6 +7267,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool get _confirmExit =>
       _sim != null ? _simStarted : _navigating && !_arrivedAtDestination;
 
+  /// Encerrar a simulação: nada dela fica guardado para reabrir sozinho.
+  Future<void> _endSimulation() async {
+    await ActiveTrip.clear();
+    _simSaved = false;
+    if (mounted) Navigator.of(context).pop();
+  }
+
   /// "Voltar" durante a navegação: pergunta se quer mesmo sair (a rota é
   /// encerrada). Na expedição, sair do mapa não tira do comboio.
   Future<void> _askExitNavigation() async {
@@ -7290,6 +7299,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       );
       if (leave != true || !mounted) return;
       await _voice.stop();
+      // Saiu da simulação: nada dela fica guardado para reabrir sozinho.
+      await ActiveTrip.clear();
+      _simSaved = false;
       if (mounted) Navigator.of(context).pop();
       return;
     }
@@ -8153,7 +8165,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final Widget close = IconButton(
       tooltip: tr('Encerrar simulação'),
       color: Colors.red,
-      onPressed: () => Navigator.of(context).pop(),
+      onPressed: _endSimulation,
       icon: const Icon(Icons.close),
     );
     return Material(
@@ -8182,7 +8194,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
                       style: TextButton.styleFrom(foregroundColor: Colors.red),
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: _endSimulation,
                       icon: const Icon(Icons.close),
                       label: Text(tr('Encerrar simulação'),
                           style: TextStyle(fontWeight: FontWeight.bold)),
