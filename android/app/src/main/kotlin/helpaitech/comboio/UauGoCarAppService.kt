@@ -332,7 +332,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             .build()
         // Estrada em 3D: mapa <-> 3D sempre ("nas saídas" oculto por enquanto).
         val view3d = Action.Builder()
-            .setIcon(icon(R.drawable.car_3d_text))
+            .setIcon(icon(if (CarState.mode3d == 2) R.drawable.car_map else R.drawable.car_3d_text))
             .setOnClickListener {
                 setMode3d(if (CarState.mode3d == 2) 0 else 2)
                 toast(when (CarState.mode3d) {
@@ -357,11 +357,12 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 if (carMap.running) carMap.update()
             }
             .build()
+        // 3D primeiro: em tela baixa o último botão ficava escondido embaixo.
         val mapStrip = ActionStrip.Builder()
+            .addAction(view3d)
             .addAction(compass)
             .addAction(zoom(R.drawable.car_zoom_in, 1f))
             .addAction(zoom(R.drawable.car_zoom_out, -1f))
-            .addAction(view3d)
             .build()
         val b = NavigationTemplate.Builder().setActionStrip(strip).setMapActionStrip(mapStrip)
         // A manobra, a chegada e os avisos são desenhados no mapa (CarOverlay),
@@ -424,6 +425,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             hit == "sos" -> sosTap()
             hit?.startsWith("do:") == true -> CarState.actionSink?.invoke(hit.removePrefix("do:"))
             hit == "toggleview" -> CarState.actionSink?.invoke("toggleview")
+            hit == "music" -> screenManager.push(MusicScreen(carContext))
             hit == "bannertap" -> {
                 val sink = CarState.actionSink
                 if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("bannertap")
@@ -671,6 +673,42 @@ class SpeedEditScreen(ctx: CarContext, private val q: SpeedEdit,
         }
         return ListTemplate.Builder()
             .setTitle(if (page == 0) q.title else (if (en) "Correct speed" else "Corrigir velocidade"))
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
+    }
+}
+
+/** Música (botão ♪ do carro): o que toca no celular e os comandos. */
+class MusicScreen(ctx: CarContext) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val en = CarState.en
+        val list = ItemList.Builder()
+        val now = CarMedia.now(carContext)
+        when {
+            !CarMedia.hasAccess(carContext) -> list.setNoItemsMessage(
+                if (en) "Allow music access in UauGo on the phone (Settings)"
+                else "Libere o acesso à música no UauGo do celular (Configurações)")
+            now == null -> list.setNoItemsMessage(
+                if (en) "Nothing playing. Start music in your music app."
+                else "Nada tocando. Abra seu app de música (Spotify, YouTube Music...).")
+            else -> {
+                fun row(t: String, cmd: String) = list.addItem(Row.Builder().setTitle(t)
+                    .setOnClickListener {
+                        CarMedia.command(carContext, cmd)
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ invalidate() }, 600)
+                    }.build())
+                list.addItem(Row.Builder()
+                    .setTitle(now.title.ifEmpty { now.app })
+                    .addText(listOf(now.artist, now.app).filter { it.isNotEmpty() }.joinToString(" · "))
+                    .build())
+                row(if (now.playing) (if (en) "⏸  Pause" else "⏸  Pausar") else (if (en) "▶  Play" else "▶  Tocar"), "toggle")
+                row(if (en) "⏭  Next" else "⏭  Próxima", "next")
+                row(if (en) "⏮  Previous" else "⏮  Anterior", "previous")
+            }
+        }
+        return ListTemplate.Builder()
+            .setTitle(if (en) "Music" else "Música")
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()

@@ -101,7 +101,9 @@ class Car3DView(context: Context) {
         val right = ((view.width - r.right) / d).toInt() + 8
         val bottom = ((view.height - r.bottom) / d).toInt() + 8
         // topo livre (abaixo do cartão de manobra do Android Auto): minimapa
-        val top = (r.top / d).toInt()
+        // 12/11: minimapa no alto da tela (antes abaixo da linha de botões do
+        // Android Auto, que ficam só no canto direito).
+        val top = 0
         view.evaluateJavascript("sim3d.layout({l:$left,r:$right,b:$bottom,t:$top})", null)
     }
 

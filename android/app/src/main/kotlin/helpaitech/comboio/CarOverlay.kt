@@ -73,6 +73,11 @@ class CarOverlay(private val ctx: Context) {
         gravity = Gravity.CENTER
         background = box(Color.argb(238, 15, 27, 45), 14)
     }
+    // Música (♪), como no celular: sempre à mão.
+    private val musicBtn = tv(26f, Color.WHITE).apply {
+        text = "♪"; gravity = Gravity.CENTER
+        background = box(Color.argb(238, 15, 27, 45), 14)
+    }
     private val requestBtn = tv(25f, Color.WHITE).apply {
         text = "\uD83D\uDCE2"; gravity = Gravity.CENTER
         background = box(Color.rgb(245, 124, 0), 14)
@@ -109,6 +114,7 @@ class CarOverlay(private val ctx: Context) {
             // Faixa amarela: confirmar/corrigir velocidade, radar não existe.
             inside(banner) -> "bannertap"
             inside(viewBtn) -> "toggleview"
+            inside(musicBtn) -> "music"
             inside(requestBtn) -> "requests"
             inside(sosBtn) -> "sos"
             inside(alertBtn) -> "alert"
@@ -124,7 +130,11 @@ class CarOverlay(private val ctx: Context) {
     fun setArea(r: android.graphics.Rect, width: Int) {
         val v = topBox ?: return
         val lp = v.layoutParams as FrameLayout.LayoutParams
-        lp.setMargins(r.left + dp(10), r.top + dp(10), (width - r.right).coerceAtLeast(0) + dp(10), 0)
+        // 12/11: a faixa sobe até o topo da tela (antes começava abaixo da
+        // linha dos botões do Android Auto); à direita deixa o espaço da
+        // lupa e da porta, que ficam no canto de cima.
+        lp.setMargins(r.left + dp(10), dp(10),
+            maxOf((width - r.right).coerceAtLeast(0), dp(170)) + dp(10), 0)
         v.layoutParams = lp
     }
 
@@ -162,6 +172,7 @@ class CarOverlay(private val ctx: Context) {
         val buttons = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(56), dp(56)))
         buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
+        buttons.addView(musicBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(viewBtn, LinearLayout.LayoutParams(dp(78), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(requestBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(sosBtn, LinearLayout.LayoutParams(-2, dp(56)).apply { leftMargin = dp(8) })
