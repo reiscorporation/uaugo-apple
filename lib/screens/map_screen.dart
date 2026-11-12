@@ -7023,6 +7023,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Carro conectou (ou reconectou): reenvia a rota e os pins.
+  /// "Continuar a rota?" aberta no carro, esperando a resposta.
+  bool _askingResume = false;
+
   /// O carro parou a navegação sozinho (desligou ao descer no posto, outro
   /// app...): a rota fica guardada e o celular pergunta ao voltar.
   bool _carPaused = false;
@@ -7032,6 +7035,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _askResumeOnCar() {
     final trip = _trip;
     if (trip == null || _isExpedition || _sim != null || _arrivedAtDestination) return;
+    // Uma pergunta por vez (ela se empilhava: carro conectando + app reaberto).
+    if (_askingResume) return;
+    _askingResume = true;
+    // Até a resposta, a rota fica parada: sem voz nem manobras no carro
+    // (antes a navegação já seguia falando por trás da pergunta, 12/11).
+    if (_navigating) {
+      _carPaused = true;
+      setState(() {
+        _navigating = false;
+        _applyWakelock();
+      });
+      _voice.stop();
+      CarService.instance.clearNavigation();
+    }
     final w = _walker, p = _me;
     final left = w != null && p != null ? _leftOn(w, p) : null;
     CarService.instance.ask(
@@ -7215,8 +7232,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         await _voice.stop();
         CarService.instance.clearNavigation();
       case 'resume:yes':
+        if (!_askingResume) return; // toque repetido na mesma pergunta
+        _askingResume = false;
         _resumeFromCar();
       case 'resume:no':
+        if (!_askingResume) return;
+        _askingResume = false;
         _carPaused = false;
         if (!_navigating) setState(() => _navigating = true);
         await _onCarAction('stop');
