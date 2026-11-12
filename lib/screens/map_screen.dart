@@ -7206,6 +7206,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (t == null) return;
         await _reportHazard(t);
         CarService.instance.toast(tr('Alerta enviado: {0}', [t.label]));
+      // Configurações tocadas na tela do carro (⚙): "cfg:<nome>:1|0".
+      case final x when x.startsWith('cfg:'):
+        final parts = x.split(':');
+        if (parts.length < 3) return;
+        final on = parts[2] == '1';
+        switch (parts[1]) {
+          case 'alerts':
+            _voice.setAlerts(on);
+          case 'narration':
+            _voice.setNarration(on);
+          case 'placeNames':
+            await AppSettings.instance.setCarPlaceNames(on);
+        }
+        final p = _me;
+        if (p != null) _sendToCar(p);
       case 'toggleview':
         // Botão SOLO/COMBOIO do carro: troca a visão (vale no celular também).
         await _toggleView();

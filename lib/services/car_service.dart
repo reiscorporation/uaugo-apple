@@ -29,6 +29,7 @@ import 'auth_service.dart';
 import 'hazard_service.dart';
 import '../l10n/i18n.dart';
 import 'app_settings.dart';
+import 'voice_service.dart';
 import 'places_service.dart';
 import 'recent_places_service.dart';
 import 'saved_places_service.dart';
@@ -351,6 +352,9 @@ class CarService {
       'lang': I18n.lang.value, // textos da tela do carro
       'placeNames': AppSettings.instance.carPlaceNames.value,
       'convoy': convoy,
+      // Configurações mostradas na tela do carro (⚙).
+      'cfgAlerts': VoiceService.instance.alertsOn.value,
+      'cfgNarration': VoiceService.instance.narrationOn.value,
       // Valem com ou sem rota (Só dirigir): contagem do radar, faixa amarela
       // de aviso e o ícone do veículo.
       if (alert != null) 'alert': alert,

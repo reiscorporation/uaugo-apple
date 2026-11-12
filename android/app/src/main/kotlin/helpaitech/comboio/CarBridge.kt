@@ -64,6 +64,9 @@ object CarState {
     /** Opções de velocidade pedidas pelo celular (toque na faixa amarela). */
     @Volatile var speedEditSink: ((SpeedEdit) -> Unit)? = null
     @Volatile var askSink: ((Pair<String, String>) -> Unit)? = null
+    /** Configurações do celular mostradas no ⚙ do carro. */
+    @Volatile var cfgAlerts = true
+    @Volatile var cfgNarration = false
     /** Nomes de lugares no mapa do carro (opção do usuário). */
     @Volatile var placeNames = true
     /** Emoji do veículo do piloto (🏍️ / 🚗 / 🚚). */
@@ -145,6 +148,8 @@ class CarBridge(messenger: BinaryMessenger) {
                         (a["lang"] as? String)?.let { CarState.en = it == "en" }
                         (a["placeNames"] as? Boolean)?.let { CarState.placeNames = it }
                         (a["convoy"] as? Boolean)?.let { CarState.convoyView = it }
+                        (a["cfgAlerts"] as? Boolean)?.let { CarState.cfgAlerts = it }
+                        (a["cfgNarration"] as? Boolean)?.let { CarState.cfgNarration = it }
                         val text = a["text"] as? String
                         CarState.nav = if (text == null) null else CarState.Nav(
                             text = text,

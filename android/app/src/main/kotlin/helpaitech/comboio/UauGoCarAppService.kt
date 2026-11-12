@@ -426,6 +426,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             hit?.startsWith("do:") == true -> CarState.actionSink?.invoke(hit.removePrefix("do:"))
             hit == "toggleview" -> CarState.actionSink?.invoke("toggleview")
             hit == "music" -> screenManager.push(MusicScreen(carContext))
+            hit == "settings" -> screenManager.push(CarSettingsScreen(carContext))
             hit == "bannertap" -> {
                 val sink = CarState.actionSink
                 if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("bannertap")
@@ -673,6 +674,45 @@ class SpeedEditScreen(ctx: CarContext, private val q: SpeedEdit,
         }
         return ListTemplate.Builder()
             .setTitle(if (page == 0) q.title else (if (en) "Correct speed" else "Corrigir velocidade"))
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
+    }
+}
+
+/** Configurações no carro (⚙): as que fazem sentido dirigindo. Valem
+ *  também no celular (são as mesmas opções). */
+class CarSettingsScreen(ctx: CarContext) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val en = CarState.en
+        val list = ItemList.Builder()
+        fun toggle(title: String, sub: String, on: Boolean, set: (Boolean) -> Unit) {
+            list.addItem(Row.Builder().setTitle(title).addText(sub)
+                .setToggle(androidx.car.app.model.Toggle.Builder { v ->
+                    set(v)
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ invalidate() }, 700)
+                }.setChecked(on).build())
+                .build())
+        }
+        fun send(name: String, v: Boolean) = CarState.actionSink?.invoke("cfg:$name:${if (v) 1 else 0}")
+        toggle(if (en) "Spoken alerts" else "Avisos falados",
+            if (en) "Radars, hazards, SOS, stops" else "Radares, perigos, SOS e paradas",
+            CarState.cfgAlerts) { CarState.cfgAlerts = it; send("alerts", it) }
+        toggle(if (en) "Turn-by-turn voice" else "Narração do trajeto",
+            if (en) "Speaks each turn" else "Fala cada curva",
+            CarState.cfgNarration) { CarState.cfgNarration = it; send("narration", it) }
+        toggle(if (en) "Place names on the map" else "Nomes de lugares no mapa",
+            if (en) "Museums, shops, schools" else "Museus, lojas, escolas",
+            CarState.placeNames) { CarState.placeNames = it; send("placeNames", it) }
+        toggle(if (en) "North up" else "Norte para cima",
+            if (en) "Off: map turns with the car" else "Desligado: o mapa gira com o carro",
+            CarState.northUp) {
+            CarState.northUp = it
+            carContext.getSharedPreferences("car", android.content.Context.MODE_PRIVATE)
+                .edit().putBoolean("northUp", it).apply()
+        }
+        return ListTemplate.Builder()
+            .setTitle(if (en) "Settings" else "Configurações")
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()

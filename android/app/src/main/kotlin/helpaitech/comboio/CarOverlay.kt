@@ -78,6 +78,11 @@ class CarOverlay(private val ctx: Context) {
         text = "♪"; gravity = Gravity.CENTER
         background = box(Color.argb(238, 15, 27, 45), 14)
     }
+    // Configurações (⚙), como no celular.
+    private val settingsBtn = tv(26f, Color.WHITE).apply {
+        text = "⚙︎"; gravity = Gravity.CENTER
+        background = box(Color.argb(238, 15, 27, 45), 14)
+    }
     private val requestBtn = tv(25f, Color.WHITE).apply {
         text = "\uD83D\uDCE2"; gravity = Gravity.CENTER
         background = box(Color.rgb(245, 124, 0), 14)
@@ -115,6 +120,7 @@ class CarOverlay(private val ctx: Context) {
             inside(banner) -> "bannertap"
             inside(viewBtn) -> "toggleview"
             inside(musicBtn) -> "music"
+            inside(settingsBtn) -> "settings"
             inside(requestBtn) -> "requests"
             inside(sosBtn) -> "sos"
             inside(alertBtn) -> "alert"
@@ -173,6 +179,7 @@ class CarOverlay(private val ctx: Context) {
         buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(56), dp(56)))
         buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(musicBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
+        buttons.addView(settingsBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(viewBtn, LinearLayout.LayoutParams(dp(78), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(requestBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(sosBtn, LinearLayout.LayoutParams(-2, dp(56)).apply { leftMargin = dp(8) })
