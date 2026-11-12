@@ -45,6 +45,11 @@ import com.google.android.gms.maps.model.PolylineOptions
 import kotlin.math.max
 
 /** Estilo noturno do mapa (fundo escuro, ruas e nomes claros). */
+/** Dia: nomes em cinza, mais discretos (12/11: "bem sutil"). */
+private const val DAY = """[
+{"elementType":"labels.text.fill","stylers":[{"color":"#6b7584"}]}
+]"""
+
 private const val NIGHT = """[
 {"elementType":"geometry","stylers":[{"color":"#1d2c4d"}]},
 {"elementType":"labels.text.fill","stylers":[{"color":"#d0dcef"}]},
@@ -70,7 +75,7 @@ const val MAP_FONT_SCALE = 0.85f
 /** Densidade do mapa do carro: o Google desenha nomes de rua pela densidade
  *  da tela (a escala de letra quase não muda de perto). 0,75 = letras ~3
  *  pontos menores; o zoom compensa para mostrar a mesma área (12/11). */
-const val MAP_DENSITY_SCALE = 0.75f
+const val MAP_DENSITY_SCALE = 0.65f
 val MAP_ZOOM_FIX = (Math.log(1.0 / MAP_DENSITY_SCALE) / Math.log(2.0)).toFloat()
 
 class CarMapView(private val context: Context) {
@@ -299,8 +304,8 @@ class CarMapView(private val context: Context) {
             g.uiSettings.isCompassEnabled = false
             g.isTrafficEnabled = false // o trânsito vai só na linha da rota
             g.isBuildingsEnabled = false // mais leve
-            if (dark) runCatching {
-                g.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions(NIGHT))
+            runCatching {
+                g.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions(if (dark) NIGHT else DAY))
             }
             applyPadding()
             update()
@@ -323,7 +328,7 @@ class CarMapView(private val context: Context) {
         dark = on
         map?.let { g ->
             runCatching {
-                g.setMapStyle(if (on) com.google.android.gms.maps.model.MapStyleOptions(NIGHT) else null)
+                g.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions(if (on) NIGHT else DAY))
             }
         }
     }

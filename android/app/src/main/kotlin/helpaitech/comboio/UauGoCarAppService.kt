@@ -308,14 +308,15 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             sb.addAction(action("Radar", "radar"))
         }
         // Destinos: casa, salvos e recentes, sem tocar no celular.
-        // 12/11: lupa ("Para onde?") e X (sair), iguais aos do celular.
+        // 12/11: lupa ("Para onde?") e porta vermelha (sair), iguais aos do celular.
         sb.addAction(Action.Builder()
             .setIcon(icon(R.drawable.car_search))
             .setOnClickListener { screenManager.push(DestinationsScreen(carContext)) }
             .build())
         val strip = sb
             .addAction(Action.Builder()
-                .setIcon(icon(R.drawable.car_close))
+                .setIcon(CarIcon.Builder(IconCompat.createWithResource(carContext, R.drawable.car_exit))
+                    .setTint(androidx.car.app.model.CarColor.RED).build())
                 .setOnClickListener { UauGoEngine.send(carContext, "stop") }
                 .build())
             .build()

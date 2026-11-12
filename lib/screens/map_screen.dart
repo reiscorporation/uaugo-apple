@@ -952,7 +952,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     _updateSpeed(p);
     if (!_simSeeking) {
-      _checkPois(p);
+      // Pedágio da rota avisado agora: o resto espera a próxima leitura
+      // (um posto policial logo depois apagava o aviso de Limeira, 12/11).
+      if (!_checkRoutePlazas(p)) _checkPois(p);
       _checkHalfway();
     }
     if (!_inBackground) _updateCamera(p);
@@ -1489,6 +1491,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Perto demais: já está na praça (ou passou); aviso agora só confunde.
         if (d < 300) continue;
       }
+      // Praça da rota: o aviso já sai de _checkRoutePlazas (mesma lista e
+      // mesmo valor da prévia); aqui só as que a tabela não conhece.
+      if (toll && _routePlazaNear(poi.lat, poi.lng) != null) continue;
+      // Ponto de pedágio do mapa colado a uma praça da tabela que NÃO é da
+      // rota: é a outra pista/rodovia ao lado (dava "Moto paga R$ 8,40" logo
+      // depois da praça da Bandeirantes, 12/11). Não avisa.
+      if (toll && _tollEst != null && _tollTable != null &&
+          nearestPlaza(_tollTable!, poi.lat, poi.lng) != null) {
+        continue;
+      }
       final plaza = toll && _tollTable != null
           ? _routePlazaNear(poi.lat, poi.lng) ??
               nearestPlaza(_tollTable!, poi.lat, poi.lng)
@@ -1538,6 +1550,66 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       );
       return; // um aviso por vez
     }
+  }
+
+  /// Praças já avisadas nesta rota (chave da praça).
+  final _plazaSpoken = <String>{};
+
+  /// Pedágios da ROTA (a mesma lista e o mesmo valor da prévia), avisados
+  /// a ~1 km pela distância na estrada. Antes o aviso dependia de haver um
+  /// ponto de pedágio do OpenStreetMap perto da pista: de 9 praças da
+  /// Anhanguera/Bandeirantes só 4 eram avisadas (simulação de 12/11).
+  bool _checkRoutePlazas(Position p) {
+    final list = _tollEst?.list ?? const <TollPlaza>[];
+    final w = _walker, pr = _proj;
+    if (list.isEmpty || w == null || pr == null || pr.offset > 60 || _offRoute) return false;
+    if (_speedMs < 3 || _sim != null && !_simStarted) return false;
+    for (final plaza in list) {
+      if (_plazaSpoken.contains(plaza.key)) continue;
+      // Ponto da praça mais perto da rota, à frente do piloto.
+      double? ahead;
+      for (final (a, b) in plaza.pts) {
+        final q = w.project(a, b, after: max(0, pr.along - 200));
+        if (q.offset > max(120.0, plaza.radius)) continue;
+        final d = q.along - pr.along;
+        if (ahead == null || d < ahead) ahead = d;
+      }
+      if (ahead == null) continue;
+      if (ahead < 0) {
+        _plazaSpoken.add(plaza.key); // já passou
+        continue;
+      }
+      if (ahead > 1000) continue;
+      _plazaSpoken.add(plaza.key);
+      // As cabines do OpenStreetMap da mesma praça não avisam de novo.
+      for (final (a, b) in plaza.pts) {
+        for (final o in PoiService.instance.near(a, b, 1200)) {
+          if (o.kind.isToll) _poiSpoken[o.id] = 1;
+        }
+      }
+      if (ahead < 300) continue; // em cima da praça: aviso só confunde
+      if (plaza.editable && !_tollsSeen.containsKey(plaza.key)) {
+        _tollsSeen[plaza.key] = plaza;
+        if (_sim != null) _offerTollCheck(plaza);
+      }
+      final note = tollPlazaNote(plaza, _myBike, formatMoney);
+      final pt = plaza.pts.first;
+      if (kDebugMode) debugPrint('Aviso praça: ${plaza.name} key=${plaza.key} "$note"');
+      _announceRadar(
+        kind: 'toll',
+        emoji: '🛣️',
+        text: tr('Pedágio à frente{0}', [note.isEmpty ? '' : ' · $note']),
+        speech: tr('Praça de pedágio a {0}{1}',
+            [spokenDistance(ahead), note.isEmpty ? '' : '. $note']),
+        speak: true,
+        passed: (q) =>
+            _passedPoint(q, pt.$1, pt.$2) ||
+            (distanceMeters(q.latitude, q.longitude, pt.$1, pt.$2) > 150 &&
+                !_onMyWay(q, pt.$1, pt.$2, side: 200)),
+      );
+      return true; // um aviso por vez
+    }
+    return false;
   }
 
   /// A praça da rota (a mesma usada no custo do planejamento) mais perto
@@ -7666,6 +7738,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         : null;
     final tollTotal = tolls != null && tolls.plazas > 0 ? tolls.total : 0.0;
     final total = (fuel ?? 0) + tollTotal;
+    if (kDebugMode && tolls != null) {
+      for (final t in tolls.list) {
+        debugPrint('Praça rota: ${t.name} key=${t.key} carro=${t.car} moto=${t.moto} '
+            'nota="${tollPlazaNote(t, _myBike, formatMoney)}"');
+      }
+      debugPrint('Praças rota: ${tolls.plazas}, total ${tolls.total}, isentas ${tolls.free}');
+    }
     setState(() {
       _fuelCost = fuel;
       _tollEst = tolls;
