@@ -5617,7 +5617,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   heroTag: '3d',
                   tooltip: _show3d ? tr('Ver o mapa') : tr('Ver em 3D'),
                   onPressed: _toggle3dMap,
-                  child: Icon(_show3d ? Icons.map : Icons.view_in_ar),
+                  child: _show3d ? const Icon(Icons.map) : const _Label3d(),
                 ),
               ),
               const SizedBox(height: 12),
@@ -8042,7 +8042,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final Widget view = IconButton(
               tooltip: _show3d ? tr('Ver o mapa') : tr('Ver em 3D'),
               onPressed: _toggle3dMap,
-              icon: Icon(_show3d ? Icons.map_outlined : Icons.view_in_ar),
+              icon: _show3d ? const Icon(Icons.map_outlined) : const _Label3d(),
             );
     final Widget timeline = ValueListenableBuilder<double>(
             valueListenable: sim.progress,
@@ -8256,4 +8256,17 @@ enum _Mode3d {
   final IconData icon;
   String get label => tr(_label);
   String get hint => tr(_hint);
+}
+
+/// "3D" escrito no botão (12/11: o cubo não dizia o que era; igual ao carro).
+class _Label3d extends StatelessWidget {
+  const _Label3d();
+
+  @override
+  Widget build(BuildContext context) => Text('3D',
+      style: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w900,
+          color: IconTheme.of(context).color,
+          height: 1));
 }
