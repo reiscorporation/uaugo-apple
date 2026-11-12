@@ -257,6 +257,11 @@ class CarService {
   void ask(String title, String text) => _ch.invokeMethod(
       'ask', {'title': title, 'text': text}).catchError((_) => null);
 
+  /// Opções de velocidade na tela do carro (confirmar, radar não existe,
+  /// corrigir). A escolha volta como "speedpick:N" (0 = radar não existe).
+  void speedEdit(String title, int? current, bool radar) => _ch.invokeMethod(
+      'speedEdit', {'title': title, 'current': current, 'radar': radar}).catchError((_) => null);
+
   void toast(String text) =>
       _ch.invokeMethod('toast', text).catchError((_) => null);
 

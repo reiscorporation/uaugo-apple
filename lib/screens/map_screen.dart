@@ -4047,12 +4047,48 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     bool anyone = false, // pergunta "o radar existe?": qualquer piloto responde
     FixedRadar? radar, // radar: corrige ele e os gêmeos (_reportRadar)
   }) async {
+    // Toque na faixa amarela do CARRO: as opções abrem na tela do carro.
+    final fromCar = _editFromCar;
+    _editFromCar = false;
+    _carEditing = fromCar;
+    try {
+      await _editSpeedIn(
+          fromCar: fromCar, title: title, kind: kind, key: key, lat: lat,
+          lng: lng, dir: dir, current: current, anyone: anyone, radar: radar);
+    } finally {
+      _carEditing = false;
+    }
+  }
+
+  /// Próxima edição de velocidade veio do carro (toque na faixa).
+  bool _editFromCar = false;
+
+  /// Edição em andamento pedida pelo carro: avisos também vão para o carro.
+  bool _carEditing = false;
+
+  /// Escolha feita na tela do carro (null = voltou sem escolher).
+  Completer<int?>? _carPick;
+
+  Future<void> _editSpeedIn({
+    required bool fromCar,
+    required String title,
+    required String kind,
+    required String key,
+    required double lat,
+    required double lng,
+    int dir = -1,
+    int? current,
+    bool anyone = false,
+    FixedRadar? radar,
+  }) async {
     if (!anyone && !await SpeedFixService.instance.canEdit()) {
       _snack(tr('Só usuários Gold ou administradores podem confirmar ou corrigir velocidades.'));
       return;
     }
     if (!mounted) return;
-    final picked = await showModalBottomSheet<int>(
+    final picked = fromCar
+        ? await _pickOnCar(title, current, kind == 'r')
+        : await showModalBottomSheet<int>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -4123,6 +4159,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       debugPrint('Correção de velocidade recusada: $e');
       _snack(tr('Não foi possível salvar agora. Confira a internet.'));
     }
+  }
+
+  /// Abre as opções na tela do carro e espera a escolha (até 60 s).
+  Future<int?> _pickOnCar(String title, int? current, bool radar) async {
+    _carPick?.complete(null);
+    final c = _carPick = Completer<int?>();
+    CarService.instance.speedEdit(title, current, radar);
+    final v = await c.future.timeout(const Duration(seconds: 60), onTimeout: () => null);
+    if (identical(_carPick, c)) _carPick = null;
+    return v;
   }
 
   /// Folha de opções do alerta de velocidade (tolerância, máximo pessoal).
@@ -4483,6 +4529,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Mostra uma mensagem rápida no rodapé.
   void _snack(String msg) {
+    if (_carEditing) CarService.instance.toast(msg);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
@@ -7131,6 +7178,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (t == null) return;
         await _reportHazard(t);
         CarService.instance.toast(tr('Alerta enviado: {0}', [t.label]));
+      case 'bannertap':
+        // Tocou na faixa amarela no carro: mesmas opções do celular.
+        final tap = _radarBanner?.onTap;
+        if (tap == null) {
+          CarService.instance.toast(tr('Este aviso não tem correção.'));
+          return;
+        }
+        _editFromCar = true;
+        tap();
+      case final x when x.startsWith('speedpick:'):
+        _carPick?.complete(int.tryParse(x.substring(10)));
+        _carPick = null;
       case 'carstop':
         // O carro pediu para parar (não foi o motorista): pausa sem apagar.
         if (!_navigating) return;

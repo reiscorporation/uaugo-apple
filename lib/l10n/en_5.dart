@@ -128,6 +128,7 @@ const en5 = <String, String>{
   'Rota retomada': 'Route resumed',
   'Nomes de lugares no mapa do carro': 'Place names on the car map',
   'Museus, escolas, lojas e outros lugares no mapa do Android Auto. Desligado, o mapa fica mais limpo (nomes de ruas continuam).': 'Museums, schools, shops and other places on the Android Auto map. Off, the map is cleaner (street names stay).',
+  'Este aviso não tem correção.': 'This alert has nothing to correct.',
   'Comunidade': 'Community',
   'Trocar ou remover': 'Change or remove',
   'Voltar à melhor rota': 'Back to the best route',

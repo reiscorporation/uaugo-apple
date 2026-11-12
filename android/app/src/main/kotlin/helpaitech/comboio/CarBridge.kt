@@ -55,6 +55,8 @@ object CarState {
     /** Pergunta do celular para a tela do carro: (título, texto). A tela do
      *  carro abre quando houver uma ([askSink] ou ao montar). */
     @Volatile var pendingAsk: Pair<String, String>? = null
+    /** Opções de velocidade pedidas pelo celular (toque na faixa amarela). */
+    @Volatile var speedEditSink: ((SpeedEdit) -> Unit)? = null
     @Volatile var askSink: ((Pair<String, String>) -> Unit)? = null
     /** Nomes de lugares no mapa do carro (opção do usuário). */
     @Volatile var placeNames = true
@@ -271,6 +273,13 @@ class CarBridge(messenger: BinaryMessenger) {
                     CarState.changed()
                     result.success(null)
                 }
+                "speedEdit" -> {
+                    val m = call.arguments as? Map<*, *>
+                    val q = SpeedEdit(m?.get("title") as? String ?: "",
+                        (m?.get("current") as? Number)?.toInt(), m?.get("radar") == true)
+                    CarState.speedEditSink?.let { s -> Handler(Looper.getMainLooper()).post { s(q) } }
+                    result.success(null)
+                }
                 "ask" -> {
                     val m = call.arguments as? Map<*, *>
                     val q = Pair(m?.get("title") as? String ?: "", m?.get("text") as? String ?: "")
@@ -292,3 +301,6 @@ class CarBridge(messenger: BinaryMessenger) {
         CarState.connectedSink = { on -> channel.invokeMethod("connected", on) }
     }
 }
+
+/** Pedido de confirmar/corrigir velocidade na tela do carro. */
+data class SpeedEdit(val title: String, val current: Int?, val radar: Boolean)

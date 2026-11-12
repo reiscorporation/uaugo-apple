@@ -120,6 +120,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         carMap.onMode = { setMode3d(it) }
         // Pergunta do celular (ex.: "Continuar a rota?") na tela do carro.
         CarState.askSink = { q -> showAsk(q) }
+        CarState.speedEditSink = { q -> screenManager.push(SpeedEditScreen(carContext, q)) }
         // Depois de a tela do mapa entrar (no init ela ainda não está na pilha).
         CarState.pendingAsk?.let { q ->
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ showAsk(q) }, 800)
@@ -205,6 +206,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 }
                 CarState.toastSink = null
                 CarState.askSink = null
+                CarState.speedEditSink = null
                 carMap.stop()
                 if (navigating) runCatching { nav.navigationEnded() }
             }
@@ -421,6 +423,10 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             hit == "requests" -> screenManager.push(GroupRequestScreen(carContext))
             hit == "sos" -> sosTap()
             hit?.startsWith("do:") == true -> CarState.actionSink?.invoke(hit.removePrefix("do:"))
+            hit == "bannertap" -> {
+                val sink = CarState.actionSink
+                if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("bannertap")
+            }
             hit != null -> screenManager.push(RemoveAlertScreen(carContext, hit.removePrefix("hazard:")))
         }
     }
@@ -623,6 +629,47 @@ class DestinationsScreen(ctx: CarContext) : Screen(ctx) {
         }
         return ListTemplate.Builder()
             .setTitle(if (CarState.en) "Go to" else "Destinos")
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
+    }
+}
+
+/** Confirmar/corrigir velocidade ou radar (toque na faixa amarela), como no
+ *  celular. O carro limita listas a ~6 linhas: velocidades em duas páginas. */
+class SpeedEditScreen(ctx: CarContext, private val q: SpeedEdit,
+                      private val page: Int = 0) : Screen(ctx) {
+    private fun pick(v: Int) {
+        CarState.actionSink?.invoke("speedpick:$v")
+        screenManager.popToRoot()
+    }
+
+    override fun onGetTemplate(): Template {
+        val en = CarState.en
+        val list = ItemList.Builder()
+        fun row(t: String, sub: String? = null, click: () -> Unit) {
+            val r = Row.Builder().setTitle(t)
+            if (sub != null) r.addText(sub)
+            list.addItem(r.setOnClickListener(click).build())
+        }
+        when (page) {
+            0 -> {
+                if (q.current != null) row(if (en) "✅ Confirm ${q.current} km/h" else "✅ Confirmar ${q.current} km/h") { pick(q.current) }
+                if (q.radar) row(if (en) "🚫 Radar does not exist" else "🚫 Radar não existe") { pick(0) }
+                row(if (en) "Correct to 20 – 60 km/h" else "Corrigir para 20 a 60 km/h") {
+                    screenManager.push(SpeedEditScreen(carContext, q, 1))
+                }
+                row(if (en) "Correct to 70 – 120 km/h" else "Corrigir para 70 a 120 km/h") {
+                    screenManager.push(SpeedEditScreen(carContext, q, 2))
+                }
+            }
+            else -> {
+                val vs = if (page == 1) listOf(20, 30, 40, 50, 60) else listOf(70, 80, 90, 100, 110, 120)
+                for (v in vs) row("$v km/h") { pick(v) }
+            }
+        }
+        return ListTemplate.Builder()
+            .setTitle(if (page == 0) q.title else (if (en) "Correct speed" else "Corrigir velocidade"))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()

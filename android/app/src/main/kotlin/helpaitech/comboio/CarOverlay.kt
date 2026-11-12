@@ -101,6 +101,8 @@ class CarOverlay(private val ctx: Context) {
         }
         return when {
             inside(groupBar) && CarState.groupAction != null -> "do:${CarState.groupAction}"
+            // Faixa amarela: confirmar/corrigir velocidade, radar não existe.
+            inside(banner) -> "bannertap"
             inside(requestBtn) -> "requests"
             inside(sosBtn) -> "sos"
             inside(alertBtn) -> "alert"
