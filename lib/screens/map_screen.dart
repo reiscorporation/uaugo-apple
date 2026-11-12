@@ -35,6 +35,7 @@ import '../logic/rodizio.dart';
 import '../services/toll_service.dart';
 import '../services/places_service.dart';
 import '../services/car_service.dart';
+import '../services/car_settings.dart';
 import '../services/analytics_service.dart';
 import '../widgets/place_search.dart';
 import '../services/saved_places_service.dart';
@@ -7210,15 +7211,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       case final x when x.startsWith('cfg:'):
         final parts = x.split(':');
         if (parts.length < 3) return;
-        final on = parts[2] == '1';
-        switch (parts[1]) {
-          case 'alerts':
-            _voice.setAlerts(on);
-          case 'narration':
-            _voice.setNarration(on);
-          case 'placeNames':
-            await AppSettings.instance.setCarPlaceNames(on);
-        }
+        await CarSettings.apply(parts[1], parts[2] == '1');
+        if (mounted) setState(() {});
         final p = _me;
         if (p != null) _sendToCar(p);
       case 'toggleview':

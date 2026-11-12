@@ -78,6 +78,25 @@ class CarOverlay(private val ctx: Context) {
         text = "♪"; gravity = Gravity.CENTER
         background = box(Color.argb(238, 15, 27, 45), 14)
     }
+    // Mini player (como no celular): abre ao lado do ♪, sem trocar de tela.
+    var musicOpen = false
+    private val musicTitle = tv(14f, Color.WHITE).apply {
+        maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+        setPadding(dp(12), 0, dp(6), 0); gravity = Gravity.CENTER_VERTICAL
+    }
+    private fun mBtn(t: String) = tv(22f, Color.WHITE).apply { text = t; gravity = Gravity.CENTER }
+    private val mPrev = mBtn("⏮︎")
+    private val mPlay = mBtn("▶︎")
+    private val mNext = mBtn("⏭︎")
+    private val musicBar = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        background = box(Color.argb(238, 15, 27, 45), 14)
+        addView(musicTitle, LinearLayout.LayoutParams(dp(170), -1))
+        addView(mPrev, LinearLayout.LayoutParams(dp(48), -1))
+        addView(mPlay, LinearLayout.LayoutParams(dp(52), -1))
+        addView(mNext, LinearLayout.LayoutParams(dp(48), -1))
+        visibility = View.GONE
+    }
     // Configurações (⚙), como no celular.
     private val settingsBtn = tv(26f, Color.WHITE).apply {
         text = "⚙︎"; gravity = Gravity.CENTER
@@ -119,6 +138,9 @@ class CarOverlay(private val ctx: Context) {
             // Faixa amarela: confirmar/corrigir velocidade, radar não existe.
             inside(banner) -> "bannertap"
             inside(viewBtn) -> "toggleview"
+            inside(mPrev) -> "mprev"
+            inside(mPlay) -> "mtoggle"
+            inside(mNext) -> "mnext"
             inside(musicBtn) -> "music"
             inside(settingsBtn) -> "settings"
             inside(requestBtn) -> "requests"
@@ -179,6 +201,7 @@ class CarOverlay(private val ctx: Context) {
         buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(56), dp(56)))
         buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(musicBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
+        buttons.addView(musicBar, LinearLayout.LayoutParams(-2, dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(settingsBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(viewBtn, LinearLayout.LayoutParams(dp(78), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(requestBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
@@ -233,6 +256,16 @@ class CarOverlay(private val ctx: Context) {
         banner.visibility = if (b.isNullOrBlank()) View.GONE else View.VISIBLE
         info.visibility = turn.visibility
         banner.text = bannerText(b ?: "")
+        musicBar.visibility = if (musicOpen) View.VISIBLE else View.GONE
+        if (musicOpen) {
+            val now = CarMedia.now(ctx)
+            musicTitle.text = when {
+                !CarMedia.hasAccess(ctx) -> if (CarState.en) "Allow music access on the phone" else "Libere o acesso à música no celular"
+                now == null -> if (CarState.en) "Nothing playing" else "Nada tocando"
+                else -> listOf(now.title, now.artist).filter { it.isNotEmpty() }.joinToString(" · ")
+            }
+            mPlay.text = if (now?.playing == true) "⏸︎" else "▶︎"
+        }
         val group = if (CarState.groupOn) View.VISIBLE else View.GONE
         requestBtn.visibility = group
         viewBtn.visibility = group

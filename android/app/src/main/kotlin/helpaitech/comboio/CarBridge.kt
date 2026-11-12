@@ -64,9 +64,10 @@ object CarState {
     /** Opções de velocidade pedidas pelo celular (toque na faixa amarela). */
     @Volatile var speedEditSink: ((SpeedEdit) -> Unit)? = null
     @Volatile var askSink: ((Pair<String, String>) -> Unit)? = null
-    /** Configurações do celular mostradas no ⚙ do carro. */
-    @Volatile var cfgAlerts = true
-    @Volatile var cfgNarration = false
+    /** Configurações do celular mostradas no ⚙ do carro (por seção). */
+    data class CfgItem(val key: String, val title: String, val on: Boolean, val sub: String)
+    data class CfgSection(val title: String, val items: List<CfgItem>)
+    @Volatile var cfg: List<CfgSection> = emptyList()
     /** Nomes de lugares no mapa do carro (opção do usuário). */
     @Volatile var placeNames = true
     /** Emoji do veículo do piloto (🏍️ / 🚗 / 🚚). */
@@ -148,8 +149,17 @@ class CarBridge(messenger: BinaryMessenger) {
                         (a["lang"] as? String)?.let { CarState.en = it == "en" }
                         (a["placeNames"] as? Boolean)?.let { CarState.placeNames = it }
                         (a["convoy"] as? Boolean)?.let { CarState.convoyView = it }
-                        (a["cfgAlerts"] as? Boolean)?.let { CarState.cfgAlerts = it }
-                        (a["cfgNarration"] as? Boolean)?.let { CarState.cfgNarration = it }
+                        (a["cfg"] as? List<*>)?.let { l ->
+                            CarState.cfg = l.mapNotNull { sec ->
+                                val m = sec as? Map<*, *> ?: return@mapNotNull null
+                                CarState.CfgSection(m["t"] as? String ?: "",
+                                    (m["i"] as? List<*>).orEmpty().mapNotNull { it2 ->
+                                        val i = it2 as? Map<*, *> ?: return@mapNotNull null
+                                        CarState.CfgItem(i["k"] as? String ?: return@mapNotNull null,
+                                            i["t"] as? String ?: "", i["v"] == true, i["s"] as? String ?: "")
+                                    })
+                            }
+                        }
                         val text = a["text"] as? String
                         CarState.nav = if (text == null) null else CarState.Nav(
                             text = text,

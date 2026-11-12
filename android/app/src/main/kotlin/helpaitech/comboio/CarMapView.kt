@@ -382,6 +382,13 @@ class CarMapView(private val context: Context) {
         }
     }
 
+    /** ♪ no carro: abre/fecha o mini player. */
+    fun toggleMusic() {
+        val ov = overlay ?: return
+        ov.musicOpen = !ov.musicOpen
+        ov.update()
+    }
+
     /** Toque na tela do carro: "alert", "radar", "hazard:id" ou null. */
     fun tap(x: Float, y: Float): String? {
         overlay?.hit(x, y)?.let { return it }

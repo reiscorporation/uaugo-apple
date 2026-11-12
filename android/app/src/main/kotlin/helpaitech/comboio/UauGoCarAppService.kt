@@ -425,7 +425,12 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             hit == "sos" -> sosTap()
             hit?.startsWith("do:") == true -> CarState.actionSink?.invoke(hit.removePrefix("do:"))
             hit == "toggleview" -> CarState.actionSink?.invoke("toggleview")
-            hit == "music" -> screenManager.push(MusicScreen(carContext))
+            // ♪ abre/fecha o mini player no próprio mapa (como no celular).
+            hit == "music" -> carMap.toggleMusic()
+            hit == "mprev" || hit == "mtoggle" || hit == "mnext" -> {
+                CarMedia.command(carContext, when (hit) { "mprev" -> "previous"; "mnext" -> "next"; else -> "toggle" })
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ carMap.update() }, 500)
+            }
             hit == "settings" -> screenManager.push(CarSettingsScreen(carContext))
             hit == "bannertap" -> {
                 val sink = CarState.actionSink
@@ -680,39 +685,71 @@ class SpeedEditScreen(ctx: CarContext, private val q: SpeedEdit,
     }
 }
 
-/** Configurações no carro (⚙): as que fazem sentido dirigindo. Valem
- *  também no celular (são as mesmas opções). */
+/** Configurações no carro (⚙): as mesmas do celular, em seções. */
 class CarSettingsScreen(ctx: CarContext) : Screen(ctx) {
     override fun onGetTemplate(): Template {
         val en = CarState.en
         val list = ItemList.Builder()
-        fun toggle(title: String, sub: String, on: Boolean, set: (Boolean) -> Unit) {
-            list.addItem(Row.Builder().setTitle(title).addText(sub)
-                .setToggle(androidx.car.app.model.Toggle.Builder { v ->
-                    set(v)
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ invalidate() }, 700)
-                }.setChecked(on).build())
+        for ((idx, sec) in CarState.cfg.withIndex()) {
+            list.addItem(Row.Builder().setTitle(sec.title)
+                .setBrowsable(true)
+                .setOnClickListener { screenManager.push(CarSettingsSection(carContext, idx)) }
                 .build())
         }
-        fun send(name: String, v: Boolean) = CarState.actionSink?.invoke("cfg:$name:${if (v) 1 else 0}")
-        toggle(if (en) "Spoken alerts" else "Avisos falados",
-            if (en) "Radars, hazards, SOS, stops" else "Radares, perigos, SOS e paradas",
-            CarState.cfgAlerts) { CarState.cfgAlerts = it; send("alerts", it) }
-        toggle(if (en) "Turn-by-turn voice" else "Narração do trajeto",
-            if (en) "Speaks each turn" else "Fala cada curva",
-            CarState.cfgNarration) { CarState.cfgNarration = it; send("narration", it) }
-        toggle(if (en) "Place names on the map" else "Nomes de lugares no mapa",
-            if (en) "Museums, shops, schools" else "Museus, lojas, escolas",
-            CarState.placeNames) { CarState.placeNames = it; send("placeNames", it) }
-        toggle(if (en) "North up" else "Norte para cima",
-            if (en) "Off: map turns with the car" else "Desligado: o mapa gira com o carro",
-            CarState.northUp) {
-            CarState.northUp = it
-            carContext.getSharedPreferences("car", android.content.Context.MODE_PRIVATE)
-                .edit().putBoolean("northUp", it).apply()
-        }
+        list.addItem(Row.Builder().setTitle(if (en) "Car screen" else "Tela do carro")
+            .setBrowsable(true)
+            .setOnClickListener { screenManager.push(CarSettingsSection(carContext, -1)) }
+            .build())
+        if (CarState.cfg.isEmpty()) list.setNoItemsMessage(if (en) "Open UauGo on the phone" else "Abra o UauGo no celular")
         return ListTemplate.Builder()
             .setTitle(if (en) "Settings" else "Configurações")
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
+    }
+}
+
+/** Uma seção das configurações; -1 = só do carro (norte para cima). */
+class CarSettingsSection(ctx: CarContext, private val idx: Int) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val en = CarState.en
+        val list = ItemList.Builder()
+        fun refresh() = android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ invalidate() }, 1200)
+        val title: String
+        if (idx < 0) {
+            title = if (en) "Car screen" else "Tela do carro"
+            list.addItem(Row.Builder().setTitle(if (en) "North up" else "Norte para cima")
+                .addText(if (en) "Off: map turns with the car" else "Desligado: o mapa gira com o carro")
+                .setToggle(androidx.car.app.model.Toggle.Builder { v ->
+                    CarState.northUp = v
+                    carContext.getSharedPreferences("car", android.content.Context.MODE_PRIVATE)
+                        .edit().putBoolean("northUp", v).apply()
+                }.setChecked(CarState.northUp).build()).build())
+        } else {
+            val sec = CarState.cfg.getOrNull(idx)
+            title = sec?.title ?: ""
+            for (it in sec?.items.orEmpty()) {
+                val choice = it.key.contains('=')
+                val r = Row.Builder().setTitle(it.title)
+                if (it.sub.isNotEmpty()) r.addText(it.sub)
+                if (choice) {
+                    // Escolha entre várias: tocar marca esta (✓ na marcada).
+                    r.setTitle((if (it.on) "✓  " else "     ") + it.title)
+                    r.setOnClickListener {
+                        CarState.actionSink?.invoke("cfg:${it.key}:1")
+                        refresh()
+                    }
+                } else {
+                    r.setToggle(androidx.car.app.model.Toggle.Builder { v ->
+                        CarState.actionSink?.invoke("cfg:${it.key}:${if (v) 1 else 0}")
+                        refresh()
+                    }.setChecked(it.on).build())
+                }
+                list.addItem(r.build())
+            }
+        }
+        return ListTemplate.Builder()
+            .setTitle(title)
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()
