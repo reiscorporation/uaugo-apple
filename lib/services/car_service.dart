@@ -251,6 +251,11 @@ class CarService {
         for (final r in list.take(6)) {'id': r.id, 'n': r.name, 's': r.info},
       ]).catchError((_) => null);
 
+  /// Pergunta Sim/Não na tela do carro; a resposta volta como ação
+  /// "resume:yes" / "resume:no".
+  void ask(String title, String text) => _ch.invokeMethod(
+      'ask', {'title': title, 'text': text}).catchError((_) => null);
+
   void toast(String text) =>
       _ch.invokeMethod('toast', text).catchError((_) => null);
 

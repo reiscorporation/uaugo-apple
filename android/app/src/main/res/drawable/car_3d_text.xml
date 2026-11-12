@@ -1,0 +1,9 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="24" android:viewportHeight="24">
+    <!-- "3D" escrito (botão do carro, 12/11): o cubo não dizia o que era. -->
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.2" android:fillColor="#00000000"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M3.4,8C3.8,6.8 5,6 6.6,6C8.4,6 9.6,7.1 9.6,8.7C9.6,10.2 8.5,11.2 6.9,11.2H6M6.9,11.2C8.7,11.2 10,12.3 10,14C10,15.8 8.6,17 6.6,17C5,17 3.8,16.2 3.3,15"/>
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.2" android:fillColor="#00000000"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M13,6V17H15.6C18.7,17 20.8,15 20.8,11.5C20.8,8 18.7,6 15.6,6Z"/>
+</vector>

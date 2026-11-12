@@ -112,6 +112,7 @@ class MapScreen extends StatefulWidget {
     this.simulate = false,
     this.simStart,
     this.startNavigation = false,
+    this.resumed = false,
   });
 
   final String? code;
@@ -122,6 +123,10 @@ class MapScreen extends StatefulWidget {
 
   /// Simulação retomada depois de o Android fechar o app: ponto (0 a 1).
   final double? simStart;
+
+  /// Rota retomada ao reabrir o app (o Android tinha fechado o UauGo): com o
+  /// carro conectado, pergunta na tela dele se continua.
+  final bool resumed;
 
   /// Expedição aberta pelo "Iniciar" do roteiro: liga a navegação assim
   /// que a rota do grupo chegar.
@@ -558,6 +563,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Botões da tela do carro (Android Auto).
     _subs.add(CarService.instance.actions.listen(_onCarAction));
     CarService.instance.connected.addListener(_onCarConnected);
+    // Rota retomada depois de o Android fechar o app: pergunta no carro.
+    if (widget.resumed) {
+      Future.delayed(const Duration(seconds: 4), () {
+        if (mounted && CarService.instance.connected.value) _askResumeOnCar();
+      });
+    }
     _voiceCmd.start();
     _radarSvc.index.addListener(_onRadarIndex);
     PoiService.instance.loaded.addListener(_onPoisLoaded);
@@ -6882,8 +6893,52 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Carro conectou (ou reconectou): reenvia a rota e os pins.
+  /// O carro parou a navegação sozinho (desligou ao descer no posto, outro
+  /// app...): a rota fica guardada e o celular pergunta ao voltar.
+  bool _carPaused = false;
+
+  /// Voltou ao carro com uma rota em andamento: "Continuar a rota?" na tela
+  /// do carro (testador perdeu a rota ao descer para abastecer, 12/11).
+  void _askResumeOnCar() {
+    final trip = _trip;
+    if (trip == null || _isExpedition || _sim != null || _arrivedAtDestination) return;
+    final w = _walker, p = _me;
+    final left = w != null && p != null ? _leftOn(w, p) : null;
+    CarService.instance.ask(
+      tr('Continuar a rota?'),
+      left == null
+          ? tr('Rota para {0}.', [trip.title])
+          : tr('Rota para {0}. Faltam {1}.', [trip.title, formatDistance(left.round())]),
+    );
+  }
+
+  /// "Sim": volta a navegar (a rota recalcula sozinha se saiu dela).
+  void _resumeFromCar() {
+    if (_trip == null) return;
+    _carPaused = false;
+    if (!_navigating) {
+      setState(() {
+        _navigating = true;
+        _applyWakelock();
+        _follow = true;
+        _navSynced = false;
+      });
+      _voice.setNarration(true);
+    }
+    ActiveTrip.save(_trip!);
+    if (_sim == null && _bgGps != _keepGpsInBackground) _startGps();
+    if (_routeRecs.length >= 2) CarService.instance.route(_routeRecs);
+    CarService.instance.toast(tr('Rota retomada'));
+  }
+
   void _onCarConnected() {
     if (!mounted) return;
+    if (CarService.instance.connected.value && _trip != null &&
+        (_navigating || _carPaused)) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && CarService.instance.connected.value) _askResumeOnCar();
+      });
+    }
     setState(() {}); // o 3D do celular sai/volta com o carro
     // Carro conectou/desconectou: GPS no serviço (segue com o celular
     // bloqueado) ou volta ao normal, mesmo com o app fora da tela.
@@ -7004,6 +7059,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (t == null) return;
         await _reportHazard(t);
         CarService.instance.toast(tr('Alerta enviado: {0}', [t.label]));
+      case 'carstop':
+        // O carro pediu para parar (não foi o motorista): pausa sem apagar.
+        if (!_navigating) return;
+        _carPaused = true;
+        setState(() {
+          _navigating = false;
+          _applyWakelock();
+        });
+        await _voice.stop();
+        CarService.instance.clearNavigation();
+      case 'resume:yes':
+        _resumeFromCar();
+      case 'resume:no':
+        _carPaused = false;
+        if (!_navigating) setState(() => _navigating = true);
+        await _onCarAction('stop');
       case 'stop':
         if (!_navigating) {
           CarService.instance.toast(tr('Nenhuma navegação em andamento'));

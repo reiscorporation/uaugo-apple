@@ -52,6 +52,10 @@ object CarState {
     /** Contagem do radar ("📸 80 em 450 m") e faixa amarela de aviso. */
     @Volatile var alert: String? = null
     @Volatile var banner: String? = null
+    /** Pergunta do celular para a tela do carro: (título, texto). A tela do
+     *  carro abre quando houver uma ([askSink] ou ao montar). */
+    @Volatile var pendingAsk: Pair<String, String>? = null
+    @Volatile var askSink: ((Pair<String, String>) -> Unit)? = null
     /** Emoji do veículo do piloto (🏍️ / 🚗 / 🚚). */
     @Volatile var vehicle = "🏍️"
     /** Textos da tela do carro em inglês (idioma do app, vem do celular). */
@@ -262,6 +266,13 @@ class CarBridge(messenger: BinaryMessenger) {
                     CarState.nav = null
                     CarState.route = emptyList()
                     CarState.changed()
+                    result.success(null)
+                }
+                "ask" -> {
+                    val m = call.arguments as? Map<*, *>
+                    val q = Pair(m?.get("title") as? String ?: "", m?.get("text") as? String ?: "")
+                    CarState.pendingAsk = q
+                    CarState.askSink?.let { s -> Handler(Looper.getMainLooper()).post { s(q) } }
                     result.success(null)
                 }
                 "toast" -> {

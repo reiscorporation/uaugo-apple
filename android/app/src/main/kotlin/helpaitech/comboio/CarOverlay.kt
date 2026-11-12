@@ -185,7 +185,9 @@ class CarOverlay(private val ctx: Context) {
         turn.visibility = if (n == null || hud3d) View.GONE else View.VISIBLE
         // Velocímetro sempre no canto, também com o 3D (08/11).
         speedArea.visibility = View.VISIBLE
-        view3dBtn.visibility = if (!hud3d && CarState.route.size >= 2) View.VISIBLE else View.GONE
+        // 12/11: o "3D" fica só nos botões do Android Auto (à direita); este
+        // de baixo repetia o mesmo botão.
+        view3dBtn.visibility = View.GONE
         if (n != null) {
             turnIcon.setImageResource(icon(n.maneuver))
             turnIcon.setColorFilter(Color.WHITE)

@@ -764,7 +764,8 @@ class _HomeScreenState extends State<HomeScreen> {
             userName: _riderName,
             trip: t,
             simulate: simAt != null,
-            simStart: simAt)));
+            simStart: simAt,
+            resumed: simAt == null)));
   }
 
   /// Há rota minimizada: pergunta antes de abrir o mapa. true = retomou.

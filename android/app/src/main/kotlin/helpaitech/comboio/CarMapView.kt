@@ -64,6 +64,15 @@ private const val NIGHT = """[
 ]"""
 
 /** Mapa do Google desenhado na tela do carro. */
+/** Escala das letras do mapa do carro (1 = padrão do Google). */
+const val MAP_FONT_SCALE = 0.85f
+
+/** Densidade do mapa do carro: o Google desenha nomes de rua pela densidade
+ *  da tela (a escala de letra quase não muda de perto). 0,75 = letras ~3
+ *  pontos menores; o zoom compensa para mostrar a mesma área (12/11). */
+const val MAP_DENSITY_SCALE = 0.75f
+val MAP_ZOOM_FIX = (Math.log(1.0 / MAP_DENSITY_SCALE) / Math.log(2.0)).toFloat()
+
 class CarMapView(private val context: Context) {
     private var display: VirtualDisplay? = null
     private var presentation: Presentation? = null
@@ -256,8 +265,11 @@ class CarMapView(private val context: Context) {
         display = vd
         val p = Presentation(context, vd.display)
         // Letra grande do celular não vale aqui: o mapa do carro é outra tela.
+        // 12/11: nomes de rua e bairro grandes demais na tela do carro:
+        // ~3 pontos a menos que o padrão do Google (0,7).
         val cfg = android.content.res.Configuration(p.context.resources.configuration)
-        cfg.fontScale = 1f
+        cfg.fontScale = MAP_FONT_SCALE
+        cfg.densityDpi = (dpi * MAP_DENSITY_SCALE).toInt()
         val mv = MapView(android.view.ContextThemeWrapper(p.context, 0).apply {
             applyOverrideConfiguration(cfg)
         })
@@ -444,7 +456,7 @@ class CarMapView(private val context: Context) {
             CarState.speedKmh >= 90 -> 13.4f
             CarState.speedKmh >= 50 -> 14.2f
             else -> 15.0f
-        } + CarState.zoomOffset + (if (nearTurn) 1.2f else 0f)).coerceIn(10f, 19f)
+        } + CarState.zoomOffset + (if (nearTurn) 1.2f else 0f)).coerceIn(10f, 19f) + MAP_ZOOM_FIX
         // Mapa bem afastado: os radares viram um amontoado que cobre as ruas.
         val show = zoom >= 13f
         if (show != poisShown) {
@@ -531,20 +543,32 @@ class CarMapView(private val context: Context) {
     /** A imagem mandada pelo celular; sem ela, o emoji do tipo do veículo. */
     private fun myVehicle(png: ByteArray?): Bitmap {
         val b = png?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) }
-            ?: return vehicleBitmap(CarState.vehicle)
+            ?: return navArrowBitmap()
         return Bitmap.createScaledBitmap(b, 56, 56, true)
     }
 
-    private fun vehicleBitmap(emoji: String): Bitmap {
-        val px = 96
+    /** Sem a imagem do celular (ainda não chegou): seta de navegação
+     *  comum, laranja com borda branca (12/11: a moto emoji não deve aparecer). */
+    private fun navArrowBitmap(): Bitmap {
+        val px = 72
         val b = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
         val c = Canvas(b)
-        c.drawCircle(px / 2f, px / 2f, px / 2f - 4, Paint().apply { color = Color.WHITE; isAntiAlias = true })
-        c.drawCircle(px / 2f, px / 2f, px / 2f - 4, Paint().apply {
-            color = Color.rgb(255, 122, 26); style = Paint.Style.STROKE; strokeWidth = 7f; isAntiAlias = true
+        val path = android.graphics.Path().apply {
+            moveTo(px / 2f, 8f)
+            lineTo(px - 12f, px - 10f)
+            lineTo(px / 2f, px - 24f)
+            lineTo(12f, px - 10f)
+            close()
+        }
+        c.drawPath(path, Paint().apply {
+            color = Color.argb(70, 0, 0, 0); isAntiAlias = true
+            maskFilter = android.graphics.BlurMaskFilter(5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
         })
-        val t = Paint().apply { textSize = 52f; textAlign = Paint.Align.CENTER; isAntiAlias = true }
-        c.drawText(emoji, px / 2f, px / 2f + 18f, t)
+        c.drawPath(path, Paint().apply { color = Color.rgb(255, 122, 26); isAntiAlias = true })
+        c.drawPath(path, Paint().apply {
+            color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = 5f
+            strokeJoin = Paint.Join.ROUND; isAntiAlias = true
+        })
         return b
     }
 }

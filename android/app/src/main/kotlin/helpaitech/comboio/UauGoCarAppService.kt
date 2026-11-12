@@ -41,6 +41,7 @@ import androidx.car.app.model.DateTimeWithZone
 import androidx.car.app.model.Distance
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
+import androidx.car.app.model.MessageTemplate
 import androidx.car.app.model.Row
 import androidx.car.app.model.SearchTemplate
 import androidx.car.app.model.Template
@@ -117,6 +118,18 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         CarState.northUp = ctx.getSharedPreferences("car", android.content.Context.MODE_PRIVATE)
             .getBoolean("northUp", false)
         carMap.onMode = { setMode3d(it) }
+        // Pergunta do celular (ex.: "Continuar a rota?") na tela do carro.
+        CarState.askSink = { q -> showAsk(q) }
+        // Depois de a tela do mapa entrar (no init ela ainda não está na pilha).
+        CarState.pendingAsk?.let { q ->
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ showAsk(q) }, 800)
+        }
+    }
+
+    private fun showAsk(q: Pair<String, String>) {
+        CarState.pendingAsk = null
+        if (screenManager.top is AskScreen) screenManager.pop()
+        screenManager.push(AskScreen(carContext, q.first, q.second))
     }
 
     /** 0 = mapa, 2 = 3D sempre. Vale também no celular (11/11). */
@@ -167,9 +180,12 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         CarState.toastSink = { t -> toast(t) }
         nav.setNavigationManagerCallback(object : NavigationManagerCallback {
             // O carro pediu para parar (ex.: outro app de navegação começou).
+            // Não é o motorista tocando em "Encerrar": o carro desligou ou outro
+            // app pediu. A rota fica guardada e o celular pergunta ao voltar
+            // (testador perdeu a rota ao descer no posto, 12/11).
             override fun onStopNavigation() {
                 navigating = false
-                CarState.actionSink?.invoke("stop")
+                CarState.actionSink?.invoke("carstop")
             }
 
             // "Test drive" do Android Auto (exigência da Play, 11/11): o
@@ -188,6 +204,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                         .removeUpdates(gps)
                 }
                 CarState.toastSink = null
+                CarState.askSink = null
                 carMap.stop()
                 if (navigating) runCatching { nav.navigationEnded() }
             }
@@ -291,12 +308,16 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             sb.addAction(action("Radar", "radar"))
         }
         // Destinos: casa, salvos e recentes, sem tocar no celular.
+        // 12/11: lupa ("Para onde?") e X (sair), iguais aos do celular.
         sb.addAction(Action.Builder()
-            .setTitle(if (CarState.en) "Go to" else "Destinos")
+            .setIcon(icon(R.drawable.car_search))
             .setOnClickListener { screenManager.push(DestinationsScreen(carContext)) }
             .build())
         val strip = sb
-            .addAction(action(if (CarState.en) "End" else "Encerrar", "stop"))
+            .addAction(Action.Builder()
+                .setIcon(icon(R.drawable.car_close))
+                .setOnClickListener { UauGoEngine.send(carContext, "stop") }
+                .build())
             .build()
         // Zoom do mapa do carro: o motorista escolhe (+/−).
         fun zoom(res: Int, step: Float) = Action.Builder()
@@ -308,7 +329,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             .build()
         // Estrada em 3D: mapa <-> 3D sempre ("nas saídas" oculto por enquanto).
         val view3d = Action.Builder()
-            .setIcon(icon(R.drawable.car_3d))
+            .setIcon(icon(R.drawable.car_3d_text))
             .setOnClickListener {
                 setMode3d(if (CarState.mode3d == 2) 0 else 2)
                 toast(when (CarState.mode3d) {
@@ -603,6 +624,30 @@ class DestinationsScreen(ctx: CarContext) : Screen(ctx) {
             .setTitle(if (CarState.en) "Go to" else "Destinos")
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
+            .build()
+    }
+}
+
+/** Pergunta Sim/Não vinda do celular (ex.: continuar a rota ao voltar ao carro). */
+class AskScreen(ctx: CarContext, private val title: String, private val text: String) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val en = CarState.en
+        fun answer(code: String) {
+            CarState.actionSink?.invoke(code)
+            screenManager.pop()
+        }
+        return MessageTemplate.Builder(text)
+            .setTitle(title)
+            .setHeaderAction(Action.APP_ICON)
+            .addAction(Action.Builder()
+                .setTitle(if (en) "Yes, continue" else "Sim, continuar")
+                .setFlags(Action.FLAG_PRIMARY)
+                .setOnClickListener { answer("resume:yes") }
+                .build())
+            .addAction(Action.Builder()
+                .setTitle(if (en) "No" else "Não")
+                .setOnClickListener { answer("resume:no") }
+                .build())
             .build()
     }
 }
