@@ -8341,15 +8341,61 @@ enum _Mode3d {
   String get hint => tr(_hint);
 }
 
-/// "3D" escrito no botão (12/11: o cubo não dizia o que era; igual ao carro).
+/// Botão 3D (12/11): "3D" em itálico forte com uma estradinha em
+/// perspectiva embaixo (o "D" e a estrada em laranja, cores da marca).
+/// O mesmo desenho vai no carro (res/drawable/car_3d_text.xml).
 class _Label3d extends StatelessWidget {
   const _Label3d();
 
   @override
-  Widget build(BuildContext context) => Text('3D',
-      style: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w900,
-          color: IconTheme.of(context).color,
-          height: 1));
+  Widget build(BuildContext context) {
+    final c = IconTheme.of(context).color ?? Colors.white;
+    return SizedBox(
+      width: 34,
+      height: 30,
+      child: CustomPaint(painter: _Road3dPainter(c), child: Align(
+        alignment: const Alignment(0, -0.55),
+        child: Text.rich(
+          TextSpan(children: [
+            TextSpan(text: '3', style: TextStyle(color: c)),
+            const TextSpan(text: 'D', style: TextStyle(color: Color(0xFFFF7A1A))),
+          ]),
+          style: const TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w900,
+              fontStyle: FontStyle.italic,
+              height: 1,
+              letterSpacing: -0.5),
+        ),
+      )),
+    );
+  }
+}
+
+/// Estrada em perspectiva embaixo do "3D".
+class _Road3dPainter extends CustomPainter {
+  _Road3dPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    final y0 = s.height * 0.70, y1 = s.height;
+    final road = Path()
+      ..moveTo(s.width * 0.40, y0)
+      ..lineTo(s.width * 0.60, y0)
+      ..lineTo(s.width * 0.92, y1)
+      ..lineTo(s.width * 0.08, y1)
+      ..close();
+    canvas.drawPath(road, Paint()..color = const Color(0xFFFF7A1A));
+    // Faixa central tracejada.
+    final dash = Paint()
+      ..color = color
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(s.width / 2, y0 + 1.5), Offset(s.width / 2, y0 + 3.5), dash);
+    canvas.drawLine(Offset(s.width / 2, y0 + 6), Offset(s.width / 2, y1 - 0.5), dash);
+  }
+
+  @override
+  bool shouldRepaint(_Road3dPainter old) => old.color != color;
 }
