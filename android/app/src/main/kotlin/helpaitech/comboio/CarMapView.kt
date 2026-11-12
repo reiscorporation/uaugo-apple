@@ -75,7 +75,7 @@ const val MAP_FONT_SCALE = 0.85f
 /** Densidade do mapa do carro: o Google desenha nomes de rua pela densidade
  *  da tela (a escala de letra quase não muda de perto). 0,75 = letras ~3
  *  pontos menores; o zoom compensa para mostrar a mesma área (12/11). */
-const val MAP_DENSITY_SCALE = 0.65f
+const val MAP_DENSITY_SCALE = 0.6f
 val MAP_ZOOM_FIX = (Math.log(1.0 / MAP_DENSITY_SCALE) / Math.log(2.0)).toFloat()
 
 class CarMapView(private val context: Context) {
