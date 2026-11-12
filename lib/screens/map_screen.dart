@@ -2570,7 +2570,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         lat: oLat, lng: oLng, nextStopIndex: next);
     if (!mounted) return;
     _rerouteTimes.add(DateTime.now());
-    _rerouteGraceUntil = DateTime.now().add(const Duration(seconds: 15));
+    _rerouteGraceUntil = DateTime.now().add(const Duration(seconds: 5));
     setState(() => _rerouting = false);
     if (nt == null) {
       // Sem internet: avisa uma vez, segue com a rota que já está no celular
