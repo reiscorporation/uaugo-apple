@@ -2485,6 +2485,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final d = proj.offset;
       final limit = max(40.0, min(100.0, p.accuracy * 2));
       final wrongWay = d > 25 && w != null && p.speed > 4 && p.heading >= 0 &&
+          DateTime.now().isAfter(_rerouteGraceUntil) &&
           _angleDiff(p.heading, w.at(proj.along).bearing) > 60;
       if (d > limit || wrongWay) {
         // Parado (saída demorada, estacionamento, GPS solto dentro de casa):
@@ -2538,6 +2539,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _reroute(Position p) async {
     final trip = _trip;
     if (trip == null || _rerouting) return;
+    // Em ciclo (6 recálculos em 1 min): espera 30 s em vez de insistir a
+    // cada 5 s, e avisa uma vez.
+    final now = DateTime.now();
+    _rerouteTimes.removeWhere((t) => now.difference(t) > const Duration(minutes: 1));
+    if (_rerouteTimes.length >= 6) {
+      if (now.difference(_lastReroute) < const Duration(seconds: 30)) return;
+      debugPrint('Recálculo: em ciclo, esperando 30 s');
+    }
     // Entre um recálculo e outro, 5 s (antes 10 s).
     if (DateTime.now().difference(_lastReroute) < const Duration(seconds: 5)) {
       return;
@@ -2551,9 +2560,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _stopArrived.contains(trip.stops[next].id)) {
       next++;
     }
+    // Saída um pouco à frente, no sentido em que o veículo anda: sem isso o
+    // Google podia começar a rota "voltando" (pista do outro sentido ou
+    // retorno na hora); o app via a rota nova na direção contrária, achava
+    // que saiu dela de novo e recalculava a cada 5 s sem sair do lugar
+    // (servidor: 18 recálculos seguidos na Anhanguera, 12/11).
+    final (oLat, oLng) = _aheadOfMe(p);
     final nt = await TripService.reroute(trip,
-        lat: p.latitude, lng: p.longitude, nextStopIndex: next);
+        lat: oLat, lng: oLng, nextStopIndex: next);
     if (!mounted) return;
+    _rerouteTimes.add(DateTime.now());
+    _rerouteGraceUntil = DateTime.now().add(const Duration(seconds: 15));
     setState(() => _rerouting = false);
     if (nt == null) {
       // Sem internet: avisa uma vez, segue com a rota que já está no celular
@@ -2568,6 +2585,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     _rerouteOffline = false;
     _applyTrip(nt);
+  }
+
+  /// Recálculos recentes (para não entrar em ciclo).
+  final _rerouteTimes = <DateTime>[];
+
+  /// Logo depois de recalcular: "contramão" não conta (a rota nova pode
+  /// começar com uma curva/retorno à frente).
+  DateTime _rerouteGraceUntil = DateTime(0);
+
+  /// Ponto ~50 m à frente na direção do movimento (parado: a própria posição).
+  (double, double) _aheadOfMe(Position p) {
+    if (p.speed < 3 || p.heading < 0) return (p.latitude, p.longitude);
+    final d = (p.speed * 4).clamp(30.0, 80.0);
+    final h = p.heading * pi / 180;
+    final dLat = d * cos(h) / 111320;
+    final dLng = d * sin(h) / (111320 * cos(p.latitude * pi / 180));
+    return (p.latitude + dLat, p.longitude + dLng);
   }
 
   /// O último recálculo falhou (sem internet).
