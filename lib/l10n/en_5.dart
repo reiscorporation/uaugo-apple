@@ -121,6 +121,7 @@ const en5 = <String, String>{
   '{0} atrações num raio de {1} km': '{0} attractions within {1} km',
   'Radar removido para todos.': 'Speed camera removed for everyone.',
   'Limite de {0} km/h aplicado para todos.': '{0} km/h limit applied for everyone.',
+  'Inicie uma rota para incluir paradas.': 'Start a route to add stops.',
   'Comunidade': 'Community',
   'Trocar ou remover': 'Change or remove',
   'Voltar à melhor rota': 'Back to the best route',

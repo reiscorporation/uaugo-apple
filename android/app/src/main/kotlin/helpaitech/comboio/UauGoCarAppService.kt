@@ -566,15 +566,30 @@ class DestinationsScreen(ctx: CarContext) : Screen(ctx) {
             .setTitle(if (CarState.en) "Search a new place" else "Buscar outro destino")
             .setOnClickListener { screenManager.push(SearchPlaceScreen(carContext)) }
             .build())
+        // Navegando: paradas no caminho (o destino continua o mesmo, 12/11).
+        val navigating = CarState.nav != null
+        if (navigating) {
+            list.addItem(Row.Builder()
+                .setTitle(if (CarState.en) "📍 Add a stop on the way" else "📍 Parada no caminho")
+                .addText(if (CarState.en) "Gas, food, coffee… keeps the destination"
+                    else "Posto, comida, café… o destino continua")
+                .setOnClickListener { screenManager.push(StopKindsScreen(carContext)) }
+                .build())
+        }
         val all = CarState.destinations
         if (all.isEmpty()) {
             list.setNoItemsMessage(if (CarState.en) "Save places or search on the phone first"
                 else "Salve locais ou busque no celular antes")
         }
-        for ((name, lat, lng) in all.take(6)) {
+        for ((name, lat, lng) in all.take(if (navigating) 4 else 5)) {
             list.addItem(Row.Builder()
                 .setTitle(name)
                 .setOnClickListener {
+                    // Navegando: perguntar se é parada no caminho ou destino novo.
+                    if (navigating) {
+                        screenManager.push(StopOrGoScreen(carContext, name, lat, lng))
+                        return@setOnClickListener
+                    }
                     val geo = "geo:$lat,$lng?q=" + android.net.Uri.encode(name.replace("(", " ").replace(")", " "))
                     UauGoEngine.send(carContext, "navigate:$geo")
                     CarToast.makeText(carContext,
@@ -586,6 +601,123 @@ class DestinationsScreen(ctx: CarContext) : Screen(ctx) {
         }
         return ListTemplate.Builder()
             .setTitle(if (CarState.en) "Go to" else "Destinos")
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
+    }
+}
+
+/** Tipos de parada oferecidos no carro: (categoria do app, nome pt, nome en). */
+val STOP_KINDS = listOf(
+    Triple("fuel", "⛽ Posto", "⛽ Gas station"),
+    Triple("food", "🍽️ Restaurante", "🍽️ Restaurant"),
+    Triple("cafe", "☕ Café", "☕ Coffee"),
+    Triple("pharmacy", "💊 Farmácia", "💊 Pharmacy"),
+    Triple("tire", "🛞 Borracharia", "🛞 Tire repair"),
+    Triple("lodging", "🛏️ Hospedagem", "🛏️ Lodging"),
+)
+
+/** Que tipo de parada procurar à frente na rota. */
+class StopKindsScreen(ctx: CarContext) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val list = ItemList.Builder()
+        for ((cat, pt, en) in STOP_KINDS) {
+            val t = if (CarState.en) en else pt
+            list.addItem(Row.Builder()
+                .setTitle(t)
+                .setOnClickListener { screenManager.push(FindStopScreen(carContext, cat, t)) }
+                .build())
+        }
+        return ListTemplate.Builder()
+            .setTitle(if (CarState.en) "Stop on the way" else "Parada no caminho")
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
+    }
+}
+
+/** Envia ao app (celular) ou avisa para abrir o UauGo. */
+private fun sendToApp(ctx: CarContext, code: String): Boolean {
+    val sink = CarState.actionSink
+    if (sink == null) {
+        CarToast.makeText(ctx,
+            if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+            CarToast.LENGTH_LONG).show()
+        return false
+    }
+    sink(code)
+    return true
+}
+
+/** Lugares de um tipo à frente na rota; tocar inclui como próxima parada. */
+class FindStopScreen(ctx: CarContext, private val cat: String, private val title: String) : Screen(ctx) {
+    init {
+        CarState.searchResults = emptyList()
+        CarState.searching = true
+        CarState.onSearchResults = { invalidate() }
+        if (!sendToApp(ctx, "findstop:$cat")) CarState.searching = false
+    }
+
+    override fun onGetTemplate(): Template {
+        val list = ItemList.Builder()
+        val res = CarState.searchResults
+        if (res.isEmpty() && !CarState.searching) {
+            list.setNoItemsMessage(if (CarState.en) "Nothing found ahead" else "Nada encontrado à frente")
+        }
+        for ((id, name, info) in res.take(6)) {
+            val row = Row.Builder().setTitle(name)
+            if (info.isNotEmpty()) row.addText(info)
+            row.setOnClickListener {
+                if (sendToApp(carContext, "stopat:$id|$name")) {
+                    CarToast.makeText(carContext,
+                        if (CarState.en) "Adding stop…" else "Incluindo a parada…",
+                        CarToast.LENGTH_SHORT).show()
+                }
+                CarState.onSearchResults = null
+                screenManager.popToRoot()
+            }
+            list.addItem(row.build())
+        }
+        return ListTemplate.Builder()
+            .setTitle(title)
+            .setHeaderAction(Action.BACK)
+            .apply { if (CarState.searching && res.isEmpty()) setLoading(true) else setSingleList(list.build()) }
+            .build()
+    }
+}
+
+/** Destino salvo escolhido navegando: parada no caminho ou novo destino. */
+class StopOrGoScreen(ctx: CarContext, private val name: String,
+                     private val lat: Double, private val lng: Double) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val en = CarState.en
+        val list = ItemList.Builder()
+        list.addItem(Row.Builder()
+            .setTitle(if (en) "📍 Add as a stop on the way" else "📍 Parar no caminho")
+            .addText(if (en) "Keeps the current destination" else "O destino atual continua")
+            .setOnClickListener {
+                if (sendToApp(carContext, "stopat:$lat,$lng|$name")) {
+                    CarToast.makeText(carContext,
+                        if (en) "Adding stop…" else "Incluindo a parada…",
+                        CarToast.LENGTH_SHORT).show()
+                }
+                screenManager.popToRoot()
+            }
+            .build())
+        list.addItem(Row.Builder()
+            .setTitle(if (en) "🏁 Go there instead" else "🏁 Ir direto para lá")
+            .addText(if (en) "Replaces the destination" else "Troca o destino")
+            .setOnClickListener {
+                val geo = "geo:$lat,$lng?q=" + android.net.Uri.encode(name.replace("(", " ").replace(")", " "))
+                UauGoEngine.send(carContext, "navigate:$geo")
+                CarToast.makeText(carContext,
+                    if (en) "Calculating route…" else "Calculando a rota…",
+                    CarToast.LENGTH_SHORT).show()
+                screenManager.popToRoot()
+            }
+            .build())
+        return ListTemplate.Builder()
+            .setTitle(name)
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()

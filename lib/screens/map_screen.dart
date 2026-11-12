@@ -5828,6 +5828,79 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _voice.reply(tr('Parada incluída: {0}.', [name]));
   }
 
+  /// Carro pediu "posto (ou comida...) no caminho": procura à frente na rota
+  /// e manda até 6 opções para a tela do carro (o toque vira "stopat:").
+  Future<void> _carFindStop(String catName) async {
+    final car = CarService.instance;
+    final cat = FindCategory.values.where((c) => c.name == catName).firstOrNull;
+    final trip = _trip, w = _walker, pr = _proj, p = _me;
+    if (_isExpedition) {
+      car.toast(tr('No comboio, combine a parada com o líder.'));
+      return car.results(const []);
+    }
+    if (cat == null || p == null) return car.results(const []);
+    final onRoute = trip != null && w != null && pr != null &&
+        pr.offset < 250 && trip.plan.polyline.isNotEmpty;
+    final r = await PlacesService().find(cat,
+        lat: p.latitude,
+        lng: p.longitude,
+        polyline: onRoute ? trip.plan.polyline : null);
+    if (!mounted) return;
+    if (r.limit) {
+      car.toast(tr('Limite de buscas de hoje atingido. Tente amanhã.'));
+      return car.results(const []);
+    }
+    final ranked = rankFound(r.places,
+        alongOf: onRoute
+            ? (la, lo) {
+                final q = w.project(la, lo);
+                return (along: q.along, offset: q.offset);
+              }
+            : null,
+        riderAlong: onRoute ? pr.along : null,
+        distanceTo: (la, lo) => distanceMeters(p.latitude, p.longitude, la, lo));
+    _carStopType = cat.stopType;
+    await car.results([
+      for (final f in ranked.take(6))
+        (
+          id: '${f.lat},${f.lng}',
+          name: f.name,
+          info: [
+            formatDistance(f.meters.round()),
+            if (f.onRoute) tr('no caminho'),
+            if (f.address.isNotEmpty) f.address,
+          ].join(' · '),
+        ),
+    ]);
+  }
+
+  /// Tipo da parada da última busca do carro (posto, comida...).
+  StopType _carStopType = StopType.waypoint;
+
+  /// Carro escolheu a parada ("lat,lng|nome"): entra como a próxima do
+  /// caminho; o destino continua o mesmo.
+  Future<void> _carStopAt(String arg) async {
+    final car = CarService.instance;
+    final i = arg.indexOf('|');
+    final ll = (i < 0 ? arg : arg.substring(0, i)).split(',');
+    final name = i < 0 ? tr('Parada') : arg.substring(i + 1);
+    final lat = double.tryParse(ll.first), lng = ll.length > 1 ? double.tryParse(ll[1]) : null;
+    if (lat == null || lng == null) return;
+    if (_isExpedition) {
+      car.toast(tr('No comboio, combine a parada com o líder.'));
+      return;
+    }
+    if (_trip == null || _me == null) {
+      car.toast(tr('Inicie uma rota para incluir paradas.'));
+      return;
+    }
+    final type = _carStopType;
+    _carStopType = StopType.waypoint;
+    await _insertSoloStop(name, lat, lng, type);
+    if (!mounted) return;
+    car.toast(tr('Parada incluída: {0}.', [name]));
+  }
+
   /// Parada do meio da rota normal, ainda não visitada: dá para cancelar.
   bool _canCancelSoloStop(Stop s) {
     final t = _trip;
@@ -6832,6 +6905,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Botão da tela do carro.
   Future<void> _onCarAction(String a) async {
     if (!mounted) return;
+    // Parada no caminho pedida na tela do carro (12/11).
+    if (a.startsWith('findstop:')) {
+      await _carFindStop(a.substring(9));
+      return;
+    }
+    if (a.startsWith('stopat:')) {
+      await _carStopAt(a.substring(7));
+      return;
+    }
     // Destino pedido ao Assistente/Gemini no carro: rota nova, inicia sozinha.
     if (a.startsWith('navigate:')) {
       if (_isExpedition) {

@@ -245,6 +245,12 @@ class CarService {
     }
   }
 
+  /// Lista para a tela do carro (busca de parada): id, nome e linha de baixo.
+  Future<void> results(List<({String id, String name, String info})> list) =>
+      _ch.invokeMethod('searchResults', [
+        for (final r in list.take(6)) {'id': r.id, 'n': r.name, 's': r.info},
+      ]).catchError((_) => null);
+
   void toast(String text) =>
       _ch.invokeMethod('toast', text).catchError((_) => null);
 
