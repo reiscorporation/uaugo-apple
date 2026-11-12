@@ -83,6 +83,7 @@ class CarService {
           _routeSig = '';
           _poisSig = '';
           _hazardsSig = '';
+          _membersSig = '';
           _groupSig = '';
         }
         connected.value = c.arguments == true;
@@ -188,6 +189,18 @@ class CarService {
   }
 
   /// Alertas da comunidade perto: (id, lat, lng, emoji, nome, é meu).
+  String _membersSig = '';
+
+  /// Colegas do comboio na tela do carro: (nome, lat, lng).
+  void members(List<(String, double, double)> list) {
+    final sig = list.map((m) => '${m.$1}${m.$2.toStringAsFixed(4)}${m.$3.toStringAsFixed(4)}').join(';');
+    if (sig == _membersSig) return;
+    _membersSig = sig;
+    _ch.invokeMethod('members', [
+      for (final m in list) ...[m.$1, m.$2, m.$3]
+    ]).catchError((_) => null);
+  }
+
   void hazards(List<(String, double, double, String, String, bool)> list) {
     final sig = list.map((e) => '${e.$1},${e.$6}').join(';');
     if (sig == _hazardsSig) return;
@@ -324,6 +337,7 @@ class CarService {
     String? alert,
     String? banner,
     String vehicle = '🏍️',
+    bool convoy = false,
   }) {
     final now = DateTime.now();
     if (now.difference(_last) < const Duration(milliseconds: 900)) return;
@@ -336,6 +350,7 @@ class CarService {
       'limitKmh': limitKmh,
       'lang': I18n.lang.value, // textos da tela do carro
       'placeNames': AppSettings.instance.carPlaceNames.value,
+      'convoy': convoy,
       // Valem com ou sem rota (Só dirigir): contagem do radar, faixa amarela
       // de aviso e o ícone do veículo.
       if (alert != null) 'alert': alert,

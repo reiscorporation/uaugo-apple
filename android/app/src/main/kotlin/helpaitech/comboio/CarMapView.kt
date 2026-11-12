@@ -124,6 +124,41 @@ class CarMapView(private val context: Context) {
         }
     }
 
+    private val memberMarkers = mutableListOf<com.google.android.gms.maps.model.Marker>()
+    private val memberIcons = HashMap<String, com.google.android.gms.maps.model.BitmapDescriptor>()
+
+    /** Colegas do comboio (bolinha laranja com o nome), como no celular. */
+    private fun drawMembers(g: GoogleMap) {
+        val list = if (CarState.groupOn) CarState.members else emptyList()
+        while (memberMarkers.size > list.size) memberMarkers.removeAt(memberMarkers.size - 1).remove()
+        for ((i, m) in list.withIndex()) {
+            val icon = memberIcons.getOrPut(m.name) { BitmapDescriptorFactory.fromBitmap(memberBitmap(m.name)) }
+            if (i < memberMarkers.size) {
+                memberMarkers[i].position = LatLng(m.lat, m.lng)
+                memberMarkers[i].setIcon(icon)
+            } else {
+                g.addMarker(MarkerOptions().position(LatLng(m.lat, m.lng)).anchor(0.5f, 0.85f)
+                    .icon(icon).zIndex(4.5f))?.let { memberMarkers.add(it) }
+            }
+        }
+    }
+
+    private fun memberBitmap(name: String): Bitmap {
+        val t = Paint().apply { textSize = 22f; isAntiAlias = true; color = Color.WHITE; isFakeBoldText = true }
+        val label = name.take(14)
+        val tw = t.measureText(label)
+        val w = (tw + 24).toInt().coerceAtLeast(52)
+        val h = 74
+        val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(b)
+        c.drawRoundRect(android.graphics.RectF(0f, 0f, w.toFloat(), 30f), 10f, 10f,
+            Paint().apply { color = Color.argb(220, 15, 27, 45); isAntiAlias = true })
+        c.drawText(label, (w - tw) / 2f, 22f, t)
+        c.drawCircle(w / 2f, 54f, 17f, Paint().apply { color = Color.WHITE; isAntiAlias = true })
+        c.drawCircle(w / 2f, 54f, 13f, Paint().apply { color = Color.rgb(255, 122, 26); isAntiAlias = true })
+        return b
+    }
+
     /** Pins de radares e postos policiais (só redesenha quando mudam). */
     private fun drawPois(g: com.google.android.gms.maps.GoogleMap) {
         val list = CarState.pois
@@ -455,6 +490,7 @@ class CarMapView(private val context: Context) {
         if (view3d != null) return // mapa pausado: a cena 3D cobre a tela
         drawPois(g)
         drawHazards(g)
+        drawMembers(g)
         if (!CarState.hasPosition) return
         val pos = LatLng(CarState.lat, CarState.lng)
         trimPassed(pts, pos)
@@ -490,6 +526,27 @@ class CarMapView(private val context: Context) {
         // Veículo e câmera andam juntos, em passos pequenos, no tempo entre as
         // leituras (como no celular). Muito atrasado (celular ocupado): pula
         // direto para o lugar certo.
+        // Visão COMBOIO: você e os colegas na tela, norte para cima.
+        val mates = CarState.members
+        if (CarState.convoyView && CarState.groupOn && mates.isNotEmpty()) {
+            var s = pos.latitude; var n = pos.latitude; var w = pos.longitude; var e = pos.longitude
+            for (m in mates) { s = minOf(s, m.lat); n = maxOf(n, m.lat); w = minOf(w, m.lng); e = maxOf(e, m.lng) }
+            val c = LatLng((s + n) / 2, (w + e) / 2)
+            val k = Math.cos(Math.toRadians(c.latitude))
+            val spanM = maxOf((n - s) * 111320.0, (e - w) * 111320.0 * k, 300.0) * 1.6
+            val dens = context.resources.displayMetrics.density
+            val sizeDp = minOf(width, height) / dens
+            val z = (Math.log(156543.03 * k * sizeDp / spanM) / Math.log(2.0)).toFloat()
+                .coerceIn(8f, 16f) + MAP_ZOOM_FIX
+            ticker.removeCallbacks(glide)
+            shownPos = null
+            me?.position = pos
+            runCatching {
+                g.animateCamera(CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder().target(c).zoom(z).bearing(0f).tilt(0f).build()), 800, null)
+            }
+            return
+        }
         val now = android.os.SystemClock.uptimeMillis()
         val gap = now - lastCamAt
         lastCamAt = now

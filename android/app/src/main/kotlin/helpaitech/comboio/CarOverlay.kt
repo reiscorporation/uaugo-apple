@@ -68,6 +68,11 @@ class CarOverlay(private val ctx: Context) {
         text = "\u26A0\uFE0E"; gravity = Gravity.CENTER
         background = box(Color.rgb(255, 193, 7), 14)
     }
+    // SOLO/COMBOIO, igual ao botão do celular (só em grupo).
+    private val viewBtn = tv(12f, Color.WHITE).apply {
+        gravity = Gravity.CENTER
+        background = box(Color.argb(238, 15, 27, 45), 14)
+    }
     private val requestBtn = tv(25f, Color.WHITE).apply {
         text = "\uD83D\uDCE2"; gravity = Gravity.CENTER
         background = box(Color.rgb(245, 124, 0), 14)
@@ -103,6 +108,7 @@ class CarOverlay(private val ctx: Context) {
             inside(groupBar) && CarState.groupAction != null -> "do:${CarState.groupAction}"
             // Faixa amarela: confirmar/corrigir velocidade, radar não existe.
             inside(banner) -> "bannertap"
+            inside(viewBtn) -> "toggleview"
             inside(requestBtn) -> "requests"
             inside(sosBtn) -> "sos"
             inside(alertBtn) -> "alert"
@@ -156,6 +162,7 @@ class CarOverlay(private val ctx: Context) {
         val buttons = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(56), dp(56)))
         buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
+        buttons.addView(viewBtn, LinearLayout.LayoutParams(dp(78), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(requestBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(sosBtn, LinearLayout.LayoutParams(-2, dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(view3dBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
@@ -210,6 +217,8 @@ class CarOverlay(private val ctx: Context) {
         banner.text = bannerText(b ?: "")
         val group = if (CarState.groupOn) View.VISIBLE else View.GONE
         requestBtn.visibility = group
+        viewBtn.visibility = group
+        viewBtn.text = if (CarState.convoyView) (if (CarState.en) "CONVOY" else "COMBOIO") else "SOLO"
         sosBtn.visibility = group
         val armed = CarState.sosArmed
         sosBtn.textSize = if (armed) 12f else 17f

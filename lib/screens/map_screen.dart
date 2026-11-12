@@ -6984,7 +6984,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final left = w == null ? 0.0 : _leftOn(w, p);
     final speed = _etaSpeed ?? _trip?.averageSpeed ?? 16.7;
     final pill = _radarPill;
+    if (_isExpedition) {
+      CarService.instance.members([
+        for (final m in _members)
+          if (m.hasLocation && m.uid != widget.uid) (m.name, m.lat!, m.lng!)
+      ]);
+    }
     CarService.instance.update(
+      convoy: _isExpedition && _view == _MapView.convoy,
       lat: p.latitude,
       lng: p.longitude,
       bearing: _bearing,
@@ -7178,6 +7185,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (t == null) return;
         await _reportHazard(t);
         CarService.instance.toast(tr('Alerta enviado: {0}', [t.label]));
+      case 'toggleview':
+        // Botão SOLO/COMBOIO do carro: troca a visão (vale no celular também).
+        await _toggleView();
       case 'bannertap':
         // Tocou na faixa amarela no carro: mesmas opções do celular.
         final tap = _radarBanner?.onTap;

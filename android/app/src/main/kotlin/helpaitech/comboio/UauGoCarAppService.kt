@@ -423,6 +423,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             hit == "requests" -> screenManager.push(GroupRequestScreen(carContext))
             hit == "sos" -> sosTap()
             hit?.startsWith("do:") == true -> CarState.actionSink?.invoke(hit.removePrefix("do:"))
+            hit == "toggleview" -> CarState.actionSink?.invoke("toggleview")
             hit == "bannertap" -> {
                 val sink = CarState.actionSink
                 if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("bannertap")

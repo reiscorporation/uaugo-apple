@@ -33,6 +33,12 @@ object CarState {
     /** Radares (1–3) e postos policiais (4) perto: [lat, lng, tipo]. */
     @Volatile var pois: List<DoubleArray> = emptyList()
     /** Alertas da comunidade perto do piloto (mine = marcado por ele). */
+    /** Colegas do comboio no mapa do carro (nome, posição). */
+    data class Member(val name: String, val lat: Double, val lng: Double)
+    @Volatile var members: List<Member> = emptyList()
+    /** Visão COMBOIO (todos do grupo na tela) ou SOLO (segue o piloto). */
+    @Volatile var convoyView = false
+
     data class Hazard(val id: String, val lat: Double, val lng: Double,
                       val emoji: String, val label: String, val mine: Boolean)
     @Volatile var hazards: List<Hazard> = emptyList()
@@ -138,6 +144,7 @@ class CarBridge(messenger: BinaryMessenger) {
                         (a["vehicle"] as? String)?.let { CarState.vehicle = it }
                         (a["lang"] as? String)?.let { CarState.en = it == "en" }
                         (a["placeNames"] as? Boolean)?.let { CarState.placeNames = it }
+                        (a["convoy"] as? Boolean)?.let { CarState.convoyView = it }
                         val text = a["text"] as? String
                         CarState.nav = if (text == null) null else CarState.Nav(
                             text = text,
@@ -254,6 +261,13 @@ class CarBridge(messenger: BinaryMessenger) {
                                 (it[2] as Number).toDouble(), it[3] as String,
                                 it[4] as String, it[5] == true)
                         }
+                    CarState.changed()
+                    result.success(null)
+                }
+                "members" -> {
+                    CarState.members = (call.arguments as? List<*>).orEmpty().chunked(3)
+                        .filter { it.size == 3 }
+                        .map { CarState.Member(it[0] as String, (it[1] as Number).toDouble(), (it[2] as Number).toDouble()) }
                     CarState.changed()
                     result.success(null)
                 }
