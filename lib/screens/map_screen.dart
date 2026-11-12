@@ -564,7 +564,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _subs.add(CarService.instance.actions.listen(_onCarAction));
     CarService.instance.connected.addListener(_onCarConnected);
     // Rota retomada depois de o Android fechar o app: pergunta no carro.
-    if (widget.resumed) {
+    if (widget.resumed && !widget.simulate) {
       Future.delayed(const Duration(seconds: 4), () {
         if (mounted && CarService.instance.connected.value) _askResumeOnCar();
       });
@@ -2599,7 +2599,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _sim?.followRoute(RouteWalker([
       for (final p in decodePolyline(nt.plan.polyline)) (p.latitude, p.longitude)
     ]));
-    ActiveTrip.save(nt);
+    // Simulação nunca fica guardada como viagem de verdade (ao reabrir ou
+    // conectar o carro, ela voltava como navegação real, 12/11).
+    if (_sim == null && !widget.simulate) ActiveTrip.save(nt);
     _etaSpeed = null;
     _stopArrived.clear();
     _stopNearAnnounced.clear();
@@ -7040,7 +7042,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// "Sim": volta a navegar (a rota recalcula sozinha se saiu dela).
   void _resumeFromCar() {
-    if (_trip == null) return;
+    if (_trip == null || _sim != null || widget.simulate) return;
     _carPaused = false;
     if (!_navigating) {
       setState(() {
@@ -7202,7 +7204,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _carPick = null;
       case 'carstop':
         // O carro pediu para parar (não foi o motorista): pausa sem apagar.
-        if (!_navigating) return;
+        if (!_navigating || _sim != null || widget.simulate) return;
         _carPaused = true;
         setState(() {
           _navigating = false;
