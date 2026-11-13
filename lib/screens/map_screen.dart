@@ -5691,6 +5691,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           right: 6 + 88 + 10,
           bottom: 24 + (88 - 50) / 2,
           child: Row(key: _kBottomLeft, mainAxisSize: MainAxisSize.min, children: [
+            // Radar móvel à esquerda, alerta amarelo ao lado do SOS (13/11).
+            SizedBox(
+              width: 50,
+              height: 50,
+              child: FloatingActionButton(
+                heroTag: 'radar',
+                tooltip: tr('Avisar radar móvel aqui'),
+                backgroundColor: HazardType.radar.color,
+                foregroundColor: Colors.white,
+                onPressed: _quickRadar,
+                child: Text(HazardType.radar.emoji,
+                    style: const TextStyle(fontSize: 21)),
+              ),
+            ),
+            const SizedBox(width: 10),
             // Tocar OU segurar abre as opções (segurar só mostrava a dica).
             Semantics(
               label: tr('Reportar perigo'),
@@ -5708,20 +5723,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     child: const Icon(Icons.warning_amber_rounded, size: 26),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 50,
-              height: 50,
-              child: FloatingActionButton(
-                heroTag: 'radar',
-                tooltip: tr('Avisar radar móvel aqui'),
-                backgroundColor: HazardType.radar.color,
-                foregroundColor: Colors.white,
-                onPressed: _quickRadar,
-                child: Text(HazardType.radar.emoji,
-                    style: const TextStyle(fontSize: 21)),
               ),
             ),
           ]),
