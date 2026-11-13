@@ -400,7 +400,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       controller: _kmkwhCtrl,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: InputDecoration(
-                        labelText: tr('Consumo elétrico'),
+                        labelText: tr('Consumo'),
                         suffixText: 'km/kWh',
                         border: const OutlineInputBorder(),
                       ),
@@ -413,7 +413,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       keyboardType: TextInputType.number,
                       inputFormatters: [MoneyInputFormatter()],
                       decoration: InputDecoration(
-                        labelText: tr('Preço do kWh'),
+                        labelText: tr('kWh'),
                         prefixText: 'R\$ ',
                         border: const OutlineInputBorder(),
                       ),
@@ -428,7 +428,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     labelText: tr('Autonomia elétrica'),
-                    helperText: tr('Quantos km anda só na bateria; depois usa combustível'),
+                    helperText: tr('Km só na bateria; depois usa combustível'),
+                    helperMaxLines: 2,
                     suffixText: 'km',
                     border: const OutlineInputBorder(),
                   ),
