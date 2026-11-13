@@ -5667,6 +5667,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         : SpeedAlerter.level(kmh, _roadLimit, s.personalMax),
                     onTap: _showSpeedSettings,
                     onLongPress: _editRoadSpeed,
+                    // No 3D, o visual do painel do 3D (no canto, 13/11).
+                    hud: _show3d,
                   );
                 },
               ),
