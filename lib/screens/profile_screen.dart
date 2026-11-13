@@ -50,6 +50,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late bool _fuelOn = AppSettings.instance.fuel.value.enabled;
   final _kmlCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
+  // Elétrico / híbrido plug-in (12/11).
+  late EnergyType _energy = AppSettings.instance.fuel.value.energy;
+  final _kmkwhCtrl = TextEditingController();
+  final _kwhPriceCtrl = TextEditingController();
+  final _rangeCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -57,6 +62,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final f = AppSettings.instance.fuel.value;
     if (f.kmPerLiter > 0) _kmlCtrl.text = formatDecimal(f.kmPerLiter);
     if (f.pricePerLiter > 0) _priceCtrl.text = MoneyInputFormatter.format(f.pricePerLiter);
+    if (f.kmPerKwh > 0) _kmkwhCtrl.text = formatDecimal(f.kmPerKwh);
+    if (f.pricePerKwh > 0) _kwhPriceCtrl.text = MoneyInputFormatter.format(f.pricePerKwh);
+    if (f.evRangeKm > 0) _rangeCtrl.text = formatDecimal(f.evRangeKm);
     _loadAll();
   }
 
@@ -70,7 +78,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _bike = b;
       _loading = false;
     });
-    for (final c in [_modelCtrl, _plateCtrl, _kmlCtrl, _priceCtrl]) {
+    for (final c in [_modelCtrl, _plateCtrl, _kmlCtrl, _priceCtrl, _kmkwhCtrl, _kwhPriceCtrl, _rangeCtrl]) {
       c.addListener(_changed);
     }
   }
@@ -146,6 +154,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         enabled: _fuelOn,
         kmPerLiter: parseDecimal(_kmlCtrl.text) ?? 0,
         pricePerLiter: parseDecimal(_priceCtrl.text) ?? 0,
+        energy: _energy,
+        kmPerKwh: parseDecimal(_kmkwhCtrl.text) ?? 0,
+        pricePerKwh: parseDecimal(_kwhPriceCtrl.text) ?? 0,
+        evRangeKm: parseDecimal(_rangeCtrl.text) ?? 0,
       ));
     } catch (e) {
       if (mounted) {
@@ -354,7 +366,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _changed();
                 },
               ),
-              if (_fuelOn)
+              // Tipo de energia: combustão, elétrico, híbrido ou plug-in.
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final e in EnergyType.values)
+                    ChoiceChip(
+                      avatar: Text(switch (e) {
+                        EnergyType.combustion => '⛽',
+                        EnergyType.electric => '⚡',
+                        EnergyType.hybrid => '🔋',
+                        EnergyType.phev => '🔌',
+                      }),
+                      label: Text(e.label),
+                      selected: _energy == e,
+                      onSelected: (_) {
+                        setState(() => _energy = e);
+                        _changed();
+                      },
+                    ),
+                ]),
+              ),
+              if (_energy.plugs)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(tr('Eletropostos aparecem no mapa ao longo da rota.'),
+                      style: theme.textTheme.bodySmall),
+                ),
+              if (_fuelOn && _energy.plugs) ...[
+                Row(children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _kmkwhCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: tr('Consumo elétrico'),
+                        suffixText: 'km/kWh',
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _kwhPriceCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [MoneyInputFormatter()],
+                      decoration: InputDecoration(
+                        labelText: tr('Preço do kWh'),
+                        prefixText: 'R\$ ',
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+              ],
+              if (_fuelOn && _energy == EnergyType.phev) ...[
+                TextField(
+                  controller: _rangeCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: tr('Autonomia elétrica'),
+                    helperText: tr('Quantos km anda só na bateria; depois usa combustível'),
+                    suffixText: 'km',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (_fuelOn && _energy.usesFuel)
                 Row(children: [
                   Expanded(
                     child: TextField(

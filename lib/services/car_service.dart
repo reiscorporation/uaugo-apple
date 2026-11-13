@@ -354,6 +354,8 @@ class CarService {
       'convoy': convoy,
       // Configurações mostradas na tela do carro (⚙).
       'cfg': CarSettings.toCar(),
+      // Elétrico/plug-in: "Eletroposto" nas paradas do carro.
+      'ev': AppSettings.instance.fuel.value.energy.plugs,
       // Valem com ou sem rota (Só dirigir): contagem do radar, faixa amarela
       // de aviso e o ícone do veículo.
       if (alert != null) 'alert': alert,

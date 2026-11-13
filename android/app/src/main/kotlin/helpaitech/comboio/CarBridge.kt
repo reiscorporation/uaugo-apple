@@ -68,6 +68,8 @@ object CarState {
     data class CfgItem(val key: String, val title: String, val on: Boolean, val sub: String)
     data class CfgSection(val title: String, val items: List<CfgItem>)
     @Volatile var cfg: List<CfgSection> = emptyList()
+    /** Veículo elétrico ou plug-in: eletropostos no carro. */
+    @Volatile var ev = false
     /** Nomes de lugares no mapa do carro (opção do usuário). */
     @Volatile var placeNames = true
     /** Emoji do veículo do piloto (🏍️ / 🚗 / 🚚). */
@@ -149,6 +151,7 @@ class CarBridge(messenger: BinaryMessenger) {
                         (a["lang"] as? String)?.let { CarState.en = it == "en" }
                         (a["placeNames"] as? Boolean)?.let { CarState.placeNames = it }
                         (a["convoy"] as? Boolean)?.let { CarState.convoyView = it }
+                        (a["ev"] as? Boolean)?.let { CarState.ev = it }
                         (a["cfg"] as? List<*>)?.let { l ->
                             CarState.cfg = l.mapNotNull { sec ->
                                 val m = sec as? Map<*, *> ?: return@mapNotNull null

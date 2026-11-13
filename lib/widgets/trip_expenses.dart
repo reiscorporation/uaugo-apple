@@ -51,7 +51,7 @@ class TripExpensesCard extends StatelessWidget {
                 ]),
                 if (fuel.ready)
                   Text(
-                      tr('⛽ Estimado: {0} L · {1} ({2} km/l)', [formatDecimal(fuelLiters(t.distanceM, fuel.kmPerLiter)), formatMoney(fuelCost(t.distanceM, fuel.kmPerLiter, fuel.pricePerLiter)), formatDecimal(fuel.kmPerLiter)])),
+                      tr('Estimado: {0}', [tripEnergyText(t.distanceM, fuel, formatDecimal)])),
                 if (real != null)
                   Text(tr('📊 Consumo real: {0} km/l', [formatDecimal(real)]),
                       style: const TextStyle(fontWeight: FontWeight.bold)),

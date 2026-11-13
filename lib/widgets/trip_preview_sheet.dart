@@ -433,7 +433,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
     if (!f.ready) return null;
     // Sem pedágio (ou valores ainda não conhecidos): só o combustível.
     final tolls = e != null && e.complete ? e.total : 0.0;
-    return fuelLiters(t.distanceM.toDouble(), f.kmPerLiter) * f.pricePerLiter + tolls;
+    return tripEnergy(t.distanceM.toDouble(), f).cost + tolls;
   }
 
   // ---- Mapa da prévia (rota escolhida em azul, as outras em cinza)
@@ -1030,9 +1030,8 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
               if (AppSettings.instance.fuel.value.ready)
                 Builder(builder: (_) {
                   final f = AppSettings.instance.fuel.value;
-                  final l = fuelLiters(t.distanceM.toDouble(), f.kmPerLiter);
-                  return Text(
-                      tr('⛽ ~{0} L de combustível · {1}', [formatDecimal(l), formatMoney(l * f.pricePerLiter)]));
+                  // Elétrico/híbrido: kWh e/ou litros (12/11).
+                  return Text(tripEnergyText(t.distanceM.toDouble(), f, formatDecimal));
                 }),
               if (_rodizio != null)
                 Padding(

@@ -174,6 +174,7 @@ class CarMapView(private val context: Context) {
                     1 -> "📸" to Color.rgb(211, 47, 47)
                     2 -> "⏱️" to Color.rgb(211, 47, 47)
                     3 -> "🚦" to Color.rgb(211, 47, 47)
+                    5 -> "⚡" to Color.rgb(46, 125, 50)
                     else -> "🚔" to Color.rgb(21, 101, 192)
                 }
                 BitmapDescriptorFactory.fromBitmap(pinBitmap(emoji, color))

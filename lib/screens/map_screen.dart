@@ -29,7 +29,7 @@ import '../logic/route_traffic.dart';
 import '../logic/voice_commands.dart';
 import '../logic/group_requests.dart';
 import '../logic/find_places.dart';
-import '../logic/costs.dart' show formatMoney, fuelLiters;
+import '../logic/costs.dart' show formatMoney, tripEnergy;
 import '../logic/tolls.dart';
 import '../logic/rodizio.dart';
 import '../services/toll_service.dart';
@@ -1615,6 +1615,33 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return false;
   }
 
+  /// Eletropostos ao longo da rota (só para elétrico/plug-in).
+  List<FoundPlace> _chargers = const [];
+  BitmapDescriptor? _chargerIcon;
+  String _chargersFor = '';
+
+  /// Busca uma vez por rota os eletropostos no caminho (Google Places, a
+  /// mesma busca do "procurar no caminho"), para o mapa e o carro.
+  Future<void> _loadChargers(String poly) async {
+    final plugs = AppSettings.instance.fuel.value.energy.plugs;
+    if (!plugs || poly.isEmpty || _sim != null || poly == _chargersFor) {
+      if (!plugs && _chargers.isNotEmpty) setState(() => _chargers = const []);
+      return;
+    }
+    _chargersFor = poly;
+    _chargerIcon ??= await emojiMarker('⚡', Colors.green.shade700);
+    final p = _me;
+    final start = decodePolyline(poly).first;
+    final r = await PlacesService().find(null,
+        text: 'eletroposto',
+        lat: p?.latitude ?? start.latitude,
+        lng: p?.longitude ?? start.longitude,
+        polyline: poly);
+    if (!mounted || _chargersFor != poly) return;
+    setState(() => _chargers = r.places);
+    _sendPoisToCar();
+  }
+
   /// A praça da rota (a mesma usada no custo do planejamento) mais perto
   /// do ponto: evita pegar a praça do outro sentido ou a vizinha (o aviso
   /// dizia R$ 10,20 e o planejamento R$ 8,80).
@@ -2772,6 +2799,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _calcRouteCost(_routeRecs, t.distanceM);
     }
     _walker = _routeRecs.length >= 2 ? RouteWalker(_routeRecs) : null;
+    _loadChargers(poly);
     // Rota nova: o trânsito da antiga não vale mais.
     _setTrafficRuns(const []);
     _trafficAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -4698,6 +4726,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       identityHashCode(_radarMarkers),
       identityHashCode(_policeMarkers),
       identityHashCode(_signalMarkers),
+      identityHashCode(_chargers),
+      _chargerIcon != null,
       _policeIcon != null,
       _bikeIcons.length,
       _hazardIcons.length,
@@ -4952,6 +4982,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           zIndex: 4,
           icon: icon,
           infoWindow: InfoWindow(title: tr('Posto policial')),
+        ));
+      }
+    }
+    // Eletropostos ao longo da rota (veículo elétrico ou plug-in, 12/11).
+    if (_chargerIcon case final icon?) {
+      for (final c in _chargers) {
+        markers.add(Marker(
+          markerId: MarkerId('charger_${c.lat}_${c.lng}'),
+          position: LatLng(c.lat, c.lng),
+          anchor: const Offset(0.5, 0.5),
+          zIndex: 3,
+          icon: icon,
+          infoWindow: InfoWindow(
+            title: '⚡ ${c.name}',
+            snippet: tr('Toque para incluir como parada'),
+            onTap: () => _insertSoloStop(c.name, c.lat, c.lng, StopType.fuel),
+          ),
         ));
       }
     }
@@ -6002,15 +6049,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _carFindStop(String catName) async {
     final car = CarService.instance;
     final cat = FindCategory.values.where((c) => c.name == catName).firstOrNull;
+    final charger = catName == 'charger';
     final trip = _trip, w = _walker, pr = _proj, p = _me;
     if (_isExpedition) {
       car.toast(tr('No comboio, combine a parada com o líder.'));
       return car.results(const []);
     }
-    if (cat == null || p == null) return car.results(const []);
+    if ((cat == null && !charger) || p == null) return car.results(const []);
     final onRoute = trip != null && w != null && pr != null &&
         pr.offset < 250 && trip.plan.polyline.isNotEmpty;
     final r = await PlacesService().find(cat,
+        text: charger ? 'eletroposto' : null,
         lat: p.latitude,
         lng: p.longitude,
         polyline: onRoute ? trip.plan.polyline : null);
@@ -6028,7 +6077,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             : null,
         riderAlong: onRoute ? pr.along : null,
         distanceTo: (la, lo) => distanceMeters(p.latitude, p.longitude, la, lo));
-    _carStopType = cat.stopType;
+    _carStopType = cat?.stopType ?? StopType.fuel;
     await car.results([
       for (final f in ranked.take(6))
         (
@@ -6957,6 +7006,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           RadarKind.redLight => 3,
         }),
       for (final q in _policeMarkers.take(20)) (q.lat, q.lng, 4),
+      for (final c in _chargers.take(25)) (c.lat, c.lng, 5),
     ]);
   }
 
@@ -7881,7 +7931,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         table == null ? null : estimateTolls(table.onRoute(line), _myBike);
     final f = AppSettings.instance.fuel.value;
     final fuel = f.ready && distM > 0
-        ? fuelLiters(distM.toDouble(), f.kmPerLiter) * f.pricePerLiter
+        ? tripEnergy(distM.toDouble(), f).cost
         : null;
     final tollTotal = tolls != null && tolls.plazas > 0 ? tolls.total : 0.0;
     final total = (fuel ?? 0) + tollTotal;

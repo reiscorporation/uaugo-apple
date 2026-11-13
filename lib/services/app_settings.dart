@@ -75,16 +75,58 @@ class RoutePrefs {
 }
 
 /// Consumo do veículo, para estimar o gasto de combustível das viagens.
+/// Tipo de energia do veículo (12/11): combustão, elétrico, híbrido comum
+/// (não liga na tomada) ou híbrido plug-in (PHEV, recarrega na tomada).
+enum EnergyType {
+  combustion('Combustão'),
+  electric('Elétrico'),
+  hybrid('Híbrido'),
+  phev('Híbrido plug-in');
+
+  const EnergyType(this._label);
+  final String _label;
+  String get label => tr(_label);
+
+  /// Usa combustível (km/l, preço do litro).
+  bool get usesFuel => this != EnergyType.electric;
+
+  /// Recarrega na tomada (km/kWh, preço do kWh, eletropostos na rota).
+  bool get plugs => this == EnergyType.electric || this == EnergyType.phev;
+}
+
 class FuelPrefs {
   final bool enabled;
   final double kmPerLiter;
   final double pricePerLiter;
+  final EnergyType energy;
+
+  /// Elétrico/PHEV: consumo (km por kWh) e preço do kWh.
+  final double kmPerKwh;
+  final double pricePerKwh;
+
+  /// PHEV: autonomia só na bateria (km); depois usa combustível.
+  final double evRangeKm;
 
   const FuelPrefs(
-      {this.enabled = false, this.kmPerLiter = 0, this.pricePerLiter = 0});
+      {this.enabled = false,
+      this.kmPerLiter = 0,
+      this.pricePerLiter = 0,
+      this.energy = EnergyType.combustion,
+      this.kmPerKwh = 0,
+      this.pricePerKwh = 0,
+      this.evRangeKm = 0});
 
-  /// Ligado e com os dois números preenchidos.
-  bool get ready => enabled && kmPerLiter > 0 && pricePerLiter > 0;
+  bool get _fuelOk => kmPerLiter > 0 && pricePerLiter > 0;
+  bool get _kwhOk => kmPerKwh > 0 && pricePerKwh > 0;
+
+  /// Ligado e com os números do tipo de energia preenchidos.
+  bool get ready =>
+      enabled &&
+      switch (energy) {
+        EnergyType.combustion || EnergyType.hybrid => _fuelOk,
+        EnergyType.electric => _kwhOk,
+        EnergyType.phev => _fuelOk && _kwhOk,
+      };
 }
 
 /// Economia de bateria: no modo econômico o GPS lê a cada 2 s com precisão
@@ -344,6 +386,10 @@ class AppSettings {
     await p.setBool('fuelOn', f.enabled);
     await p.setDouble('fuelKmL', f.kmPerLiter);
     await p.setDouble('fuelPrice', f.pricePerLiter);
+    await p.setString('energyType', f.energy.name);
+    await p.setDouble('kmPerKwh', f.kmPerKwh);
+    await p.setDouble('priceKwh', f.pricePerKwh);
+    await p.setDouble('evRangeKm', f.evRangeKm);
   }
   final route = ValueNotifier(const RoutePrefs());
   final alerts = ValueNotifier(const AlertPrefs());
@@ -387,6 +433,11 @@ class AppSettings {
       enabled: p.getBool('fuelOn') ?? false,
       kmPerLiter: p.getDouble('fuelKmL') ?? 0,
       pricePerLiter: p.getDouble('fuelPrice') ?? 0,
+      energy: EnergyType.values.firstWhere((e) => e.name == p.getString('energyType'),
+          orElse: () => EnergyType.combustion),
+      kmPerKwh: p.getDouble('kmPerKwh') ?? 0,
+      pricePerKwh: p.getDouble('priceKwh') ?? 0,
+      evRangeKm: p.getDouble('evRangeKm') ?? 0,
     );
     batterySaver.value = BatteryMode.values.firstWhere(
         (m) => m.name == p.getString('batterySaver'),

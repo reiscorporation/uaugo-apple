@@ -830,7 +830,9 @@ val STOP_KINDS = listOf(
 class StopKindsScreen(ctx: CarContext) : Screen(ctx) {
     override fun onGetTemplate(): Template {
         val list = ItemList.Builder()
-        for ((cat, pt, en) in STOP_KINDS) {
+        // Elétrico/plug-in: eletroposto em primeiro (12/11).
+        val kinds = if (CarState.ev) listOf(Triple("charger", "⚡ Eletroposto", "⚡ EV charger")) + STOP_KINDS.take(5) else STOP_KINDS
+        for ((cat, pt, en) in kinds) {
             val t = if (CarState.en) en else pt
             list.addItem(Row.Builder()
                 .setTitle(t)

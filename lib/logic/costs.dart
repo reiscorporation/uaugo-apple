@@ -1,4 +1,5 @@
 import '../l10n/i18n.dart';
+import '../services/app_settings.dart' show FuelPrefs, EnergyType;
 // Consumo e gastos de viagem (funções puras, testáveis).
 
 /// Tipos de gasto registrados numa viagem.
@@ -68,6 +69,36 @@ double fuelLiters(double meters, double kmPerLiter) =>
 /// Custo previsto de combustível.
 double fuelCost(double meters, double kmPerLiter, double pricePerLiter) =>
     fuelLiters(meters, kmPerLiter) * pricePerLiter;
+
+/// Energia prevista para a viagem conforme o tipo do veículo (12/11).
+/// PHEV: elétrico até a autonomia da bateria, combustível no resto.
+({double liters, double kwh, double cost}) tripEnergy(double meters, FuelPrefs f) {
+  final km = meters / 1000;
+  double liters = 0, kwh = 0;
+  switch (f.energy) {
+    case EnergyType.combustion:
+    case EnergyType.hybrid:
+      liters = f.kmPerLiter > 0 ? km / f.kmPerLiter : 0;
+    case EnergyType.electric:
+      kwh = f.kmPerKwh > 0 ? km / f.kmPerKwh : 0;
+    case EnergyType.phev:
+      final ev = km < f.evRangeKm ? km : f.evRangeKm;
+      kwh = f.kmPerKwh > 0 ? ev / f.kmPerKwh : 0;
+      liters = f.kmPerLiter > 0 ? (km - ev) / f.kmPerLiter : 0;
+  }
+  return (liters: liters, kwh: kwh, cost: liters * f.pricePerLiter + kwh * f.pricePerKwh);
+}
+
+/// Frase da energia prevista ("⛽ ~12 L · R\$ 70" / "⚡ ~30 kWh · R\$ 24").
+String tripEnergyText(double meters, FuelPrefs f, String Function(double) decimal) {
+  final e = tripEnergy(meters, f);
+  final parts = <String>[
+    if (e.liters > 0.05) tr('~{0} L de combustível', [decimal(e.liters)]),
+    if (e.kwh > 0.05) tr('~{0} kWh', [decimal(e.kwh)]),
+  ];
+  final icon = e.kwh > 0.05 && e.liters <= 0.05 ? '⚡' : (e.kwh > 0.05 ? '⛽⚡' : '⛽');
+  return '$icon ${parts.join(' + ')} · ${formatMoney(e.cost)}';
+}
 
 /// Consumo real (km/l) pelos abastecimentos registrados, ou null.
 double? realKmPerLiter(double meters, List<Expense> expenses) {

@@ -922,12 +922,10 @@ class _PlanHeader extends StatelessWidget {
                   ),
                 );
               }
-              final l = fuelLiters(s.totalDistanceM.toDouble(), f.kmPerLiter);
               return Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
-                  tr('⛽ Seu combustível estimado: {0} L · {1}', [formatDecimal(l), formatMoney(l * f.pricePerLiter)]) +
-                      tr(' ({0} km/l)', [formatDecimal(f.kmPerLiter)]),
+                  tripEnergyText(s.totalDistanceM.toDouble(), f, formatDecimal),
                   textAlign: TextAlign.center,
                 ),
               );
@@ -958,8 +956,7 @@ class _PlanHeader extends StatelessWidget {
             valueListenable: AppSettings.instance.fuel,
             builder: (_, f, __) {
             if (!f.ready) return const SizedBox.shrink();
-            final fuel = fuelLiters(s.totalDistanceM.toDouble(), f.kmPerLiter) *
-                f.pricePerLiter;
+            final fuel = tripEnergy(s.totalDistanceM.toDouble(), f).cost;
             return Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
