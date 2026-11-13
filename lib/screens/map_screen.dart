@@ -443,6 +443,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   FixedRadar? _askRadar;
   final _radarNear = <int>{};
   final _radarAsked = <int>{};
+  /// Quando foi a última pergunta "o radar existe?" (no máximo 1 a cada
+  /// [_radarAskGap] e [_radarAskMax] por viagem, para não perguntar em todo
+  /// radar de uma cidade sem limite cadastrado).
+  DateTime? _radarAskAt;
+  int _radarAskCount = 0;
+  static const _radarAskGap = Duration(minutes: 15);
+  static const _radarAskMax = 2;
   Timer? _askRadarTimer;
   Timer? _askTimer;
 
@@ -2243,6 +2250,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (_radarNear.contains(r.id) && !ahead && d > 60) {
         _radarAsked.add(r.id);
         _radarNear.remove(r.id);
+        final last = _radarAskAt;
+        if (_radarAskCount >= _radarAskMax ||
+            (last != null && DateTime.now().difference(last) < _radarAskGap)) {
+          continue;
+        }
+        _radarAskAt = DateTime.now();
+        _radarAskCount++;
         HapticFeedback.mediumImpact();
         _voice.alert(tr('Você passou por um radar sem limite informado. Ele existe? Responda na tela.'));
         setState(() => _askRadar = r);
