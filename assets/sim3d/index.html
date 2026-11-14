@@ -1063,10 +1063,11 @@ function updateRiders(s_) {
 }
 
 /* ---------- setas nas conversões, saídas e destino ---------- */
+// setas em LARANJA NEON (pedido do Ricardo, 13/11): destacam do tapete azul da rota
 const chevGeo = new THREE.ExtrudeGeometry(
   new THREE.Shape([[-0.55, 1], [0.05, 1], [0.75, 0], [0.05, -1], [-0.55, -1], [0.15, 0]].map(([x, y]) => new THREE.Vector2(x, y))),
   { depth: 0.14, bevelEnabled: false }).translate(0, 0, -0.07);
-const chevMat = () => new THREE.MeshBasicMaterial({ color: 0x3fc6ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, fog: false });
+const chevMat = () => new THREE.MeshBasicMaterial({ color: 0xff8a1f, transparent: true, opacity: 0.95, side: THREE.DoubleSide, fog: false });
 let markers = [], destObjs = [], curveMarks = [];
 function clearMarkers() {
   for (const mk of markers) scene.remove(mk.g);
@@ -1136,6 +1137,9 @@ function updateCurves(s, time) {
   for (const a of on) {
     if (!a.m) {
       a.m = new THREE.Mesh(chevGeo, chevMat());
+      // brilho neon: cópia maior, aditiva, atrás da seta
+      const glow = new THREE.Mesh(chevGeo, new THREE.MeshBasicMaterial({ color: 0xff6a00, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+      glow.scale.set(1.35, 1.35, 1.6); a.m.add(glow);
       a.m.scale.set(a.side * 0.9, 0.9, 0.9); a.m.rotation.y = a.yaw;
       a.m.position.copy(toV(a.x, 1.5, a.y));
       scene.add(a.m);
@@ -1561,6 +1565,7 @@ window.sim3d = {
   // Espaço livre medido pelo app em volta dos botões: {l, r, b} em px.
   layout(d) {
     if (typeof d === 'string') d = JSON.parse(d);
+    lastLayout = d;
     const h = document.getElementById('hud');
     h.style.left = d.l + 'px'; h.style.right = d.r + 'px'; h.style.bottom = d.b + 'px';
     h.style.padding = '0';
@@ -1649,10 +1654,15 @@ addEventListener('touchend', () => { pinch0 = 0; }, { passive: true });
 // Ao girar o celular a WebView muda de tamanho sem avisar sempre: o quadro
 // confere o tamanho real; sem isso a imagem estica e distorce.
 let viewW = 0, viewH = 0;
+// último espaço livre mandado pelo app: ao girar, o app manda antes de a
+// página mudar de tamanho; refazer aqui põe o minimapa no lugar certo
+// (antes ficava atrás dos botões de zoom até chegar um aviso, 13/11)
+let lastLayout = null;
 function resize() {
   const w = innerWidth, h = innerHeight;
   if (!w || !h) return;
   viewW = w; viewH = h;
+  if (lastLayout) setTimeout(() => sim3d.layout(lastLayout), 0);
   renderer.setSize(w, h, false); camera.aspect = w / h;
   camera.fov = w < h ? 72 : 55; camera.updateProjectionMatrix();
 }

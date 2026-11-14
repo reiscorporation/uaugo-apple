@@ -18,6 +18,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../brand.dart';
 import '../logic/shared_place.dart';
 import '../services/places_service.dart';
+import '../services/community_routes_service.dart';
 import '../services/saved_places_service.dart';
 import '../services/shared_place_service.dart';
 import '../models/bike.dart';
@@ -157,6 +158,76 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     await _whereTo(shared: place, byVoice: byVoice);
+  }
+
+  /// Rotas salvas no site da comunidade: escolher uma abre a prévia saindo
+  /// daqui, com as paradas e o destino dela.
+  Future<void> _communityRoutes() async {
+    setState(() => _busy = true);
+    List<CommunityRoute>? list;
+    String? error;
+    try {
+      list = await CommunityRoutesService.mine();
+    } on CommunityRoutesError catch (e) {
+      error = tr(e.message);
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (error != null) {
+      _snack(error);
+      return;
+    }
+    final picked = await showModalBottomSheet<CommunityRoute>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (c) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(c).size.height * 0.7),
+          child: list!.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(tr('Nenhuma rota salva ainda.'),
+                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text(tr('Monte e salve rotas em uaugo.com.br/viagem, com a mesma conta do app.'),
+                        textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: () => launchUrl(Uri.parse('https://uaugo.com.br/viagem'),
+                          mode: LaunchMode.externalApplication),
+                      child: Text(tr('Abrir o planejador')),
+                    ),
+                  ]),
+                )
+              : ListView(shrinkWrap: true, children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text(tr('Rotas da comunidade'),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  ),
+                  for (final r in list)
+                    ListTile(
+                      leading: const Icon(Icons.alt_route),
+                      title: Text(r.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      subtitle: Text([
+                        if (r.stops.isNotEmpty)
+                          r.stops.length == 1 ? tr('1 parada') : tr('{0} paradas', [r.stops.length]),
+                        if (r.km > 0) '${r.km.round()} km',
+                      ].join(' · ')),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.pop(c, r),
+                    ),
+                ]),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final d = picked.destination;
+    await _whereTo(
+        shared: SharedPlace(lat: d.lat, lng: d.lng, label: d.name),
+        stops: picked.stops);
   }
 
   /// Bateria de testes (só debug): prévia com saída e destino escolhidos.
@@ -1011,6 +1082,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 6),
                   Image.asset('assets/branding/uaugo_marca.png', height: 18),
                 ]),
+              ),
+              const SizedBox(height: 8),
+              // Rotas montadas no planejador do site (uaugo.com.br/viagem).
+              OutlinedButton.icon(
+                onPressed: _communityRoutes,
+                icon: const Icon(Icons.alt_route),
+                label: Text(tr('Rotas da comunidade')),
               ),
               if (_myExps.isNotEmpty) ...[
                 const SizedBox(height: 24),

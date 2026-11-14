@@ -147,12 +147,26 @@ class RouteEngineService {
         return null;
       }
       final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      final best = _parse(j['trip'] as Map<String, dynamic>);
+      final trips = [
+        j['trip'] as Map<String, dynamic>,
+        for (final a in (j['alternates'] as List? ?? const []))
+          (a as Map)['trip'] as Map<String, dynamic>,
+      ];
+      // Tempo de cada trecho somando via por via (igual ao site da comunidade);
+      // se a medição falhar, fica o ajuste fixo [_timeScale].
+      final byRoad = await Future.wait([
+        for (final t in trips)
+          Future.wait([
+            for (final l in (t['legs'] as List).cast<Map<String, dynamic>>())
+              _secondsByRoad(l['shape'] as String, costing),
+          ]),
+      ]);
+      final best = _parse(trips[0], byRoad[0]);
       if (best == null) return null;
       lastUsed = true;
       final alts = <RouteResult>[
-        for (final a in (j['alternates'] as List? ?? const []))
-          if (_parse((a as Map)['trip'] as Map<String, dynamic>) case final r?) r
+        for (var i = 1; i < trips.length; i++)
+          if (_parse(trips[i], byRoad[i]) case final r?) r
       ]..sort((a, b) => a.durationS.compareTo(b.durationS));
       return RouteResult(best.polyline, best.legs, best.legSteps, 0,
           best.hasToll, best.summary, alternatives ? alts : const []);
@@ -163,7 +177,50 @@ class RouteEngineService {
   }
 
   /// Converte a viagem do Valhalla para o formato do app.
-  static RouteResult? _parse(Map<String, dynamic> trip) {
+  /// Velocidade típica (km/h) por tipo de via quando o mapa não tem o limite.
+  static const _typicalKmh = {
+    'motorway': 105.0, 'trunk': 95.0, 'primary': 80.0, 'secondary': 65.0,
+    'tertiary': 55.0, 'unclassified': 45.0, 'residential': 30.0,
+    'service_other': 15.0,
+  };
+
+  /// Segundos de um trecho somando cada via a 95% do limite dela (ou pela
+  /// velocidade típica do tipo). As velocidades próprias do motor davam
+  /// tempo bem acima do real (RP→S. J. da Boa Vista: 2h38 contra ≤2h reais;
+  /// assim fica ~2h05). Null se o motor não responder.
+  static Future<int?> _secondsByRoad(String shape, String costing) async {
+    try {
+      final res = await http
+          .post(Uri.parse('$url/trace_attributes'),
+              headers: {'Content-Type': 'application/json', ..._auth},
+              body: jsonEncode({
+                'encoded_polyline': shape,
+                'costing': costing,
+                'shape_match': 'edge_walk',
+                'filters': {
+                  'attributes': ['edge.length', 'edge.speed_limit', 'edge.road_class'],
+                  'action': 'include',
+                },
+              }))
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return null;
+      final edges = ((jsonDecode(utf8.decode(res.bodyBytes)) as Map)['edges'] as List?)
+              ?.cast<Map<String, dynamic>>() ??
+          const [];
+      if (edges.isEmpty) return null;
+      var h = 0.0;
+      for (final e in edges) {
+        final lim = (e['speed_limit'] as num?)?.toDouble() ?? 0;
+        final v = lim > 0 ? lim * 0.95 : (_typicalKmh[e['road_class']] ?? 40.0);
+        h += ((e['length'] as num?)?.toDouble() ?? 0) / v;
+      }
+      return (h * 3600).round();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static RouteResult? _parse(Map<String, dynamic> trip, [List<int?>? byRoad]) {
     final legsJ = (trip['legs'] as List).cast<Map<String, dynamic>>();
     final legs = <RouteLeg>[];
     final steps = <List<NavStep>>[];
@@ -173,7 +230,8 @@ class RouteEngineService {
       final shape = decodePolyline6(l['shape'] as String);
       final s = l['summary'] as Map<String, dynamic>;
       legs.add(RouteLeg(((s['length'] as num) * 1000).round(),
-          ((s['time'] as num) * _timeScale).round()));
+          (byRoad != null && li < byRoad.length ? byRoad[li] : null) ??
+              ((s['time'] as num) * _timeScale).round()));
       final ls = <NavStep>[];
       for (final m in (l['maneuvers'] as List).cast<Map<String, dynamic>>()) {
         final idx = (m['begin_shape_index'] as num).toInt().clamp(0, shape.length - 1);

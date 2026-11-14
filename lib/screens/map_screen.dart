@@ -5098,7 +5098,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         bottom: _turnInfo() == null
             ? null
             : PreferredSize(
-                preferredSize: Size.fromHeight(landscape ? 50 : 76),
+                preferredSize: Size.fromHeight(landscape ? 50 : 92),
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: _showTripSummary,
@@ -5125,15 +5125,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 style: TextStyle(fontSize: landscape ? 16 : 19, fontWeight: FontWeight.bold)),
             if (!_justDriving && _turnInfo() == null) ...[
               if (!landscape) const SizedBox(height: 2),
-              Text(
-                  (_isExpedition ? _expeditionSubtitle() : _etaText())
-                      .replaceAll('\n', landscape ? ' · ' : '\n'),
-                  maxLines: landscape ? 1 : 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: landscape ? 16 : 18,
-                      fontWeight: FontWeight.w700,
-                      height: 1.2)),
+              // cada linha encolhe para caber inteira (não corta com "...")
+              for (final line in (_isExpedition ? _expeditionSubtitle() : _etaText())
+                  .replaceAll('\n', landscape ? ' · ' : '\n')
+                  .split('\n'))
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(line,
+                      maxLines: 1,
+                      style: TextStyle(
+                          fontSize: landscape ? 16 : 18,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2)),
+                ),
             ],
           ],
         ),
@@ -5248,6 +5253,57 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           left: landscape ? 140 : 8,
           right: landscape ? 120 : 8,
           child: Column(key: _kTopBanners, mainAxisSize: MainAxisSize.min, children: [
+            // SOS com localização em tempo real ligado: faixa fixa com
+            // "Estou bem" (antes só dava para parar reabrindo o SOS).
+            ValueListenableBuilder<String?>(
+              valueListenable: LiveSos.active,
+              builder: (_, token, __) => token == null
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Material(
+                        color: Colors.red.shade700,
+                        elevation: 6,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+                          child: Row(children: [
+                            const Icon(Icons.sos, color: Colors.white),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(tr('SOS ativo: sua localização está sendo enviada'),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                            FilledButton(
+                              style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.red.shade800),
+                              onPressed: () async {
+                                final ok = await showDialog<bool>(
+                                  context: context,
+                                  builder: (c) => AlertDialog(
+                                    title: Text(tr('Parar o SOS?')),
+                                    content: Text(tr('Quem recebeu o link deixa de ver sua localização.')),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(c, false), child: Text(tr('Continuar SOS'))),
+                                      FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(tr('Estou bem'))),
+                                    ],
+                                  ),
+                                );
+                                if (ok == true) LiveSos.stop();
+                              },
+                              child: Text(tr('Estou bem')),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ),
+            ),
             if (_rerouting)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -8193,16 +8249,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Em pé (13/11): a manobra usa até 2 linhas e cada linha da
+            // chegada encolhe a letra para caber inteira, em vez de cortar
+            // com "..." (em celular estreito sumia o horário/km).
             Text(t.text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 2),
-            Text(eta,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700, height: 1.2)),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.15)),
+            const SizedBox(height: 2),
+            for (final line in eta.split('\n'))
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(line,
+                    maxLines: 1,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w700, height: 1.2)),
+              ),
           ],
         ),
       ),
