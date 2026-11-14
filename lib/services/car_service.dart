@@ -44,6 +44,12 @@ class CarService {
   /// A tela do carro está aberta.
   final connected = ValueNotifier<bool>(false);
 
+  /// Próximas manobras (tipo, texto, metros até ela), da mais perto à mais
+  /// longe; as já passadas saem. Usada só na tela do celular do UauGo2 de
+  /// testes com o carro conectado (na Play o celular fica só com o aviso:
+  /// regra "Visual info on phone" do Android Auto, 13/11).
+  final upcoming = ValueNotifier<List<(String, String, int)>>(const []);
+
   /// Botões do carro: "radar", "hazard", "stop".
   final _actions = StreamController<String>.broadcast();
   Stream<String> get actions => _actions.stream;

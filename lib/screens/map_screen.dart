@@ -7139,6 +7139,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Manda para a tela do carro a manobra, a chegada, o radar e a posição.
   void _sendToCar(Position p) {
     if (!CarService.instance.connected.value) return;
+    if (kDebugMode) _publishUpcoming(p);
     _sendVehicleToCar();
     _sendGroupToCar();
     final turn = _navigating || _sim != null ? _upcomingTurn(p) : null;
@@ -8204,6 +8205,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ? formatDuration((d / (_etaSpeed ?? trip.averageSpeed)).round())
         : null;
     return (icon: icon, dist: formatDistance(d.round()), stopTime: stopTime, text: s.text);
+  }
+
+  /// UauGo2 de testes: lista das próximas manobras para a tela do celular
+  /// com o carro conectado; as já passadas saem da lista.
+  void _publishUpcoming(Position p) {
+    final nav = _nav;
+    if (nav == null || nav.finished || !(_sim != null ? _simStarted : _navigating)) {
+      CarService.instance.upcoming.value = const [];
+      return;
+    }
+    final ra = _riderAlong;
+    final list = <(String, String, int)>[];
+    for (var j = nav.nextIndex; j < nav.steps.length && list.length < 15; j++) {
+      final s = nav.steps[j];
+      if (s.isSilent && j < nav.steps.length - 1) continue;
+      final d = (ra != null ? nav.routeDistanceTo(j, ra) : null) ??
+          distanceMeters(p.latitude, p.longitude, s.lat, s.lng);
+      list.add((s.maneuver, s.text, d.round()));
+    }
+    CarService.instance.upcoming.value = list;
   }
 
   /// Topo navegando: seta e distância da próxima manobra à esquerda; a rua e
