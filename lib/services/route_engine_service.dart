@@ -277,11 +277,41 @@ class RouteEngineService {
       return 'Faça o retorno $side$on$to.';
     }
     final m = RegExp(r'^Enter (.+?) and take the (\d+)\S* exit(?: onto (.+?))?\.?$').firstMatch(t);
-    if (m == null) return t;
+    if (m == null) return mixedEnglishText(t);
     final to = m[3] == null ? '' : ' para ${m[3]}';
     // Rotatória sem nome no mapa: o motor manda "Enter the roundabout".
     final name = m[1]!.toLowerCase() == 'the roundabout' ? '' : ' ${m[1]}';
     return 'Na rotatória$name, pegue a ${m[2]}ª saída$to.';
+  }
+
+  /// Frase do motor que veio metade em inglês ("Turn à direita toward X",
+  /// 13/11): troca as palavras em inglês que sobram. Frase toda em
+  /// português passa sem mudança.
+  static String mixedEnglishText(String t) {
+    if (I18n.isEn) return t;
+    if (!RegExp(r'\b(Turn|Bear|Keep|Make|Head|Take|toward|onto|slight|sharp|left|right|exit)\b')
+        .hasMatch(t)) {
+      return t;
+    }
+    var o = t;
+    const side = {
+      'slight right': 'levemente à direita', 'slight left': 'levemente à esquerda',
+      'sharp right': 'acentuadamente à direita', 'sharp left': 'acentuadamente à esquerda',
+      'right': 'à direita', 'left': 'à esquerda',
+    };
+    side.forEach((en, pt) => o = o.replaceAll(RegExp(r'\b' + en + r'\b'), pt));
+    o = o
+        .replaceAll(RegExp(r'^Make a (sharp|slight)\s+'), '')
+        .replaceAll(RegExp(r'^Turn\b'), 'Vire')
+        .replaceAll(RegExp(r'^(Bear|Keep)\b'), 'Mantenha-se')
+        .replaceAll(RegExp(r'^Head\b'), 'Siga')
+        .replaceAll(RegExp(r'^Take the exit\b'), 'Pegue a saída')
+        .replaceAll(RegExp(r'^Take\b'), 'Pegue')
+        .replaceAll(RegExp(r'\s+toward\s+'), ' em direção a ')
+        .replaceAll(RegExp(r'\s+onto\s+'), ' para ')
+        .replaceAll(RegExp(r'\bthe exit\b'), 'a saída')
+        .replaceAll(RegExp(r'\bexit\b'), 'saída');
+    return o;
   }
 
   /// Tipo de manobra do Valhalla -> o mesmo nome usado pelo Google no app.

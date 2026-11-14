@@ -5790,7 +5790,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         Positioned(
           right: 6,
           top: landscape ? 8 : null,
-          bottom: _sim != null ? 196 : 24,
+          // Deitado, a barra da simulação fica só na esquerda (60% da
+          // largura): a coluna usa a altura toda (com 196 ela encolhia até
+          // os botões ficarem minúsculos, 13/11).
+          bottom: _sim != null && !landscape ? 196 : 24,
           child: _landscapeFit(landscape, Alignment.bottomRight, Column(key: _kRightCol, mainAxisSize: MainAxisSize.min, children: [
             if (_clubId != null) ...[
               FloatingActionButton(

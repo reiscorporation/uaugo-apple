@@ -20,4 +20,14 @@ void main() {
             'Enter the roundabout and take the 3rd exit onto Avenida da Universidade.'),
         'Na rotatória, pegue a 3ª saída para Avenida da Universidade.');
   });
+
+  test('frase metade em inglês vira português', () {
+    expect(RouteEngineService.roundaboutText('Turn à direita toward Rua Itu.'),
+        'Vire à direita em direção a Rua Itu.');
+    expect(RouteEngineService.roundaboutText('Turn right onto Avenida Brasil.'),
+        'Vire à direita para Avenida Brasil.');
+    expect(RouteEngineService.roundaboutText('Bear slight left toward SP-330.'),
+        'Mantenha-se levemente à esquerda em direção a SP-330.');
+    expect(RouteEngineService.roundaboutText('Continue na Rua Wright.'), 'Continue na Rua Wright.');
+  });
 }
