@@ -110,6 +110,36 @@ object CarState {
      *  carro usa o GPS direto (CarLocation) para o mapa e a velocidade. */
     @Volatile var lastDartUpdate = 0L
 
+    /** Ponto da rota mais perto de (lat, lng), se estiver a até [maxM]
+     *  metros dela; senão null. O GPS nativo (quando o celular atrasa)
+     *  usa isto para o veículo não sair da linha azul (14/11). */
+    fun snapToRoute(lat: Double, lng: Double, maxM: Double = 100.0): DoubleArray? {
+        val pts = route
+        if (pts.size < 2) return null
+        val k = Math.cos(Math.toRadians(lat))
+        var best: DoubleArray? = null
+        var bestD = maxM * maxM
+        for (i in 0 until pts.size - 1) {
+            val ax = (pts[i][1] - lng) * 111320.0 * k
+            val ay = (pts[i][0] - lat) * 111320.0
+            val bx = (pts[i + 1][1] - lng) * 111320.0 * k
+            val by = (pts[i + 1][0] - lat) * 111320.0
+            val dx = bx - ax
+            val dy = by - ay
+            val len2 = dx * dx + dy * dy
+            val t = if (len2 == 0.0) 0.0 else (-(ax * dx + ay * dy) / len2).coerceIn(0.0, 1.0)
+            val px = ax + t * dx
+            val py = ay + t * dy
+            val d = px * px + py * py
+            if (d < bestD) {
+                bestD = d
+                best = doubleArrayOf(pts[i][0] + t * (pts[i + 1][0] - pts[i][0]),
+                    pts[i][1] + t * (pts[i + 1][1] - pts[i][1]))
+            }
+        }
+        return best
+    }
+
     /** Aviso curto na tela do carro ("Alerta de radar enviado"). */
     var toastSink: ((String) -> Unit)? = null
 
