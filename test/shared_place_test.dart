@@ -81,4 +81,19 @@ void main() {
     expect(clubCodeFromLink('uaugo://clube?c=XYZ'), isNull);
     expect(clubCodeFromLink('geo:0,0?q=Curitiba'), isNull);
   });
+  test('rota com paradas do site (uaugo://rota)', () {
+    final r = routeFromLink(
+        'uaugo://rota?p=-21.17,-47.81,Parada%20A|-22.0,-47.9|-22.75,-45.59,Campos%2C%20SP');
+    expect(r, isNotNull);
+    expect(r!.length, 3);
+    expect(r[0].name, 'Parada A');
+    expect(r[1].name, 'Ponto 2');
+    expect(r[2].lat, -22.75);
+    expect(r[2].name, 'Campos, SP');
+    // inválidos são ignorados; sem nenhum válido = null
+    expect(routeFromLink('uaugo://rota?p=abc|0,0|99,10')?.length, isNull);
+    expect(routeFromLink('uaugo://rota?p=1,2|x')!.length, 1);
+    expect(routeFromLink('uaugo://clube?c=ABCDEFGH'), isNull);
+    expect(routeFromLink('geo:1,2'), isNull);
+  });
 }

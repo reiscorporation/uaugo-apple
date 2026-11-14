@@ -85,6 +85,8 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="uaugo" android:host="clube"/>
+                <!-- Rota com paradas do botão "Navegar" do site: uaugo://rota?p=… -->
+                <data android:scheme="uaugo" android:host="rota"/>
             </intent-filter>
             <!-- Compartilhar → UauGo (texto com endereço ou link de mapa). -->
             <intent-filter>

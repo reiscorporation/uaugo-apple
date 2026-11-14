@@ -138,6 +138,16 @@ class _HomeScreenState extends State<HomeScreen> {
               userName: _nameCtrl.text.trim(), initialCode: club)));
       return;
     }
+    // Rota com paradas vinda do botão "Navegar" do site da comunidade.
+    final route = routeFromLink(raw);
+    if (route != null) {
+      final last = route.last;
+      await _whereTo(
+          byVoice: byVoice,
+          shared: SharedPlace(lat: last.lat, lng: last.lng, label: last.name),
+          stops: route.sublist(0, route.length - 1));
+      return;
+    }
     setState(() => _busy = true);
     final place = await SharedPlaceService.instance.resolve(raw);
     if (!mounted) return;
@@ -385,7 +395,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// "Para onde?": navegação sozinho, como no Waze.
   /// [shared]: destino recebido de outro app (pula a busca se tiver posição).
   /// [byVoice]: destino falado — vai direto ao melhor resultado da busca.
-  Future<void> _whereTo({SharedPlace? shared, bool byVoice = false}) async {
+  Future<void> _whereTo(
+      {SharedPlace? shared, bool byVoice = false, List<RoutePoint> stops = const []}) async {
     setState(() => _busy = true);
     final uid = await _prepareAlone();
     Position? me;
@@ -441,6 +452,8 @@ class _HomeScreenState extends State<HomeScreen> {
         points: [
           TripPoint(tr('Sua posição'), me.latitude, me.longitude,
               type: StopType.meet),
+          for (final s in stops)
+            TripPoint(s.name, s.lat, s.lng, type: StopType.waypoint),
           TripPoint(picked.name, picked.lat, picked.lng,
               type: StopType.destination),
         ]);

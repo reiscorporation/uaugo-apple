@@ -20,6 +20,38 @@ String? clubCodeFromLink(String raw) {
   return code.length == 8 || code.length == 12 ? code : null;
 }
 
+/// Um ponto da rota recebida pelo link da comunidade.
+class RoutePoint {
+  final double lat;
+  final double lng;
+  final String name;
+  const RoutePoint(this.lat, this.lng, this.name);
+}
+
+/// Rota com paradas vinda do botão "Navegar" do site (uaugo.com.br/viagem):
+/// "uaugo://rota?p=lat,lng,Nome|lat,lng,Nome|…". Os pontos vêm na ordem
+/// (paradas e, por último, o destino); a saída é sempre a posição do celular.
+/// Null se não for esse link ou não tiver nenhum ponto válido.
+List<RoutePoint>? routeFromLink(String raw) {
+  final u = Uri.tryParse(raw.trim());
+  if (u == null || u.scheme != 'uaugo' || u.host != 'rota') return null;
+  final p = u.queryParameters['p'];
+  if (p == null) return null;
+  final out = <RoutePoint>[];
+  for (final part in p.split('|')) {
+    final x = part.split(',');
+    if (x.length < 2) continue;
+    final lat = double.tryParse(x[0].trim());
+    final lng = double.tryParse(x[1].trim());
+    if (lat == null || lng == null) continue;
+    if (lat.abs() > 90 || lng.abs() > 180 || (lat == 0 && lng == 0)) continue;
+    final name = x.length > 2 ? x.sublist(2).join(',').trim() : '';
+    out.add(RoutePoint(lat, lng, name.isEmpty ? 'Ponto ${out.length + 1}' : name));
+    if (out.length == 25) break; // limite de segurança (link muito longo)
+  }
+  return out.isEmpty ? null : out;
+}
+
 /// Lugar recebido: posição (se veio no link) e/ou texto para buscar.
 class SharedPlace {
   final double? lat;
