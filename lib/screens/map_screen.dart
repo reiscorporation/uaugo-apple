@@ -2220,10 +2220,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           _askHazard = h;
           if (_shownHazard?.id == h.id) _shownHazard = null;
         });
+        // Carro conectado: a pergunta aparece também na tela do carro (o
+        // celular fica travado em "UauGo está na tela do carro", 14/11).
+        final onCar = CarService.instance.connected.value;
+        if (onCar) {
+          CarService.instance.ask(
+              tr('{0} ainda está lá?', [h.type.label]),
+              tr('Você passou pelo alerta de {0}.', [h.type.spoken]),
+              yes: 'hazard:yes',
+              no: 'hazard:no',
+              yesLabel: tr('Sim, está'),
+              noLabel: tr('Não está mais'));
+        }
         // Sem resposta em 25 s, a pergunta some (nada é registrado).
         _askTimer?.cancel();
         _askTimer = Timer(const Duration(seconds: 25), () {
           if (mounted) setState(() => _askHazard = null);
+          if (onCar) CarService.instance.closeAsk();
         });
         break;
       }
@@ -2258,6 +2271,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _radarAskAt = DateTime.now();
         _radarAskCount++;
         HapticFeedback.mediumImpact();
+        // Carro conectado: o celular fica na tela "UauGo está na tela do
+        // carro" e o motorista não tinha como responder (14/11). A pergunta
+        // vai para o carro: "Radar não existe" ou o limite (= existe).
+        if (CarService.instance.connected.value) {
+          _voice.alert(tr('Você passou por um radar sem limite informado. Ele existe? Responda na tela do carro.'));
+          _askRadarOnCar(r);
+          return;
+        }
         _voice.alert(tr('Você passou por um radar sem limite informado. Ele existe? Responda na tela.'));
         setState(() => _askRadar = r);
         _askRadarTimer?.cancel();
@@ -2266,6 +2287,27 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         });
         return;
       }
+    }
+  }
+
+  /// "O radar existe?" na tela do carro (lista: não existe / limite).
+  Future<void> _askRadarOnCar(FixedRadar r) async {
+    _askRadar = r; // segura outras perguntas até responder
+    try {
+      await _editSpeedIn(
+          fromCar: true,
+          title: tr('Radar sem limite aqui. Ele existe?'),
+          kind: 'r',
+          key: SpeedFixService.radarKey(r),
+          lat: r.lat,
+          lng: r.lng,
+          dir: r.direction,
+          current: null,
+          anyone: true,
+          radar: r,
+          carWait: const Duration(seconds: 25));
+    } finally {
+      if (identical(_askRadar, r) && mounted) setState(() => _askRadar = null);
     }
   }
 
@@ -4161,6 +4203,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     int? current,
     bool anyone = false,
     FixedRadar? radar,
+    Duration carWait = const Duration(seconds: 60),
   }) async {
     if (!anyone && !await SpeedFixService.instance.canEdit()) {
       _snack(tr('Só usuários Gold ou administradores podem confirmar ou corrigir velocidades.'));
@@ -4168,7 +4211,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     if (!mounted) return;
     final picked = fromCar
-        ? await _pickOnCar(title, current, kind == 'r')
+        ? await _pickOnCar(title, current, kind == 'r', wait: carWait)
         : await showModalBottomSheet<int>(
       context: context,
       showDragHandle: true,
@@ -4243,12 +4286,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Abre as opções na tela do carro e espera a escolha (até 60 s).
-  Future<int?> _pickOnCar(String title, int? current, bool radar) async {
+  Future<int?> _pickOnCar(String title, int? current, bool radar,
+      {Duration wait = const Duration(seconds: 60)}) async {
     _carPick?.complete(null);
     final c = _carPick = Completer<int?>();
     CarService.instance.speedEdit(title, current, radar);
-    final v = await c.future.timeout(const Duration(seconds: 60), onTimeout: () => null);
+    var timedOut = false;
+    final v = await c.future.timeout(wait, onTimeout: () {
+      timedOut = true;
+      return null;
+    });
     if (identical(_carPick, c)) _carPick = null;
+    // Sem resposta: a lista não fica aberta cobrindo o mapa do carro.
+    if (timedOut) CarService.instance.closeAsk();
     return v;
   }
 
@@ -7156,10 +7206,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           if (m.hasLocation && m.uid != widget.uid) (m.name, m.lat!, m.lng!)
       ]);
     }
+    // Na rota: o carro mostra o veículo EM CIMA da rota (como o celular).
+    // O GPS cru com sinal ruim deixava o ícone ao lado da estrada no carro,
+    // fora da linha azul (foto do testador na SP-305, 14/11).
+    final pr = _proj;
+    final onRoute = (_navigating || _sim != null) && w != null && pr != null &&
+        !_offRoute && pr.offset <= 100;
+    final at = onRoute ? w.at(pr.along) : null;
     CarService.instance.update(
       convoy: _isExpedition && _view == _MapView.convoy,
-      lat: p.latitude,
-      lng: p.longitude,
+      lat: at?.lat ?? p.latitude,
+      lng: at?.lng ?? p.longitude,
       bearing: _bearing,
       speedKmh: (_speedMs * 3.6).round(),
       limitKmh: _roadLimit?.kmh ?? 0,
@@ -7401,6 +7458,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         });
         await _voice.stop();
         CarService.instance.clearNavigation();
+      case 'hazard:yes' || 'hazard:no':
+        // Resposta no carro a "Ainda está lá?".
+        final h = _askHazard;
+        if (h == null) return;
+        _askTimer?.cancel();
+        setState(() => _askHazard = null);
+        final still = a == 'hazard:yes';
+        _voteHazard(h, still);
+        CarService.instance.toast(still ? tr('Confirmado. Obrigado!') : tr('Obrigado! Vou avisar que não está mais.'));
       case 'resume:yes':
         if (!_askingResume) return; // toque repetido na mesma pergunta
         _askingResume = false;

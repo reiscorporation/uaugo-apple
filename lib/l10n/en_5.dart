@@ -240,4 +240,10 @@ const en5 = <String, String>{
   'Sessão da comunidade expirou. Tente de novo.': 'Community session expired. Try again.',
   'Não foi possível buscar as rotas agora.': 'Could not load the routes now.',
   'Sem conexão com a comunidade. Confira a internet.': 'No connection to the community. Check your internet.',
+  'Você passou por um radar sem limite informado. Ele existe? Responda na tela do carro.': 'You passed a speed camera with no limit on record. Does it exist? Answer on the car screen.',
+  'Radar sem limite aqui. Ele existe?': 'Speed camera with no limit here. Does it exist?',
+  'Você passou pelo alerta de {0}.': 'You passed the {0} alert.',
+  'Sim, está': 'Yes, it is',
+  'Não está mais': 'Not anymore',
+  'Obrigado! Vou avisar que não está mais.': 'Thanks! I will report it is gone.',
 };

@@ -60,10 +60,15 @@ object CarState {
     @Volatile var banner: String? = null
     /** Pergunta do celular para a tela do carro: (título, texto). A tela do
      *  carro abre quando houver uma ([askSink] ou ao montar). */
-    @Volatile var pendingAsk: Pair<String, String>? = null
+    @Volatile var pendingAsk: Ask? = null
+    /** Pergunta sim/não: o código de cada resposta volta ao celular. */
+    data class Ask(val title: String, val text: String, val yes: String, val no: String,
+                   val yesLabel: String?, val noLabel: String?)
+    /** Fechar a pergunta/opções abertas (o celular desistiu: passou o tempo). */
+    @Volatile var closeAskSink: (() -> Unit)? = null
     /** Opções de velocidade pedidas pelo celular (toque na faixa amarela). */
     @Volatile var speedEditSink: ((SpeedEdit) -> Unit)? = null
-    @Volatile var askSink: ((Pair<String, String>) -> Unit)? = null
+    @Volatile var askSink: ((Ask) -> Unit)? = null
     /** Configurações do celular mostradas no ⚙ do carro (por seção). */
     data class CfgItem(val key: String, val title: String, val on: Boolean, val sub: String)
     data class CfgSection(val title: String, val items: List<CfgItem>)
@@ -314,9 +319,16 @@ class CarBridge(messenger: BinaryMessenger) {
                 }
                 "ask" -> {
                     val m = call.arguments as? Map<*, *>
-                    val q = Pair(m?.get("title") as? String ?: "", m?.get("text") as? String ?: "")
+                    val q = CarState.Ask(m?.get("title") as? String ?: "", m?.get("text") as? String ?: "",
+                        m?.get("yes") as? String ?: "resume:yes", m?.get("no") as? String ?: "resume:no",
+                        m?.get("yesLabel") as? String, m?.get("noLabel") as? String)
                     CarState.pendingAsk = q
                     CarState.askSink?.let { s -> Handler(Looper.getMainLooper()).post { s(q) } }
+                    result.success(null)
+                }
+                "closeAsk" -> {
+                    CarState.pendingAsk = null
+                    CarState.closeAskSink?.let { s -> Handler(Looper.getMainLooper()).post { s() } }
                     result.success(null)
                 }
                 "toast" -> {

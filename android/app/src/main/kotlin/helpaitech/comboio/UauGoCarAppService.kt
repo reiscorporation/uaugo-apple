@@ -120,6 +120,9 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         carMap.onMode = { setMode3d(it) }
         // Pergunta do celular (ex.: "Continuar a rota?") na tela do carro.
         CarState.askSink = { q -> showAsk(q) }
+        CarState.closeAskSink = {
+            if (screenManager.top is AskScreen || screenManager.top is SpeedEditScreen) screenManager.popToRoot()
+        }
         CarState.speedEditSink = { q -> screenManager.push(SpeedEditScreen(carContext, q)) }
         // Depois de a tela do mapa entrar (no init ela ainda não está na pilha).
         CarState.pendingAsk?.let { q ->
@@ -127,10 +130,10 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         }
     }
 
-    private fun showAsk(q: Pair<String, String>) {
+    private fun showAsk(q: CarState.Ask) {
         CarState.pendingAsk = null
         if (screenManager.top is AskScreen) screenManager.pop()
-        screenManager.push(AskScreen(carContext, q.first, q.second))
+        screenManager.push(AskScreen(carContext, q))
     }
 
     /** 0 = mapa, 2 = 3D sempre. Vale também no celular (11/11). */
@@ -206,6 +209,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 }
                 CarState.toastSink = null
                 CarState.askSink = null
+                CarState.closeAskSink = null
                 CarState.speedEditSink = null
                 carMap.stop()
                 if (navigating) runCatching { nav.navigationEnded() }
@@ -793,24 +797,24 @@ class MusicScreen(ctx: CarContext) : Screen(ctx) {
 }
 
 /** Pergunta Sim/Não vinda do celular (ex.: continuar a rota ao voltar ao carro). */
-class AskScreen(ctx: CarContext, private val title: String, private val text: String) : Screen(ctx) {
+class AskScreen(ctx: CarContext, private val q: CarState.Ask) : Screen(ctx) {
     override fun onGetTemplate(): Template {
         val en = CarState.en
         fun answer(code: String) {
             CarState.actionSink?.invoke(code)
             screenManager.pop()
         }
-        return MessageTemplate.Builder(text)
-            .setTitle(title)
+        return MessageTemplate.Builder(q.text)
+            .setTitle(q.title)
             .setHeaderAction(Action.APP_ICON)
             .addAction(Action.Builder()
-                .setTitle(if (en) "Yes, continue" else "Sim, continuar")
+                .setTitle(q.yesLabel ?: if (en) "Yes, continue" else "Sim, continuar")
                 .setFlags(Action.FLAG_PRIMARY)
-                .setOnClickListener { answer("resume:yes") }
+                .setOnClickListener { answer(q.yes) }
                 .build())
             .addAction(Action.Builder()
-                .setTitle(if (en) "No" else "Não")
-                .setOnClickListener { answer("resume:no") }
+                .setTitle(q.noLabel ?: if (en) "No" else "Não")
+                .setOnClickListener { answer(q.no) }
                 .build())
             .build()
     }

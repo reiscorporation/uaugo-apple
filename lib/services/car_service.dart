@@ -274,8 +274,24 @@ class CarService {
 
   /// Pergunta Sim/Não na tela do carro; a resposta volta como ação
   /// "resume:yes" / "resume:no".
-  void ask(String title, String text) => _ch.invokeMethod(
-      'ask', {'title': title, 'text': text}).catchError((_) => null);
+  /// Pergunta sim/não na tela do carro. A resposta volta como [yes] ou [no]
+  /// (padrão: "Continuar a rota?" -> resume:yes / resume:no).
+  void ask(String title, String text,
+          {String yes = 'resume:yes',
+          String no = 'resume:no',
+          String? yesLabel,
+          String? noLabel}) =>
+      _ch.invokeMethod('ask', {
+        'title': title,
+        'text': text,
+        'yes': yes,
+        'no': no,
+        if (yesLabel != null) 'yesLabel': yesLabel,
+        if (noLabel != null) 'noLabel': noLabel,
+      }).catchError((_) => null);
+
+  /// Fecha a pergunta/opções abertas na tela do carro (passou o tempo).
+  void closeAsk() => _ch.invokeMethod('closeAsk').catchError((_) => null);
 
   /// Opções de velocidade na tela do carro (confirmar, radar não existe,
   /// corrigir). A escolha volta como "speedpick:N" (0 = radar não existe).
