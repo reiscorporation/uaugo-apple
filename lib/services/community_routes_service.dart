@@ -39,6 +39,16 @@ class CommunityRoutesService {
   static const _api = 'https://api.uaugo.com.br';
 
   static String? _token;
+  static String? _userId;
+
+  /// Sessão da comunidade (token do PocketBase), também para os posts.
+  static Future<String> session() => _session();
+
+  /// Id do piloto na comunidade (depois de [session]).
+  static String? get userId => _userId;
+
+  /// Sessão venceu (401/403): entra de novo na próxima chamada.
+  static void dropSession() => _token = null;
 
   /// Sessão da comunidade a partir do login do app (Firebase).
   static Future<String> _session() async {
@@ -59,7 +69,9 @@ class CommunityRoutesService {
     if (res.statusCode != 200) {
       throw const CommunityRoutesError('Não foi possível entrar na comunidade agora.');
     }
-    return _token = (jsonDecode(res.body) as Map)['token'] as String;
+    final body = jsonDecode(res.body) as Map;
+    _userId = (body['user'] as Map?)?['id'] as String?;
+    return _token = body['token'] as String;
   }
 
   /// Rotas do piloto, as mais recentes primeiro.

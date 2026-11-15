@@ -22,6 +22,7 @@ import '../services/location_service.dart';
 import '../services/trip_service.dart';
 import '../widgets/trip_expenses.dart';
 import '../widgets/trip_preview_sheet.dart';
+import '../widgets/community_post_sheet.dart';
 import '../widgets/trip_share.dart';
 import 'map_screen.dart';
 import '../l10n/i18n.dart';
@@ -338,6 +339,29 @@ class _TripDetail extends StatelessWidget {
                     label: Text(tr('Salvar imagem e compartilhar')),
                   ),
                 ),
+              ),
+              // Comunidade UauGo e GIF da rota acelerada (14/11).
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => showCommunityPostSheet(context, trip, _map.value),
+                      icon: const Icon(Icons.forum_outlined),
+                      label: Text(tr('Postar na comunidade')),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: trip.trackPolyline.isEmpty
+                          ? null
+                          : () => shareRouteGif(context, trip, _map.value),
+                      icon: const Icon(Icons.gif_box_outlined),
+                      label: Text(tr('GIF da rota')),
+                    ),
+                  ),
+                ]),
               ),
               if (trip.stops.length >= 2)
                 Padding(

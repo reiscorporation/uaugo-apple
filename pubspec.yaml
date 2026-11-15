@@ -30,6 +30,8 @@ dependencies:
   path_provider: ^2.1.6
   wakelock_plus: ^1.8.1
   gal: ^2.3.3
+  # GIF da viagem (rota acelerada) e JPEG para a comunidade
+  image: ^4.8.0
   battery_plus: ^7.1.2
   package_info_plus: ^10.2.2
   qr_flutter: ^4.1.0

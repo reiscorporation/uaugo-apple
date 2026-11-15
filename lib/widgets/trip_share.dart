@@ -3,22 +3,27 @@
 //
 // O que faz: Gera a imagem para redes sociais (mapa + números), salva na
 //   galeria e o arquivo GPX (Strava etc.), e abre o compartilhar do celular.
-// Quem usa: HistoryScreen.
-// Onde mexer: Layout da imagem: buildShareImage (1080x1350).
+//   Também o GIF da rota acelerada (buildRouteGif) e o JPEG para a comunidade.
+// Quem usa: HistoryScreen e CommunityPostSheet.
+// Onde mexer: Layout da imagem: buildShareImage (1080x1350); GIF: buildRouteGif
+//   (velocidade em logic/route_gif.dart).
 // ============================================================================
 
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
+import 'package:image/image.dart' as im;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../logic/geo.dart';
 import '../logic/itinerary.dart';
+import '../logic/route_gif.dart';
 import '../models/trip_record.dart';
 import '../l10n/i18n.dart';
 
@@ -151,6 +156,128 @@ Future<void> shareTrip(BuildContext context, TripRecord t,
       XFile(imgFile.path, mimeType: 'image/png'),
       XFile(gpxFile.path, mimeType: 'application/gpx+xml'),
     ],
+    text: tr('{0} · {1} percorridos com o UauGo', [t.title, formatDistance(t.distanceM.round())]),
+  ));
+}
+
+/// Imagem da viagem (PNG) em JPEG, como a comunidade aceita (até ~600 KB).
+Future<Uint8List> shareImageJpeg(Uint8List png) => compute(_toJpeg, png);
+
+Uint8List _toJpeg(Uint8List png) {
+  var image = im.decodePng(png)!;
+  var q = 85;
+  var out = im.encodeJpg(image, quality: q);
+  while (out.length > 560 * 1024 && q > 50) {
+    q -= 10;
+    out = im.encodeJpg(image, quality: q);
+  }
+  if (out.length > 560 * 1024) {
+    image = im.copyResize(image, width: 864);
+    out = im.encodeJpg(image, quality: 75);
+  }
+  return out;
+}
+
+/// GIF da viagem: o caminho feito sendo percorrido bem acelerado (50x o
+/// tempo em movimento, 3 a 12 s) sobre o mapa que está na tela, com o logo
+/// e o nome da viagem embaixo. null se o mapa não estiver pronto.
+Future<Uint8List?> buildRouteGif(TripRecord t, GoogleMapController? map,
+    {double devicePixelRatio = 1}) async {
+  if (map == null) return null;
+  final track = decodePolyline(t.trackPolyline);
+  if (track.length < 2) return null;
+  Uint8List? png;
+  try {
+    png = await map.takeSnapshot();
+  } catch (_) {}
+  if (png == null) return null;
+  final snap = (await (await ui.instantiateImageCodec(png)).getNextFrame()).image;
+
+  // Até ~150 pontos do caminho, em pixels da tela do mapa.
+  final step = (track.length / 150).ceil().clamp(1, 1 << 30);
+  final pts = <(double, double)>[];
+  for (var i = 0; i < track.length; i += step) {
+    final c = await map.getScreenCoordinate(track[i]);
+    pts.add((c.x.toDouble(), c.y.toDouble()));
+  }
+  final last = await map.getScreenCoordinate(track.last);
+  pts.add((last.x.toDouble(), last.y.toDouble()));
+  // Android dá pixels de verdade (como o snapshot); iOS, pontos: ajusta.
+  final maxX = pts.map((p) => p.$1).reduce((a, b) => a > b ? a : b);
+  final maxY = pts.map((p) => p.$2).reduce((a, b) => a > b ? a : b);
+  final dpr = devicePixelRatio > 1 &&
+          maxX <= snap.width / devicePixelRatio * 1.02 &&
+          maxY <= snap.height / devicePixelRatio * 1.02
+      ? devicePixelRatio
+      : 1.0;
+
+  // Fundo: o mapa (480 de largura) e uma faixa com o logo e o nome.
+  const w = 480.0, band = 92.0;
+  final k = w / snap.width;
+  final mapH = (snap.height * k).clamp(200.0, 640.0);
+  final h = mapH + band;
+  final rec = ui.PictureRecorder();
+  final c = Canvas(rec, Rect.fromLTWH(0, 0, w, h));
+  c.drawRect(Rect.fromLTWH(0, 0, w, h), Paint()..color = const Color(0xFF0F1B2D));
+  c.drawImageRect(snap, Rect.fromLTWH(0, 0, snap.width.toDouble(), mapH / k),
+      Rect.fromLTWH(0, 0, w, mapH), Paint()..filterQuality = FilterQuality.medium);
+  try {
+    final logo = await rootBundle.load('assets/branding/comboio_logo.png');
+    final li = (await (await ui.instantiateImageCodec(logo.buffer.asUint8List(),
+                targetWidth: 64))
+            .getNextFrame())
+        .image;
+    c.drawImage(li, Offset(14, mapH + (band - li.height) / 2), Paint());
+  } catch (_) {}
+  void text(String s, double y, double size, Color color, {bool bold = false}) {
+    final pb = ui.ParagraphBuilder(ui.ParagraphStyle(maxLines: 1, ellipsis: '…'))
+      ..pushStyle(ui.TextStyle(
+          color: color,
+          fontSize: size,
+          fontWeight: bold ? FontWeight.w800 : FontWeight.w500))
+      ..addText(s);
+    final para = pb.build()..layout(const ui.ParagraphConstraints(width: w - 100));
+    c.drawParagraph(para, Offset(90, y));
+  }
+  text(t.title, mapH + 16, 22, Colors.white, bold: true);
+  text('${formatDistance(t.distanceM.round())} · ${formatDuration(t.movingS)} · ${_date(t.startedAt)}',
+      mapH + 50, 16, Colors.white70);
+  final bg = await rec.endRecording().toImage(w.round(), h.round());
+  final raw = (await bg.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+
+  final path = [for (final p in pts) (p.$1 * dpr * k, p.$2 * dpr * k)];
+  final plan = gifPlan(t.movingS);
+  return compute(
+      encodeRouteGif,
+      RouteGifInput(raw.buffer.asUint8List(), w.round(), h.round(), path,
+          plan.frames, plan.delayCs));
+}
+
+/// Gera o GIF, salva na galeria e abre o compartilhar.
+Future<void> shareRouteGif(BuildContext context, TripRecord t,
+    GoogleMapController? map) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final dpr = MediaQuery.of(context).devicePixelRatio;
+  messenger.showSnackBar(SnackBar(
+      duration: const Duration(seconds: 30),
+      content: Text(tr('Criando o GIF da rota… pode levar alguns segundos'))));
+  final gif = await buildRouteGif(t, map, devicePixelRatio: dpr);
+  messenger.hideCurrentSnackBar();
+  if (gif == null) {
+    messenger.showSnackBar(SnackBar(
+        content: Text(tr('Não foi possível criar o GIF (mapa ou caminho da viagem indisponível).'))));
+    return;
+  }
+  final dir = await getTemporaryDirectory();
+  final f = File('${dir.path}/uaugo_rota_${t.startedAt.millisecondsSinceEpoch}.gif');
+  await f.writeAsBytes(gif, flush: true);
+  try {
+    await Gal.putImage(f.path, album: 'UauGo');
+    messenger.showSnackBar(
+        SnackBar(content: Text(tr('GIF salvo na galeria (álbum UauGo)'))));
+  } catch (_) {}
+  await SharePlus.instance.share(ShareParams(
+    files: [XFile(f.path, mimeType: 'image/gif')],
     text: tr('{0} · {1} percorridos com o UauGo', [t.title, formatDistance(t.distanceM.round())]),
   ));
 }
