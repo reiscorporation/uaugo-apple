@@ -89,6 +89,7 @@ class _CommunityPostSheetState extends State<_CommunityPostSheet> {
     setState(() => _busy = true);
     try {
       final media = <String>[];
+      var gifSkipped = false;
       if (_withImage) {
         setState(() => _status = tr('Preparando a imagem…'));
         Uint8List? png;
@@ -104,8 +105,16 @@ class _CommunityPostSheetState extends State<_CommunityPostSheet> {
         final gif = await buildRouteGif(widget.trip, widget.map, devicePixelRatio: dpr);
         if (gif != null) {
           setState(() => _status = tr('Enviando o GIF…'));
-          media.add(await CommunityPostService.upload(gif, 'image/gif'));
+          try {
+            media.add(await CommunityPostService.upload(gif, 'image/gif'));
+          } on CommunityRoutesError {
+            // Site ainda sem GIF (ou recusou): posta o resto mesmo assim.
+            gifSkipped = true;
+          }
         }
+      }
+      if (media.isEmpty && _text.text.trim().isEmpty) {
+        throw const CommunityRoutesError('Não foi possível enviar a imagem.');
       }
       setState(() => _status = tr('Publicando…'));
       final url = await CommunityPostService.create(
@@ -114,7 +123,9 @@ class _CommunityPostSheetState extends State<_CommunityPostSheet> {
       final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
       messenger.showSnackBar(SnackBar(
-        content: Text(tr('Postado na comunidade!')),
+        content: Text(gifSkipped
+            ? tr('Postado na comunidade (sem o GIF: a comunidade ainda não aceita).')
+            : tr('Postado na comunidade!')),
         action: SnackBarAction(
             label: tr('Abrir'),
             onPressed: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)),

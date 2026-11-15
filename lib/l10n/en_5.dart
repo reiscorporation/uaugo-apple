@@ -273,4 +273,5 @@ const en5 = <String, String>{
   'Não foi possível enviar a imagem.': 'Could not upload the image.',
   'Falha ao enviar a imagem.': 'Image upload failed.',
   'Não foi possível publicar o post.': 'Could not publish the post.',
+  'Postado na comunidade (sem o GIF: a comunidade ainda não aceita).': 'Posted to the community (without the GIF: not accepted yet).',
 };
