@@ -58,14 +58,14 @@ class Speedometer extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       child: SizedBox(
-        width: 112,
-        height: 104,
+        width: 136,
+        height: 120,
         child: Stack(clipBehavior: Clip.none, children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             width: 96,
             height: 96,
-            margin: const EdgeInsets.only(top: 8),
+            margin: const EdgeInsets.only(top: 24),
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(20),
@@ -98,20 +98,22 @@ class Speedometer extends StatelessWidget {
             Positioned(
               right: 0,
               top: 0,
-              child: Tooltip(
-                message: limit!.estimated
+              // Sem Tooltip: no celular ele abre com o toque longo e roubava o
+              // "segurar para corrigir o limite" (Gold/admin), 14/11.
+              child: Semantics(
+                label: limit!.estimated
                     ? tr('Limite estimado pelo tipo de via')
                     : tr('Limite da via'),
                 child: Container(
-                  width: 44,
-                  height: 44,
+                  width: 64,
+                  height: 64,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
                     border: Border.all(
                         color: limit!.estimated ? Colors.grey : Colors.red,
-                        width: 5),
+                        width: 7),
                   ),
                   // "110" sempre numa linha, do tamanho da placa (a fonte
                   // grande do celular quebrava o número e cortava o "0").
@@ -126,7 +128,7 @@ class Speedometer extends StatelessWidget {
                       style: TextStyle(
                           color: Colors.black,
                           fontWeight: FontWeight.w900,
-                          fontSize: limit!.estimated ? 12 : 15),
+                          fontSize: limit!.estimated ? 17 : 22),
                     ),
                   ),
                 ),
@@ -186,12 +188,12 @@ class _HudSpeedometerState extends State<_HudSpeedometer>
   Widget build(BuildContext context) {
     final lim = widget.limit;
     return SizedBox(
-      width: 112,
-      height: 104,
+      width: 136,
+      height: 120,
       child: Stack(clipBehavior: Clip.none, children: [
         Positioned(
           left: 0,
-          top: 8,
+          top: 24,
           width: 96,
           height: 96,
           child: ClipPath(
@@ -250,14 +252,14 @@ class _HudSpeedometerState extends State<_HudSpeedometer>
                   scale: widget.over ? 1 + 0.14 * (_blink.value < 0.5 ? _blink.value * 2 : (1 - _blink.value) * 2) : 1,
                   child: child),
               child: Container(
-                width: 40,
-                height: 40,
+                width: 60,
+                height: 60,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
                   border: Border.all(
-                      color: lim.estimated ? Colors.grey : const Color(0xFFD8262B), width: 5),
+                      color: lim.estimated ? Colors.grey : const Color(0xFFD8262B), width: 7),
                 ),
                 padding: const EdgeInsets.all(2),
                 child: FittedBox(
@@ -269,7 +271,7 @@ class _HudSpeedometerState extends State<_HudSpeedometer>
                       style: TextStyle(
                           color: const Color(0xFF111111),
                           fontWeight: FontWeight.w800,
-                          fontSize: lim.estimated ? 12 : 15)),
+                          fontSize: lim.estimated ? 17 : 22)),
                 ),
               ),
             ),

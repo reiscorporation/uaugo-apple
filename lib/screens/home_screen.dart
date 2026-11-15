@@ -17,6 +17,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../brand.dart';
 import '../logic/shared_place.dart';
+import '../services/app_version.dart';
 import '../services/places_service.dart';
 import '../services/community_routes_service.dart';
 import '../services/saved_places_service.dart';
@@ -1191,6 +1192,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: Image.asset('assets/branding/helpaitech_logo.png',
                           height: 48),
+                    ),
+                    // Versão do app instalado (sempre a publicada).
+                    FutureBuilder<String>(
+                      future: AppVersion.label(),
+                      builder: (context, snap) => (snap.data ?? '').isEmpty
+                          ? const SizedBox.shrink()
+                          : Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(tr('Versão {0}', [snap.data!]),
+                                  style: theme.textTheme.bodySmall),
+                            ),
                     ),
                   ]),
                 ),

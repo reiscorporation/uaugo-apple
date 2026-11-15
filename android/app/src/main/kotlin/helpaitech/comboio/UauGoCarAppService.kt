@@ -365,11 +365,16 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             }
             .build()
         // 3D primeiro: em tela baixa o último botão ficava escondido embaixo.
+        // Zoom só no mapa: no 3D ele não muda nada (pedido do Ricardo, 14/11).
         val mapStrip = ActionStrip.Builder()
             .addAction(view3d)
             .addAction(compass)
-            .addAction(zoom(R.drawable.car_zoom_in, 1f))
-            .addAction(zoom(R.drawable.car_zoom_out, -1f))
+            .apply {
+                if (CarState.mode3d != 2) {
+                    addAction(zoom(R.drawable.car_zoom_in, 1f))
+                    addAction(zoom(R.drawable.car_zoom_out, -1f))
+                }
+            }
             .build()
         val b = NavigationTemplate.Builder().setActionStrip(strip).setMapActionStrip(mapStrip)
         // A manobra, a chegada e os avisos são desenhados no mapa (CarOverlay),

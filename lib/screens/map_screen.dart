@@ -3661,6 +3661,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _setMode3d(_Mode3d.map);
       return;
     }
+    // Expedição ainda sem navegar: o 3D anda junto com a navegação.
+    if (_isExpedition && !_navigating && _sim == null) _startNavigation();
     if (_view == _MapView.convoy) await _toggleView();
     if (mounted) _setMode3d(_Mode3d.always);
   }
@@ -4858,15 +4860,32 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   List<Polyline>? _routeLines;
 
-  /// Rota que falta: navegando na rota, o trecho já percorrido some (como
-  /// no Waze/Google). Refeito a cada ~20 m andados.
-  List<LatLng> get _visibleRoute {
-    final w = _walker, pr = _proj;
+  /// Onde o ícone do veículo está, em metros pela rota, ou null fora da
+  /// navegação. O ícone anda adiantado e deslizando entre as leituras do GPS;
+  /// a rota some junto com ele (14/11: a rota sumia atrasada, atrás do ícone).
+  double? get _shownAlong {
+    final w = _walker, pr = _proj, me = _shownMe;
     if ((!_navigating && _sim == null) || w == null || pr == null ||
         pr.offset > 60 || _offRoute) {
-      return _route;
+      return null;
     }
-    final step = (pr.along / 20).floor();
+    if (me == null) return pr.along;
+    if (identical(me, _shownAlongFor)) return _shownAlongValue;
+    final q = w.project(me.latitude, me.longitude, around: pr.along + _lead);
+    _shownAlongFor = me;
+    return _shownAlongValue = q.offset <= 30 ? q.along : pr.along;
+  }
+
+  LatLng? _shownAlongFor;
+  double? _shownAlongValue;
+
+  /// Rota que falta: navegando na rota, o trecho já percorrido some (como
+  /// no Waze/Google). A rota longa é refeita a cada 20 m; do ícone até ela
+  /// vai um trecho curto ([_routeHead]), refeito a cada quadro do deslize.
+  List<LatLng> get _visibleRoute {
+    final w = _walker, sa = _shownAlong;
+    if (w == null || sa == null) return _route;
+    final step = (sa / 20).floor();
     final cached = _trimmedRoute;
     if (cached != null && step == _trimStep && identical(_trimBase, _route)) {
       return cached;
@@ -4874,13 +4893,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _trimStep = step;
     _trimBase = _route;
     return _trimmedRoute = [
-      for (final (la, lo) in w.pointsAfter(pr.along)) LatLng(la, lo)
+      for (final (la, lo) in w.pointsAfter((step + 1) * 20.0)) LatLng(la, lo)
     ];
   }
 
   List<LatLng>? _trimmedRoute;
   List<LatLng>? _trimBase;
   int _trimStep = -1;
+
+  /// Do ícone do veículo até o começo da rota longa (no máximo 20 m).
+  List<LatLng> get _routeHead {
+    final w = _walker, sa = _shownAlong;
+    if (w == null || sa == null) return const [];
+    final end = ((sa / 20).floor() + 1) * 20.0;
+    return [for (final (la, lo) in w.pointsBetween(sa, end)) LatLng(la, lo)];
+  }
 
   List<TrafficRun> _trafficRuns = const [];
   List<Polyline> _trafficLines = const [];
@@ -4959,8 +4986,32 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (RouteEngineService.enabled) _onRouteDelay(to - from, got.$3, got.$4);
   }
 
-  /// Rota azul com borda escura (refeita só quando muda).
+  /// Rota azul com borda escura (a longa só é refeita quando muda; o trecho
+  /// curto do ícone até ela acompanha o deslize do ícone).
   List<Polyline> _routePolylines() {
+    final head = _routeHead;
+    return [
+      ..._routeBody(),
+      if (head.length >= 2) ...[
+        Polyline(
+          polylineId: const PolylineId('route_head_border'),
+          points: head,
+          width: 9,
+          color: MapScreen.routeBorder,
+          zIndex: 1,
+        ),
+        Polyline(
+          polylineId: const PolylineId('route_head'),
+          points: head,
+          width: 6,
+          color: MapScreen.routeBlue,
+          zIndex: 2,
+        ),
+      ],
+    ];
+  }
+
+  List<Polyline> _routeBody() {
     final l = _routeLines;
     final pts = _visibleRoute;
     if (l != null && identical(l.first.points, pts)) return l;
@@ -5641,7 +5692,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Deitado: à esquerda, para não tapar o marcador do piloto no centro.
         // Em pé, fica entre as colunas de botões das laterais (não cobre).
         Positioned(
-          left: landscape ? 210 : 112,
+          // Em pé: depois do velocímetro (136 de largura desde 14/11, placa
+          // do limite maior).
+          left: landscape ? 210 : 146,
           right: landscape ? null : 76,
           bottom: _sim != null ? (landscape ? 64 : 196) : (landscape ? 28 : 104),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -5649,7 +5702,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 // Compacto: não cobre o perigo/radar móvel do canto.
-                child: FilledButton.icon(
+                child: FittedBox(fit: BoxFit.scaleDown, child: FilledButton.icon(
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.blue.shade700,
                     foregroundColor: Colors.white,
@@ -5663,7 +5716,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   icon: const Icon(Icons.navigation, size: 18),
                   label: Text(tr('Recentralizar'),
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                ),
+                )),
               ),
             if (_tripButton() case final btn?)
               FittedBox(fit: BoxFit.scaleDown, child: btn),
@@ -5689,7 +5742,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               // norte para cima.
               ValueListenableBuilder<bool>(
                 valueListenable: AppSettings.instance.northUp,
-                builder: (_, north, __) => FloatingActionButton.small(
+                builder: (_, north, __) => _sideFab(
                   heroTag: 'heading',
                   tooltip: north ? tr('Norte para cima') : tr('Seguindo a direção'),
                   onPressed: () async {
@@ -5706,20 +5759,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 10),
               // Zoom: na mesma coluna do velocímetro, logo acima dele (assim
-              // nunca fica atrás dele nem dos botões da direita).
-              FloatingActionButton.small(
-                heroTag: 'zoomIn',
-                tooltip: tr('Aproximar'),
-                onPressed: () => _zoom(1),
-                child: const Icon(Icons.add, size: 28),
-              ),
-              const SizedBox(height: 6),
-              FloatingActionButton.small(
-                heroTag: 'zoomOut',
-                tooltip: tr('Afastar'),
-                onPressed: () => _zoom(-1),
-                child: const Icon(Icons.remove, size: 28),
-              ),
+              // nunca fica atrás dele nem dos botões da direita). Só no mapa:
+              // no 3D o zoom não muda nada (pedido do Ricardo, 14/11).
+              if (!_show3d) ...[
+                FloatingActionButton.small(
+                  heroTag: 'zoomIn',
+                  tooltip: tr('Aproximar'),
+                  onPressed: () => _zoom(1),
+                  child: const Icon(Icons.add, size: 28),
+                ),
+                const SizedBox(height: 6),
+                FloatingActionButton.small(
+                  heroTag: 'zoomOut',
+                  tooltip: tr('Afastar'),
+                  onPressed: () => _zoom(-1),
+                  child: const Icon(Icons.remove, size: 28),
+                ),
+              ],
               const SizedBox(height: 12),
               // Radar à frente: distância até ele (some ao passar). Com a
               // faixa amarela na tela, a distância vai nela.
@@ -5797,12 +5853,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (_sim == null)
         Positioned(
           right: 6 + 88 + 10,
-          bottom: 24 + (88 - 50) / 2,
+          // No 3D maiores (64): de luva, na moto (14/11).
+          bottom: 24 + (88 - (_show3d ? 64 : 50)) / 2,
           child: Row(key: _kBottomLeft, mainAxisSize: MainAxisSize.min, children: [
             // Radar móvel à esquerda, alerta amarelo ao lado do SOS (13/11).
             SizedBox(
-              width: 50,
-              height: 50,
+              width: _show3d ? 64 : 50,
+              height: _show3d ? 64 : 50,
               child: FloatingActionButton(
                 heroTag: 'radar',
                 tooltip: tr('Avisar radar móvel aqui'),
@@ -5810,7 +5867,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 foregroundColor: Colors.white,
                 onPressed: _quickRadar,
                 child: Text(HazardType.radar.emoji,
-                    style: const TextStyle(fontSize: 21)),
+                    style: TextStyle(fontSize: _show3d ? 27 : 21)),
               ),
             ),
             const SizedBox(width: 10),
@@ -5821,14 +5878,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               child: GestureDetector(
                 onLongPress: _showReportSheet,
                 child: SizedBox(
-                  width: 50,
-                  height: 50,
+                  width: _show3d ? 64 : 50,
+                  height: _show3d ? 64 : 50,
                   child: FloatingActionButton(
                     heroTag: 'hazard',
                     backgroundColor: Colors.amber,
                     foregroundColor: Colors.black,
                     onPressed: _showReportSheet,
-                    child: const Icon(Icons.warning_amber_rounded, size: 26),
+                    child: Icon(Icons.warning_amber_rounded, size: _show3d ? 34 : 26),
                   ),
                 ),
               ),
@@ -5857,7 +5914,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ],
             if (_sim == null && landscape) _musicButton(),
             // Visão (o "olho"): SOLO (primeira pessoa) ou COMBOIO (de cima).
-            FloatingActionButton.small(
+            _sideFab(
               heroTag: 'view',
               tooltip: _view == _MapView.convoy
                   ? tr('Visão: comboio (toque para solo)')
@@ -5869,10 +5926,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // v2: 3D (estrada em primeira pessoa) ou mapa de cima.
             // Toque: no mapa vai para o 3D, no 3D volta ao mapa (11/11).
             // Segurar: escolher a visão.
-            if (_canShow3d) ...[
+            if (_show3dButton) ...[
               GestureDetector(
                 onLongPress: _chooseMode3d,
-                child: FloatingActionButton.small(
+                child: _sideFab(
                   heroTag: '3d',
                   tooltip: _show3d ? tr('Ver o mapa') : tr('Ver em 3D'),
                   onPressed: _toggle3dMap,
@@ -5883,7 +5940,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ],
             ValueListenableBuilder<bool>(
               valueListenable: _voice.alertsOn,
-              builder: (_, on, __) => FloatingActionButton.small(
+              builder: (_, on, __) => _sideFab(
                 heroTag: 'voice',
                 tooltip: tr('Voz'),
                 onPressed: _showVoiceSettings,
@@ -5892,7 +5949,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 12),
             if (_canAddSoloStop) ...[
-              FloatingActionButton.small(
+              _sideFab(
                 heroTag: 'addStop',
                 tooltip: tr('Adicionar parada (ou segure no mapa)'),
                 onPressed: _addSoloStopBySearch,
@@ -5901,7 +5958,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               const SizedBox(height: 12),
             ],
             if (_canStartRoute) ...[
-              FloatingActionButton.small(
+              _sideFab(
                 heroTag: 'newRoute',
                 tooltip: tr('Traçar rota (ou segure no mapa)'),
                 onPressed: _startRouteBySearch,
@@ -5910,7 +5967,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               const SizedBox(height: 12),
             ],
             if (_watchesGroup) ...[
-              FloatingActionButton.small(
+              _sideFab(
                 heroTag: 'groupGrid',
                 tooltip: _groupGrid ? tr('Ver os pilotos no mapa') : tr('Ver em grade (apelidos)'),
                 onPressed: () => setState(() => _groupGrid = !_groupGrid),
@@ -6600,6 +6657,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _view == _MapView.solo && _routeRecs.length >= 2 &&
       (_navigating || _sim != null) && _online3d;
 
+  /// Botão do 3D: onde ele já pode abrir e também na expedição com roteiro,
+  /// mesmo na visão do comboio ou antes de iniciar a navegação (14/11: o 3D
+  /// não aparecia na expedição). O toque passa para a visão solo e inicia.
+  bool get _show3dButton =>
+      _canShow3d ||
+      (_isExpedition && _sim == null && _routeRecs.length >= 2 && _online3d &&
+          _nav != null && !_show3d);
+
   /// O 3D só funciona com internet. Duas falhas seguidas (30 s) para um
   /// túnel curto não ficar trocando de tela.
   bool _online3d = true;
@@ -7034,8 +7099,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final me = _me;
     if (me != null && DateTime.now().difference(_alerts3dAt).inSeconds >= 4) {
       _alerts3dAt = DateTime.now();
-      _sim3d.alerts(_alertsFor3d(me));
+      _sim3d.alerts(_withRouteAlong(_alertsFor3d(me)));
     }
+  }
+
+  /// Navegando: cada alerta leva a distância PELA ROTA (al), medida como a
+  /// da faixa com a contagem. No 3D o objeto fica no "0 m" da faixa (14/11:
+  /// radar, pedágio e lombada apareciam antes do ponto real).
+  List<Map<String, Object?>> _withRouteAlong(List<Map<String, Object?>> list) {
+    final w = _walker;
+    if (w == null || (!_navigating && _sim == null)) return list;
+    for (final a in list) {
+      final la = a['la'], lo = a['lo'];
+      if (la is! double || lo is! double) continue;
+      final q = w.project(la, lo);
+      if (q.offset <= 60) a['al'] = q.along.roundToDouble();
+    }
+    return list;
   }
 
   /// v2: o que vira objeto na pista 3D (a página só mostra o que cai na rota).
@@ -7769,6 +7849,33 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     setState(() => _simStarted = true);
     _navSynced = false;
     sim.paused.value = false;
+  }
+
+  /// Botão das laterais do mapa: pequeno (40) no mapa; no 3D, 64 com ícone
+  /// maior, para tocar de luva na moto (14/11: pequenos demais no 3D).
+  Widget _sideFab({
+    required Object heroTag,
+    String? tooltip,
+    required VoidCallback? onPressed,
+    required Widget child,
+  }) {
+    if (!_show3d) {
+      return FloatingActionButton.small(
+          heroTag: heroTag, tooltip: tooltip, onPressed: onPressed, child: child);
+    }
+    return SizedBox(
+      width: 64,
+      height: 64,
+      child: FloatingActionButton(
+        heroTag: heroTag,
+        tooltip: tooltip,
+        onPressed: onPressed,
+        child: IconTheme.merge(
+            data: const IconThemeData(size: 32),
+            child: DefaultTextStyle.merge(
+                style: const TextStyle(fontSize: 22), child: child)),
+      ),
+    );
   }
 
   /// Ícone de música: o do app que está tocando (abre/fecha os controles)

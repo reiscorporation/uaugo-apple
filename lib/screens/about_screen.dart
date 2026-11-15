@@ -4,19 +4,18 @@
 // O que faz: Autoria (Ricardo Reis / HelpAITech, foto e avatar) e créditos das
 //   fontes de dados exigidos pelas licenças (OpenStreetMap, Pardal, PRF...).
 // Quem usa: Home (rodapé "Desenvolvido por") e Configurações.
-// Onde mexer: Versão exibida: AboutScreen.version.
+// Onde mexer: Versão exibida: vem do app instalado (services/app_version.dart).
 // ============================================================================
 
 import 'package:flutter/material.dart';
 
 import '../brand.dart';
 import '../l10n/i18n.dart';
+import '../services/app_version.dart';
 
 /// Sobre o app: autoria (HelpAITech) e créditos das fontes de dados.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
-
-  static const version = '1.0.0';
 
   @override
   Widget build(BuildContext context) {
@@ -47,8 +46,16 @@ class AboutScreen extends StatelessWidget {
               textAlign: TextAlign.center,
               style: theme.textTheme.headlineSmall
                   ?.copyWith(fontWeight: FontWeight.bold)),
-          Text(tr('{0}\nVersão {1}', [appSlogan, version]),
-              textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+          // Versão lida do app instalado (sempre a publicada).
+          FutureBuilder<String>(
+            future: AppVersion.label(),
+            builder: (context, snap) => Text(
+                (snap.data ?? '').isEmpty
+                    ? appSlogan
+                    : tr('{0}\nVersão {1}', [appSlogan, snap.data!]),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall),
+          ),
           const SizedBox(height: 28),
 
           // Autoria

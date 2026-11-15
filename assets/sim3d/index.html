@@ -563,7 +563,7 @@ function setRoadsData(list) {
 // Para cada ponto da rota: está sobre uma via do mapa? em que faixa andar?
 function computeLanes() {
   COVER = new Uint8Array(C.length);
-  const raw = new Float32Array(C.length), has = new Uint8Array(C.length);
+  const raw = new Float32Array(C.length), geo = new Float32Array(C.length), has = new Uint8Array(C.length);
   const exits = MAN.filter(m => m.exit && m.side);
   for (let i = 0; i < C.length; i++) {
     const c = C[i], a = C[Math.max(0, i - 2)], b = C[Math.min(C.length - 1, i + 2)];
@@ -602,20 +602,31 @@ function computeLanes() {
       const k = ex ? (ex.side > 0 ? r.n - 1 : 0) : Math.ceil((r.n - 1) / 2);
       center = -hw + LW / 2 + LW * k;
     }
-    raw[i] = (center - bside) - OFF[i]; // quanto mover o carro a partir do caminho normal
+    raw[i] = center - OFF[i]; // faixa escolhida (muda devagar)
+    geo[i] = -bside;          // onde o eixo da via desenhada está (segue a pista)
   }
-  // suaviza (troca de faixa em ~100 m). Sobre a via a correção vale inteira
-  // (só a via está desenhada ali); fora dela, some aos poucos em ~100 m.
+  // Duas partes (14/11: o tapete azul oscilava para os lados da pista 3D):
+  // - a FAIXA muda devagar (troca de faixa em ~100 m);
+  // - o ENCAIXE na via desenhada segue a pista quase ponto a ponto (~20 m);
+  //   antes era a média de 100 m e nas curvas o tapete saía da pista.
+  // Sobre a via a correção vale inteira (só a via está desenhada ali); fora
+  // dela, some aos poucos em ~100 m.
   CORR = new Float32Array(C.length);
   const W = 25, avg = new Float32Array(C.length);
-  let sum = 0, cnt = 0;
-  for (let i = 0; i < C.length + W; i++) {
-    if (i < C.length && has[i]) { sum += raw[i]; cnt++; }
-    const j = i - 2 * W - 1;
-    if (j >= 0 && has[j]) { sum -= raw[j]; cnt--; }
-    const k = i - W;
-    if (k >= 0 && k < C.length) avg[k] = cnt ? sum / cnt : 0;
-  }
+  const smooth = (src, w, out) => {
+    let sum = 0, cnt = 0;
+    for (let i = 0; i < C.length + w; i++) {
+      if (i < C.length && has[i]) { sum += src[i]; cnt++; }
+      const j = i - 2 * w - 1;
+      if (j >= 0 && has[j]) { sum -= src[j]; cnt--; }
+      const k = i - w;
+      if (k >= 0 && k < C.length) out[k] = cnt ? sum / cnt : 0;
+    }
+  };
+  const lane = new Float32Array(C.length), fit = new Float32Array(C.length);
+  smooth(raw, W, lane);
+  smooth(geo, 5, fit);
+  for (let i = 0; i < C.length; i++) avg[i] = lane[i] + fit[i];
   const fade = (from, to, dir) => {
     let last = -1;
     for (let k = from; k !== to; k += dir) {
@@ -633,8 +644,11 @@ function computeLanes() {
 function lanePosAt(s) {
   const p = posAt(s);
   if (!CORR) return p;
-  const i = Math.min(CORR.length - 1, Math.max(0, idxAt(s)));
-  const k = CORR[i];
+  // entre dois pontos (2 m) a correção é interpolada: em degraus o tapete
+  // e a câmera davam pequenos saltos para os lados
+  const i = Math.min(CORR.length - 2, Math.max(0, idxAt(s)));
+  const u = clamp01((s - CUM[i]) / ((CUM[i + 1] - CUM[i]) || 1));
+  const k = CORR[i] + (CORR[i + 1] - CORR[i]) * u;
   return { x: p.x + p.dy * k, y: p.y - p.dx * k, dx: p.dx, dy: p.dy };
 }
 const covered = s => !!(COVER && COVER[Math.min(COVER.length - 1, Math.max(0, idxAt(s)))]);
@@ -822,6 +836,7 @@ function project(lat, lon, maxD) {
   const l = len(a[0], a[1], b[0], b[1]) || 1, dx = (b[0] - a[0]) / l, dy = (b[1] - a[1]) / l;
   return { s: CUM[k], bearing: (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360 };
 }
+const familyOf = k => /radar/i.test(k) ? 'radar' : /^toll/.test(k) ? 'toll' : k;
 function placeAlerts() {
   for (const a of ALERTS) if (a.obj) scene.remove(a.obj);
   ALERTS = [];
@@ -836,7 +851,19 @@ function placeAlerts() {
       const diff = Math.abs(((r.dir - pr.bearing) % 360 + 540) % 360 - 180);
       if (diff > 70) continue;
     }
-    ALERTS.push({ ...r, s: pr.s, obj: null });
+    // O app manda a distância PELA ROTA até o alerta (al), a mesma da faixa
+    // com a contagem: o objeto fica no "0 m" da faixa (14/11: radar, pedágio
+    // e lombada apareciam antes do ponto real). Sem ela, ou se cair em outro
+    // trecho da rota (retorno, alça), vale a projeção daqui.
+    let sa = pr.s;
+    if (r.al != null) { const q = sFromAlong(r.al); if (Math.abs(q - pr.s) < 150) sa = q; }
+    // O mesmo radar/pedágio vem de mais de uma fonte (Pardal, OSM, pilotos):
+    // um só objeto por ponto (14/11: "um monte de radar" no 3D). Radar com
+    // limite ganha do sem limite.
+    const fam = familyOf(r.k), near = fam === 'radar' ? 60 : 30;
+    const twin = ALERTS.find(o => familyOf(o.k) === fam && Math.abs(o.s - sa) < near);
+    if (twin) { if (!(twin.lim > 0) && r.lim > 0) Object.assign(twin, { ...r, s: twin.s }); continue; }
+    ALERTS.push({ ...r, s: sa, obj: null });
   }
   ALERTS.sort((a, b) => a.s - b.s);
 }
@@ -1063,11 +1090,16 @@ function updateRiders(s_) {
 }
 
 /* ---------- setas nas conversões, saídas e destino ---------- */
-// setas em LARANJA NEON (pedido do Ricardo, 13/11): destacam do tapete azul da rota
+// setas em AMARELO NEON sobre placa preta retangular (pedido do Ricardo,
+// 14/11; antes laranja neon, 13/11): como a placa de curva da estrada
 const chevGeo = new THREE.ExtrudeGeometry(
   new THREE.Shape([[-0.55, 1], [0.05, 1], [0.75, 0], [0.05, -1], [-0.55, -1], [0.15, 0]].map(([x, y]) => new THREE.Vector2(x, y))),
   { depth: 0.14, bevelEnabled: false }).translate(0, 0, -0.07);
-const chevMat = () => new THREE.MeshBasicMaterial({ color: 0xff8a1f, transparent: true, opacity: 0.95, side: THREE.DoubleSide, fog: false });
+const chevMat = () => new THREE.MeshBasicMaterial({ color: 0xffea00, transparent: true, opacity: 0.95, side: THREE.DoubleSide, fog: false });
+// placa preta: na proporção da seta (centro x 0,1), mais fina que ela para a
+// seta aparecer dos dois lados
+const chevBoardGeo = new THREE.BoxGeometry(1.9, 2.7, 0.06).translate(0.1, 0, 0);
+const chevBoardMat = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });
 let markers = [], destObjs = [], curveMarks = [];
 function clearMarkers() {
   for (const mk of markers) scene.remove(mk.g);
@@ -1137,9 +1169,10 @@ function updateCurves(s, time) {
   for (const a of on) {
     if (!a.m) {
       a.m = new THREE.Mesh(chevGeo, chevMat());
-      // brilho neon: cópia maior, aditiva, atrás da seta
-      const glow = new THREE.Mesh(chevGeo, new THREE.MeshBasicMaterial({ color: 0xff6a00, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-      glow.scale.set(1.35, 1.35, 1.6); a.m.add(glow);
+      a.m.add(new THREE.Mesh(chevBoardGeo, chevBoardMat));
+      // brilho neon: cópia um pouco maior, aditiva, sobre a placa preta
+      const glow = new THREE.Mesh(chevGeo, new THREE.MeshBasicMaterial({ color: 0xffd000, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+      glow.scale.set(1.18, 1.18, 1.6); a.m.add(glow);
       a.m.scale.set(a.side * 0.9, 0.9, 0.9); a.m.rotation.y = a.yaw;
       a.m.position.copy(toV(a.x, 1.5, a.y));
       scene.add(a.m);
@@ -1298,7 +1331,9 @@ function markerFor(m) {
   if (m.rb) {
     const p = posAt(m.s + 12), off = m.side * (ROAD_HW + 6);
     exitBoard(g, m, p.x + p.dy * off, p.y - p.dx * off, yawOf(p), m.s + 12);
-  } else if (m.street) {
+  } else if (m.street && !MAN.some(o => o !== m && o.street === m.street && o.s < m.s && m.s - o.s < 300)) {
+    // mesmo nome de rodovia logo antes (várias manobras na mesma "SP-330"):
+    // um nome só, não um amontoado de letreiros (14/11)
     const lab = label(m.street);
     lab.position.copy(toV(at_.x + before.dx * 9 + before.dy * m.side * 3, 5.6, at_.y + before.dy * 9 - before.dx * m.side * 3));
     g.add(lab);
@@ -1709,7 +1744,10 @@ function frame(now) {
     // leituras e a câmera acelera/freia para encostar nele. NUNCA anda para
     // trás: antes corria na frente na rotatória e voltava a cada leitura
     // ("indo e voltando", 05/11). Se o GPS ficou para trás, ela só espera.
-    const tNow = target + v * Math.min(1.5, (now - targetAt) / 1000);
+    // No máximo 1 s à frente da última leitura (antes 1,5 s): freando para
+    // radar, lombada ou pedágio, a cena corria à frente e passava pelo
+    // objeto antes do "0 m" da faixa (14/11).
+    const tNow = target + v * Math.min(1.0, (now - targetAt) / 1000);
     // Sem teto: na simulação acelerada (5x, 20x) o alvo anda muito mais que
     // a velocidade mostrada e a câmera precisa alcançar (senão saltava).
     const spd = Math.max(0, v + (tNow - s) * 1.5);
