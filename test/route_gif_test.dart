@@ -70,4 +70,33 @@ void main() {
     expect(gif.length, lessThan(600 * 1024));
     expect(img.decodeGif(gif)!.numFrames, 100);
   });
+
+  test('GIF com o ícone do veículo: ele aparece no fim do caminho', () {
+    const w = 60, h = 40, isz = 10;
+    final rgba = Uint8List(w * h * 4);
+    for (var i = 0; i < rgba.length; i += 4) {
+      rgba[i] = 200;
+      rgba[i + 1] = 220;
+      rgba[i + 2] = 240;
+      rgba[i + 3] = 255;
+    }
+    // ícone verde, cantos transparentes
+    final icon = Uint8List(isz * isz * 4);
+    for (var y = 0; y < isz; y++) {
+      for (var x = 0; x < isz; x++) {
+        final o = (y * isz + x) * 4;
+        final inside = (x - 4.5) * (x - 4.5) + (y - 4.5) * (y - 4.5) <= 16;
+        icon[o + 1] = 200;
+        icon[o + 3] = inside ? 255 : 0;
+      }
+    }
+    final gif = encodeRouteGif(RouteGifInput(
+        rgba, w, h, const [(5.0, 5.0), (50.0, 5.0), (50.0, 30.0)], 4, 12,
+        iconRgba: icon, iconSize: isz));
+    final anim = img.decodeGif(gif)!;
+    expect(anim.numFrames, 4);
+    final c = anim.frames.last.getPixel(50, 30);
+    expect(c.g.toInt(), greaterThan(170));
+    expect(c.r.toInt(), lessThan(40));
+  });
 }

@@ -24,6 +24,8 @@ import 'package:share_plus/share_plus.dart';
 import '../logic/geo.dart';
 import '../logic/itinerary.dart';
 import '../logic/route_gif.dart';
+import '../services/profile_service.dart';
+import 'bike_marker.dart' show bikeBadgePng;
 import '../models/trip_record.dart';
 import '../l10n/i18n.dart';
 
@@ -247,10 +249,25 @@ Future<Uint8List?> buildRouteGif(TripRecord t, GoogleMapController? map,
 
   final path = [for (final p in pts) (p.$1 * dpr * k, p.$2 * dpr * k)];
   final plan = gifPlan(t.movingS);
+  // O veículo escolhido pelo piloto (foto ou ícone, o mesmo do mapa e do
+  // Android Auto) é quem percorre a rota no GIF.
+  const iconSize = 44;
+  Uint8List? icon;
+  try {
+    final badge = await bikeBadgePng(await ProfileService.load());
+    final bi = (await (await ui.instantiateImageCodec(badge,
+                targetWidth: iconSize, targetHeight: iconSize))
+            .getNextFrame())
+        .image;
+    icon = (await bi.toByteData(format: ui.ImageByteFormat.rawRgba))!
+        .buffer
+        .asUint8List();
+  } catch (_) {}
   return compute(
       encodeRouteGif,
       RouteGifInput(raw.buffer.asUint8List(), w.round(), h.round(), path,
-          plan.frames, plan.delayCs));
+          plan.frames, plan.delayCs,
+          iconRgba: icon, iconSize: icon == null ? 0 : iconSize));
 }
 
 /// Gera o GIF, salva na galeria e abre o compartilhar.

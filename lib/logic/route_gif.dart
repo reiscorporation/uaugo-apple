@@ -2,7 +2,8 @@
 // route_gif.dart — GIF da viagem (a rota feita "acelerada")
 //
 // O que faz: Sobre a imagem do mapa da viagem, um ponto percorre o caminho
-//   feito deixando o rastro laranja, como uma simulação bem acelerada (50x
+//   feito deixando o rastro laranja (o ponto é o ícone do veículo escolhido
+//   pelo piloto, foto ou ícone; sem ele, uma bolinha laranja), como uma simulação bem acelerada (50x
 //   o tempo em movimento, com limite de duração para o GIF caber num post).
 //   Função pura (roda num isolate: compute).
 // Quem usa: widgets/trip_share.dart (buildRouteGif).
@@ -31,8 +32,13 @@ class RouteGifInput {
   final List<(double, double)> path;
   final int frames;
   final int delayCs;
+
+  /// Ícone do veículo escolhido pelo piloto (RGBA quadrado, lado [iconSize]);
+  /// null = bolinha laranja.
+  final Uint8List? iconRgba;
+  final int iconSize;
   const RouteGifInput(this.rgba, this.width, this.height, this.path,
-      this.frames, this.delayCs);
+      this.frames, this.delayCs, {this.iconRgba, this.iconSize = 0});
 }
 
 /// Pontos do caminho a cada fração [t] (0..1) da distância total: o rastro
@@ -75,13 +81,40 @@ Uint8List encodeRouteGif(RouteGifInput input) {
       numChannels: 4,
       order: img.ChannelOrder.rgba);
 
-  // Paleta: 124 cores do mapa + laranja, branco e marinho do ponto/rastro.
-  final q = img.NeuralQuantizer(base, numberOfColors: 124, samplingFactor: 20);
+  // Paleta: cores do mapa (+ 32 do ícone do veículo, se houver) + laranja,
+  // branco e marinho do rastro/bolinha. 128 no total.
+  final ic = input.iconRgba, isz = input.iconSize;
+  final hasIcon = ic != null && isz > 0 && ic.length >= isz * isz * 4;
+  final mapColors = hasIcon ? 92 : 124;
+  final q = img.NeuralQuantizer(base, numberOfColors: mapColors, samplingFactor: 20);
   final pal = q.palette;
   final colors = <List<int>>[
-    for (var i = 0; i < min(124, pal.numColors); i++)
+    for (var i = 0; i < min(mapColors, pal.numColors); i++)
       [pal.getRed(i).toInt(), pal.getGreen(i).toInt(), pal.getBlue(i).toInt()],
   ];
+  while (colors.length < mapColors) {
+    colors.add([0, 0, 0]);
+  }
+  // Ícone em índices da paleta; -1 = transparente (fica o mapa por baixo).
+  Int16List? icon;
+  if (hasIcon) {
+    final iconImg = img.Image.fromBytes(
+        width: isz, height: isz, bytes: ic.buffer, numChannels: 4, order: img.ChannelOrder.rgba);
+    final iq = img.NeuralQuantizer(iconImg, numberOfColors: 32, samplingFactor: 1);
+    final ip = iq.palette;
+    for (var i = 0; i < 32; i++) {
+      colors.add(i < ip.numColors
+          ? [ip.getRed(i).toInt(), ip.getGreen(i).toInt(), ip.getBlue(i).toInt()]
+          : [0, 0, 0]);
+    }
+    icon = Int16List(isz * isz);
+    for (var i = 0; i < isz * isz; i++) {
+      final o = i * 4;
+      icon[i] = ic[o + 3] < 128
+          ? -1
+          : mapColors + iq.getColorIndexRgb(ic[o], ic[o + 1], ic[o + 2]);
+    }
+  }
   while (colors.length < 125) {
     colors.add([0, 0, 0]);
   }
@@ -113,7 +146,8 @@ Uint8List encodeRouteGif(RouteGifInput input) {
   }
   out.add([0x21, 0xFF, 0x0B, ...'NETSCAPE2.0'.codeUnits, 3, 1, 0, 0, 0]);
 
-  const lineR = 3, dotR = 11;
+  const lineR = 3;
+  final dotR = icon != null ? isz ~/ 2 : 11;
   var prevDot = <int>[0, 0, -1, -1]; // retângulo do ponto anterior
   final n = max(2, input.frames);
   var drawnUpTo = 0.0;
@@ -155,9 +189,22 @@ Uint8List encodeRouteGif(RouteGifInput input) {
       final o = y * w;
       frame.setRange(o + x0, o + x1 + 1, trail, o + x0);
     }
-    _disc(frame, w, h, cx, cy, dotR, navy);
-    _disc(frame, w, h, cx, cy, dotR - 3, white);
-    _disc(frame, w, h, cx, cy, dotR - 6, orange);
+    if (icon != null) {
+      // O veículo escolhido pelo piloto (foto ou ícone) andando na rota.
+      final ox = cx - isz ~/ 2, oy = cy - isz ~/ 2;
+      for (var y = 0; y < isz; y++) {
+        final fy = oy + y;
+        if (fy < 0 || fy >= h) continue;
+        for (var x = 0; x < isz; x++) {
+          final fx = ox + x, v = icon[y * isz + x];
+          if (v >= 0 && fx >= 0 && fx < w) frame[fy * w + fx] = v;
+        }
+      }
+    } else {
+      _disc(frame, w, h, cx, cy, dotR, navy);
+      _disc(frame, w, h, cx, cy, dotR - 3, white);
+      _disc(frame, w, h, cx, cy, dotR - 6, orange);
+    }
 
     // Controle: tempo do quadro, "não apagar" (o próximo desenha por cima).
     final delay = f == n - 1 ? 200 : input.delayCs;
