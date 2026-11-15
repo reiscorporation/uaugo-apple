@@ -2841,16 +2841,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// os pilotos não consultam a API de rotas. Sem rota, liga as paradas.
   void _updateRoute() {
     final expPoly = _exp?.plan.polyline ?? '';
-    if (expPoly != _expWalkerSig) {
-      _expWalkerSig = expPoly;
+    // 15/11: o custo saía zerado na expedição. A expedição chega antes das
+    // paradas: o custo era calculado com 0 km e não era refeito quando as
+    // paradas chegavam. Agora refaz quando a soma dos trechos muda e, sem
+    // trechos, usa o comprimento da rota.
+    final legs = _stops.fold<int>(0, (a, s) => a + s.legDistanceM);
+    final expSig = '$expPoly|$legs';
+    if (expSig != _expWalkerSig) {
+      final polyChanged = !_expWalkerSig.startsWith('$expPoly|');
+      _expWalkerSig = expSig;
       final pts = [for (final q in decodePolyline(expPoly)) (q.latitude, q.longitude)];
-      _expWalker = pts.length >= 2 ? RouteWalker(pts) : null;
-      if (pts.length >= 2) {
-        var dist = 0;
-        for (final s in _stops) {
-          dist += s.legDistanceM;
-        }
-        _calcRouteCost(pts, dist);
+      if (polyChanged) _expWalker = pts.length >= 2 ? RouteWalker(pts) : null;
+      final ew = _expWalker;
+      if (pts.length >= 2 && ew != null) {
+        _calcRouteCost(pts, legs > 0 ? legs : ew.length.round());
       }
     }
     final poly = _personalTrip?.plan.polyline ??
@@ -8198,7 +8202,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Custo estimado da viagem para o MEU veículo: combustível (se o
   /// consumo e o preço estão em "Meu veículo") + pedágios da rota.
   double? _expCost;
-  double? _fuelCost;
   TollEstimate? _tollEst;
 
   Future<void> _calcRouteCost(List<(double, double)> line, int distM) async {
@@ -8220,7 +8223,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       debugPrint('Praças rota: ${tolls.plazas}, total ${tolls.total}, isentas ${tolls.free}');
     }
     setState(() {
-      _fuelCost = fuel;
       _tollEst = tolls;
       _expCost = total > 0 ? total : null;
     });
@@ -8265,8 +8267,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final w = _isExpedition ? (_expWalker ?? _walker) : _walker;
     if (w == null) return;
     final p = _me;
+    final legsM = _stops.fold<int>(0, (a, s) => a + s.legDistanceM);
     final totalM = _isExpedition
-        ? _stops.fold<int>(0, (a, s) => a + s.legDistanceM)
+        ? (legsM > 0 ? legsM : w.length.round())
         : (_trip?.distanceM ?? w.length.round());
     final totalS = _isExpedition
         ? _stops.fold<int>(0, (a, s) => a + s.legDurationS)
@@ -8278,6 +8281,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final eta = DateTime.now().add(Duration(seconds: secs));
     final f = AppSettings.instance.fuel.value;
     final tolls = _tollEst;
+    // Calculado na hora (vale também se o consumo foi preenchido depois).
+    final fuelNow = f.ready && totalM > 0 ? tripEnergy(totalM.toDouble(), f).cost : null;
+    final tollNow = tolls != null && tolls.plazas > 0 ? tolls.total : 0.0;
+    final costNow = (fuelNow ?? 0) + tollNow;
     Widget row(IconData i, String a, String b) => ListTile(
           dense: true,
           leading: Icon(i),
@@ -8303,11 +8310,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             row(Icons.schedule, tr('Chegada prevista'), formatTime(eta)),
           ],
           row(Icons.local_gas_station, tr('Combustível'),
-              _fuelCost != null ? formatMoney(_fuelCost!) : (f.ready ? '—' : tr('informe em Meu veículo'))),
+              fuelNow != null ? formatMoney(fuelNow) : (f.ready ? '—' : tr('informe em Meu veículo'))),
           row(Icons.toll, tr('Pedágios'),
               tolls == null ? '—' : (tolls.plazas == 0 ? tr('sem pedágio') : formatMoney(tolls.total))),
-          if (_expCost != null)
-            row(Icons.payments, tr('Custo estimado'), formatMoney(_expCost!)),
+          if (costNow > 0)
+            row(Icons.payments, tr('Custo estimado'), formatMoney(costNow)),
           // Turismo, hospedagem e postos no destino (08/11).
           if (_stops.isNotEmpty)
             ListTile(
