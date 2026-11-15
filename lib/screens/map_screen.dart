@@ -57,6 +57,7 @@ import '../widgets/safe_sheet.dart';
 import '../widgets/club_nearby_sheet.dart';
 import '../widgets/bike_marker.dart';
 import '../widgets/emoji_marker.dart';
+import '../widgets/compass_button.dart';
 import '../widgets/speedometer.dart';
 import '../logic/itinerary.dart' show formatDistance, formatDuration, formatTime;
 import '../logic/navigation.dart';
@@ -3797,6 +3798,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // freia) o ícone ia para frente e para trás na tela (05/11).
   CameraPosition? _camFrom, _camTo, _camShown;
 
+  /// Giro atual do mapa (graus), para a bússola.
+  final _mapBearing = ValueNotifier<double>(0);
+
   /// Distância que já não desliza (vai direto): GPS 300 m, simulação 3 km.
   double get _jumpMeters => _sim != null ? 3000 : 300;
 
@@ -5315,6 +5319,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               : (_canAddSoloStop
                   ? _addSoloStopAt
                   : (_canStartRoute ? _startRouteAt : null)),
+          // Giro do mapa para a bússola (também quando gira com os dedos).
+          onCameraMove: (c) {
+            if ((c.bearing - _mapBearing.value).abs() > 0.5) _mapBearing.value = c.bearing;
+          },
         ),
         ),
 
@@ -5738,26 +5746,29 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 _musicButton(),
                 const SizedBox(height: 12),
               ],
-              // Sentido do mapa (como nos outros apps): seguindo a direção ou
-              // norte para cima.
-              ValueListenableBuilder<bool>(
-                valueListenable: AppSettings.instance.northUp,
-                builder: (_, north, __) => _sideFab(
-                  heroTag: 'heading',
-                  tooltip: north ? tr('Norte para cima') : tr('Seguindo a direção'),
-                  onPressed: () async {
-                    await AppSettings.instance.setNorthUp(!north);
-                    _snack(!north
-                        ? tr('Mapa com o norte para cima')
-                        : tr('Mapa seguindo a sua direção'));
-                    if (_me != null) _updateCamera(_me!, force: true);
-                  },
-                  child: north
-                      ? const Text('N', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18))
-                      : const Icon(Icons.navigation),
+              // Bússola (só no mapa; no 3D não faz sentido, 15/11): a ponta
+              // vermelha aponta para o norte e gira com o mapa. Toque: troca
+              // entre seguir a direção e norte para cima.
+              if (!_show3d) ...[
+                ValueListenableBuilder<bool>(
+                  valueListenable: AppSettings.instance.northUp,
+                  builder: (_, north, __) => ValueListenableBuilder<double>(
+                    valueListenable: _mapBearing,
+                    builder: (_, bearing, __) => CompassButton(
+                      bearing: bearing,
+                      tooltip: north ? tr('Norte para cima') : tr('Seguindo a direção'),
+                      onPressed: () async {
+                        await AppSettings.instance.setNorthUp(!north);
+                        _snack(!north
+                            ? tr('Mapa com o norte para cima')
+                            : tr('Mapa seguindo a sua direção'));
+                        if (_me != null) _updateCamera(_me!, force: true);
+                      },
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
+                const SizedBox(height: 10),
+              ],
               // Zoom: na mesma coluna do velocímetro, logo acima dele (assim
               // nunca fica atrás dele nem dos botões da direita). Só no mapa:
               // no 3D o zoom não muda nada (pedido do Ricardo, 14/11).
