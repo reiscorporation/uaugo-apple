@@ -5299,7 +5299,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           trafficEnabled: false,
           buildingsEnabled: !_saving && !AppSettings.instance.lightMode,
           // Mapa escuro à noite (ou sempre, conforme Configurações).
-          style: _darkMap ? darkMapStyle : null,
+          style: _darkMap ? darkMapStyle : lightMapStyle,
           // Mantém o logo do Google acima da barra de navegação.
           padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewPadding.bottom),

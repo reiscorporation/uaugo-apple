@@ -54,8 +54,17 @@ double sunElevation(DateTime utc, double lat, double lng) {
   return 90 - acos(cosZen.clamp(-1.0, 1.0)) * 180 / pi;
 }
 
+/// Plaquinhas de número de rodovia ("SP-330", "050") ocultas: no trecho
+/// Anhanguera/Bandeirantes o Google repetia dezenas delas (15/11). Os nomes
+/// das vias em texto continuam.
+const lightMapStyle = '''
+[
+  {"featureType":"road","elementType":"labels.icon","stylers":[{"visibility":"off"}]}
+]
+''';
+
 /// Estilo escuro do mapa (padrão "Noite" do Google), com as vias em tons de
-/// cinza/âmbar para não ofuscar à noite.
+/// cinza/âmbar para não ofuscar à noite. Também sem as plaquinhas das rodovias.
 const darkMapStyle = '''
 [
   {"elementType":"geometry","stylers":[{"color":"#242f3e"}]},
@@ -73,6 +82,7 @@ const darkMapStyle = '''
   {"featureType":"road.highway","elementType":"labels.text.fill","stylers":[{"color":"#f3d19c"}]},
   {"featureType":"transit","elementType":"geometry","stylers":[{"color":"#2f3948"}]},
   {"featureType":"water","elementType":"geometry","stylers":[{"color":"#17263c"}]},
+  {"featureType":"road","elementType":"labels.icon","stylers":[{"visibility":"off"}]},
   {"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#515c6d"}]}
 ]
 ''';

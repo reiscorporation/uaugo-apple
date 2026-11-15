@@ -55,9 +55,11 @@ private fun styleFor(dark: Boolean, places: Boolean): String {
     return if (places) base else "[" + NO_PLACES + base.trim().removePrefix("[")
 }
 
-/** Dia: nomes em cinza, mais discretos (12/11: "bem sutil"). */
+/** Dia: nomes em cinza, mais discretos (12/11: "bem sutil"). Dia e noite sem
+ *  as plaquinhas de número de rodovia (15/11: dezenas de "SP-330"/"050"). */
 private const val DAY = """[
-{"elementType":"labels.text.fill","stylers":[{"color":"#6b7584"}]}
+{"elementType":"labels.text.fill","stylers":[{"color":"#6b7584"}]},
+{"featureType":"road","elementType":"labels.icon","stylers":[{"visibility":"off"}]}
 ]"""
 
 private const val NIGHT = """[
@@ -75,6 +77,7 @@ private const val NIGHT = """[
 {"featureType":"road.highway","elementType":"labels.text.fill","stylers":[{"color":"#b0d5ce"}]},
 {"featureType":"transit","elementType":"labels.text.fill","stylers":[{"color":"#98a5be"}]},
 {"featureType":"water","elementType":"geometry","stylers":[{"color":"#0e1626"}]},
+{"featureType":"road","elementType":"labels.icon","stylers":[{"visibility":"off"}]},
 {"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#4e6d70"}]}
 ]"""
 
