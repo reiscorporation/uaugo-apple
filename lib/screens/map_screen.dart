@@ -29,7 +29,7 @@ import '../logic/route_traffic.dart';
 import '../logic/voice_commands.dart';
 import '../logic/group_requests.dart';
 import '../logic/find_places.dart';
-import '../logic/costs.dart' show formatMoney, tripEnergy;
+import '../logic/costs.dart' show formatMoney, totalOf, tripEnergy;
 import '../logic/tolls.dart';
 import '../logic/rodizio.dart';
 import '../services/toll_service.dart';
@@ -8285,6 +8285,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final fuelNow = f.ready && totalM > 0 ? tripEnergy(totalM.toDouble(), f).cost : null;
     final tollNow = tolls != null && tolls.plazas > 0 ? tolls.total : 0.0;
     final costNow = (fuelNow ?? 0) + tollNow;
+    // Rodado até agora (gravação da viagem) e quanto isso custou de
+    // combustível, comparado ao planejado; mais os gastos registrados.
+    final drivenM = _recorder?.distanceM ?? 0;
+    final fuelDriven = f.ready && drivenM > 0 ? tripEnergy(drivenM, f).cost : null;
+    final spent = HistoryService.instance.trips.value
+        .where((t) => t.id == _recordId)
+        .map((t) => totalOf(t.expenses))
+        .firstOrNull;
     Widget row(IconData i, String a, String b) => ListTile(
           dense: true,
           leading: Icon(i),
@@ -8315,6 +8323,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               tolls == null ? '—' : (tolls.plazas == 0 ? tr('sem pedágio') : formatMoney(tolls.total))),
           if (costNow > 0)
             row(Icons.payments, tr('Custo estimado'), formatMoney(costNow)),
+          if (drivenM >= 100) ...[
+            const Divider(height: 1),
+            row(Icons.route, tr('Você já rodou'),
+                totalM > 0
+                    ? tr('{0} de {1}', [formatDistance(drivenM.round()), formatDistance(totalM)])
+                    : formatDistance(drivenM.round())),
+            if (fuelDriven != null)
+              row(Icons.local_gas_station_outlined, tr('Combustível gasto (estimado)'),
+                  fuelNow != null && fuelNow > 0
+                      ? tr('{0} de {1}', [formatMoney(fuelDriven), formatMoney(fuelNow)])
+                      : formatMoney(fuelDriven)),
+            if (spent != null && spent > 0)
+              row(Icons.receipt_long, tr('Gastos registrados'), formatMoney(spent)),
+          ],
           // Turismo, hospedagem e postos no destino (08/11).
           if (_stops.isNotEmpty)
             ListTile(
