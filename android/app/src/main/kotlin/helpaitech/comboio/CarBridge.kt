@@ -53,6 +53,9 @@ object CarState {
     @Volatile var lng = 0.0
     @Volatile var bearing = 0.0
     @Volatile var hasPosition = false
+    /** O celular diz que está seguindo a rota (não saiu dela): o carro põe o
+     *  veículo na linha azul mesmo com o GPS mais longe (15/11). */
+    @Volatile var onRoute = false
     @Volatile var speedKmh = 0
     @Volatile var limitKmh = 0
     /** Contagem do radar ("📸 80 em 450 m") e faixa amarela de aviso. */
@@ -186,6 +189,7 @@ class CarBridge(messenger: BinaryMessenger) {
                         (a["lang"] as? String)?.let { CarState.en = it == "en" }
                         (a["placeNames"] as? Boolean)?.let { CarState.placeNames = it }
                         (a["convoy"] as? Boolean)?.let { CarState.convoyView = it }
+                        CarState.onRoute = a["onRoute"] == true
                         (a["ev"] as? Boolean)?.let { CarState.ev = it }
                         (a["cfg"] as? List<*>)?.let { l ->
                             CarState.cfg = l.mapNotNull { sec ->

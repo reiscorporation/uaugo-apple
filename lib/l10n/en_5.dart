@@ -222,6 +222,8 @@ const en5 = <String, String>{
   'Não deu para saber onde você está. Ligue a localização.': 'Could not find where you are. Turn on location.',
   'Você passou por um radar sem limite informado. Ele existe? Responda na tela.': 'You passed a speed camera with no known limit. Does it exist? Answer on the screen.',
   'Radar sem limite informado aqui. Ele existe?': 'Speed camera with no known limit here. Does it exist?',
+  ', limite da via {0}': ', road limit {0}',
+  'limite da via {0} km/h': 'road limit {0} km/h',
   'Existe': 'It exists',
   'Não existe': 'It does not exist',
   'Limite do radar': 'Speed camera limit',

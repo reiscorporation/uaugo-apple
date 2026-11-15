@@ -330,6 +330,15 @@ class CarMapView(private val context: Context) {
         mv.onCreate(null)
         val root = FrameLayout(p.context)
         root.addView(mv, FrameLayout.LayoutParams(-1, -1))
+        // Veículo desenhado por nós, fixo no centro da câmera (onde a linha
+        // azul começa). O ícone do Google saía deslocado nesta tela virtual
+        // com densidade reduzida: nas fotos do testador ficava sempre no mesmo
+        // ponto ao lado da rota, longe do centro do mapa (15/11).
+        val iv = android.widget.ImageView(p.context)
+        iv.scaleType = android.widget.ImageView.ScaleType.FIT_XY
+        iv.visibility = android.view.View.GONE
+        root.addView(iv, FrameLayout.LayoutParams(56, 56))
+        meView = iv
         root3d = root
         ctx3d = p.context
         val ov = CarOverlay(p.context)
@@ -450,6 +459,8 @@ class CarMapView(private val context: Context) {
         view3d = null
         root3d = null
         ctx3d = null
+        meView = null
+        meViewIcon = ""
         exit3dUntil = -1.0
         meIcon = ""
         routeSig = 0
@@ -498,7 +509,7 @@ class CarMapView(private val context: Context) {
         }
         apply3d()
         overlay?.update()
-        if (view3d != null) return // mapa pausado: a cena 3D cobre a tela
+        if (view3d != null) { meView?.visibility = android.view.View.GONE; return } // mapa pausado: a cena 3D cobre a tela
         drawPois(g)
         drawHazards(g)
         drawMembers(g)
@@ -509,9 +520,14 @@ class CarMapView(private val context: Context) {
         // ainda viu o ícone ao lado da rota na 1.2.10 (15/11).
         // Com rota desenhada (não só com manobra na tela: sem a próxima
         // manobra o "nav" fica vazio e a posição passava crua).
-        val snap = if (pts.size >= 2) CarState.snapToRoute(CarState.lat, CarState.lng, 50.0) else null
+        // Celular seguindo a rota: encaixa até 150 m (o celular já decidiu
+        // que está nela); senão só até 50 m.
+        val snapMax = if (CarState.onRoute) 150.0 else 50.0
+        val snap = if (pts.size >= 2) CarState.snapToRoute(CarState.lat, CarState.lng, snapMax) else null
         val pos = if (snap != null) LatLng(snap[0], snap[1]) else LatLng(CarState.lat, CarState.lng)
-        trimPassed(pts, pos)
+        logPos(pos, snap != null)
+        // A linha começa onde o veículo ESTÁ na tela (não à frente dele).
+        trimPassed(pts, shownPos ?: pos)
         // A imagem do veículo vem do celular (foto ou ícone configurado).
         val img = CarState.vehicleImage
         val iconKey = "${CarState.vehicle}|${img?.contentHashCode() ?: 0}"
@@ -524,6 +540,10 @@ class CarMapView(private val context: Context) {
             MarkerOptions().position(shownPos ?: pos).anchor(0.5f, 0.5f)
                 .icon(BitmapDescriptorFactory.fromBitmap(myVehicle(img))).zIndex(5f)
         )
+        if (meViewIcon != iconKey) {
+            meViewIcon = iconKey
+            meView?.setImageBitmap(myVehicle(img))
+        }
         // Ícone em pé (o mapa gira com o piloto).
         // Mais longe na rodovia, mais perto na cidade.
         // Mais afastado que antes (pedido do Ricardo); +/− do motorista somam.
@@ -559,12 +579,16 @@ class CarMapView(private val context: Context) {
             ticker.removeCallbacks(glide)
             shownPos = null
             me?.position = pos
+            me?.isVisible = true
+            meView?.visibility = android.view.View.GONE
             runCatching {
                 g.animateCamera(CameraUpdateFactory.newCameraPosition(
                     CameraPosition.Builder().target(c).zoom(z).bearing(0f).tilt(0f).build()), 800, null)
             }
             return
         }
+        me?.isVisible = false
+        placeMeView()
         val now = android.os.SystemClock.uptimeMillis()
         val gap = now - lastCamAt
         lastCamAt = now
@@ -602,8 +626,13 @@ class CarMapView(private val context: Context) {
             if (view3d != null) return
             val t = if (glideMs == 0L) 1f else
                 ((android.os.SystemClock.uptimeMillis() - glideStart).toFloat() / glideMs).coerceAtMost(1f)
-            val p = LatLng(a.latitude + (b.latitude - a.latitude) * t,
+            val p0 = LatLng(a.latitude + (b.latitude - a.latitude) * t,
                 a.longitude + (b.longitude - a.longitude) * t)
+            // Na curva, a reta entre duas leituras corta a linha azul: o passo
+            // vai para cima dela.
+            val sp = if (t < 1f && CarState.route.size >= 2)
+                CarState.snapToRoute(p0.latitude, p0.longitude, 30.0) else null
+            val p = if (sp != null) LatLng(sp[0], sp[1]) else p0
             val turn = ((glideBearingTo - glideBearingFrom + 540f) % 360f) - 180f
             shownPos = p
             shownBearing = (glideBearingFrom + turn * t + 360f) % 360f
@@ -614,6 +643,41 @@ class CarMapView(private val context: Context) {
                     .bearing(shownBearing).tilt(if (CarState.northUp) 0f else 45f).build()))
             if (t < 1f) ticker.postDelayed(this, 50)
         }
+    }
+
+    private var meView: android.widget.ImageView? = null
+    private var meViewIcon = ""
+
+    /** Veículo no centro da câmera: o mesmo ponto que [applyPadding] usa. */
+    private fun placeMeView() {
+        val iv = meView ?: return
+        val r = visible ?: Rect(0, 0, width, height)
+        val extraTop = (r.height() * 0.35f).toInt()
+        val cx = (r.left + r.right) / 2f
+        val cy = (r.top + extraTop + r.bottom) / 2f
+        val lp = iv.layoutParams
+        iv.translationX = cx - lp.width / 2f
+        iv.translationY = cy - lp.height / 2f
+        iv.visibility = android.view.View.VISIBLE
+    }
+
+    private val debuggable = (context.applicationInfo.flags and
+        android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    private var lastLogAt = 0L
+
+    /** Só no UauGo2 (debug): de onde veio a posição e quanto foi encaixada. */
+    private fun logPos(pos: LatLng, snapped: Boolean) {
+        if (!debuggable) return
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastLogAt < 2000) return
+        lastLogAt = now
+        val k = Math.cos(Math.toRadians(pos.latitude))
+        val dx = (CarState.lng - pos.longitude) * 111320.0 * k
+        val dy = (CarState.lat - pos.latitude) * 111320.0
+        val fromDart = System.currentTimeMillis() - CarState.lastDartUpdate < 3000
+        android.util.Log.d("UauGoCarPos", "src=${if (fromDart) "celular" else "gps-carro"} " +
+            "onRoute=${CarState.onRoute} snapped=$snapped desvio=${Math.hypot(dx, dy).toInt()}m " +
+            "rota=${CarState.route.size}pts area=$visible")
     }
 
     /** O centro do mapa fica na área livre, mais para baixo (vê à frente). */

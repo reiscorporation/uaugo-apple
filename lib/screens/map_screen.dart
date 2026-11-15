@@ -1367,7 +1367,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             RadarKind.section => tr('Radar de velocidade média'),
             RadarKind.redLight => tr('Radar de avanço de sinal'),
           },
-          kmh != null && kmh > 0 ? tr('limite {0} km/h', [kmh]) : tr('limite não informado'),
+          r.limit > 0
+              ? tr('limite {0} km/h', [r.limit])
+              : kmh != null && kmh > 0
+                  ? tr('limite da via {0} km/h', [kmh])
+                  : tr('limite não informado'),
         ].join(' · '),
         speech: radarSpeech(r, d, roadLimit: roadKmh),
         // Some logo depois de passar pelo radar (antes: só ~200 m depois do
@@ -2249,13 +2253,24 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// de velocidade (speedReports); valem para todos com 1 administrador, 2
   /// Gold ou 3 pilotos concordando (onSpeedReport).
   void _askRadarIfPassed(Position p) {
+    if (_askHazard != null || _askRadar != null) return;
+    // Com rota: só radar da via da rota. Sem rota ("Dirigir agora"): pela
+    // direção do veículo (antes não perguntava sem rota; 15/11 um radar de
+    // 60 passou sem pergunta entre São João e Andradas).
     final w = _walker;
-    if (w == null || _askHazard != null || _askRadar != null || !_navigating) return;
+    final routed = w != null && _navigating && !_offRoute;
+    if (!routed && (_speedMs < 3 || _bearing < 0)) return;
     for (final r in _radarsAround) {
-      if (!r.unverified || _radarAsked.contains(r.id)) continue;
+      // Qualquer radar sem limite próprio (antes só os sem limite E sem
+      // sentido; os com sentido eram falados com o limite da via).
+      if (r.limit > 0 || _radarAsked.contains(r.id)) continue;
       final d = distanceMeters(p.latitude, p.longitude, r.lat, r.lng);
       if (d > 300) continue;
-      if (!_radarOnRouteRoad(r, w)) continue;
+      if (routed) {
+        if (!_radarOnRouteRoad(r, w)) continue;
+      } else if (!radarAppliesToHeading(r, _bearing, _speedMs)) {
+        continue;
+      }
       if (d <= 40) {
         _radarNear.add(r.id);
         continue;
@@ -7329,6 +7344,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   '${_dist(_shownHazard!.lat, _shownHazard!.lng).replaceFirst(' · ', '')}'
               : null),
       vehicle: _myBike.style.isMoto ? '🏍️' : (_myBike.style.isHeavy ? '🚚' : '🚗'),
+      onRoute: onRoute,
     );
   }
 

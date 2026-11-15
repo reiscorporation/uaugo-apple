@@ -298,10 +298,13 @@ bool radarOnRouteRoad(
 /// da via no local ([roadLimit]).
 String radarSpeech(FixedRadar r, double meters, {int? roadLimit}) {
   final dist = spokenDistance(meters);
-  final kmh = r.limit > 0 ? r.limit : roadLimit;
-  final limit = kmh != null && kmh > 0
-      ? tr(', velocidade {0}', [kmh])
-      : tr(', velocidade não informada');
+  // Limite da via não é o do radar (15/11: radar de 60 falado como 100,
+  // o limite da via ali): diz que é da via.
+  final limit = r.limit > 0
+      ? tr(', velocidade {0}', [r.limit])
+      : roadLimit != null && roadLimit > 0
+          ? tr(', limite da via {0}', [roadLimit])
+          : tr(', velocidade não informada');
   return switch (r.kind) {
     RadarKind.fixed => tr('Radar a {0}{1}', [dist, limit]),
     RadarKind.section => tr('Radar de velocidade média a {0}{1}', [dist, limit]),

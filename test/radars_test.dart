@@ -193,7 +193,7 @@ void main() {
     // Sem limite na base: usa o limite da via no local; sem nenhum, avisa.
     final semLimite = r.firstWhere((x) => x.id == 2);
     expect(radarSpeech(semLimite, 300, roadLimit: 60),
-        'Radar de avanço de sinal a 300 metros, velocidade 60');
+        'Radar de avanço de sinal a 300 metros, limite da via 60');
     expect(radarSpeech(semLimite, 300),
         'Radar de avanço de sinal a 300 metros, velocidade não informada');
     final s = idx.stretchesAround(-28.27, -48.70).first;

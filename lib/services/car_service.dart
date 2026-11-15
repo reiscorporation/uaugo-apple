@@ -361,6 +361,7 @@ class CarService {
     String? banner,
     String vehicle = '🏍️',
     bool convoy = false,
+    bool onRoute = false,
   }) {
     final now = DateTime.now();
     if (now.difference(_last) < const Duration(milliseconds: 900)) return;
@@ -374,6 +375,8 @@ class CarService {
       'lang': I18n.lang.value, // textos da tela do carro
       'placeNames': AppSettings.instance.carPlaceNames.value,
       'convoy': convoy,
+      // O celular está seguindo a rota: o carro põe o veículo na linha azul.
+      'onRoute': onRoute,
       // Configurações mostradas na tela do carro (⚙).
       'cfg': CarSettings.toCar(),
       // Elétrico/plug-in: "Eletroposto" nas paradas do carro.
