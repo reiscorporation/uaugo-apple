@@ -504,12 +504,12 @@ class CarMapView(private val context: Context) {
         drawMembers(g)
         if (!CarState.hasPosition) return
         // Última trava: navegando, o veículo vai SEMPRE para a linha azul que
-        // está desenhada aqui (até 100 m dela), venha a posição do celular ou
+        // está desenhada aqui (até 50 m dela), venha a posição do celular ou
         // do GPS do carro. Mesmo com as duas fontes encaixadas, o testador
         // ainda viu o ícone ao lado da rota na 1.2.10 (15/11).
         // Com rota desenhada (não só com manobra na tela: sem a próxima
         // manobra o "nav" fica vazio e a posição passava crua).
-        val snap = if (pts.size >= 2) CarState.snapToRoute(CarState.lat, CarState.lng) else null
+        val snap = if (pts.size >= 2) CarState.snapToRoute(CarState.lat, CarState.lng, 50.0) else null
         val pos = if (snap != null) LatLng(snap[0], snap[1]) else LatLng(CarState.lat, CarState.lng)
         trimPassed(pts, pos)
         // A imagem do veículo vem do celular (foto ou ícone configurado).

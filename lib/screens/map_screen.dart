@@ -7302,7 +7302,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // fora da linha azul (foto do testador na SP-305, 14/11).
     final pr = _proj;
     final onRoute = (_navigating || _sim != null) && w != null && pr != null &&
-        !_offRoute && pr.offset <= 100;
+        !_offRoute && pr.offset <= 50;
     final at = onRoute ? w.at(pr.along) : null;
     CarService.instance.update(
       convoy: _isExpedition && _view == _MapView.convoy,

@@ -158,7 +158,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         if (System.currentTimeMillis() - CarState.lastDartUpdate < 3000) return@LocationListener
         // Navegando: em cima da rota (como a posição que o celular manda);
         // o GPS cru deixava o veículo ao lado da estrada (14/11).
-        val snap = if (CarState.route.size >= 2) CarState.snapToRoute(loc.latitude, loc.longitude) else null
+        val snap = if (CarState.route.size >= 2) CarState.snapToRoute(loc.latitude, loc.longitude, 50.0) else null
         CarState.lat = snap?.get(0) ?: loc.latitude
         CarState.lng = snap?.get(1) ?: loc.longitude
         if (loc.hasBearing() && loc.speed > 1.5f) CarState.bearing = loc.bearing.toDouble()
