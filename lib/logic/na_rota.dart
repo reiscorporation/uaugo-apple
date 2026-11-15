@@ -116,6 +116,18 @@ bool mesmoLugar(Atracao a, Atracao b) {
   return menor.length >= 2 || d <= 300;
 }
 
+/// Ordem da lista de turismo: da mais perto, ou as mais conhecidas primeiro
+/// (com artigo na Wikipédia/foto) e, entre iguais, a mais perto.
+List<Atracao> ordenaAtracoes(List<Atracao> l, {required bool conhecidas}) {
+  final out = [...l];
+  if (conhecidas) {
+    out.sort((x, y) => x.fama != y.fama ? y.fama - x.fama : x.distM.compareTo(y.distM));
+  } else {
+    out.sort((x, y) => x.distM.compareTo(y.distM));
+  }
+  return out;
+}
+
 /// Tira as repetidas (fica a de mais informação) e ordena da mais perto
 /// para a mais longe. [distM] de cada uma já deve estar calculada.
 List<Atracao> semRepetidas(List<Atracao> l) {

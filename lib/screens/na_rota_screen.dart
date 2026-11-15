@@ -64,9 +64,15 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
   /// Raio do turismo (km), escolhido pelo piloto; lembra a última escolha.
   int _raio = 50;
 
+  /// Ordem do turismo: false = mais perto, true = mais conhecidas primeiro.
+  bool _conhecidas = false;
+
   @override
   void initState() {
     super.initState();
+    _svc.turismoPorConhecidas().then((v) {
+      if (mounted && v != _conhecidas) setState(() => _conhecidas = v);
+    });
     final n = widget.noite ?? DateTime.now();
     _noite = DateTime(n.year, n.month, n.day);
     _atracoes = _svc.raioTurismo().then((km) {
@@ -175,13 +181,36 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
         ]),
       );
 
+  /// Ordenar: mais perto ou mais conhecidas (lembra a última escolha).
+  Widget _ordem() => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
+        child: Row(children: [
+          Text(tr('Ordenar'), style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(width: 8),
+          for (final (v, nome) in [(false, tr('Mais perto')), (true, tr('Mais conhecidas'))])
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: ChoiceChip(
+                label: Text(nome),
+                selected: _conhecidas == v,
+                onSelected: (_) {
+                  if (_conhecidas == v) return;
+                  _svc.salvaTurismoPorConhecidas(v);
+                  setState(() => _conhecidas = v);
+                },
+              ),
+            ),
+        ]),
+      );
+
   Widget _turismo() => FutureBuilder<List<Atracao>>(
         future: _atracoes,
         builder: (_, s) {
           if (s.connectionState != ConnectionState.done) {
             return Column(children: [_raios(), Expanded(child: _carregando())]);
           }
-          final l = s.data ?? const [];
+          final l = ordenaAtracoes(s.data ?? const [], conhecidas: _conhecidas);
           if (l.isEmpty) {
             return Column(children: [
               _raios(),
@@ -200,6 +229,7 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
               if (i == 0) {
                 return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   _raios(),
+                  _ordem(),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                     child: Text(tr('{0} atrações num raio de {1} km', [l.length, _raio]),

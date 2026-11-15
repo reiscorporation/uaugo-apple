@@ -108,4 +108,13 @@ void main() {
     final u = googleHoteisUri('Cravinhos, SP', DateTime(2026, 11, 20));
     expect(u.queryParameters['q'], 'hotéis em Cravinhos, SP 20/11 a 21/11');
   });
+
+  test('turismo: ordenar por mais perto ou mais conhecidas', () {
+    final perto = Atracao(0, 0, 'attraction', 'Praça')..distM = 500;
+    final famosa = Atracao(0, 0, 'attraction', 'Theatro', wiki: 'pt:Theatro', foto: 'x.jpg')..distM = 9000;
+    final media = Atracao(0, 0, 'attraction', 'Mirante', wikidata: 'Q1')..distM = 2000;
+    final l = [famosa, perto, media];
+    expect(ordenaAtracoes(l, conhecidas: false).map((a) => a.nome), ['Praça', 'Mirante', 'Theatro']);
+    expect(ordenaAtracoes(l, conhecidas: true).map((a) => a.nome), ['Theatro', 'Mirante', 'Praça']);
+  });
 }

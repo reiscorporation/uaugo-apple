@@ -174,6 +174,13 @@ class NaRotaService {
   Future<void> salvaRaioTurismo(int km) async =>
       (await SharedPreferences.getInstance()).setInt('naRotaRaioTurismo', km);
 
+  /// Ordem do turismo escolhida pelo piloto: true = mais conhecidas primeiro.
+  Future<bool> turismoPorConhecidas() async =>
+      (await SharedPreferences.getInstance()).getBool('naRotaTurismoConhecidas') ?? false;
+
+  Future<void> salvaTurismoPorConhecidas(bool v) async =>
+      (await SharedPreferences.getInstance()).setBool('naRotaTurismoConhecidas', v);
+
   /// Semana da pesquisa da ANP carregada (para mostrar a data).
   String get semanaAnp => _semana.values.firstOrNull ?? '';
 
@@ -265,23 +272,39 @@ class NaRotaService {
         }
       }
       if (titulo != null) {
+        // O Uri já codifica o título: codificar antes dava "%25C3..." e a
+        // Wikipédia respondia 404 em todo título com acento (sem foto/resumo).
         final r = await http.get(
-            Uri.https('$lang.wikipedia.org', '/api/rest_v1/page/summary/${Uri.encodeComponent(titulo.replaceAll(' ', '_'))}'),
+            Uri(scheme: 'https', host: '$lang.wikipedia.org',
+                pathSegments: ['api', 'rest_v1', 'page', 'summary', titulo.replaceAll(' ', '_')]),
             headers: {'User-Agent': _ua}).timeout(const Duration(seconds: 15));
         if (r.statusCode == 200) {
-          final j = jsonDecode(r.body) as Map;
+          final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map;
           final d = DetalheAtracao(
             resumo: j['extract'] as String?,
-            foto: (j['originalimage']?['source'] ?? j['thumbnail']?['source']) as String? ?? foto,
+            foto: _fotoWiki(j) ?? foto,
             pagina: j['content_urls']?['mobile']?['page'] as String?,
           );
           return _detalhes[k] = d;
         }
+        debugPrint('Na rota: Wikipédia ${r.statusCode} para "$titulo"');
       }
     } catch (e) {
       debugPrint('Na rota: detalhes de ${a.nome} falharam ($e)');
     }
     return _detalhes[k] = DetalheAtracao(resumo: a.descricao, foto: foto);
+  }
+
+  /// Foto do resumo da Wikipédia em 960 px (tamanho padrão do Wikimedia;
+  /// outros dão 400). A original pode ter vários MB.
+  static String? _fotoWiki(Map j) {
+    final th = j['thumbnail']?['source'] as String?;
+    if (th != null && RegExp(r'/\d+px-').hasMatch(th)) {
+      final w = (j['originalimage']?['width'] as num?)?.toInt() ?? 0;
+      if (w > 960) return th.replaceFirst(RegExp(r'/\d+px-'), '/960px-');
+      return j['originalimage']?['source'] as String? ?? th;
+    }
+    return j['originalimage']?['source'] as String? ?? th;
   }
 
   /// Foto do mapa: URL direta ou arquivo do Wikimedia Commons.
@@ -290,7 +313,7 @@ class NaRotaService {
     if (f.startsWith('http')) return f;
     final name = f.replaceFirst(RegExp(r'^(File|Arquivo|Category):'), '');
     if (f.startsWith('Category:')) return null;
-    return 'https://commons.wikimedia.org/wiki/Special:FilePath/${Uri.encodeComponent(name)}?width=800';
+    return 'https://commons.wikimedia.org/wiki/Special:FilePath/${Uri.encodeComponent(name)}?width=960';
   }
 
   /// "Ver mais" sem artigo: busca o lugar na internet.
