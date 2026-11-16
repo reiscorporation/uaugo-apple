@@ -291,6 +291,8 @@ void main() {
         expect(d.source, PositionSource.deadReckoning, reason: 'pulou para a leitura absurda');
       }
     }
+    s.update(fix(3000, 2000, 30.6, acc: 16, speed: 0, heading: -1));
+    expect(s.lastFixIgnored, isTrue, reason: 'o app deve ignorar esta leitura');
     // Andou estimado ~20 m/s durante o túnel (não parou por causa delas).
     expect(s.display!.along!, closeTo(280 + 20 * 21.0, 40));
     // GPS volta onde o veículo realmente está: sem salto.
@@ -371,6 +373,19 @@ void main() {
       expect(angleDiff(d.bearing, 90), lessThan(15), reason: 'girou para a rota em $i');
     }
   });
+  test('app abriu com a posição errada (casa): aceita o trajeto real logo', () {
+    // Caso do painel do carro: 1ª leitura de casa (18 m), depois o trajeto
+    // real a 2 km, preciso (5 m) e andando.
+    final w = straight();
+    final s = RoadSnapper()..route = w;
+    s.update(fix(3000, 2000, 0, acc: 18, speed: 0, heading: -1));
+    DisplayPosition? d;
+    for (var i = 1; i <= 5; i++) {
+      d = s.update(fix(500.0 + 12 * i, 0, i, speed: 0, heading: 0));
+    }
+    expect(s.lastFixIgnored, isFalse);
+    expect(distanceMeters(d!.lat, d.lng, at(560, 0).$1, at(560, 0).$2), lessThan(30));
+  });
 }
 
 extension on GpsFix {
@@ -383,4 +398,5 @@ extension on GpsFix {
       speed: speed,
       heading: h,
       headingAccuracy: acc);
+
 }

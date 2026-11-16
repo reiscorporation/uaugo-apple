@@ -956,6 +956,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (mounted && !_inBackground) _startGps();
       });
     }
+    // Road snapping primeiro: leitura impossível (km de salto sem tempo
+    // para isso) é descartada pelo app inteiro — não mexe no velocímetro,
+    // não "sai da rota", não dispara avisos (painel do carro, 16/11).
+    _feedSnapper(p);
+    if (_snapper.lastFixIgnored) {
+      if (kDebugMode) debugPrint('UauGoPos: leitura ignorada (impossível)');
+      return;
+    }
     // Minimizado / tela apagada: guarda a posição sem redesenhar a tela
     // (a voz, os avisos e a gravação continuam).
     // Posição na rota: calculada uma vez por leitura e usada pela voz,
@@ -965,7 +973,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Simulação também: o rumo dela é exato e separa as duas pistas de
         // um retorno na mesma avenida.
         heading: p.speed > 3 && p.heading >= 0 ? p.heading : null);
-    _feedSnapper(p);
     if (_inBackground) {
       _me = p;
     } else {
@@ -4783,7 +4790,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // desenhado. Leitura longe da rota = problema A (GPS); leitura em cima
     // da rota e ícone fora da linha na tela = problema B (renderização).
     if (kDebugMode) {
-      final pr = _proj;
+      final pr = _walker?.project(p.latitude, p.longitude);
       debugPrint('UauGoDiag raw=${p.latitude.toStringAsFixed(6)},'
           '${p.longitude.toStringAsFixed(6)} acc=${p.accuracy.toStringAsFixed(1)}'
           ' v=${p.speed.toStringAsFixed(1)} hdg=${p.heading.toStringAsFixed(0)}'
@@ -7546,7 +7553,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       (_keepGpsInBackground || !_inBackground) ? _startGps() : _stopGps();
     }
     if (!CarService.instance.connected.value) return;
-    if (_routeRecs.length >= 2) CarService.instance.route(_routeRecs);
+    if (_routeRecs.length >= 2) CarService.instance.route(_routeRecs, force: true);
     _sendPoisToCar();
     _sendHazardsToCar();
     _sendGroupToCar();

@@ -399,9 +399,12 @@ class CarService {
   /// Rota (enviada só quando muda). Simplificada sem cortar esquinas
   /// (Douglas-Peucker): pegar 1 ponto a cada N deixava a linha do carro
   /// atravessando quarteirões, fora das ruas (11/11).
-  void route(List<(double, double)> pts) {
+  /// [force]: manda de novo mesmo igual (o carro reconectou e o lado
+  /// nativo pode ter perdido a rota: no teste do painel, 16/11, o carro
+  /// ficou sem a linha azul depois de reconectar).
+  void route(List<(double, double)> pts, {bool force = false}) {
     final sig = pts.isEmpty ? '' : '${pts.length}:${pts.first}:${pts.last}';
-    if (sig == _routeSig) return;
+    if (sig == _routeSig && !force) return;
     _routeSig = sig;
     final ll = [for (final p in pts) LatLng(p.$1, p.$2)];
     var s = ll;

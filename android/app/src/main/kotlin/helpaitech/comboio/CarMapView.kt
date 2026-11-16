@@ -653,7 +653,7 @@ class CarMapView(private val context: Context) {
         val iv = meView ?: return
         val r = visible ?: Rect(0, 0, width, height)
         val extraTop = (r.height() * 0.35f).toInt()
-        val cx = (r.left + r.right) / 2f
+        val cx = (r.left + extraLeft(r) + r.right) / 2f
         val cy = (r.top + extraTop + r.bottom) / 2f
         val lp = iv.layoutParams
         iv.translationX = cx - lp.width / 2f
@@ -675,17 +675,32 @@ class CarMapView(private val context: Context) {
         val dx = (CarState.lng - pos.longitude) * 111320.0 * k
         val dy = (CarState.lat - pos.latitude) * 111320.0
         val fromDart = System.currentTimeMillis() - CarState.lastDartUpdate < 3000
+        // Diagnóstico B: onde o MAPA desenha a posição (centro da câmera)
+        // e onde está o nosso ícone. Diferença = erro de desenho, não de GPS.
+        val g = map
+        val sp = shownPos ?: pos
+        val onMap = g?.projection?.toScreenLocation(sp)
+        val lineStart = routeLine?.points?.firstOrNull()?.let { g?.projection?.toScreenLocation(it) }
+        val iv = meView
+        val icon = if (iv != null) "${(iv.translationX + iv.width / 2f).toInt()},${(iv.translationY + iv.height / 2f).toInt()}" else "-"
         android.util.Log.d("UauGoCarPos", "src=${if (fromDart) "celular" else "gps-carro"} " +
             "onRoute=${CarState.onRoute} snapped=$snapped desvio=${Math.hypot(dx, dy).toInt()}m " +
-            "rota=${CarState.route.size}pts area=$visible")
+            "rota=${CarState.route.size}pts area=$visible mapaDesenha=${onMap?.x},${onMap?.y} icone=$icon inicioLinha=${lineStart?.x},${lineStart?.y} " +
+            "mapView=${mapView?.width}x${mapView?.height}")
     }
+
+    /** Área estreita (tela dividida do Android Auto): o velocímetro, o
+     *  aviso de radar e os botões ocupam a coluna da esquerda e cobriam o
+     *  veículo (painel, 16/11). Empurra o centro para a direita deles. */
+    private fun extraLeft(r: Rect): Int =
+        if (r.width() < 560) (r.width() * 0.30f).toInt() else 0
 
     /** O centro do mapa fica na área livre, mais para baixo (vê à frente). */
     private fun applyPadding() {
         val g = map ?: return
         val r = visible ?: Rect(0, 0, width, height)
         val extraTop = (r.height() * 0.35f).toInt()
-        g.setPadding(r.left, r.top + extraTop, max(0, width - r.right), max(0, height - r.bottom))
+        g.setPadding(r.left + extraLeft(r), r.top + extraTop, max(0, width - r.right), max(0, height - r.bottom))
     }
 
     /** Seta do piloto (branca com borda azul), sempre apontando para cima. */

@@ -132,6 +132,14 @@ class RoadSnapper {
   double _speed = 0;
   double? _bearing;
   int _misses = 0;
+  bool _ignored = false;
+  double _lastAcceptedAccuracy = 10;
+
+  /// A última leitura foi descartada como impossível (salto de km sem tempo
+  /// para isso). O app também deve ignorá-la: velocímetro, "saiu da rota",
+  /// avisos (teste no painel do carro, 16/11: 239 km/h e rota recalculada
+  /// por uma leitura assim).
+  bool get lastFixIgnored => _ignored;
   final _outliers = <GpsFix>[];
   final _history = <GpsFix>[];
 
@@ -206,6 +214,7 @@ class RoadSnapper {
   DisplayPosition _updateRaw(GpsFix f, {DateTime? now, bool exact = false}) {
     final t = now ?? f.time;
     _raw = f; // a leitura original fica guardada sempre, mesmo ignorada
+    _ignored = false;
     // Leitura impossível para a velocidade e o tempo desde a última posição
     // (ex.: no túnel o Android entregou leituras a 2 km dali, teste no
     // Galaxy em 16/11): ignorada — nem posição, nem velocidade, nem
@@ -236,11 +245,26 @@ class RoadSnapper {
         final lastGood = _lastFixAt;
         final stale = lastGood == null ||
             t.difference(lastGood) > maxDeadReckoning;
-        if (_outliers.length < outlierAccept || !stale) return shown;
+        // Também aceita logo (sem esperar 60 s) quando as leituras novas são
+        // bem mais precisas que a última aceita, ou formam um trajeto andando
+        // enquanto o ícone está parado: era a posição ACEITA que estava
+        // errada (app abriu com a posição de casa e ignorou o trajeto real,
+        // teste no painel do carro, 16/11). No túnel as leituras erradas
+        // são paradas e menos precisas: continuam ignoradas.
+        final first = _outliers.first;
+        final better = f.accuracy <= goodAccuracy &&
+            f.accuracy < _lastAcceptedAccuracy * 0.75;
+        final moving = _speed < stillSpeed &&
+            distanceMeters(first.lat, first.lng, f.lat, f.lng) >= 10;
+        if (_outliers.length < outlierAccept || !(stale || better || moving)) {
+          _ignored = true;
+          return shown;
+        }
         _history.clear(); // não mede velocidade pelo salto
       }
       _outliers.clear();
     }
+    _lastAcceptedAccuracy = f.accuracy;
     final lastAt = _lastFixAt;
     final dtFix = lastAt == null
         ? 1.0
