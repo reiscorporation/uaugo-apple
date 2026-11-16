@@ -86,6 +86,8 @@ const en5 = <String, String>{
   'Não foi possível calcular a melhor sequência. Confira a internet.': 'Could not work out the best order. Check your internet connection.',
   'Sequência ajustada: economiza {0} min e {1} km.': 'Order adjusted: saves {0} min and {1} km.',
   'A ordem atual já era a melhor.': 'The current order was already the best.',
+  'Desfazer': 'Undo',
+  'Paradas reorganizadas em cada dia. Saída, pernoites e destino continuam no lugar.': 'Stops reordered within each day. Start, overnight stops and destination stay in place.',
   'Melhor sequência': 'Best order',
   'Minimizar ou Encerrar voltam para a tela inicial e desligam os avisos.': 'Minimize or End go back to the home screen and turn the warnings off.',
   'Minimizar volta para a tela inicial; você continua no comboio. Encerrar para a navegação.': 'Minimize goes back to the home screen; you stay in the convoy. End stops navigation.',

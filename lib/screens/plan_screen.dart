@@ -18,6 +18,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../logic/best_order.dart';
 import '../logic/geo.dart';
 import '../logic/itinerary.dart';
 import '../models/expedition.dart';
@@ -483,6 +484,66 @@ class _PlanScreenState extends State<PlanScreen> {
         steps: s.steps,
       );
 
+  /// Há paradas que podem trocar de lugar: entre dois pontos fixos (saída,
+  /// pernoite, destino) existem pelo menos duas.
+  bool get _canReorderBest {
+    var run = 0;
+    for (var i = 1; i < _stops.length - 1; i++) {
+      if (_stops[i].type == StopType.overnight) {
+        run = 0;
+      } else if (++run >= 2) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// "Melhor sequência": saída, destino e pernoites ficam no lugar; as
+  /// paradas de cada dia trocam de ordem para o caminho ficar mais curto.
+  Future<void> _bestOrder() async {
+    final before = [..._stops];
+    final order = bestOrderAnchored([for (final s in before) (s.lat, s.lng)],
+        (i) => before[i].type == StopType.overnight);
+    final list = [for (final i in order) before[i]];
+    var same = true;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id != before[i].id) same = false;
+    }
+    if (same) {
+      _snack(tr('A ordem atual já era a melhor.'));
+      return;
+    }
+    setState(() => _stops = list);
+    final ok = await _guard(() async {
+      await _svc.reorderStops(widget.code, list.map((x) => x.id).toList());
+      return true;
+    });
+    if (!mounted) return;
+    if (!ok) {
+      setState(() => _stops = before);
+      _snack(tr('Não foi possível salvar as paradas. Confira a internet.'));
+      return;
+    }
+    await _recalc(list);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(tr('Paradas reorganizadas em cada dia. Saída, pernoites e destino continuam no lugar.')),
+      action: SnackBarAction(
+        label: tr('Desfazer'),
+        onPressed: () async {
+          if (!mounted) return;
+          setState(() => _stops = before);
+          await _guard(() async {
+            await _svc.reorderStops(
+                widget.code, before.map((x) => x.id).toList());
+            return true;
+          });
+          if (mounted) await _recalc(before);
+        },
+      ),
+    ));
+  }
+
   /// Remove uma parada (com confirmação) e recalcula.
   Future<void> _remove(Stop s) async {
     final list = [..._stops]..removeWhere((x) => x.id == s.id);
@@ -800,6 +861,7 @@ class _PlanScreenState extends State<PlanScreen> {
       onFuelStops: _isLeader && _stops.length >= 2 && _plan.polyline.isNotEmpty
           ? _askFuelStops
           : null,
+      onBestOrder: _isLeader && !_routing && _canReorderBest ? _bestOrder : null,
       // O líder usa a barra de baixo (Salvar / Iniciar).
       onStart: widget.showStartButton && !_isLeader
           ? () => Navigator.of(context).pop(true)
@@ -867,6 +929,7 @@ class _PlanHeader extends StatelessWidget {
     required this.onHighways,
     required this.onRetry,
     this.onFuelStops,
+    this.onBestOrder,
     this.onStart,
     this.onSimulate,
   });
@@ -886,6 +949,9 @@ class _PlanHeader extends StatelessWidget {
 
   /// "Paradas a cada X km" (só o líder, com rota calculada).
   final VoidCallback? onFuelStops;
+
+  /// "Melhor sequência" das paradas de cada dia (só o líder).
+  final VoidCallback? onBestOrder;
   final VoidCallback? onStart;
   final VoidCallback? onSimulate;
 
@@ -1007,6 +1073,14 @@ class _PlanHeader extends StatelessWidget {
             onPressed: onFuelStops,
             icon: const Icon(Icons.local_gas_station_outlined),
             label: Text(tr('Paradas para abastecer a cada X km')),
+          ),
+        ],
+        if (onBestOrder != null) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: onBestOrder,
+            icon: const Icon(Icons.auto_fix_high),
+            label: Text(tr('Melhor sequência')),
           ),
         ],
         if (onSimulate != null) ...[

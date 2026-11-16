@@ -7,7 +7,8 @@
 //   calcular de verdade (Google, com trânsito) e ficar com a mais rápida.
 //   Até 8 destinos testa todas as ordens; acima disso, vizinho mais próximo +
 //   melhoria 2-opt.
-// Quem usa: TripPreviewSheet (botão "Melhor sequência").
+// Quem usa: TripPreviewSheet e PlanScreen (botão "Melhor sequência"; na
+//   expedição saída, destino e pernoites ficam fixos: bestOrderAnchored).
 // Onde mexer: o fim é livre (termina no destino que fizer a rota mais curta).
 // ============================================================================
 
@@ -99,6 +100,73 @@ List<int> _twoOpt(List<int> o, double Function(List<int>) cost) {
         }
       }
     }
+  }
+  return best;
+}
+
+/// Roteiro da expedição: a saída, o destino final e os pontos marcados em
+/// [fixed] (pernoites) ficam no lugar; só as paradas entre dois pontos fixos
+/// trocam de ordem, para o caminho de cada dia ficar o mais curto (em linha
+/// reta). Devolve os índices de [pts] na nova ordem.
+List<int> bestOrderAnchored(
+    List<(double, double)> pts, bool Function(int i) fixed) {
+  final out = <int>[];
+  var seg = <int>[];
+  int? anchor;
+  for (var i = 0; i < pts.length; i++) {
+    final isFixed = i == 0 || i == pts.length - 1 || fixed(i);
+    if (!isFixed) {
+      seg.add(i);
+      continue;
+    }
+    if (anchor != null && seg.isNotEmpty) {
+      out.addAll(_bestBetween(pts, anchor, i, seg));
+    }
+    out.add(i);
+    anchor = i;
+    seg = [];
+  }
+  return out;
+}
+
+/// Melhor ordem de [mids] saindo de [from] e chegando em [to] (os dois fixos).
+List<int> _bestBetween(
+    List<(double, double)> pts, int from, int to, List<int> mids) {
+  if (mids.length <= 1) return mids;
+  double d(int a, int b) =>
+      distanceMeters(pts[a].$1, pts[a].$2, pts[b].$1, pts[b].$2);
+  double cost(List<int> o) {
+    var c = d(from, o.first) + d(o.last, to);
+    for (var i = 1; i < o.length; i++) {
+      c += d(o[i - 1], o[i]);
+    }
+    return c;
+  }
+
+  var best = List.of(mids);
+  var bc = cost(best);
+  void keep(List<int> o) {
+    final c = cost(o);
+    if (c + 1e-6 < bc) {
+      bc = c;
+      best = List.of(o);
+    }
+  }
+
+  if (mids.length <= 8) {
+    _permute(List.of(mids), 0, keep);
+  } else {
+    // vizinho mais próximo a partir da âncora, depois 2-opt
+    final o = <int>[];
+    final left = {...mids};
+    var last = from;
+    while (left.isNotEmpty) {
+      final next = left.reduce((a, b) => d(last, a) <= d(last, b) ? a : b);
+      o.add(next);
+      left.remove(next);
+      last = next;
+    }
+    keep(_twoOpt(o, cost));
   }
   return best;
 }
