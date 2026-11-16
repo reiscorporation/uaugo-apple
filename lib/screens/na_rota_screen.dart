@@ -8,10 +8,16 @@
 //   Booking, Decolar, Hoteis.com...). Postos: famosos entre motociclistas
 //   primeiro, com o preço da ANP quando acha.
 // Quem usa: MapScreen (opções da parada) e PlanScreen (roteiro).
-// Ver no mapa: botão no topo (todos os lugares da aba) e em cada lugar
-//   (abre o mapa nele), como na comunidade (uaugo.com.br/viagem).
+// Mapa integrado (16/11), como na definição de rota: mapa em cima com os
+//   lugares da aba aberta e a lista embaixo; tocar num lugar leva o mapa
+//   até ele; tocar no nome do marcador abre as opções. O botão do topo
+//   aumenta/diminui o mapa.
 // ============================================================================
 
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -20,7 +26,9 @@ import '../logic/costs.dart';
 import '../logic/na_rota.dart';
 import '../models/expedition.dart';
 import '../services/na_rota_service.dart';
-import '../widgets/pontos_mapa.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import '../widgets/emoji_marker.dart';
 import '../widgets/safe_sheet.dart';
 
 /// Inclui um lugar como parada (nome, posição, tipo).
@@ -55,7 +63,29 @@ class NaRotaScreen extends StatefulWidget {
   State<NaRotaScreen> createState() => _NaRotaScreenState();
 }
 
-class _NaRotaScreenState extends State<NaRotaScreen> {
+class _NaRotaScreenState extends State<NaRotaScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(
+      length: 3, vsync: this, initialIndex: widget.aba.clamp(0, 2))
+    ..addListener(() {
+      if (!_tabs.indexIsChanging && mounted) setState(() {});
+    });
+
+  // ---- mapa integrado
+  GoogleMapController? _map;
+  Set<Marker> _marcas = {};
+  List<Object> _itensMapa = const [];
+  Object? _mapaFuture;
+  int _mapaAba = -1;
+  bool _mapaGrande = false;
+  final _icones = <String, BitmapDescriptor>{};
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
   final _svc = NaRotaService.instance;
   late Future<List<Atracao>> _atracoes;
   late Future<List<PostoRota>> _postos;
@@ -124,119 +154,181 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
     await add(nome, lat, lng, t);
   }
 
-  /// Ver no mapa os lugares da aba [aba] (0 turismo, 1 hospedagem, 2 postos);
-  /// com [item], abre o mapa já nele.
-  Future<void> _verNoMapa(int aba, {Object? item}) async {
-    final List<PontoMapa> pontos;
-    var foco = -1;
-    final String titulo;
-    final Color cor;
-    switch (aba) {
-      case 0:
-        final l = await _atracoes.catchError((_) => <Atracao>[]);
-        titulo = tr('Turismo');
-        cor = const Color(0xFF7B1FA2);
-        foco = item is Atracao ? l.indexOf(item) : -1;
-        pontos = [
-          for (final a in l)
-            PontoMapa(
-              nome: a.nome,
-              lat: a.lat,
-              lng: a.lng,
-              emoji: a.emoji,
-              detalhe: [tr(a.tipoNome), _km(a.distM)].join(' · '),
-              onAbrir: () => _detalhesTurismo(a),
-            ),
-        ];
-      case 1:
-        final l = await (_hoteis ?? Future.value(const <Hotel>[]))
-            .catchError((_) => <Hotel>[]);
-        titulo = tr('Hospedagem');
-        cor = const Color(0xFF1565C0);
-        foco = item is Hotel ? l.indexOf(item) : -1;
-        pontos = [
-          for (final h in l)
-            PontoMapa(
-              nome: h.nome,
-              lat: h.lat,
-              lng: h.lng,
-              emoji: '🛏️',
-              detalhe: [
-                if (h.preco != null) formatMoney(h.preco!.toDouble()).replaceAll(',00', ''),
-                _km(h.distM),
-              ].join(' · '),
-              onAbrir: () => _opcoesHotel(h),
-            ),
-        ];
-      default:
-        final l = await _postos.catchError((_) => <PostoRota>[]);
-        titulo = tr('Postos');
-        cor = const Color(0xFFE65100);
-        foco = item is PostoRota ? l.indexOf(item) : -1;
-        pontos = [
-          for (final p in l)
-            PontoMapa(
-              nome: p.nome,
-              lat: p.lat,
-              lng: p.lng,
-              emoji: p.famoso ? '🏍️' : '⛽',
-              detalhe: [
-                if (p.preco?.gasolina != null) 'G ${_preco(p.preco!.gasolina!)}',
-                _km(p.distM),
-              ].join(' · '),
-              onAbrir: () => _opcoesPosto(p),
-            ),
-        ];
+  /// A lista da aba [aba] (0 turismo, 1 hospedagem, 2 postos) que está
+  /// carregando agora (troca quando muda o raio, a noite...).
+  Future<List<Object>>? _futureDaAba(int aba) => switch (aba) {
+        0 => _atracoes,
+        1 => _hoteis,
+        _ => _postos,
+      };
+
+  /// Mantém o mapa com os lugares da aba aberta (chamado no build: percebe
+  /// troca de aba e lista nova sem mexer em cada lugar que busca de novo).
+  void _sincronizaMapa() {
+    final aba = _tabs.index;
+    final f = _futureDaAba(aba);
+    if (aba == _mapaAba && identical(f, _mapaFuture)) return;
+    _mapaAba = aba;
+    _mapaFuture = f;
+    _carregaMarcas(aba, f);
+  }
+
+  Future<void> _carregaMarcas(int aba, Future<List<Object>>? f) async {
+    // Sem catchError aqui: a lista é de Atracao/Hotel/PostoRota e devolver
+    // List<Object> dentro dela quebra em tempo de execução.
+    List<Object> l = const [];
+    if (f != null) {
+      try {
+        l = await f;
+      } catch (_) {}
     }
-    if (!mounted) return;
-    if (pontos.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('Nada para mostrar no mapa ainda.'))));
+    if (!mounted || aba != _mapaAba || !identical(f, _mapaFuture)) return;
+    final cor = switch (aba) {
+      0 => const Color(0xFF7B1FA2),
+      1 => const Color(0xFF1565C0),
+      _ => const Color(0xFFE65100),
+    };
+    final marcas = <Marker>{
+      Marker(
+        markerId: const MarkerId('centro'),
+        position: LatLng(widget.lat, widget.lng),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        infoWindow: InfoWindow(title: _cidade ?? widget.lugar),
+        zIndexInt: 2,
+      ),
+    };
+    for (var i = 0; i < l.length; i++) {
+      final (nome, lat, lng, emoji, detalhe, abrir) = _infoDe(l[i]);
+      final k = '$aba$emoji';
+      _icones[k] ??= await emojiMarker(emoji, cor);
+      if (!mounted || aba != _mapaAba) return;
+      marcas.add(Marker(
+        markerId: MarkerId('p$i'),
+        position: LatLng(lat, lng),
+        icon: _icones[k]!,
+        infoWindow: InfoWindow(
+            title: nome, snippet: '$detalhe · ${tr('toque para opções')}', onTap: abrir),
+      ));
+    }
+    setState(() {
+      _marcas = marcas;
+      _itensMapa = l;
+    });
+    _enquadra();
+  }
+
+  /// Nome, posição, emoji, detalhe e "abrir opções" de um lugar da lista.
+  (String, double, double, String, String, VoidCallback) _infoDe(Object o) => switch (o) {
+        Atracao a => (a.nome, a.lat, a.lng, a.emoji, [tr(a.tipoNome), _km(a.distM)].join(' · '),
+            () => _detalhesTurismo(a)),
+        Hotel h => (h.nome, h.lat, h.lng, '🛏️', [
+            if (h.preco != null) formatMoney(h.preco!.toDouble()).replaceAll(',00', ''),
+            _km(h.distM),
+          ].join(' · '), () => _opcoesHotel(h)),
+        PostoRota p => (p.nome, p.lat, p.lng, p.famoso ? '🏍️' : '⛽', [
+            if (p.preco?.gasolina != null) 'G ${_preco(p.preco!.gasolina!)}',
+            _km(p.distM),
+          ].join(' · '), () => _opcoesPosto(p)),
+        _ => ('', widget.lat, widget.lng, '📍', '', () {}),
+      };
+
+  /// Enquadra todos os lugares da aba e o ponto de referência.
+  void _enquadra() {
+    final m = _map;
+    if (m == null) return;
+    var s = widget.lat, n = s, w = widget.lng, e = w;
+    for (final o in _itensMapa) {
+      final (_, la, lo, _, _, _) = _infoDe(o);
+      s = min(s, la);
+      n = max(n, la);
+      w = min(w, lo);
+      e = max(e, lo);
+    }
+    if (n - s < 1e-4 && e - w < 1e-4) {
+      m.animateCamera(CameraUpdate.newLatLngZoom(LatLng(widget.lat, widget.lng), 13));
       return;
     }
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => PontosMapaScreen(
-        titulo: titulo,
-        pontos: pontos,
-        centroLat: widget.lat,
-        centroLng: widget.lng,
-        centroNome: _cidade ?? widget.lugar,
-        cor: cor,
-        foco: foco >= 0 ? foco : null,
-      ),
-    ));
+    m.animateCamera(CameraUpdate.newLatLngBounds(
+        LatLngBounds(southwest: LatLng(s, w), northeast: LatLng(n, e)), 40));
+  }
+
+  /// Leva o mapa até um lugar da lista (na aba [aba]) e mostra o nome.
+  Future<void> _verNoMapa(int aba, {Object? item}) async {
+    if (_tabs.index != aba) _tabs.animateTo(aba);
+    final m = _map;
+    if (m == null || item == null) return;
+    final (_, la, lo, _, _, _) = _infoDe(item);
+    await m.animateCamera(CameraUpdate.newLatLngZoom(LatLng(la, lo), 15));
+    final i = _itensMapa.indexOf(item);
+    if (i >= 0) m.showMarkerInfoWindow(MarkerId('p$i'));
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      initialIndex: widget.aba,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(tr('Na rota')),
-            Text(_cidade ?? widget.lugar,
-                style: Theme.of(context).textTheme.bodySmall, overflow: TextOverflow.ellipsis),
-          ]),
-          actions: [
-            // Todos os lugares da aba aberta no mapa (como na comunidade).
-            Builder(
-              builder: (c) => IconButton(
-                tooltip: tr('Ver no mapa'),
-                icon: const Icon(Icons.map_outlined),
-                onPressed: () => _verNoMapa(DefaultTabController.of(c).index),
+    _sincronizaMapa();
+    final alto = MediaQuery.of(context).size.height;
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(tr('Na rota')),
+          Text(_cidade ?? widget.lugar,
+              style: Theme.of(context).textTheme.bodySmall, overflow: TextOverflow.ellipsis),
+        ]),
+        actions: [
+          IconButton(
+            tooltip: _mapaGrande ? tr('Mapa menor') : tr('Mapa maior'),
+            icon: Icon(_mapaGrande ? Icons.unfold_less : Icons.map_outlined),
+            onPressed: () => setState(() => _mapaGrande = !_mapaGrande),
+          ),
+        ],
+      ),
+      body: Column(children: [
+        // Mapa integrado: os lugares da aba aberta (como na definição de rota).
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          height: alto * (_mapaGrande ? 0.62 : 0.32),
+          child: Stack(children: [
+            GoogleMap(
+              initialCameraPosition:
+                  CameraPosition(target: LatLng(widget.lat, widget.lng), zoom: 11),
+              markers: _marcas,
+              onMapCreated: (c) {
+                _map = c;
+                Future.delayed(const Duration(milliseconds: 300), _enquadra);
+              },
+              myLocationButtonEnabled: false,
+              mapToolbarEnabled: false,
+              zoomControlsEnabled: false,
+              // Arrastar o mapa não rola a lista nem troca de aba.
+              gestureRecognizers: {
+                Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+              },
+            ),
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: FloatingActionButton.small(
+                heroTag: 'naRotaTodos',
+                tooltip: tr('Ver todos'),
+                onPressed: _enquadra,
+                child: const Icon(Icons.zoom_out_map),
               ),
             ),
-          ],
-          bottom: TabBar(tabs: [
+          ]),
+        ),
+        Material(
+          color: Theme.of(context).colorScheme.surface,
+          child: TabBar(controller: _tabs, tabs: [
             Tab(icon: const Icon(Icons.photo_camera_outlined), text: tr('Turismo')),
             Tab(icon: const Icon(Icons.hotel_outlined), text: tr('Hospedagem')),
             Tab(icon: const Icon(Icons.local_gas_station_outlined), text: tr('Postos')),
           ]),
         ),
-        body: TabBarView(children: [_turismo(), _hospedagem(), _postosTab()]),
-      ),
+        Expanded(
+          child: TabBarView(
+              controller: _tabs, children: [_turismo(), _hospedagem(), _postosTab()]),
+        ),
+      ]),
     );
   }
 
@@ -350,7 +442,10 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
                 title: Text(a.nome),
                 subtitle: Text([tr(a.tipoNome), _km(a.distM), if (a.cidade != null) a.cidade!].join(' · ')),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => _detalhesTurismo(a),
+                onTap: () {
+                  _verNoMapa(0, item: a);
+                  _detalhesTurismo(a);
+                },
               );
             },
           );
@@ -524,7 +619,10 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
                             color: barato ? Colors.green.shade700 : null)),
                     Text(tr('/noite'), style: Theme.of(context).textTheme.bodySmall),
                   ]),
-                  onTap: () => _opcoesHotel(h),
+                  onTap: () {
+                    _verNoMapa(1, item: h);
+                    _opcoesHotel(h);
+                  },
                 );
               },
             );
@@ -681,7 +779,10 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
               if (g != null) Text('G ${_preco(g)}', style: const TextStyle(fontWeight: FontWeight.bold)),
               if (e != null) Text('E ${_preco(e)}', style: Theme.of(context).textTheme.bodySmall),
             ]),
-      onTap: () => _opcoesPosto(p),
+      onTap: () {
+        _verNoMapa(2, item: p);
+        _opcoesPosto(p);
+      },
     );
   }
 
