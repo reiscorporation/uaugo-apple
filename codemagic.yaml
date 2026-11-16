@@ -1,0 +1,53 @@
+# Codemagic: compila o UauGo para iPhone e envia ao TestFlight.
+#
+# Antes da 1ª compilação (feito pelo Ricardo, nunca pelo Claude):
+#   1. App Store Connect: criar o app com o bundle "helpaitech.comboio".
+#   2. App Store Connect > Usuários e acesso > Integrações > chave de API
+#      (função "App Manager") e baixar o .p8.
+#   3. Codemagic > Teams > Integrations > Developer Portal: cadastrar a
+#      chave com o nome "UauGo ASC" (Issuer ID, Key ID e o .p8).
+#   4. developer.apple.com > Identifiers > helpaitech.comboio: ligar
+#      "Sign in with Apple" e "Push Notifications".
+#
+# Como a versão da Play: sem dart-defines (rotas do Google).
+workflows:
+  ios-testflight:
+    name: UauGo iOS -> TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    integrations:
+      app_store_connect: UauGo ASC
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: helpaitech.comboio
+    triggering:
+      events: []   # só quando disparar manualmente no Codemagic
+    scripts:
+      - name: Assinatura (perfis do App Store Connect)
+        script: |
+          app-store-connect fetch-signing-files "helpaitech.comboio" \
+            --type IOS_APP_STORE --create
+          keychain initialize
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Dependências
+        script: |
+          flutter pub get
+          cd ios && pod install --repo-update
+      - name: Compilar IPA
+        script: |
+          # BUILD_NUMBER = contador de compilações do Codemagic (sempre sobe)
+          flutter build ipa --release \
+            --build-number=$BUILD_NUMBER \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
