@@ -604,8 +604,34 @@ class _PlanScreenState extends State<PlanScreen> {
         onSave: (data) => _svc.updateStop(widget.code, s.id, data),
         onDelete: () => _remove(s),
         onNavigate: () => _navigate(s),
+        onAddStop: (name, lat, lng, type) => _addAfter(s, name, lat, lng, type),
       ),
     );
+  }
+
+  /// "Adicionar como parada" do turismo/hospedagem/postos de uma parada:
+  /// entra logo DEPOIS dela no roteiro (antes do destino, se for o último).
+  Future<void> _addAfter(Stop after, String name, double lat, double lng, StopType type) async {
+    final ok = await _guard(() async {
+      final id = _svc.addStop(widget.code, widget.uid, name, lat, lng, type: type,
+          stayMin: type == StopType.fuel ? 15 : (type == StopType.sight ? 30 : 0));
+      final ids = _stops.map((x) => x.id).toList();
+      var at = ids.indexOf(after.id) + 1;
+      if (at <= 0 || at >= ids.length) at = ids.length - 1; // antes do destino
+      if (at < 1) at = ids.length;
+      ids.insert(at, id);
+      await _svc.reorderStops(widget.code, ids);
+      return true;
+    });
+    if (!mounted) return;
+    if (!ok) {
+      _snack(tr('Não foi possível salvar a parada. Confira a internet e tente de novo.'));
+      return;
+    }
+    _snack(tr('{0} incluído no roteiro.', [name]));
+    // A lista de paradas chega pelo Firestore; recalcula com ela.
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) await _recalc();
   }
 
   /// Mostra a parada no mapa.
@@ -1223,6 +1249,7 @@ class _StopEditor extends StatefulWidget {
     required this.onSave,
     required this.onDelete,
     required this.onNavigate,
+    this.onAddStop,
   });
 
   final Stop stop;
@@ -1231,6 +1258,9 @@ class _StopEditor extends StatefulWidget {
   final Future<void> Function(Map<String, dynamic> data) onSave;
   final Future<void> Function() onDelete;
   final Future<void> Function() onNavigate;
+
+  /// "Adicionar como parada" no turismo/hospedagem/postos desta parada.
+  final AddStop? onAddStop;
 
   @override
   State<_StopEditor> createState() => _StopEditorState();
@@ -1344,6 +1374,7 @@ class _StopEditorState extends State<_StopEditor> {
                     lng: widget.stop.lng,
                     lugar: widget.stop.name,
                     aba: widget.stop.type == StopType.overnight ? 1 : 0,
+                    onAddStop: widget.onAddStop,
                   ),
                 )),
               ),

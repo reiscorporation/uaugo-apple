@@ -88,6 +88,7 @@ const en5 = <String, String>{
   'A ordem atual já era a melhor.': 'The current order was already the best.',
   'Desfazer': 'Undo',
   'Ver todos': 'Show all',
+  '{0} incluído no roteiro.': '{0} added to the itinerary.',
   'Só o escolhido': 'Only the chosen one',
   'Ver todos os pontos': 'Show all points',
   '{0} no mapa': '{0} on the map',

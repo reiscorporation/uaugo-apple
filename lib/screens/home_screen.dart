@@ -815,7 +815,15 @@ class _HomeScreenState extends State<HomeScreen> {
           await Geolocator.getCurrentPosition().timeout(const Duration(seconds: 10));
       if (!mounted) return;
       Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => NaRotaScreen(lat: p.latitude, lng: p.longitude, lugar: tr('Perto de você'))));
+          builder: (_) => NaRotaScreen(
+                lat: p.latitude,
+                lng: p.longitude,
+                lugar: tr('Perto de você'),
+                // Sem viagem ainda: "Adicionar como parada" monta a rota até
+                // o lugar (definição de rota), onde dá para incluir outros.
+                onAddStop: (name, lat, lng, _) =>
+                    _whereTo(shared: SharedPlace(lat: lat, lng: lng, label: name)),
+              )));
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
