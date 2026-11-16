@@ -158,6 +158,17 @@ class CarService {
   }
 
   /// Visão escolhida no celular vale no carro: 0 mapa, 1 nas saídas, 2 sempre.
+  String _emergencySig = '';
+
+  /// Contato de emergência para o SOS da tela do carro (ligar pelo carro).
+  void emergency(String? name, String? phone, {bool force = false}) {
+    final sig = '$name|$phone';
+    if (sig == _emergencySig && !force) return;
+    _emergencySig = sig;
+    _ch.invokeMethod('emergency', {'name': name, 'phone': phone})
+        .catchError((_) => null);
+  }
+
   void mode3d(int mode) {
     _ch.invokeMethod('mode3d', mode).catchError((_) => null);
   }

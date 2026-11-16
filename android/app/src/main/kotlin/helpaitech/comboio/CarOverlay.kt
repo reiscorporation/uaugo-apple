@@ -118,6 +118,13 @@ class CarOverlay(private val ctx: Context) {
         background = box(Color.rgb(211, 47, 47), 14)
     }
 
+    /** Bússola sempre à vista, como no celular: a coluna de botões do
+     *  Android Auto some sozinha alguns segundos depois de navegar (16/11). */
+    private val compassBtn = tv(24f, Color.WHITE).apply {
+        text = "🧭"; gravity = Gravity.CENTER
+        background = box(Color.argb(238, 15, 27, 45), 14)
+    }
+
     /** No mapa: vai para a estrada em 3D (no 3D, tocar no minimapa volta). */
     private val view3dBtn = tv(19f, Color.WHITE).apply {
         text = "3D"; gravity = Gravity.CENTER
@@ -145,6 +152,7 @@ class CarOverlay(private val ctx: Context) {
             inside(settingsBtn) -> "settings"
             inside(requestBtn) -> "requests"
             inside(sosBtn) -> "sos"
+            inside(compassBtn) -> "compass"
             inside(alertBtn) -> "alert"
             inside(radarBtn) -> "radar"
             inside(view3dBtn) -> "to3d"
@@ -203,6 +211,7 @@ class CarOverlay(private val ctx: Context) {
         buttons.addView(musicBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(musicBar, LinearLayout.LayoutParams(-2, dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(settingsBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
+        buttons.addView(compassBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(viewBtn, LinearLayout.LayoutParams(dp(78), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(requestBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(sosBtn, LinearLayout.LayoutParams(-2, dp(56)).apply { leftMargin = dp(8) })
@@ -270,7 +279,10 @@ class CarOverlay(private val ctx: Context) {
         requestBtn.visibility = group
         viewBtn.visibility = group
         viewBtn.text = if (CarState.convoyView) (if (CarState.en) "CONVOY" else "COMBOIO") else "SOLO"
-        sosBtn.visibility = group
+        // SOS e bússola sempre, em todas as telas, como no celular (16/11).
+        // Sozinho, o SOS abre os telefones de emergência no carro.
+        sosBtn.visibility = View.VISIBLE
+        compassBtn.visibility = View.VISIBLE
         val armed = CarState.sosArmed
         sosBtn.textSize = if (armed) 12f else 17f
         sosBtn.text = when {

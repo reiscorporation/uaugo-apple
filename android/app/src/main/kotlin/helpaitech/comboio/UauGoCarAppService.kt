@@ -352,17 +352,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         // Bússola: o motorista escolhe norte para cima ou o mapa girando com o carro.
         val compass = Action.Builder()
             .setIcon(icon(R.drawable.car_compass))
-            .setOnClickListener {
-                CarState.northUp = !CarState.northUp
-                carContext.getSharedPreferences("car", android.content.Context.MODE_PRIVATE)
-                    .edit().putBoolean("northUp", CarState.northUp).apply()
-                toast(if (CarState.northUp) {
-                    if (CarState.en) "North up" else "Norte para cima"
-                } else {
-                    if (CarState.en) "Map follows the car" else "Mapa na direção do carro"
-                })
-                if (carMap.running) carMap.update()
-            }
+            .setOnClickListener { toggleNorthUp() }
             .build()
         // 3D primeiro: em tela baixa o último botão ficava escondido embaixo.
         // Bússola e zoom só no mapa: no 3D não mudam nada (14 e 15/11).
@@ -409,8 +399,29 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         CarState.changed()
     }
 
-    /** No carro não existe "segurar": 1º toque pede confirmação, o 2º envia. */
+    /** Bússola: norte para cima ou o mapa girando com o carro. */
+    private fun toggleNorthUp() {
+        CarState.northUp = !CarState.northUp
+        carContext.getSharedPreferences("car", android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean("northUp", CarState.northUp).apply()
+        toast(if (CarState.northUp) {
+            if (CarState.en) "North up" else "Norte para cima"
+        } else {
+            if (CarState.en) "Map follows the car" else "Mapa na direção do carro"
+        })
+        if (carMap.running) carMap.update()
+        CarState.changed()
+    }
+
+    /** No carro não existe "segurar": 1º toque pede confirmação, o 2º envia.
+     *  Sozinho (sem comboio): abre os telefones de emergência no carro e o
+     *  celular começa a compartilhar a localização em tempo real. */
     private fun sosTap() {
+        if (!CarState.groupOn) {
+            CarState.actionSink?.invoke("soslive")
+            screenManager.push(EmergencyScreen(carContext))
+            return
+        }
         sosTimer.removeCallbacks(sosDisarm)
         if (CarState.sosArmed) {
             CarState.sosArmed = false
@@ -435,6 +446,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             hit == "to3d" -> setMode3d(2)
             hit == "requests" -> screenManager.push(GroupRequestScreen(carContext))
             hit == "sos" -> sosTap()
+            hit == "compass" -> toggleNorthUp()
             hit?.startsWith("do:") == true -> CarState.actionSink?.invoke(hit.removePrefix("do:"))
             hit == "toggleview" -> CarState.actionSink?.invoke("toggleview")
             // ♪ abre/fecha o mini player no próprio mapa (como no celular).
@@ -691,6 +703,43 @@ class SpeedEditScreen(ctx: CarContext, private val q: SpeedEdit,
         }
         return ListTemplate.Builder()
             .setTitle(if (page == 0) q.title else (if (en) "Correct speed" else "Corrigir velocidade"))
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
+    }
+}
+
+/** SOS sozinho: telefones de emergência; tocar liga pelo carro (viva-voz).
+ *  O celular já começou a compartilhar a localização em tempo real. */
+class EmergencyScreen(ctx: CarContext) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val en = CarState.en
+        val list = ItemList.Builder()
+        fun call(num: String) {
+            runCatching {
+                carContext.startCarApp(Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$num")))
+            }.onFailure {
+                CarToast.makeText(carContext, if (en) "Call $num on the phone" else "Ligue $num pelo celular",
+                    CarToast.LENGTH_LONG).show()
+            }
+        }
+        val name = CarState.emergencyName
+        val phone = CarState.emergencyPhone
+        if (!name.isNullOrBlank() && !phone.isNullOrBlank()) {
+            list.addItem(Row.Builder().setTitle((if (en) "Call " else "Ligar para ") + name)
+                .addText(if (en) "Emergency contact" else "Contato de emergência")
+                .setOnClickListener { call(phone) }.build())
+        }
+        for ((num, pt, enLabel) in listOf(
+            Triple("192", "SAMU (ambulância)", "Ambulance (SAMU)"),
+            Triple("193", "Bombeiros (resgate)", "Fire and rescue"),
+            Triple("191", "PRF (rodovias federais)", "Federal Highway Police"),
+            Triple("190", "Polícia Militar", "Police"))) {
+            list.addItem(Row.Builder().setTitle("$num · ${if (en) enLabel else pt}")
+                .setOnClickListener { call(num) }.build())
+        }
+        return ListTemplate.Builder()
+            .setTitle(if (en) "Emergency · live location on" else "Emergência · localização ao vivo ligada")
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()

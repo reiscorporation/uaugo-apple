@@ -98,6 +98,10 @@ object CarState {
     @Volatile var dartReady = false
     /** Bússola do carro: norte sempre para cima (sem inclinar o mapa). */
     @Volatile var northUp = false
+
+    /** Contato de emergência (Configurações do celular), para o SOS do carro. */
+    @Volatile var emergencyName: String? = null
+    @Volatile var emergencyPhone: String? = null
     /** Estrada em 3D no carro: 0 = só mapa, 1 = nas saídas, 2 = sempre. */
     @Volatile var mode3d = 0
     /** Imagem do veículo (PNG), a mesma do mapa do celular. */
@@ -279,6 +283,12 @@ class CarBridge(messenger: BinaryMessenger) {
                         val lo = (m["lo"] as? Number)?.toDouble() ?: return@mapNotNull null
                         Triple(n, la, lo)
                     }
+                    result.success(null)
+                }
+                "emergency" -> {
+                    val m = call.arguments as? Map<*, *>
+                    CarState.emergencyName = m?.get("name") as? String
+                    CarState.emergencyPhone = m?.get("phone") as? String
                     result.success(null)
                 }
                 "mode3d" -> {

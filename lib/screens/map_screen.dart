@@ -7430,6 +7430,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _sendToCar(Position p) {
     if (!CarService.instance.connected.value) return;
     if (kDebugMode) _publishUpcoming(p);
+    final ec = AppSettings.instance.emergencyContact.value;
+    CarService.instance.emergency(ec?.$1, ec?.$2);
     _sendVehicleToCar();
     _sendGroupToCar();
     final turn = _navigating || _sim != null ? _upcomingTurn(p) : null;
@@ -7559,6 +7561,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     if (!CarService.instance.connected.value) return;
     if (_routeRecs.length >= 2) CarService.instance.route(_routeRecs, force: true);
+    final ec = AppSettings.instance.emergencyContact.value;
+    CarService.instance.emergency(ec?.$1, ec?.$2, force: true);
     _sendPoisToCar();
     _sendHazardsToCar();
     _sendGroupToCar();
@@ -7619,6 +7623,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         CarService.instance.toast(tr('Na simulação nada é enviado ao grupo.'));
       case final x when x.startsWith('group:') && _sim != null:
         CarService.instance.toast(tr('Na simulação nada é enviado ao grupo.'));
+      // SOS sozinho pela tela do carro: compartilha a posição em tempo real
+      // (o carro abre os telefones de emergência para ligar).
+      case 'soslive' when _sim != null:
+        CarService.instance.toast(tr('Na simulação nada é enviado.'));
+      case 'soslive':
+        _sosMessage();
+        CarService.instance.toast(tr('Localização em tempo real ligada'));
       case 'sos':
         await _sendSos();
         CarService.instance.toast(tr('SOS enviado aos pilotos'));
