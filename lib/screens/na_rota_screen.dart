@@ -10,8 +10,9 @@
 // Quem usa: MapScreen (opções da parada) e PlanScreen (roteiro).
 // Mapa integrado (16/11), como na definição de rota: mapa em cima com os
 //   lugares da aba aberta e a lista embaixo; tocar num lugar leva o mapa
-//   até ele; tocar no nome do marcador abre as opções. O botão do topo
-//   aumenta/diminui o mapa.
+//   até ele; tocar no nome do marcador abre as opções. A lista se
+//   arrasta pela alça; o mapa mostra só o lugar escolhido ("ver todos os
+//   pontos" mostra todos), para não poluir.
 // ============================================================================
 
 import 'dart:math';
@@ -77,7 +78,19 @@ class _NaRotaScreenState extends State<NaRotaScreen>
   List<Object> _itensMapa = const [];
   Object? _mapaFuture;
   int _mapaAba = -1;
-  bool _mapaGrande = false;
+  /// Altura do mapa (fração da área): a lista é arrastada pela alça.
+  double _fracMapa = 0.34;
+
+  /// false (padrão): no mapa só o ponto de referência e o lugar escolhido,
+  /// para não poluir; true: todos os lugares da aba.
+  bool _todos = false;
+
+  /// Lugar escolhido na lista (aparece no mapa mesmo sem "ver todos").
+  Object? _escolhido;
+
+  /// Todos os marcadores da aba (por lugar), montados uma vez.
+  final _marcasDe = <Object, Marker>{};
+  Marker? _marcaCentro;
   final _icones = <String, BitmapDescriptor>{};
 
   @override
@@ -168,6 +181,7 @@ class _NaRotaScreenState extends State<NaRotaScreen>
     final aba = _tabs.index;
     final f = _futureDaAba(aba);
     if (aba == _mapaAba && identical(f, _mapaFuture)) return;
+    if (aba != _mapaAba) _escolhido = null;
     _mapaAba = aba;
     _mapaFuture = f;
     _carregaMarcas(aba, f);
@@ -188,33 +202,64 @@ class _NaRotaScreenState extends State<NaRotaScreen>
       1 => const Color(0xFF1565C0),
       _ => const Color(0xFFE65100),
     };
-    final marcas = <Marker>{
-      Marker(
-        markerId: const MarkerId('centro'),
-        position: LatLng(widget.lat, widget.lng),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: InfoWindow(title: _cidade ?? widget.lugar),
-        zIndexInt: 2,
-      ),
-    };
+    final centro = Marker(
+      markerId: const MarkerId('centro'),
+      position: LatLng(widget.lat, widget.lng),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+      infoWindow: InfoWindow(title: _cidade ?? widget.lugar),
+      zIndexInt: 2,
+    );
+    final porLugar = <Object, Marker>{};
     for (var i = 0; i < l.length; i++) {
       final (nome, lat, lng, emoji, detalhe, abrir) = _infoDe(l[i]);
       final k = '$aba$emoji';
       _icones[k] ??= await emojiMarker(emoji, cor);
       if (!mounted || aba != _mapaAba) return;
-      marcas.add(Marker(
+      porLugar[l[i]] = Marker(
         markerId: MarkerId('p$i'),
         position: LatLng(lat, lng),
         icon: _icones[k]!,
         infoWindow: InfoWindow(
             title: nome, snippet: '$detalhe · ${tr('toque para opções')}', onTap: abrir),
-      ));
+      );
     }
     setState(() {
-      _marcas = marcas;
+      _marcaCentro = centro;
+      _marcasDe
+        ..clear()
+        ..addAll(porLugar);
       _itensMapa = l;
+      _montaMarcas();
     });
-    _enquadra();
+    if (_todos) _enquadra();
+  }
+
+  /// Marcadores à vista: referência + (todos ou só o escolhido).
+  void _montaMarcas() {
+    final c = _marcaCentro;
+    final esc = _escolhido == null ? null : _marcasDe[_escolhido];
+    _marcas = {
+      if (c != null) c,
+      if (_todos) ..._marcasDe.values else if (esc != null) esc,
+    };
+  }
+
+  /// Botão do mapa: todos os pontos <-> só o escolhido.
+  void _alternaTodos() {
+    setState(() {
+      _todos = !_todos;
+      _montaMarcas();
+    });
+    if (_todos) {
+      _enquadra();
+    } else {
+      final e = _escolhido;
+      if (e != null) {
+        _verNoMapa(_tabs.index, item: e);
+      } else {
+        _map?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(widget.lat, widget.lng), 12));
+      }
+    }
   }
 
   /// Nome, posição, emoji, detalhe e "abrir opções" de um lugar da lista.
@@ -255,6 +300,12 @@ class _NaRotaScreenState extends State<NaRotaScreen>
   /// Leva o mapa até um lugar da lista (na aba [aba]) e mostra o nome.
   Future<void> _verNoMapa(int aba, {Object? item}) async {
     if (_tabs.index != aba) _tabs.animateTo(aba);
+    if (item != null) {
+      setState(() {
+        _escolhido = item;
+        _montaMarcas();
+      });
+    }
     final m = _map;
     if (m == null || item == null) return;
     final (_, la, lo, _, _, _) = _infoDe(item);
@@ -266,7 +317,6 @@ class _NaRotaScreenState extends State<NaRotaScreen>
   @override
   Widget build(BuildContext context) {
     _sincronizaMapa();
-    final alto = MediaQuery.of(context).size.height;
     return Scaffold(
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -274,19 +324,13 @@ class _NaRotaScreenState extends State<NaRotaScreen>
           Text(_cidade ?? widget.lugar,
               style: Theme.of(context).textTheme.bodySmall, overflow: TextOverflow.ellipsis),
         ]),
-        actions: [
-          IconButton(
-            tooltip: _mapaGrande ? tr('Mapa menor') : tr('Mapa maior'),
-            icon: Icon(_mapaGrande ? Icons.unfold_less : Icons.map_outlined),
-            onPressed: () => setState(() => _mapaGrande = !_mapaGrande),
-          ),
-        ],
       ),
-      body: Column(children: [
+      body: LayoutBuilder(builder: (context, box) {
+        final area = box.maxHeight;
+        return Column(children: [
         // Mapa integrado: os lugares da aba aberta (como na definição de rota).
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          height: alto * (_mapaGrande ? 0.62 : 0.32),
+        SizedBox(
+          height: area * _fracMapa,
           child: Stack(children: [
             GoogleMap(
               initialCameraPosition:
@@ -294,7 +338,6 @@ class _NaRotaScreenState extends State<NaRotaScreen>
               markers: _marcas,
               onMapCreated: (c) {
                 _map = c;
-                Future.delayed(const Duration(milliseconds: 300), _enquadra);
               },
               myLocationButtonEnabled: false,
               mapToolbarEnabled: false,
@@ -307,28 +350,48 @@ class _NaRotaScreenState extends State<NaRotaScreen>
             Positioned(
               right: 8,
               bottom: 8,
-              child: FloatingActionButton.small(
+              child: FloatingActionButton.extended(
                 heroTag: 'naRotaTodos',
-                tooltip: tr('Ver todos'),
-                onPressed: _enquadra,
-                child: const Icon(Icons.zoom_out_map),
+                onPressed: _alternaTodos,
+                icon: Icon(_todos ? Icons.layers_clear : Icons.layers),
+                label: Text(_todos ? tr('Só o escolhido') : tr('Ver todos os pontos')),
               ),
             ),
           ]),
         ),
-        Material(
-          color: Theme.of(context).colorScheme.surface,
-          child: TabBar(controller: _tabs, tabs: [
-            Tab(icon: const Icon(Icons.photo_camera_outlined), text: tr('Turismo')),
-            Tab(icon: const Icon(Icons.hotel_outlined), text: tr('Hospedagem')),
-            Tab(icon: const Icon(Icons.local_gas_station_outlined), text: tr('Postos')),
-          ]),
+        // A lista se arrasta para cima e para baixo pela alça (e pela faixa
+        // das abas): o mapa cresce ou diminui.
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onVerticalDragUpdate: (d) => setState(() =>
+              _fracMapa = (_fracMapa + d.delta.dy / area).clamp(0.08, 0.82)),
+          child: Material(
+            color: Theme.of(context).colorScheme.surface,
+            elevation: 4,
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 2),
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                      color: Colors.grey, borderRadius: BorderRadius.circular(3)),
+                ),
+              ),
+              TabBar(controller: _tabs, tabs: [
+                Tab(icon: const Icon(Icons.photo_camera_outlined), text: tr('Turismo')),
+                Tab(icon: const Icon(Icons.hotel_outlined), text: tr('Hospedagem')),
+                Tab(icon: const Icon(Icons.local_gas_station_outlined), text: tr('Postos')),
+              ]),
+            ]),
+          ),
         ),
         Expanded(
           child: TabBarView(
               controller: _tabs, children: [_turismo(), _hospedagem(), _postosTab()]),
         ),
-      ]),
+      ]);
+      }),
     );
   }
 
