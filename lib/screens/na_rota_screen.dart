@@ -8,6 +8,8 @@
 //   Booking, Decolar, Hoteis.com...). Postos: famosos entre motociclistas
 //   primeiro, com o preço da ANP quando acha.
 // Quem usa: MapScreen (opções da parada) e PlanScreen (roteiro).
+// Ver no mapa: botão no topo (todos os lugares da aba) e em cada lugar
+//   (abre o mapa nele), como na comunidade (uaugo.com.br/viagem).
 // ============================================================================
 
 import 'package:flutter/material.dart';
@@ -18,6 +20,7 @@ import '../logic/costs.dart';
 import '../logic/na_rota.dart';
 import '../models/expedition.dart';
 import '../services/na_rota_service.dart';
+import '../widgets/pontos_mapa.dart';
 import '../widgets/safe_sheet.dart';
 
 /// Inclui um lugar como parada (nome, posição, tipo).
@@ -102,12 +105,106 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
       Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving'),
       mode: LaunchMode.externalApplication);
 
+  /// Esta tela na pilha: "Adicionar como parada" fecha as janelas e o
+  /// mapa dos pontos abertos por cima dela, e depois ela mesma.
+  ModalRoute<dynamic>? _rota;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _rota ??= ModalRoute.of(context);
+  }
+
   Future<void> _adicionar(String nome, double lat, double lng, StopType t) async {
     final add = widget.onAddStop;
     if (add == null) return;
-    Navigator.of(context).popUntil((r) => r is! PopupRoute);
+    final rota = _rota;
+    Navigator.of(context).popUntil((r) => rota == null ? r is! PopupRoute : r == rota);
     Navigator.of(context).pop();
     await add(nome, lat, lng, t);
+  }
+
+  /// Ver no mapa os lugares da aba [aba] (0 turismo, 1 hospedagem, 2 postos);
+  /// com [item], abre o mapa já nele.
+  Future<void> _verNoMapa(int aba, {Object? item}) async {
+    final List<PontoMapa> pontos;
+    var foco = -1;
+    final String titulo;
+    final Color cor;
+    switch (aba) {
+      case 0:
+        final l = await _atracoes.catchError((_) => <Atracao>[]);
+        titulo = tr('Turismo');
+        cor = const Color(0xFF7B1FA2);
+        foco = item is Atracao ? l.indexOf(item) : -1;
+        pontos = [
+          for (final a in l)
+            PontoMapa(
+              nome: a.nome,
+              lat: a.lat,
+              lng: a.lng,
+              emoji: a.emoji,
+              detalhe: [tr(a.tipoNome), _km(a.distM)].join(' · '),
+              onAbrir: () => _detalhesTurismo(a),
+            ),
+        ];
+      case 1:
+        final l = await (_hoteis ?? Future.value(const <Hotel>[]))
+            .catchError((_) => <Hotel>[]);
+        titulo = tr('Hospedagem');
+        cor = const Color(0xFF1565C0);
+        foco = item is Hotel ? l.indexOf(item) : -1;
+        pontos = [
+          for (final h in l)
+            PontoMapa(
+              nome: h.nome,
+              lat: h.lat,
+              lng: h.lng,
+              emoji: '🛏️',
+              detalhe: [
+                if (h.preco != null) formatMoney(h.preco!.toDouble()).replaceAll(',00', ''),
+                _km(h.distM),
+              ].join(' · '),
+              onAbrir: () => _opcoesHotel(h),
+            ),
+        ];
+      default:
+        final l = await _postos.catchError((_) => <PostoRota>[]);
+        titulo = tr('Postos');
+        cor = const Color(0xFFE65100);
+        foco = item is PostoRota ? l.indexOf(item) : -1;
+        pontos = [
+          for (final p in l)
+            PontoMapa(
+              nome: p.nome,
+              lat: p.lat,
+              lng: p.lng,
+              emoji: p.famoso ? '🏍️' : '⛽',
+              detalhe: [
+                if (p.preco?.gasolina != null) 'G ${_preco(p.preco!.gasolina!)}',
+                _km(p.distM),
+              ].join(' · '),
+              onAbrir: () => _opcoesPosto(p),
+            ),
+        ];
+    }
+    if (!mounted) return;
+    if (pontos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('Nada para mostrar no mapa ainda.'))));
+      return;
+    }
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PontosMapaScreen(
+        titulo: titulo,
+        pontos: pontos,
+        centroLat: widget.lat,
+        centroLng: widget.lng,
+        centroNome: _cidade ?? widget.lugar,
+        cor: cor,
+        foco: foco >= 0 ? foco : null,
+      ),
+    ));
   }
 
   @override
@@ -122,6 +219,16 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
             Text(_cidade ?? widget.lugar,
                 style: Theme.of(context).textTheme.bodySmall, overflow: TextOverflow.ellipsis),
           ]),
+          actions: [
+            // Todos os lugares da aba aberta no mapa (como na comunidade).
+            Builder(
+              builder: (c) => IconButton(
+                tooltip: tr('Ver no mapa'),
+                icon: const Icon(Icons.map_outlined),
+                onPressed: () => _verNoMapa(DefaultTabController.of(c).index),
+              ),
+            ),
+          ],
           bottom: TabBar(tabs: [
             Tab(icon: const Icon(Icons.photo_camera_outlined), text: tr('Turismo')),
             Tab(icon: const Icon(Icons.hotel_outlined), text: tr('Hospedagem')),
@@ -311,6 +418,14 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
                     label: Text(tr('Navegar')),
                     onPressed: () => _navegar(a.lat, a.lng),
                   ),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.place_outlined),
+                    label: Text(tr('Ver no mapa')),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _verNoMapa(0, item: a);
+                    },
+                  ),
                   if (a.site != null)
                     TextButton.icon(
                       icon: const Icon(Icons.public),
@@ -450,6 +565,14 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
                 _navegar(h.lat, h.lng);
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.place_outlined),
+              title: Text(tr('Ver no mapa')),
+              onTap: () {
+                Navigator.pop(ctx);
+                _verNoMapa(1, item: h);
+              },
+            ),
           ]),
         ),
       );
@@ -558,7 +681,11 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
               if (g != null) Text('G ${_preco(g)}', style: const TextStyle(fontWeight: FontWeight.bold)),
               if (e != null) Text('E ${_preco(e)}', style: Theme.of(context).textTheme.bodySmall),
             ]),
-      onTap: () => showSafeSheet(
+      onTap: () => _opcoesPosto(p),
+    );
+  }
+
+  void _opcoesPosto(PostoRota p) => showSafeSheet(
         context: context,
         builder: (ctx) => SafeArea(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -580,9 +707,15 @@ class _NaRotaScreenState extends State<NaRotaScreen> {
                 _navegar(p.lat, p.lng);
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.place_outlined),
+              title: Text(tr('Ver no mapa')),
+              onTap: () {
+                Navigator.pop(ctx);
+                _verNoMapa(2, item: p);
+              },
+            ),
           ]),
         ),
-      ),
-    );
-  }
+      );
 }
