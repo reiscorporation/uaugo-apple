@@ -11,8 +11,9 @@
 // ============================================================================
 
 import 'dart:async';
-import 'dart:io' show InternetAddress;
+import 'dart:io' show HttpClient;
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -809,8 +810,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// na tela; param em _pauseWork).
   void _startTimers() {
     _onlineTimer?.cancel();
+    // A cada 10 s: o aviso "sem conexão" aparece em 10-20 s e some na
+    // primeira resposta (antes 30 s, até 1 min para perceber).
     _onlineTimer =
-        Timer.periodic(const Duration(seconds: 30), (_) => _checkOnline());
+        Timer.periodic(const Duration(seconds: 10), (_) => _checkOnline());
     _checkOnline();
     _routeTrafficTimer?.cancel();
     _routeTrafficTimer =
@@ -3791,9 +3794,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Quanto mais afastado o zoom, mais à frente fica o centro.
         // Deitado a tela é baixa: centro menos à frente, senão o "Você"
         // ficava embaixo dos botões (bateria de testes em SP, 06/11).
-        target: _ahead(here.latitude, here.longitude, _bearing,
-            90 * pow(2, 18 - zoom).toDouble() *
-                (MediaQuery.of(context).orientation == Orientation.landscape ? 0.3 : 1)),
+        // A câmera mira o PRÓPRIO veículo; a margem de cima do mapa
+        // (_soloPadTop) o põe na parte de baixo da tela, vendo a estrada à
+        // frente. Antes o centro ia "à frente" do veículo e o ícone era um
+        // marcador do Google: os dois andavam separados e, rápido (5x),
+        // o ícone pulava e sumia atrás da barra (vídeos de 16/11).
+        target: here,
         zoom: zoom,
         tilt: 65,
         bearing: _bearing,
@@ -4926,6 +4932,39 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     });
   }
 
+  // ---- "Você" fixo na tela (vista solo seguindo o veículo)
+
+  Uint8List? _mePng;
+  String _mePngKey = '';
+
+  /// Altura da área do mapa (medida no build).
+  double _mapH = 0;
+
+  /// Desenho do "Você" (o mesmo do marcador), gerado uma vez por veículo.
+  void _ensureMePng() {
+    final key = '${widget.userName}|${_myBike.cacheKey}';
+    if (key == _mePngKey) return;
+    _mePngKey = key;
+    bikeMarkerPng(name: widget.userName, bike: _myBike, isMe: true).then((b) {
+      if (mounted && key == _mePngKey) setState(() => _mePng = b);
+    }).catchError((_) {});
+  }
+
+  /// Vista solo seguindo o veículo: o app desenha o "Você".
+  bool get _meDrawnByApp =>
+      _follow && _view == _MapView.solo && _mePng != null && _me != null;
+
+  /// Margem de cima do mapa na vista solo: o ponto seguido pela câmera
+  /// (o veículo) fica a ~60% da altura do mapa, vendo à frente e acima da
+  /// barra de baixo (na simulação a barra é mais alta: 56%; com 68% o
+  /// ícone ficava atrás dela — teste no Galaxy, 16/11).
+  double _soloPadTop(double h, double bottom) {
+    if (_view != _MapView.solo || h <= 0) return 0;
+    final f = _sim != null ? 0.56 : 0.60;
+    // centro da área com margem = padTop + (h - padTop - bottom) / 2 = f*h
+    return max(0.0, 2 * f * h - h + bottom);
+  }
+
   Set<Marker> _buildMarkers() {
     final sig = Object.hashAll([
       identityHashCode(_stops),
@@ -4951,6 +4990,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     final me = _me;
     if (me == null) return _staticMarkers;
+    _ensureMePng();
+    // Vista solo seguindo: o "Você" é desenhado pelo app, fixo no ponto
+    // que a câmera segue (não sai de sincronia com o mapa).
+    if (_meDrawnByApp) return _staticMarkers;
     final icon = _bikeIcon(widget.userName, _myBike, isMe: true);
     return {
       ..._staticMarkers,
@@ -5141,7 +5184,34 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// curto do ícone até ela acompanha o deslize do ícone).
   List<Polyline> _routePolylines() {
     final head = _routeHead;
+    // Sem internet o mapa do Google pode ficar sem as ruas (fundo branco).
+    // Desenhamos a ESTRADA da rota embaixo da linha azul (a rota inteira,
+    // inclusive o trecho já passado): a moto segue "na estrada" mesmo sem o
+    // desenho do Google. É um desenho nosso, como a linha azul (16/11).
+    final road = !_online3d && _route.length >= 2;
     return [
+      if (road) ...[
+        Polyline(
+          polylineId: const PolylineId('offline_road_edge'),
+          points: _route,
+          width: 26,
+          color: const Color(0xFF4A505A),
+          zIndex: 0,
+          jointType: JointType.round,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
+        ),
+        Polyline(
+          polylineId: const PolylineId('offline_road'),
+          points: _route,
+          width: 21,
+          color: const Color(0xFF7D8590),
+          zIndex: 0,
+          jointType: JointType.round,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
+        ),
+      ],
       ..._routeBody(),
       if (head.length >= 2) ...[
         Polyline(
@@ -5420,7 +5490,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       body: Stack(children: [
         // Arrastar, girar ou dar zoom com os dedos pausa o acompanhamento
         // (aparece o botão "Recentralizar"). Um toque simples não pausa.
-        Listener(
+        LayoutBuilder(builder: (context, box) {
+          _mapH = box.maxHeight;
+          return Listener(
           onPointerDown: (e) => _touchStart = e.position,
           onPointerMove: (e) {
             final s = _touchStart;
@@ -5437,6 +5509,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           zoomControlsEnabled: false,
           mapToolbarEnabled: false,
           compassEnabled: false, // o sentido do mapa tem botão próprio
+          // Sem internet o Google mostra pedaços de mapa velhos/quebrados.
+          // Tiramos o desenho do Google (fundo limpo) e fica só a estrada
+          // da rota, desenhada pelo app (_routePolylines). Volta sozinho
+          // quando a internet volta.
+          mapType: _online3d ? MapType.normal : MapType.none,
           // Trânsito do Google: vias em verde/laranja/vermelho (sem custo).
           // Na economia de bateria, sem trânsito e sem prédios 3D (menos
           // trabalho para o processador gráfico).
@@ -5449,6 +5526,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           style: _darkMap ? darkMapStyle : lightMapStyle,
           // Mantém o logo do Google acima da barra de navegação.
           padding: EdgeInsets.only(
+              top: _soloPadTop(_mapH, MediaQuery.of(context).viewPadding.bottom),
               bottom: MediaQuery.of(context).viewPadding.bottom),
           markers: _buildMarkers(),
           polylines: _buildPolylines(),
@@ -5471,7 +5549,30 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             if ((c.bearing - _mapBearing.value).abs() > 0.5) _mapBearing.value = c.bearing;
           },
         ),
-        ),
+        );
+        }),
+
+        // "Você" fixo no ponto que a câmera segue (vista solo): o mesmo
+        // desenho do marcador, sem atraso entre ícone e mapa.
+        if (_meDrawnByApp)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: LayoutBuilder(builder: (context, box) {
+                final bottom = MediaQuery.of(context).viewPadding.bottom;
+                final top = _soloPadTop(box.maxHeight, bottom);
+                final cy = top + (box.maxHeight - top - bottom) / 2;
+                return Stack(children: [
+                  Positioned(
+                    left: box.maxWidth / 2 - bikeMarkerSize.width * bikeMarkerAnchor.dx,
+                    top: cy - bikeMarkerSize.height * bikeMarkerAnchor.dy,
+                    width: bikeMarkerSize.width,
+                    height: bikeMarkerSize.height,
+                    child: Image.memory(_mePng!, gaplessPlayback: true),
+                  ),
+                ]);
+              }),
+            ),
+          ),
 
         // v2: estrada em 3D por cima do mapa (os avisos e botões ficam por cima).
         // Com a economia de memória marcada e o carro conectado: 3D só no
@@ -5509,6 +5610,29 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           left: landscape ? 140 : 8,
           right: landscape ? 120 : 8,
           child: Column(key: _kTopBanners, mainAxisSize: MainAxisSize.min, children: [
+            // Sem internet: selo pequeno (o mapa do Google sai e fica a
+            // estrada desenhada da rota). Não recebe toque; some sozinho.
+            if (!_online3d)
+              IgnorePointer(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(10, 5, 12, 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xE60F1B2D),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0x66FF7A1A)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.cloud_off_rounded, color: Color(0xFFFF7A1A), size: 16),
+                      const SizedBox(width: 6),
+                      Text(tr('Sem internet'),
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                ),
+              ),
             // SOS com localização em tempo real ligado: faixa fixa com
             // "Estou bem" (antes só dava para parar reabrindo o SOS).
             ValueListenableBuilder<String?>(
@@ -6832,11 +6956,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   Future<void> _checkOnline() async {
     var ok = false;
+    // Pedido de verdade (resposta 204 vazia): só o nome (DNS) o celular
+    // responde do próprio cache mesmo sem internet.
+    final c = HttpClient()..connectionTimeout = const Duration(seconds: 4);
     try {
-      final r = await InternetAddress.lookup('firebasestorage.googleapis.com')
+      final req = await c
+          .headUrl(Uri.parse('https://clients3.google.com/generate_204'))
           .timeout(const Duration(seconds: 4));
-      ok = r.isNotEmpty;
-    } catch (_) {}
+      final res = await req.close().timeout(const Duration(seconds: 4));
+      ok = res.statusCode == 204 || res.statusCode == 200;
+      await res.drain<void>();
+    } catch (_) {
+    } finally {
+      c.close(force: true);
+    }
     if (!mounted) return;
     _offlineChecks = ok ? 0 : _offlineChecks + 1;
     final on = ok || _offlineChecks < 2;

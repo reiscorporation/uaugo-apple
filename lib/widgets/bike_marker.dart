@@ -54,6 +54,19 @@ Future<BitmapDescriptor> bikeMarker({
   required String name,
   required BikeProfile bike,
   bool isMe = false,
+}) async =>
+    BitmapDescriptor.bytes(await bikeMarkerPng(name: name, bike: bike, isMe: isMe),
+        width: bikeMarkerSize.width, height: bikeMarkerSize.height);
+
+/// Tamanho do marcador do piloto no mapa (pontos lógicos).
+const bikeMarkerSize = Size(80, 80 * _h / _w);
+
+/// O mesmo desenho de [bikeMarker] em PNG: o "Você" fixo na tela (vista
+/// solo), desenhado pelo app em vez de marcador do Google.
+Future<Uint8List> bikeMarkerPng({
+  required String name,
+  required BikeProfile bike,
+  bool isMe = false,
 }) async {
   final rec = ui.PictureRecorder();
   final c = Canvas(rec);
@@ -97,8 +110,7 @@ Future<BitmapDescriptor> bikeMarker({
 
   final img = await rec.endRecording().toImage(_w.toInt(), _h.toInt());
   final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
-  return BitmapDescriptor.bytes(bytes!.buffer.asUint8List(),
-      width: 80, height: 80 * _h / _w);
+  return bytes!.buffer.asUint8List();
 }
 
 /// Só o círculo do veículo (foto ou ícone), em PNG: é o mesmo desenho do

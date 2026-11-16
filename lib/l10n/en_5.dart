@@ -1,5 +1,6 @@
 // Traduções para o inglês, parte 5 (chave = texto em português).
 const en5 = <String, String>{
+  'Sem internet': 'No internet',
   'Valor não informado': 'Price not informed',
   'carro {0}': 'car {0}',
   '🛣️ Pedágio: {0}. O valor está certo?': '🛣️ Toll: {0}. Is the price right?',
