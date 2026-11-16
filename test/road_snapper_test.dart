@@ -251,4 +251,97 @@ void main() {
       expect(d.along, closeTo(2000.0 * i, 2000.0 * i * 0.002 + 0.5));
     }
   });
+
+  test('aparelho que manda velocidade 0 andando: mede pelo deslocamento', () {
+    final w = straight();
+    final s = RoadSnapper()..route = w;
+    double? prev;
+    for (var i = 0; i < 20; i++) {
+      final d = s.update(fix(100.0 + 15 * i, 0, i, speed: 0, heading: -1, acc: 4));
+      if (prev != null && i > 2) {
+        expect(d.along! - prev, closeTo(15, 4), reason: 'andou aos trancos');
+      }
+      prev = d.along;
+    }
+  });
+
+  test('aparelho sem direção (manda 0): não confunde com "norte"', () {
+    // Indo para o leste com heading 0 e precisão 0 (sem o dado).
+    final w = straight();
+    final s = RoadSnapper()..route = w;
+    for (var i = 0; i < 20; i++) {
+      final d = s.update(fix(100.0 + 15 * i, 0, i, speed: 15, heading: 0));
+      expect(d.source, PositionSource.mapMatching, reason: 'leitura $i');
+      if (i > 2) expect(angleDiff(d.bearing, 90), lessThan(1));
+    }
+  });
+
+  test('D2. túnel com leituras absurdas (2 km dali): ignora e segue estimando', () {
+    // Caso real do Galaxy: no túnel chegaram leituras de outro lugar.
+    final w = straight();
+    final s = RoadSnapper()..route = w;
+    for (var i = 0; i < 10; i++) {
+      s.update(fix(100.0 + 20 * i, 0, i));
+    }
+    for (var k = 12; k <= 30; k++) {
+      s.tick(sec(k));
+      if (k % 4 == 0) {
+        // leitura "de casa", 2 km ao norte, sem velocidade
+        final d = s.update(fix(3000, 2000, k + 0.5, acc: 16, speed: 0, heading: -1));
+        expect(d.source, PositionSource.deadReckoning, reason: 'pulou para a leitura absurda');
+      }
+    }
+    // Andou estimado ~20 m/s durante o túnel (não parou por causa delas).
+    expect(s.display!.along!, closeTo(280 + 20 * 21.0, 40));
+    // GPS volta onde o veículo realmente está: sem salto.
+    final before = s.display!.along!;
+    final d = s.update(fix(280 + 20 * 22.0, 2, 31));
+    expect(d.source, PositionSource.mapMatching);
+    expect((d.along! - before).abs(), lessThan(45));
+  });
+
+  test('leituras longe e coerentes (GPS religou em outro lugar): aceita depois de 60 s', () {
+    final s = RoadSnapper();
+    s.update(fix(0, 0, 0, speed: 0));
+    DisplayPosition? d;
+    // Antes de 60 s: continua onde estava.
+    for (var i = 10; i <= 50; i += 10) {
+      d = s.update(fix(5000 + i * 0.1, 0, i, speed: 0, acc: 8));
+      expect(distanceMeters(d.lat, d.lng, at(0, 0).$1, at(0, 0).$2), lessThan(1));
+    }
+    // Depois de 60 s sem leitura confiável: aceita o lugar novo.
+    for (var i = 61; i <= 64; i++) {
+      d = s.update(fix(5000 + i * 0.1, 0, i, speed: 0, acc: 8));
+    }
+    expect(distanceMeters(d!.lat, d.lng, at(5006, 0).$1, at(5006, 0).$2), lessThan(15));
+  });
+
+  test('reprodução do Galaxy: sem velocidade, túnel de 25 s com leituras de casa, saída', () {
+    // Igual à fase 3 do teste no aparelho (16/11): 12 m/s, GPS sem
+    // velocidade nem direção, 25 s sem leitura com 2 leituras a 2 km dali.
+    final w = straight();
+    final s = RoadSnapper()..route = w;
+    for (var i = 0; i < 20; i++) {
+      s.update(fix(100.0 + 12 * i, 0, i, speed: 0, heading: 0));
+    }
+    expect(s.speed, closeTo(12, 1.5));
+    final entry = s.display!.along!;
+    for (var k = 20; k < 45; k++) {
+      s.tick(sec(k));
+      if (k == 28 || k == 37) {
+        s.update(fix(3000, 2000, k + 0.3, acc: 16, speed: 0, heading: 0));
+      }
+    }
+    final d0 = s.display!;
+    expect(d0.source, PositionSource.deadReckoning);
+    expect(d0.along! - entry, closeTo(12 * 25.0, 40), reason: 'não andou no túnel');
+    // Saída: leituras boas de novo.
+    DisplayPosition? d;
+    for (var i = 45; i < 60; i++) {
+      d = s.update(fix(100.0 + 12 * i, 2, i, speed: 0, heading: 0));
+      expect(d.source, isNot(PositionSource.gps), reason: 'saiu da rota $i');
+    }
+    expect(d!.source, PositionSource.mapMatching);
+    expect((d.along! - (100.0 + 12 * 59)).abs(), lessThan(15));
+  });
 }

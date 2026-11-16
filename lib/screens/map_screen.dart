@@ -4773,12 +4773,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
         exact: _sim != null);
     _logShownSource(d);
+    // Diagnóstico A × B (só UauGo2/depuração, logcat local): leitura bruta,
+    // precisão, distância da leitura até a rota e onde o ícone foi
+    // desenhado. Leitura longe da rota = problema A (GPS); leitura em cima
+    // da rota e ícone fora da linha na tela = problema B (renderização).
+    if (kDebugMode) {
+      final pr = _proj;
+      debugPrint('UauGoDiag raw=${p.latitude.toStringAsFixed(6)},'
+          '${p.longitude.toStringAsFixed(6)} acc=${p.accuracy.toStringAsFixed(1)}'
+          ' v=${p.speed.toStringAsFixed(1)} hdg=${p.heading.toStringAsFixed(0)}'
+          ' rawOffRoute=${pr == null || !pr.offset.isFinite ? '-' : pr.offset.toStringAsFixed(1)}'
+          ' shown=${d.lat.toStringAsFixed(6)},${d.lng.toStringAsFixed(6)}'
+          ' src=${d.source.name} along=${d.along?.toStringAsFixed(0) ?? '-'}');
+    }
     _drTimer ??= Timer.periodic(const Duration(seconds: 1), (_) => _onDrTick());
   }
 
   /// Sem leitura do GPS há 2,5 s (túnel, sinal perdido): o ícone e a câmera
   /// seguem pela última velocidade, na rota, por até 60 s.
   void _onDrTick() {
+    if (kDebugMode) _logScreenAlignment();
     final me = _me;
     if (!mounted || _inBackground || _sim != null || me == null) return;
     final d = _snapper.tick(DateTime.now());
@@ -4786,6 +4800,36 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _logShownSource(d);
     _glideMeTo(_shownPoint(me));
     _updateCamera(me);
+  }
+
+  /// Diagnóstico B (só depuração): onde o mapa põe, NA TELA, o ícone e o
+  /// começo da linha da rota que deveria encostar nele. Se as coordenadas
+  /// de tela diferem com as coordenadas geográficas iguais, é desenho.
+  int _alignLogN = 0;
+  Future<void> _logScreenAlignment() async {
+    if (++_alignLogN % 3 != 0) return;
+    final map = _map, shown = _shownMe;
+    if (map == null || shown == null || _inBackground) return;
+    final head = _routeHead;
+    try {
+      // As duas juntas (a câmera anda a cada 50 ms).
+      final got = await Future.wait([
+        map.getScreenCoordinate(shown),
+        if (head.isNotEmpty) map.getScreenCoordinate(head.first),
+      ]);
+      final ps = got.first, hs = got.length > 1 ? got[1] : null;
+      final gap = head.isEmpty
+          ? '-'
+          : distanceMeters(shown.latitude, shown.longitude,
+                  head.first.latitude, head.first.longitude)
+              .toStringAsFixed(1);
+      final cam = _camShown;
+      debugPrint('UauGoScreen icon=${ps.x},${ps.y} headStart='
+          '${hs == null ? '-' : '${hs.x},${hs.y}'} gapGeo=${gap}m '
+          'zoom=${cam?.zoom.toStringAsFixed(1)} tilt=${cam?.tilt.toStringAsFixed(0)} '
+          'brg=${cam?.bearing.toStringAsFixed(0)} '
+          'dpr=${MediaQuery.of(context).devicePixelRatio}');
+    } catch (_) {}
   }
 
   /// Registro da origem da posição desenhada (só no UauGo2/depuração).

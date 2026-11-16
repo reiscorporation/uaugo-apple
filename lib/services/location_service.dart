@@ -49,6 +49,8 @@ class LocationService {
   /// [economical] (com [background]): GPS econômico (15 s). False = modo
   /// carro (Android Auto): o celular fica bloqueado, mas a navegação segue
   /// com a precisão normal.
+  static const _mockGps = bool.fromEnvironment('MOCK_GPS');
+
   static Stream<Position> track({
     bool saving = false,
     bool background = false,
@@ -65,6 +67,10 @@ class LocationService {
       settings = AndroidSettings(
         accuracy: accuracy,
         distanceFilter: 0,
+        // Só em compilação de teste com --dart-define=MOCK_GPS=true: lê o
+        // GPS do Android direto, para aceitar posições falsas do adb
+        // (o serviço do Google ignora). Nunca vale na versão da Play.
+        forceLocationManager: kDebugMode && _mockGps,
         intervalDuration: interval,
         foregroundNotificationConfig: background
             ? ForegroundNotificationConfig(

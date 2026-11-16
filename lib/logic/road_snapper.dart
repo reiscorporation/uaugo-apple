@@ -114,6 +114,10 @@ class RoadSnapper {
   /// disso o trecho é de outro sentido (retorno, alça, pista contrária).
   static const maxHeadingDiff = 70.0;
 
+  /// Leituras impossíveis seguidas (e coerentes entre si) para aceitar,
+  /// depois de [maxDeadReckoning] sem leitura confiável.
+  static const outlierAccept = 3;
+
   /// Fração do erro corrigida a cada leitura (correção gradual).
   static const correctionRate = 0.35;
 
@@ -128,6 +132,8 @@ class RoadSnapper {
   double _speed = 0;
   double? _bearing;
   int _misses = 0;
+  final _outliers = <GpsFix>[];
+  final _history = <GpsFix>[];
 
   /// Metros andados por estimativa desde a última posição confirmada: a
   /// incerteza cresce com eles (ao voltar do túnel aceita um erro maior).
@@ -166,12 +172,47 @@ class RoadSnapper {
   /// direto, sem correção gradual (a simulação acelerada anda km por segundo).
   DisplayPosition update(GpsFix f, {DateTime? now, bool exact = false}) {
     final t = now ?? f.time;
+    _raw = f; // a leitura original fica guardada sempre, mesmo ignorada
+    // Leitura impossível para a velocidade e o tempo desde a última posição
+    // (ex.: no túnel o Android entregou leituras a 2 km dali, teste no
+    // Galaxy em 16/11): ignorada — nem posição, nem velocidade, nem
+    // direção. O relógio (tick) segue estimando. Só aceita se vierem
+    // [outlierAccept] seguidas e coerentes entre si e a estimativa já tiver
+    // vencido (GPS religou longe).
+    final shown = _display, lastOk = _lastFixAt;
+    if (!exact && shown != null && lastOk != null) {
+      // Desde a última leitura ACEITA (não desde a última estimativa): no
+      // túnel a estimativa se renova a cada segundo e, comparando com ela,
+      // as leituras boas da saída eram rejeitadas (Galaxy, 16/11).
+      final secs =
+          (t.difference(lastOk).inMilliseconds / 1000).clamp(0.0, 120.0);
+      final far = distanceMeters(shown.lat, shown.lng, f.lat, f.lng);
+      final plausible = max(150.0, (_speed + 20) * secs * 1.5) +
+          2 * f.accuracy +
+          _drMeters;
+      if (far > plausible) {
+        final last = _outliers.isEmpty ? null : _outliers.last;
+        if (last != null &&
+            distanceMeters(last.lat, last.lng, f.lat, f.lng) > 100 + 2 * f.accuracy) {
+          _outliers.clear();
+        }
+        _outliers.add(f);
+        // Leituras erradas no túnel também são coerentes entre si (o mesmo
+        // lugar errado): só aceita o "lugar novo" depois que a estimativa
+        // venceu (60 s sem leitura confiável).
+        final lastGood = _lastFixAt;
+        final stale = lastGood == null ||
+            t.difference(lastGood) > maxDeadReckoning;
+        if (_outliers.length < outlierAccept || !stale) return shown;
+        _history.clear(); // não mede velocidade pelo salto
+      }
+      _outliers.clear();
+    }
     final lastAt = _lastFixAt;
     final dtFix = lastAt == null
         ? 1.0
         : (t.difference(lastAt).inMilliseconds / 1000).clamp(0.05, 60.0);
     _lastFixAt = t;
-    _raw = f;
     _updateSpeed(f, dtFix);
     _updateBearing(f);
 
@@ -193,9 +234,11 @@ class RoadSnapper {
           lat: prev.lat,
           lng: prev.lng,
           bearing: prev.bearing,
-          source: prev.source == PositionSource.deadReckoning
-              ? PositionSource.gps
-              : prev.source,
+          source: prev.source != PositionSource.deadReckoning
+              ? prev.source
+              : prev.along != null
+                  ? PositionSource.mapMatching
+                  : PositionSource.gps,
           along: prev.along,
           time: t);
     }
@@ -277,25 +320,45 @@ class RoadSnapper {
 
   // ------------------------------------------------------------ partes
 
+  /// Velocidade: a do GPS; se o aparelho manda 0 ou nada (vários Android
+  /// mandam 0 quando não têm o dado), mede pelo deslocamento das leituras
+  /// boas dos últimos 2 a 6 s (em 1 s o erro do GPS é do tamanho do
+  /// movimento; em vários segundos, não). Sem isso o veículo andando com
+  /// "velocidade 0" ficava parado no túnel (Galaxy, 16/11).
   void _updateSpeed(GpsFix f, double dt) {
-    if (f.speed >= 0 && f.speed.isFinite) {
-      _speed = f.speed;
-      return;
+    final good = f.accuracy <= goodAccuracy;
+    if (good) {
+      _history.add(f);
+      _history.removeWhere((h) => f.time.difference(h.time).inSeconds > 6);
     }
-    // Aparelho sem velocidade: pela distância entre leituras boas.
-    final a = _courseAnchor;
-    if (a != null && f.accuracy <= goodAccuracy && a.accuracy <= goodAccuracy) {
-      final secs = f.time.difference(a.time).inMilliseconds / 1000;
-      if (secs > 0.5) {
-        _speed = distanceMeters(a.lat, a.lng, f.lat, f.lng) / secs;
+    double? measured;
+    if (good) {
+      for (final h in _history) {
+        final secs = f.time.difference(h.time).inMilliseconds / 1000;
+        if (secs < 2) break;
+        final moved = distanceMeters(h.lat, h.lng, f.lat, f.lng);
+        measured = moved > max(8.0, 2 * f.accuracy) ? moved / secs : 0;
+        break; // a mais antiga da janela
       }
     }
+    if (f.speed > 0 && f.speed.isFinite) {
+      _speed = f.speed;
+    } else if (measured != null) {
+      _speed = measured;
+    }
+    // Sem nenhum dos dois (pouco histórico, leitura ruim): mantém a última
+    // estimativa; zerar aqui parava o veículo na saída do túnel.
   }
 
   /// Direção do veículo (11.4): do GPS quando confiável; senão pelo
   /// deslocamento entre leituras; a bússola nunca entra.
   void _updateBearing(GpsFix f) {
-    final reliableGps = f.heading >= 0 &&
+    // Direção 0 com precisão 0 = o aparelho NÃO informou (o Android manda
+    // 0 quando não tem o dado). Tratar como "norte" fazia rejeitar a rua
+    // por sentido errado (teste no Galaxy, 16/11).
+    final noHeading = f.heading == 0 && f.headingAccuracy <= 0;
+    final reliableGps = !noHeading &&
+        f.heading >= 0 &&
         _speed >= headingSpeed &&
         (f.headingAccuracy <= 0 || f.headingAccuracy <= 35);
     if (reliableGps) {
@@ -318,7 +381,7 @@ class RoadSnapper {
 
   /// Simulação: posição exata, encaixa direto.
   DisplayPosition _exactFix(GpsFix f, RouteWalker? w, DateTime t) {
-    final h = f.heading >= 0 ? f.heading : _bearing;
+    final h = f.heading > 0 || f.headingAccuracy > 0 ? f.heading : _bearing;
     if (w != null && w.points.length >= 2) {
       final pr = w.project(f.lat, f.lng,
           around: _display?.along, heading: h);
