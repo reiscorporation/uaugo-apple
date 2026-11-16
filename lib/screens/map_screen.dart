@@ -736,6 +736,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _onlineTimer?.cancel();
     _routeTrafficTimer?.cancel();
     CarService.instance.connected.removeListener(_onCarConnected);
+    _askTollTimer?.cancel();
     _blinkTimer?.cancel();
     MediaService.instance.stop();
     _glideTimer?.cancel();
@@ -2223,6 +2224,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _askIfPassed(Position p) {
     if (_sim != null || AuthService.isAnonymous) return;
     _askRadarIfPassed(p);
+    _askTollIfPassed(p);
     for (final h in _activeHazards) {
       if (h.createdBy == widget.uid ||
           h.permanent || // já validado (3 confirmações, Gold ou administrador)
@@ -2326,6 +2328,93 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         return;
       }
     }
+  }
+
+  // ---- Pedágio no carro: "O valor está certo?" (Sim / Não)
+  // No carro não dá para digitar valor andando (o Android Auto bloqueia o
+  // teclado). Sim confirma na hora; Não guarda a praça e o celular abre a
+  // correção quando a viagem termina ou o carro desconecta parado (16/11).
+  final _tollNear = <String>{};
+  final _tollAsked = <String>{};
+  final _tollsToFix = <String, TollPlaza>{};
+  TollPlaza? _askToll;
+  Timer? _askTollTimer;
+
+  void _askTollIfPassed(Position p) {
+    if (!CarService.instance.connected.value || !_navigating) return;
+    if (_askHazard != null || _askRadar != null || _askToll != null) return;
+    for (final t in _tollsSeen.values) {
+      // Sem valor na tabela não há o que confirmar (fica para a chegada).
+      if (t.car == null || _tollAsked.contains(t.key)) continue;
+      var d = double.infinity;
+      for (final (a, b) in t.pts) {
+        d = min(d, distanceMeters(p.latitude, p.longitude, a, b));
+      }
+      if (d <= 150) {
+        _tollNear.add(t.key);
+        continue;
+      }
+      if (!_tollNear.contains(t.key) || d < 300) continue;
+      // Passou pela praça e já está a 300 m dela.
+      _tollAsked.add(t.key);
+      _tollNear.remove(t.key);
+      _askToll = t;
+      final moto = t.motoValue;
+      final money = [
+        tr('carro {0}', [formatMoney(t.car!)]),
+        if (moto == 0) tr('moto isenta') else if (moto != null) tr('moto {0}', [formatMoney(moto)]),
+      ].join(' · ');
+      HapticFeedback.mediumImpact();
+      _voice.alert(tr('Você passou pelo pedágio. O valor está certo? Responda na tela do carro.'));
+      CarService.instance.ask(
+          tr('Pedágio: {0}', [money]),
+          t.name.isEmpty
+              ? tr('O valor está certo?')
+              : tr('{0}. O valor está certo?', [t.name]),
+          yes: 'toll:yes',
+          no: 'toll:no',
+          yesLabel: tr('Sim, está certo'),
+          noLabel: tr('Não, corrijo depois'));
+      // Sem resposta em 25 s a pergunta some (nada é registrado).
+      _askTollTimer?.cancel();
+      _askTollTimer = Timer(const Duration(seconds: 25), () {
+        if (!identical(_askToll, t)) return;
+        _askToll = null;
+        CarService.instance.closeAsk();
+      });
+      return;
+    }
+  }
+
+  /// Resposta do carro à pergunta do pedágio.
+  Future<void> _answerTollFromCar(bool ok) async {
+    final t = _askToll;
+    if (t == null) return; // toque repetido ou pergunta já fechada
+    _askTollTimer?.cancel();
+    _askToll = null;
+    if (!ok) {
+      _tollsToFix[t.key] = t;
+      CarService.instance.toast(tr('Certo! Corrija o valor no celular quando parar.'));
+      return;
+    }
+    try {
+      await TollService.instance.report(t.key, car: t.car, moto: t.motoValue);
+      final prefs = await SharedPreferences.getInstance();
+      final sent = (prefs.getStringList('tollReported') ?? []).toSet()..add(t.key);
+      await prefs.setStringList('tollReported', sent.toList());
+      CarService.instance.toast(tr('Confirmado. Obrigado!'));
+    } catch (_) {
+      _tollsToFix[t.key] = t; // confere no celular depois
+      CarService.instance.toast(tr('Não foi possível enviar agora. Confira no celular depois.'));
+    }
+  }
+
+  /// Praças marcadas "Não" no carro: abre a correção no celular (parado).
+  Future<void> _fixPendingTolls() async {
+    if (_tollsToFix.isEmpty || !mounted) return;
+    final list = _tollsToFix.values.toList();
+    _tollsToFix.clear();
+    await TollConfirmSheet.show(context, list);
   }
 
   /// "O radar existe?" na tela do carro (lista: não existe / limite).
@@ -7688,6 +7777,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       });
     }
     setState(() {}); // o 3D do celular sai/volta com o carro
+    // Carro desconectou parado: corrige os pedágios marcados "Não".
+    if (!CarService.instance.connected.value && _tollsToFix.isNotEmpty && _speedMs < 2) {
+      _fixPendingTolls();
+    }
     // Carro conectou/desconectou: GPS no serviço (segue com o celular
     // bloqueado) ou volta ao normal, mesmo com o app fora da tela.
     if (_sim == null && _bgGps != _keepGpsInBackground) {
@@ -7794,6 +7887,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         });
         _sendHazardsToCar();
         CarService.instance.toast(tr('Alerta removido'));
+      case 'hazard:yes' || 'hazard:no':
+        // Resposta no carro a "Ainda está lá?".
+        final h = _askHazard;
+        if (h == null) return;
+        _askTimer?.cancel();
+        setState(() => _askHazard = null);
+        final still = a == 'hazard:yes';
+        _voteHazard(h, still);
+        CarService.instance.toast(still ? tr('Confirmado. Obrigado!') : tr('Obrigado! Vou avisar que não está mais.'));
+      // Pedágio: "O valor está certo?" no carro.
+      case 'toll:yes' || 'toll:no':
+        await _answerTollFromCar(a == 'toll:yes');
       // Alertas do carro: sem conta ou na simulação nada é enviado (avisa
       // em vez de dizer "enviado").
       case 'radar' || 'hazard' when _sim != null:
@@ -7849,15 +7954,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         });
         await _voice.stop();
         CarService.instance.clearNavigation();
-      case 'hazard:yes' || 'hazard:no':
-        // Resposta no carro a "Ainda está lá?".
-        final h = _askHazard;
-        if (h == null) return;
-        _askTimer?.cancel();
-        setState(() => _askHazard = null);
-        final still = a == 'hazard:yes';
-        _voteHazard(h, still);
-        CarService.instance.toast(still ? tr('Confirmado. Obrigado!') : tr('Obrigado! Vou avisar que não está mais.'));
       case 'resume:yes':
         if (!_askingResume) return; // toque repetido na mesma pergunta
         _askingResume = false;
@@ -8036,11 +8132,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (_isExpedition) {
       _voice.alert(tr('Você chegou ao destino: {0}. Navegação encerrada.', [spokenPlace(s.name)]));
       _snack(tr('🏁 Chegada! A navegação foi encerrada; você continua no comboio.'));
+      await _fixPendingTolls();
       return;
     }
     _voice.alert(tr('Você chegou ao destino: {0}. Viagem encerrada.', [spokenPlace(s.name)]));
     await _saveRecord();
     _stopGps();
+    if (!mounted) return;
+    await _fixPendingTolls();
     if (!mounted) return;
     var autoClose = true;
     BuildContext? dialogCtx;
@@ -8112,6 +8211,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (ok != true || !mounted) return;
     if (_helpTarget != null) _endHelp();
     await _voice.stop();
+    await _fixPendingTolls();
     if (!mounted) return;
     if (_isExpedition) {
       setState(() {

@@ -1,5 +1,13 @@
 // Traduções para o inglês, parte 5 (chave = texto em português).
 const en5 = <String, String>{
+  'Você passou pelo pedágio. O valor está certo? Responda na tela do carro.': 'You passed the toll. Is the price right? Answer on the car screen.',
+  'Pedágio: {0}': 'Toll: {0}',
+  'O valor está certo?': 'Is the price right?',
+  '{0}. O valor está certo?': '{0}. Is the price right?',
+  'Sim, está certo': 'Yes, it is right',
+  'Não, corrijo depois': 'No, I will fix it later',
+  'Certo! Corrija o valor no celular quando parar.': 'OK! Fix the price on your phone when you stop.',
+  'Não foi possível enviar agora. Confira no celular depois.': 'Could not send now. Check it on your phone later.',
   'Sem internet': 'No internet',
   'Valor não informado': 'Price not informed',
   'carro {0}': 'car {0}',
