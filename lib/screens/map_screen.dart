@@ -3659,6 +3659,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         lugar: name,
         aba: tab,
         onAddStop: _canAddSoloStop ? _insertSoloStop : null,
+        rota: _route,
       ),
     ));
   }

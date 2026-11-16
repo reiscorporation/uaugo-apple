@@ -47,6 +47,9 @@ class NaRotaScreen extends StatefulWidget {
   /// Noite da hospedagem (pernoite planejado); sem ela, hoje.
   final DateTime? noite;
 
+  /// Rota traçada (se houver): aparece no mapa, como na navegação.
+  final List<LatLng> rota;
+
   /// Sem [onAddStop], não mostra "Adicionar como parada".
   final AddStop? onAddStop;
 
@@ -58,6 +61,7 @@ class NaRotaScreen extends StatefulWidget {
     this.aba = 0,
     this.noite,
     this.onAddStop,
+    this.rota = const [],
   });
 
   @override
@@ -336,6 +340,23 @@ class _NaRotaScreenState extends State<NaRotaScreen>
               initialCameraPosition:
                   CameraPosition(target: LatLng(widget.lat, widget.lng), zoom: 11),
               markers: _marcas,
+              // Rota traçada (azul com borda, igual à do mapa principal).
+              polylines: widget.rota.length < 2
+                  ? const {}
+                  : {
+                      Polyline(
+                          polylineId: const PolylineId('rota_borda'),
+                          points: widget.rota,
+                          width: 8,
+                          color: const Color(0xFF0D47A1),
+                          zIndex: 1),
+                      Polyline(
+                          polylineId: const PolylineId('rota'),
+                          points: widget.rota,
+                          width: 5,
+                          color: const Color(0xFF1A73E8),
+                          zIndex: 2),
+                    },
               onMapCreated: (c) {
                 _map = c;
               },

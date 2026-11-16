@@ -605,6 +605,7 @@ class _PlanScreenState extends State<PlanScreen> {
         onDelete: () => _remove(s),
         onNavigate: () => _navigate(s),
         onAddStop: (name, lat, lng, type) => _addAfter(s, name, lat, lng, type),
+        rota: decodePolyline(_plan.polyline),
       ),
     );
   }
@@ -1250,6 +1251,7 @@ class _StopEditor extends StatefulWidget {
     required this.onDelete,
     required this.onNavigate,
     this.onAddStop,
+    this.rota = const [],
   });
 
   final Stop stop;
@@ -1261,6 +1263,9 @@ class _StopEditor extends StatefulWidget {
 
   /// "Adicionar como parada" no turismo/hospedagem/postos desta parada.
   final AddStop? onAddStop;
+
+  /// Rota da expedição, para o mapa do turismo/hospedagem/postos.
+  final List<LatLng> rota;
 
   @override
   State<_StopEditor> createState() => _StopEditorState();
@@ -1375,6 +1380,7 @@ class _StopEditorState extends State<_StopEditor> {
                     lugar: widget.stop.name,
                     aba: widget.stop.type == StopType.overnight ? 1 : 0,
                     onAddStop: widget.onAddStop,
+                    rota: widget.rota,
                   ),
                 )),
               ),

@@ -969,6 +969,9 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                               lat: d.lat,
                               lng: d.lng,
                               lugar: d.name,
+                              rota: _trip == null
+                                  ? const []
+                                  : decodePolyline(_trip!.plan.polyline),
                               // Atração/posto/hotel vira parada antes do destino (09/11).
                               onAddStop: _points.length >= 12
                                   ? null
