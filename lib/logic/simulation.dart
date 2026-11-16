@@ -24,6 +24,10 @@ class RouteWalker {
 
   double get length => _cum.isEmpty ? 0 : _cum.last;
 
+  /// Distância acumulada do início até cada ponto (mesmo tamanho de
+  /// [points]); usada pelo RoadSnapper para olhar só os trechos perto.
+  List<double> get cumulative => _cum;
+
   /// Distância acumulada do início até cada ponto do traçado.
   static List<double> _cumulative(List<(double, double)> pts) {
     final out = <double>[];

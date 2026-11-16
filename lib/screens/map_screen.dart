@@ -63,6 +63,7 @@ import '../logic/itinerary.dart' show formatDistance, formatDuration, formatTime
 import '../logic/navigation.dart';
 import '../logic/radars.dart';
 import '../logic/pois.dart';
+import '../logic/road_snapper.dart';
 import '../logic/simulation.dart';
 import '../logic/track.dart';
 import '../logic/weather.dart';
@@ -410,6 +411,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   RoadLimit? _roadLimit;
   double _speedMs = 0; // velocidade usada no velocímetro e nos alertas
   final _gpsGate = GpsGate();
+
+  /// Posição de EXIBIÇÃO do veículo (road snapping). [_me] continua sendo a
+  /// leitura original do GPS; esta só decide onde desenhar o ícone e o
+  /// sentido da câmera (requisito 11).
+  final _snapper = RoadSnapper();
+
+  /// Relógio de 1 s: sem GPS (túnel), o ícone segue estimado.
+  Timer? _drTimer;
+  PositionSource? _lastShownSource;
   Position? _prevPos;
   Position? _limitsCheckedAt;
   Position? _radarMarkersAt;
@@ -728,6 +738,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _blinkTimer?.cancel();
     MediaService.instance.stop();
     _glideTimer?.cancel();
+    _drTimer?.cancel();
     for (final s in [..._subs, ..._fireSubs]) {
       s.cancel();
     }
@@ -954,6 +965,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Simulação também: o rumo dela é exato e separa as duas pistas de
         // um retorno na mesma avenida.
         heading: p.speed > 3 && p.heading >= 0 ? p.heading : null);
+    _feedSnapper(p);
     if (_inBackground) {
       _me = p;
     } else {
@@ -3735,12 +3747,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           from.latitude, from.longitude, p.latitude, p.longitude);
       _bearingFrom = p;
     }
-    // Em cima da rota: direção da própria via (não "dança" com o erro do
-    // GPS, que piora sem internet).
-    final w0 = _walker, pr0 = _proj;
-    final snapped = (_navigating || _sim != null) && w0 != null && pr0 != null &&
-        pr0.offset <= 25 && !_offRoute;
-    if (snapped && _speedMs > 1.5) _bearing = w0.at(pr0.along).bearing;
+    // Sentido do road snapping: na rota, o da própria via; fora dela, o do
+    // GPS quando confiável ou o do deslocamento. Nunca a bússola. Parado,
+    // mantém o último (não gira sozinho).
+    final shown = _snapper.display;
+    if (shown != null && _snapper.speed > 1.5) _bearing = shown.bearing;
     if (_map == null || (!_follow && !force)) return;
     final here = _shownPoint(p);
 
@@ -4744,17 +4755,59 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return (v * secs).clamp(0.0, 40.0).toDouble();
   }
 
-  /// Onde desenhar o "Você": navegando e a até 25 m da rota, EM CIMA da
-  /// rota (o GPS do celular erra 10–30 m; sem internet, mais), já adiantado
-  /// pelo tempo do deslize. Longe da rota (saiu dela), a posição do GPS.
+  /// Passa a leitura ao road snapping. Só navegando (ou simulando) e
+  /// dentro da rota a geometria da rota entra; fora dela, ou sem navegação,
+  /// a exibição é a leitura do GPS filtrada (sem pulos nem deriva parado).
+  void _feedSnapper(Position p) {
+    _snapper.route =
+        (_navigating || _sim != null) && !_offRoute ? _walker : null;
+    final d = _snapper.update(
+        GpsFix(
+          lat: p.latitude,
+          lng: p.longitude,
+          accuracy: p.accuracy,
+          speed: p.speed,
+          heading: p.heading,
+          headingAccuracy: p.headingAccuracy,
+          time: DateTime.now(),
+        ),
+        exact: _sim != null);
+    _logShownSource(d);
+    _drTimer ??= Timer.periodic(const Duration(seconds: 1), (_) => _onDrTick());
+  }
+
+  /// Sem leitura do GPS há 2,5 s (túnel, sinal perdido): o ícone e a câmera
+  /// seguem pela última velocidade, na rota, por até 60 s.
+  void _onDrTick() {
+    final me = _me;
+    if (!mounted || _inBackground || _sim != null || me == null) return;
+    final d = _snapper.tick(DateTime.now());
+    if (d == null) return;
+    _logShownSource(d);
+    _glideMeTo(_shownPoint(me));
+    _updateCamera(me);
+  }
+
+  /// Registro da origem da posição desenhada (só no UauGo2/depuração).
+  void _logShownSource(DisplayPosition d) {
+    if (!kDebugMode || d.source == _lastShownSource) return;
+    _lastShownSource = d.source;
+    debugPrint('UauGoPos: exibindo por ${d.source.name}'
+        ' (GPS ±${_snapper.raw?.accuracy.round()} m)');
+  }
+
+  /// Onde desenhar o "Você": a posição de exibição do road snapping
+  /// (RoadSnapper), já adiantada pelo tempo do deslize. Sobre a rota, anda
+  /// pela própria linha da rota; fora dela, na direção do veículo.
   LatLng _shownPoint(Position p) {
-    final w = _walker, pr = _proj;
-    if ((_navigating || _sim != null) && w != null && pr != null &&
-        pr.offset <= 25 && !_offRoute) {
-      final q = w.at(pr.along + _lead);
+    final d = _snapper.display;
+    if (d == null) return _ahead(p.latitude, p.longitude, _bearing, _lead);
+    final w = _walker, along = d.along;
+    if (along != null && w != null && identical(_snapper.route, w)) {
+      final q = w.at(along + _lead);
       return LatLng(q.lat, q.lng);
     }
-    return _ahead(p.latitude, p.longitude, _bearing, _lead);
+    return _ahead(d.lat, d.lng, d.bearing, _lead);
   }
 
   void _glideMeTo(LatLng to) {
