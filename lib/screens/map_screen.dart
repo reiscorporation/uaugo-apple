@@ -3922,14 +3922,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // O aparelho mede a velocidade e diz que está parado: vale zero.
       raw = 0;
     } else {
-      final dt =
-          p.timestamp.difference(prev.timestamp).inMilliseconds / 1000.0;
-      final moved =
-          distanceMeters(prev.latitude, prev.longitude, p.latitude, p.longitude);
-      // Deslocamento menor que o erro do GPS = tremor, não movimento.
-      raw = dt >= 0.5 && dt <= 10 && moved > max(8.0, p.accuracy)
-          ? moved / dt
-          : 0;
+      // Sem velocidade do aparelho: a do road snapping, medida em 2 a 6 s
+      // só com leituras boas e zerada em saltos (pelo deslocamento de uma
+      // leitura para a outra aparecia 1252 km/h quando a posição pulava de
+      // casa para o lugar certo — painel do carro, 16/11).
+      raw = _snapper.speed;
     }
     // Abaixo de ~3 km/h mostra 0; acima, suaviza um pouco os saltos.
     _speedMs = raw < 0.8 ? 0 : (_speedMs < 0.8 ? raw : _speedMs * 0.3 + raw * 0.7);
@@ -7449,15 +7446,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Na rota: o carro mostra o veículo EM CIMA da rota (como o celular).
     // O GPS cru com sinal ruim deixava o ícone ao lado da estrada no carro,
     // fora da linha azul (foto do testador na SP-305, 14/11).
+    // Posição e sentido do road snapping: valem com o celular em segundo
+    // plano (no carro o celular fica na tela "use a tela do carro" e o
+    // sentido da câmera do celular não mudava: o carro andava "de
+    // ponta-cabeça", com o norte fixo para cima — painel, 16/11).
+    final shown = _snapper.display;
     final pr = _proj;
-    final onRoute = (_navigating || _sim != null) && w != null && pr != null &&
-        !_offRoute && pr.offset <= 50;
-    final at = onRoute ? w.at(pr.along) : null;
+    final snapAlong =
+        shown != null && w != null && identical(_snapper.route, w) ? shown.along : null;
+    final onRoute = (_navigating || _sim != null) && w != null && !_offRoute &&
+        (snapAlong != null || (pr != null && pr.offset <= 50));
+    final at = !onRoute ? null : w.at(snapAlong ?? pr!.along);
     CarService.instance.update(
       convoy: _isExpedition && _view == _MapView.convoy,
-      lat: at?.lat ?? p.latitude,
-      lng: at?.lng ?? p.longitude,
-      bearing: _bearing,
+      lat: at?.lat ?? shown?.lat ?? p.latitude,
+      lng: at?.lng ?? shown?.lng ?? p.longitude,
+      // Parado, o road snapping mantém o último sentido (não volta ao norte).
+      bearing: shown?.bearing ?? _bearing,
       speedKmh: (_speedMs * 3.6).round(),
       limitKmh: _roadLimit?.kmh ?? 0,
       text: turn?.step.text,

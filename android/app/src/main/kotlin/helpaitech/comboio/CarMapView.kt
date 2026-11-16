@@ -367,6 +367,11 @@ class CarMapView(private val context: Context) {
                 stylePlaces = CarState.placeNames
             }
             applyPadding()
+            // Sem posição ainda: Brasil inteiro, não o ponto 0,0 (Golfo da
+            // Guiné aparecia na tela do carro nos primeiros segundos).
+            if (!CarState.hasPosition) {
+                g.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(-15.78, -47.93), 3.5f + MAP_ZOOM_FIX))
+            }
             update()
         }
         presentation = p
@@ -686,7 +691,7 @@ class CarMapView(private val context: Context) {
         android.util.Log.d("UauGoCarPos", "src=${if (fromDart) "celular" else "gps-carro"} " +
             "onRoute=${CarState.onRoute} snapped=$snapped desvio=${Math.hypot(dx, dy).toInt()}m " +
             "rota=${CarState.route.size}pts area=$visible mapaDesenha=${onMap?.x},${onMap?.y} icone=$icon inicioLinha=${lineStart?.x},${lineStart?.y} " +
-            "mapView=${mapView?.width}x${mapView?.height}")
+            "mapView=${mapView?.width}x${mapView?.height} sentido=${CarState.bearing.toInt()} camera=${shownBearing.toInt()}")
     }
 
     /** Área estreita (tela dividida do Android Auto): o velocímetro, o
