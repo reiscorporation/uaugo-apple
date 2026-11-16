@@ -2887,6 +2887,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _calcRouteCost(_routeRecs, t.distanceM);
     }
     _walker = _routeRecs.length >= 2 ? RouteWalker(_routeRecs) : null;
+    // Teste no aparelho (só depuração): o traçado da rota para o GPS falso
+    // percorrer exatamente a rota do app.
+    if (kDebugMode && _routeRecs.length >= 2) {
+      debugPrint('UauGoRoute ${[for (final (la, lo) in _routeRecs) '${la.toStringAsFixed(6)},${lo.toStringAsFixed(6)}'].join(';')}');
+    }
     _loadChargers(poly);
     // Rota nova: o trânsito da antiga não vale mais.
     _setTrafficRuns(const []);
@@ -4824,7 +4829,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   head.first.latitude, head.first.longitude)
               .toStringAsFixed(1);
       final cam = _camShown;
-      debugPrint('UauGoScreen icon=${ps.x},${ps.y} headStart='
+      final vis = _visibleRoute;
+      final trim = vis.isEmpty
+          ? '-'
+          : distanceMeters(shown.latitude, shown.longitude,
+                  vis.first.latitude, vis.first.longitude)
+              .toStringAsFixed(0);
+      final wDbg = _walker, saDbg = _shownAlong;
+      final iconAlong = wDbg?.project(shown.latitude, shown.longitude).along;
+      final firstAlong = vis.isEmpty || wDbg == null
+          ? null
+          : wDbg.project(vis.first.latitude, vis.first.longitude).along;
+      debugPrint('UauGoTrim sa=${saDbg?.toStringAsFixed(0)} icone=${iconAlong?.toStringAsFixed(0)} '
+          'inicioLinha=${firstAlong?.toStringAsFixed(0)} pontos=${vis.length} rotaTotal=${_route.length}');
+      debugPrint('UauGoScreen trim=${_shownAlong == null ? 'off' : 'on'} '
+          'icone->inicioDaRotaLonga=${trim}m icon=${ps.x},${ps.y} headStart='
           '${hs == null ? '-' : '${hs.x},${hs.y}'} gapGeo=${gap}m '
           'zoom=${cam?.zoom.toStringAsFixed(1)} tilt=${cam?.tilt.toStringAsFixed(0)} '
           'brg=${cam?.bearing.toStringAsFixed(0)} '
@@ -4984,16 +5003,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// navegação. O ícone anda adiantado e deslizando entre as leituras do GPS;
   /// a rota some junto com ele (14/11: a rota sumia atrasada, atrás do ícone).
   double? get _shownAlong {
-    final w = _walker, pr = _proj, me = _shownMe;
-    if ((!_navigating && _sim == null) || w == null || pr == null ||
-        pr.offset > 60 || _offRoute) {
-      return null;
-    }
-    if (me == null) return pr.along;
+    final w = _walker;
+    if ((!_navigating && _sim == null) || w == null || _offRoute) return null;
+    // Com o veículo encaixado na rota (road snapping), a rota some junto com
+    // ele mesmo que a leitura do GPS esteja longe da linha (antes dependia
+    // só da leitura: GPS a mais de 60 m e a rota parava de sumir).
+    final d = _snapper.display;
+    final snappedAlong =
+        d != null && identical(_snapper.route, w) ? d.along : null;
+    final pr = _proj;
+    if (snappedAlong == null && (pr == null || pr.offset > 60)) return null;
+    final base = snappedAlong ?? pr!.along;
+    final me = _shownMe;
+    if (me == null) return base;
     if (identical(me, _shownAlongFor)) return _shownAlongValue;
-    final q = w.project(me.latitude, me.longitude, around: pr.along + _lead);
+    final q = w.project(me.latitude, me.longitude, around: base + _lead);
     _shownAlongFor = me;
-    return _shownAlongValue = q.offset <= 30 ? q.along : pr.along;
+    return _shownAlongValue = q.offset <= 30 ? q.along : base;
   }
 
   LatLng? _shownAlongFor;

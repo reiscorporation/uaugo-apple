@@ -344,4 +344,43 @@ void main() {
     expect(d!.source, PositionSource.mapMatching);
     expect((d.along! - (100.0 + 12 * 59)).abs(), lessThan(15));
   });
+
+  test('uma leitura isolada não gira o mapa; virada confirmada gira', () {
+    final s = RoadSnapper(); // sem rota: sentido pelo deslocamento
+    for (var i = 0; i < 6; i++) {
+      s.update(fix(15.0 * i, 0, i, speed: 15, heading: 90));
+    }
+    // 1 leitura com rumo 0 (para o norte): o mapa não gira
+    var d = s.update(fix(90, 0, 6, speed: 15, heading: 0, acc: 5).copyHeading(0, 5));
+    expect(angleDiff(d.bearing, 90), lessThan(1));
+    // volta ao leste: segue 90
+    d = s.update(fix(105, 0, 7, speed: 15, heading: 90));
+    expect(angleDiff(d.bearing, 90), lessThan(1));
+    // virada de verdade para o norte: confirma na 2ª leitura
+    s.update(fix(105, 15, 8, speed: 15, heading: 0).copyHeading(0, 5));
+    d = s.update(fix(105, 30, 9, speed: 15, heading: 0).copyHeading(0, 5));
+    expect(angleDiff(d.bearing, 0), lessThan(1));
+  });
+
+  test('fora da rota sem confiança: sentido do veículo, não o da rota', () {
+    // Rota vira para o norte em 500 m; o veículo segue reto para o leste.
+    final w = RouteWalker([at(0, 0), at(500, 0), at(500, 2000)]);
+    final s = RoadSnapper()..route = w;
+    for (var i = 0; i < 40; i++) {
+      final d = s.update(fix(100.0 + 12 * i, 0, i, speed: 12, heading: 90));
+      expect(angleDiff(d.bearing, 90), lessThan(15), reason: 'girou para a rota em $i');
+    }
+  });
+}
+
+extension on GpsFix {
+  /// Mesma leitura com rumo informado e precisão do rumo.
+  GpsFix copyHeading(double h, double acc) => GpsFix(
+      lat: lat,
+      lng: lng,
+      time: time,
+      accuracy: accuracy,
+      speed: speed,
+      heading: h,
+      headingAccuracy: acc);
 }

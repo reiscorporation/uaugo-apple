@@ -171,6 +171,39 @@ class RoadSnapper {
   /// Nova leitura do GPS. [exact]: posição sem erro (simulação): encaixa
   /// direto, sem correção gradual (a simulação acelerada anda km por segundo).
   DisplayPosition update(GpsFix f, {DateTime? now, bool exact = false}) {
+    final before = _display;
+    final d = _updateRaw(f, now: now, exact: exact);
+    if (exact || identical(d, before)) return d;
+    return _display = _withStableBearing(d, before);
+  }
+
+  /// Virada grande (> 60°) do sentido exibido só vale confirmada por duas
+  /// leituras seguidas: uma leitura isolada girava o mapa 90° e o piloto
+  /// ficava desorientado na vista "solo" (teste no Galaxy, 16/11).
+  double? _pendingBearing;
+  DisplayPosition _withStableBearing(DisplayPosition d, DisplayPosition? prev) {
+    if (prev == null) return d;
+    final b = d.bearing;
+    if (angleDiff(b, prev.bearing) <= 60) {
+      _pendingBearing = null;
+      return d;
+    }
+    final pend = _pendingBearing;
+    if (pend != null && angleDiff(pend, b) <= 30) {
+      _pendingBearing = null;
+      return d;
+    }
+    _pendingBearing = b;
+    return DisplayPosition(
+        lat: d.lat,
+        lng: d.lng,
+        bearing: prev.bearing,
+        source: d.source,
+        along: d.along,
+        time: d.time);
+  }
+
+  DisplayPosition _updateRaw(GpsFix f, {DateTime? now, bool exact = false}) {
     final t = now ?? f.time;
     _raw = f; // a leitura original fica guardada sempre, mesmo ignorada
     // Leitura impossível para a velocidade e o tempo desde a última posição
@@ -272,10 +305,13 @@ class RoadSnapper {
             : prevAlong;
         _drMeters += along - prevAlong;
         final q = w.at(along);
+        // Sem confiança na rota: o sentido é o do veículo (se conhecido),
+        // não o da rota — a rota podia virar para outro lado e girar o mapa.
+        final own = _speed >= stillSpeed ? _bearing : null;
         return _display = DisplayPosition(
             lat: q.lat,
             lng: q.lng,
-            bearing: q.bearing,
+            bearing: own ?? q.bearing,
             source: PositionSource.deadReckoning,
             along: along,
             time: t);
@@ -287,6 +323,13 @@ class RoadSnapper {
   /// Relógio (1 s): sem leitura há [gpsSilence], estima a posição pela
   /// última velocidade e direção (D). Devolve null quando não mudou nada.
   DisplayPosition? tick(DateTime now) {
+    final before = _display;
+    final r = _tickRaw(now);
+    if (r == null) return null;
+    return _display = _withStableBearing(r, before);
+  }
+
+  DisplayPosition? _tickRaw(DateTime now) {
     final d = _display, last = _lastFixAt;
     if (d == null || last == null) return null;
     final silence = now.difference(last);
