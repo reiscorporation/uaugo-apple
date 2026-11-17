@@ -5564,10 +5564,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Navegando: a próxima manobra e a chegada ficam numa faixa logo
         // abaixo do título (pedido de 08/11: antes a manobra era uma faixa
         // verde separada, por cima do mapa).
+        // Deitado e navegando (17/11): uma faixa só, com a manobra e a
+        // chegada; o nome do destino fica no toque (resumo da viagem).
         toolbarHeight: _turnInfo() != null
-            ? (landscape ? 44 : 48)
+            ? (landscape ? 52 : 48)
             : (landscape || _justDriving ? 52 : 90),
-        bottom: _turnInfo() == null
+        bottom: _turnInfo() == null || landscape
             ? null
             : PreferredSize(
                 preferredSize: Size.fromHeight(landscape ? 50 : 92),
@@ -5581,7 +5583,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 ),
               ),
         // Toque no título: resumo da viagem (tempo, km, custo).
-        title: GestureDetector(
+        title: landscape && _turnInfo() != null
+            ? GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _showTripSummary,
+                child: _turnTitle(landscape),
+              )
+            : GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: _showTripSummary,
           child: Column(
@@ -6284,7 +6292,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           // largura): a coluna usa a altura toda (com 196 ela encolhia até
           // os botões ficarem minúsculos, 13/11).
           bottom: _sim != null && !landscape ? 196 : 24,
-          child: _landscapeFit(landscape, Alignment.bottomRight, Column(key: _kRightCol, mainAxisSize: MainAxisSize.min, children: [
+          child: _rightColumn(landscape, Column(key: _kRightCol, mainAxisSize: MainAxisSize.min, children: [
             if (_clubId != null) ...[
               FloatingActionButton(
                 heroTag: 'club',
@@ -8034,6 +8042,54 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Deitado: a coluna encolhe para caber na altura (em pé, sem mudança).
+  /// Coluna de botões da direita. Deitado (17/11): em vez de espremer a
+  /// coluna inteira até caber (os botões ficavam minúsculos), os botões
+  /// mantêm o tamanho e abrem uma 2ª coluna à esquerda quando não cabem; o
+  /// SOS (último) fica no canto de baixo à direita.
+  Widget _rightColumn(bool landscape, Column col) {
+    if (!landscape) return col;
+    // Tira só os espaços entre botões (SizedBox vazio); botão também pode
+    // ser um SizedBox (com filho).
+    final items = col.children.where((w) => !(w is SizedBox && w.child == null)).toList();
+    const gap = 10.0;
+    return LayoutBuilder(
+      key: col.key,
+      builder: (_, c) {
+        // Quantos cabem numa coluna (botão de 52; o SOS é maior, conta 2).
+        final fit = c.maxHeight.isFinite ? ((c.maxHeight + gap) / (52 + gap)).floor() - 1 : items.length;
+        final n = fit.clamp(1, items.length);
+        final right = items.sublist(items.length - n);
+        final left = items.sublist(0, items.length - n);
+        // A coluna extra fica no alto (embaixo, à esquerda do SOS, ficam a
+        // câmera e o alerta); a da direita, embaixo, termina no SOS.
+        Widget column(List<Widget> ws, MainAxisAlignment align) => Column(
+              mainAxisAlignment: align,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                for (var i = 0; i < ws.length; i++) ...[
+                  if (i > 0) const SizedBox(height: gap),
+                  ws[i],
+                ],
+              ],
+            );
+        return SizedBox(
+          height: c.maxHeight.isFinite ? c.maxHeight : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (left.isNotEmpty) ...[
+                column(left, MainAxisAlignment.start),
+                const SizedBox(width: gap),
+              ],
+              column(right, MainAxisAlignment.end),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _landscapeFit(bool landscape, Alignment alignment, Widget child) =>
       landscape
           ? FittedBox(fit: BoxFit.scaleDown, alignment: alignment, child: child)
@@ -8304,9 +8360,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     required VoidCallback? onPressed,
     required Widget child,
   }) {
-    if (!_show3d) {
+    final landscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    if (!_show3d && !landscape) {
       return FloatingActionButton.small(
           heroTag: heroTag, tooltip: tooltip, onPressed: onPressed, child: child);
+    }
+    if (!_show3d) {
+      // Deitado: tamanho de dedo (o pequeno de 40 ficava difícil de acertar).
+      return SizedBox(
+        width: 52,
+        height: 52,
+        child: FloatingActionButton(
+            heroTag: heroTag, tooltip: tooltip, onPressed: onPressed, child: child),
+      );
     }
     return SizedBox(
       width: 64,
