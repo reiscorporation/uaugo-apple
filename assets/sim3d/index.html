@@ -113,6 +113,11 @@
      manobra como no Android Auto */
   body.carlike:not(.car) #hud { display: flex !important; }
   body.carlike #next, body.carlike #eta { display: flex; }
+  /* celular deitado: a manobra fica no alto, no lugar do balão de texto,
+     que some (17/11: embaixo ficava apertado) */
+  body.carlike #say { display: none !important; }
+  body.carlike #eta { padding-left: 24px; padding-right: 18px; }
+  body.carlike #eta .k { letter-spacing: 0.06em; }
   /* celular em pé: sem a chegada (fica no topo do app) */
   @media (max-width: 560px) {
     #eta { display: none; }
@@ -1635,13 +1640,23 @@ window.sim3d = {
     if (c && gap >= 110) {
       eta.style.position = 'fixed';
       eta.style.left = (c.sr + 8) + 'px'; eta.style.bottom = c.bb + 'px';
-      eta.style.width = Math.min(150, gap) + 'px';
+      // Celular: letra maior que no carro, "CHEGADA" cortava com 150 (17/11).
+      eta.style.width = Math.min(CAR ? 150 : 190, gap) + 'px';
       nx.style.position = 'fixed';
-      nx.style.left = c.bl + 'px'; nx.style.bottom = (c.bt + 6) + 'px';
-      nx.style.width = c.bw + 'px'; nx.style.maxWidth = 'none';
+      if (!CAR) {
+        // Celular deitado: no alto, ao lado do minimapa (no lugar do balão).
+        const lx = Math.round((parseFloat(mini.style.left) || 10) + miniSize().d + 12);
+        nx.style.left = lx + 'px'; nx.style.bottom = '';
+        nx.style.top = Math.max(10, (d.t || 0) + 8) + 'px';
+        nx.style.width = Math.max(220, innerWidth - lx - 16) + 'px'; nx.style.maxWidth = 'none';
+      } else {
+        nx.style.top = '';
+        nx.style.left = c.bl + 'px'; nx.style.bottom = (c.bt + 6) + 'px';
+        nx.style.width = c.bw + 'px'; nx.style.maxWidth = 'none';
+      }
     } else {
       for (const e of [eta, nx]) {
-        e.style.position = e.style.left = e.style.bottom = e.style.width = e.style.maxWidth = '';
+        e.style.position = e.style.left = e.style.bottom = e.style.top = e.style.width = e.style.maxWidth = '';
       }
     }
     const w = innerWidth - d.l - d.r;
