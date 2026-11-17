@@ -1,5 +1,7 @@
 // Traduções para o inglês, parte 5 (chave = texto em português).
 const en5 = <String, String>{
+  'Continuar a simulação?': 'Continue the simulation?',
+  'A simulação para {0} ficou aberta.': 'The simulation to {0} was left open.',
   'Você passou pelo pedágio. O valor está certo? Responda na tela do carro.': 'You passed the toll. Is the price right? Answer on the car screen.',
   'Pedágio: {0}': 'Toll: {0}',
   'O valor está certo?': 'Is the price right?',

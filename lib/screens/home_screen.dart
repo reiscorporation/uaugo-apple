@@ -87,6 +87,34 @@ class _HomeScreenState extends State<HomeScreen> {
       final t = await ActiveTrip.load();
       _busy = false;
       if (!mounted) return;
+      // Simulação que ficou aberta (app fechado pela atualização da Play,
+      // arrastado ou fechado pelo Android): pergunta antes. Antes voltava
+      // direto e o app "abria no modo simulação" (16/11).
+      if (t != null && ActiveTrip.simAt != null) {
+        final again = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(tr('Continuar a simulação?')),
+            content: Text(tr('A simulação para {0} ficou aberta.', [t.title])),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(tr('Não'))),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: Text(tr('Continuar'))),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        if (again != true) {
+          ActiveTrip.simAt = null;
+          await ActiveTrip.clear();
+          _onShared();
+          _onCar();
+          return;
+        }
+      }
       if (t != null) {
         MinimizedTrip.trip.value = t;
         await _resumeTrip();
