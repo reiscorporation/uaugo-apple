@@ -172,6 +172,11 @@ class _TollConfirmSheetState extends State<TollConfirmSheet> {
                   Text(_values(list[i]).$1 == null
                       ? tr('Valor não informado')
                       : '${tr('carro {0}', [formatMoney(_values(list[i]).$1!)])} · ${_moto(list[i])}'),
+                  if (tollCardNote(list[i]) case final c when c.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text('💳 $c', style: Theme.of(context).textTheme.bodySmall),
+                    ),
                   // "Corrigir" fica sempre disponível, mesmo em valor já
                   // confirmado ou já informado por você: se alguém errou,
                   // dá para consertar.

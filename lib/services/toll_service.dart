@@ -14,6 +14,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -60,6 +61,13 @@ class TollService {
 
   Future<TollTable?> _load() async {
     try {
+      // Cartão aceito por praça (estaduais); as federais seguem a ANTT.
+      try {
+        final j = jsonDecode(await rootBundle.loadString('assets/data/pedagio_cartao.json'));
+        TollCards.byKey = ((j as Map)['k'] as Map).cast<String, String>();
+      } catch (e) {
+        debugPrint('Cartão nos pedágios: $e');
+      }
       final dir = await getApplicationSupportDirectory();
       final cache = File('${dir.path}/$_file');
       if (await cache.exists()) {

@@ -41,6 +41,9 @@ class TollPlaza {
   String get key =>
       '${pts.first.$1.toStringAsFixed(5)},${pts.first.$2.toStringAsFixed(5)}';
 
+  /// Cartão na cabine (null = não se sabe: o app não mostra nada).
+  TollCard? get card => TollCards.of(this);
+
   /// Todo valor pode ser confirmado/corrigido pelo piloto (até o da ANTT,
   /// que às vezes está defasado); vale com 2 pilotos ou a administração.
   bool get editable => true;
@@ -67,6 +70,77 @@ class TollPlaza {
             : (st == 'e' ? TollSource.estimated : TollSource.official),
         name: (names[key] as String?) ?? '');
   }
+}
+
+/// Cartão aceito na cabine manual.
+enum TollCard {
+  /// Débito e crédito.
+  debitCredit,
+
+  /// Só débito.
+  debitOnly,
+}
+
+/// Quais praças aceitam cartão (pedido de 15/11: mostrar débito/crédito).
+///
+/// - Rodovias federais (valor da ANTT): débito e crédito são obrigatórios
+///   desde a Decisão SUROD/ANTT nº 633, de 13/06/2025 (dinheiro, débito,
+///   crédito, Pix e TAG em todas as praças).
+/// - Estaduais: assets/data/pedagio_cartao.json, praça a praça, montado
+///   pela operadora das cabines no OpenStreetMap e pela lista da ARTESP/
+///   concessionárias (scripts/pedagio-cartao.py).
+/// Sem informação: não mostra nada (melhor que chutar).
+class TollCards {
+  TollCards._();
+
+  /// Chave da praça -> 'cd' (débito e crédito) ou 'd' (só débito).
+  static Map<String, String> byKey = const {};
+
+  static TollCard? of(TollPlaza p) {
+    switch (byKey[p.key]) {
+      case 'cd':
+        return TollCard.debitCredit;
+      case 'd':
+        return TollCard.debitOnly;
+    }
+    if (p.source == TollSource.official && p.car != null) return TollCard.debitCredit;
+    return null;
+  }
+}
+
+/// Frase curta do cartão ('' = não se sabe).
+String tollCardNote(TollPlaza? p) => switch (p?.card) {
+      TollCard.debitCredit => tr('Aceita cartão de débito e crédito'),
+      TollCard.debitOnly => tr('Aceita só cartão de débito'),
+      null => '',
+    };
+
+/// Resumo do cartão nas praças da rota ('' = nenhuma informação).
+String tollCardsSummary(List<TollPlaza> list) {
+  if (list.isEmpty) return '';
+  var cd = 0, d = 0;
+  for (final p in list) {
+    switch (p.card) {
+      case TollCard.debitCredit:
+        cd++;
+      case TollCard.debitOnly:
+        d++;
+      case null:
+    }
+  }
+  final n = list.length, unknown = n - cd - d;
+  if (cd + d == 0) return '';
+  if (cd == n) {
+    return n == 1
+        ? tr('💳 A praça aceita cartão de débito e crédito.')
+        : tr('💳 Todas as {0} praças aceitam cartão de débito e crédito.', [n]);
+  }
+  final parts = [
+    if (cd > 0) tr('{0} débito e crédito', [cd]),
+    if (d > 0) tr('{0} só débito', [d]),
+    if (unknown > 0) tr('{0} sem informação', [unknown]),
+  ];
+  return tr('💳 Cartão nas praças: {0}.', [parts.join(' · ')]);
 }
 
 /// Origem do valor de uma praça.

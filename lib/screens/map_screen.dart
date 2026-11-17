@@ -1633,15 +1633,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _tollsSeen[plaza.key] = plaza;
         if (_sim != null) _offerTollCheck(plaza);
       }
-      final note = tollPlazaNote(plaza, _myBike, formatMoney);
+      final price = tollPlazaNote(plaza, _myBike, formatMoney);
+      // Cartão (débito/crédito), quando se sabe (pedido de 15/11).
+      final card = tollCardNote(plaza);
+      final note = [price, card].where((s) => s.isNotEmpty).join(' · ');
       final pt = plaza.pts.first;
       if (kDebugMode) debugPrint('Aviso praça: ${plaza.name} key=${plaza.key} "$note"');
       _announceRadar(
         kind: 'toll',
         emoji: '🛣️',
         text: tr('Pedágio à frente{0}', [note.isEmpty ? '' : ' · $note']),
-        speech: tr('Praça de pedágio a {0}{1}',
-            [spokenDistance(ahead), note.isEmpty ? '' : '. $note']),
+        speech: tr('Praça de pedágio a {0}{1}', [
+          spokenDistance(ahead),
+          note.isEmpty ? '' : '. ${[price, card].where((s) => s.isNotEmpty).join('. ')}'
+        ]),
         speak: true,
         passed: (q) =>
             _passedPoint(q, pt.$1, pt.$2) ||

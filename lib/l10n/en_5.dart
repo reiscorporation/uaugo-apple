@@ -305,4 +305,12 @@ const en5 = <String, String>{
   'Falha ao enviar a imagem.': 'Image upload failed.',
   'Não foi possível publicar o post.': 'Could not publish the post.',
   'Postado na comunidade (sem o GIF: a comunidade ainda não aceita).': 'Posted to the community (without the GIF: not accepted yet).',
+  'Aceita cartão de débito e crédito': 'Accepts debit and credit cards',
+  'Aceita só cartão de débito': 'Accepts debit cards only',
+  '💳 A praça aceita cartão de débito e crédito.': '💳 The toll plaza accepts debit and credit cards.',
+  '💳 Todas as {0} praças aceitam cartão de débito e crédito.': '💳 All {0} toll plazas accept debit and credit cards.',
+  '{0} débito e crédito': '{0} debit and credit',
+  '{0} só débito': '{0} debit only',
+  '{0} sem informação': '{0} unknown',
+  '💳 Cartão nas praças: {0}.': '💳 Cards at toll plazas: {0}.',
 };

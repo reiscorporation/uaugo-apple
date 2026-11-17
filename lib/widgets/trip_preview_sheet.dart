@@ -415,7 +415,10 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
   /// Frases de pedágio da prévia.
   List<String> _tollLines(Trip t) {
     final e = _tollCost;
-    if (e != null && e.plazas > 0) return describeTolls(e, _bike, formatMoney);
+    if (e != null && e.plazas > 0) {
+      final card = tollCardsSummary(e.list);
+      return [...describeTolls(e, _bike, formatMoney), if (card.isNotEmpty) card];
+    }
     if (!t.hasToll) return const [];
     // O Google indica pedágio, mas a praça não está na tabela.
     final noun = _bike.style.noun;
