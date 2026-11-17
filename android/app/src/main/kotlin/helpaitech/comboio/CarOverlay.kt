@@ -312,7 +312,7 @@ class CarOverlay(private val ctx: Context) {
             val h = secs / 3600; val min = (secs % 3600) / 60
             val time = if (h > 0) "${h}h${"%02d".format(min)}" else "$min min"
             val eta = if (n.etaMillis > 0) SimpleDateFormat("HH:mm", Locale("pt", "BR")).format(Date(n.etaMillis)) else ""
-            info.text = "${if (CarState.en) "Arrival" else "Chegada"} $eta\n$time · ${dist(n.remainingM)}"
+            info.text = "${tx("Arrival", "Chegada")} $eta\n$time · ${dist(n.remainingM)}"
         }
         val b = CarState.banner
         banner.visibility = if (b.isNullOrBlank()) View.GONE else View.VISIBLE
@@ -322,8 +322,8 @@ class CarOverlay(private val ctx: Context) {
         if (musicOpen) {
             val now = CarMedia.now(ctx)
             musicTitle.text = when {
-                !CarMedia.hasAccess(ctx) -> if (CarState.en) "Allow music access on the phone" else "Libere o acesso à música no celular"
-                now == null -> if (CarState.en) "Nothing playing" else "Nada tocando"
+                !CarMedia.hasAccess(ctx) -> tx("Allow music access on the phone", "Libere o acesso à música no celular")
+                now == null -> tx("Nothing playing", "Nada tocando")
                 else -> listOf(now.title, now.artist).filter { it.isNotEmpty() }.joinToString(" · ")
             }
             mPlay.text = if (now?.playing == true) "⏸︎" else "▶︎"
@@ -331,7 +331,7 @@ class CarOverlay(private val ctx: Context) {
         val group = if (CarState.groupOn) View.VISIBLE else View.GONE
         requestBtn.visibility = group
         viewBtn.visibility = group
-        viewBtn.text = if (CarState.convoyView) (if (CarState.en) "CONVOY" else "COMBOIO") else "SOLO"
+        viewBtn.text = if (CarState.convoyView) (tx("CONVOY", "COMBOIO")) else "SOLO"
         // SOS e bússola sempre, em todas as telas, como no celular (16/11).
         // Sozinho, o SOS abre os telefones de emergência no carro.
         sosBtn.visibility = View.VISIBLE
@@ -340,8 +340,7 @@ class CarOverlay(private val ctx: Context) {
         sosBtn.textSize = if (armed) 12f else 17f
         sosBtn.text = when {
             !armed -> "SOS"
-            CarState.en -> "Tap again\nto send"
-            else -> "Toque novamente\npara enviar"
+            else -> tx("Tap again\nto send", "Toque novamente\npara enviar")
         }
         val g = CarState.groupText
         groupBar.visibility = if (g.isNullOrBlank()) View.GONE else View.VISIBLE

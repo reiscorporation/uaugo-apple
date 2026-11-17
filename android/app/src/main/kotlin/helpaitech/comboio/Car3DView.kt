@@ -83,7 +83,7 @@ class Car3DView(context: Context) {
         ready = true
         // Rota antes das vias: a página posiciona as vias sobre a rota.
         view.evaluateJavascript("sim3d.setDark($dark)", null)
-        for (k in listOf("sim3d.setRoute", "sim3d.setRoads", "sim3d.setAlerts", "sim3d.update", "sim3d.hud")) {
+        for (k in listOf("sim3d.setLang", "sim3d.setRoute", "sim3d.setRoads", "sim3d.setAlerts", "sim3d.update", "sim3d.hud")) {
             CarState.sim3dLast[k]?.let { view.evaluateJavascript(it, null) }
         }
         sendLayout()

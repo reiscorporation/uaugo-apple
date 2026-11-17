@@ -83,7 +83,9 @@ object CarState {
     /** Emoji do veículo do piloto (🏍️ / 🚗 / 🚚). */
     @Volatile var vehicle = "🏍️"
     /** Textos da tela do carro em inglês (idioma do app, vem do celular). */
-    @Volatile var en = java.util.Locale.getDefault().language != "pt"
+    @Volatile var en = java.util.Locale.getDefault().language.let { it != "pt" && it != "es" }
+    /** Textos da tela do carro em espanhol (17/11). */
+    @Volatile var es = java.util.Locale.getDefault().language == "es"
     /** Zoom escolhido pelo motorista nos botões +/− do carro (passos). */
     @Volatile var zoomOffset = 0f
     /** Destinos para escolher no carro: (nome, lat, lng). */
@@ -190,7 +192,7 @@ class CarBridge(messenger: BinaryMessenger) {
                         CarState.alert = a["alert"] as? String
                         CarState.banner = a["banner"] as? String
                         (a["vehicle"] as? String)?.let { CarState.vehicle = it }
-                        (a["lang"] as? String)?.let { CarState.en = it == "en" }
+                        (a["lang"] as? String)?.let { CarState.en = it == "en"; CarState.es = it == "es" }
                         (a["placeNames"] as? Boolean)?.let { CarState.placeNames = it }
                         (a["convoy"] as? Boolean)?.let { CarState.convoyView = it }
                         CarState.onRoute = a["onRoute"] == true

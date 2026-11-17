@@ -245,14 +245,14 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             val etaMs = if (n.etaMillis > 0) n.etaMillis else System.currentTimeMillis()
             val eta = DateTimeWithZone.create(etaMs, tz)
             val left = ((etaMs - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
-            val step = Step.Builder(n.text.ifBlank { if (CarState.en) "Continue" else "Siga em frente" })
+            val step = Step.Builder(n.text.ifBlank { tx("Continue", "Siga em frente") })
                 .setManeuver(maneuverOf(n.maneuver))
                 .build()
             val stepEst = TravelEstimate.Builder(distance(n.meters), eta).build()
             val destEst = TravelEstimate.Builder(distance(n.remainingM), eta)
                 .setRemainingTimeSeconds(left).build()
             val dest = Destination.Builder()
-                .setName(if (CarState.en) "Destination" else "Destino").build()
+                .setName(tx("Destination", "Destino")).build()
             nav.updateTrip(androidx.car.app.navigation.model.Trip.Builder()
                 .addStep(step, stepEst)
                 .addDestination(dest, destEst)
@@ -343,9 +343,9 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             .setOnClickListener {
                 setMode3d(if (CarState.mode3d == 2) 0 else 2)
                 toast(when (CarState.mode3d) {
-                    0 -> if (CarState.en) "Map view" else "Só mapa"
-                    1 -> if (CarState.en) "3D at exits" else "3D nas saídas"
-                    else -> if (CarState.en) "3D always" else "3D sempre"
+                    0 -> tx("Map view", "Só mapa")
+                    1 -> tx("3D at exits", "3D nas saídas")
+                    else -> tx("3D always", "3D sempre")
                 })
             }
             .build()
@@ -405,9 +405,9 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         carContext.getSharedPreferences("car", android.content.Context.MODE_PRIVATE)
             .edit().putBoolean("northUp", CarState.northUp).apply()
         toast(if (CarState.northUp) {
-            if (CarState.en) "North up" else "Norte para cima"
+            tx("North up", "Norte para cima")
         } else {
-            if (CarState.en) "Map follows the car" else "Mapa na direção do carro"
+            tx("Map follows the car", "Mapa na direção do carro")
         })
         if (carMap.running) carMap.update()
         CarState.changed()
@@ -426,7 +426,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         if (CarState.sosArmed) {
             CarState.sosArmed = false
             val sink = CarState.actionSink
-            if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("sos")
+            if (sink == null) toast(tx("Open UauGo on the phone", "Abra o UauGo no celular")) else sink("sos")
         } else {
             CarState.sosArmed = true
             sosTimer.postDelayed(sosDisarm, 3000)
@@ -441,7 +441,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             hit == "alert" -> openAlerts()
             hit == "radar" -> {
                 val sink = CarState.actionSink
-                if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("radar")
+                if (sink == null) toast(tx("Open UauGo on the phone", "Abra o UauGo no celular")) else sink("radar")
             }
             hit == "to3d" -> setMode3d(2)
             hit == "requests" -> screenManager.push(GroupRequestScreen(carContext))
@@ -458,7 +458,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             hit == "settings" -> screenManager.push(CarSettingsScreen(carContext))
             hit == "bannertap" -> {
                 val sink = CarState.actionSink
-                if (sink == null) toast(if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular") else sink("bannertap")
+                if (sink == null) toast(tx("Open UauGo on the phone", "Abra o UauGo no celular")) else sink("bannertap")
             }
             hit != null -> screenManager.push(RemoveAlertScreen(carContext, hit.removePrefix("hazard:")))
         }
@@ -564,9 +564,9 @@ class SearchPlaceScreen(ctx: CarContext) : Screen(ctx) {
         val res = CarState.searchResults
         if (res.isEmpty()) {
             list.setNoItemsMessage(when {
-                CarState.searching -> if (CarState.en) "Searching…" else "Buscando…"
-                query.isNotEmpty() -> if (CarState.en) "Nothing found" else "Nada encontrado"
-                else -> if (CarState.en) "Type or say the place" else "Digite ou fale o lugar"
+                CarState.searching -> tx("Searching…", "Buscando…")
+                query.isNotEmpty() -> tx("Nothing found", "Nada encontrado")
+                else -> tx("Type or say the place", "Digite ou fale o lugar")
             })
         }
         for ((id, name, addr) in res.take(6)) {
@@ -576,12 +576,12 @@ class SearchPlaceScreen(ctx: CarContext) : Screen(ctx) {
                 val sink = CarState.actionSink
                 if (sink == null) {
                     CarToast.makeText(carContext,
-                        if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+                        tx("Open UauGo on the phone", "Abra o UauGo no celular"),
                         CarToast.LENGTH_LONG).show()
                 } else {
                     sink("place:$id|$name")
                     CarToast.makeText(carContext,
-                        if (CarState.en) "Calculating route…" else "Calculando a rota…",
+                        tx("Calculating route…", "Calculando a rota…"),
                         CarToast.LENGTH_SHORT).show()
                 }
                 CarState.onSearchResults = null
@@ -602,7 +602,7 @@ class SearchPlaceScreen(ctx: CarContext) : Screen(ctx) {
                 if (sink == null) {
                     CarState.searching = false
                     CarToast.makeText(carContext,
-                        if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+                        tx("Open UauGo on the phone", "Abra o UauGo no celular"),
                         CarToast.LENGTH_LONG).show()
                 } else {
                     sink("search:$t")
@@ -610,7 +610,7 @@ class SearchPlaceScreen(ctx: CarContext) : Screen(ctx) {
             }
         })
             .setHeaderAction(Action.BACK)
-            .setSearchHint(if (CarState.en) "Where to?" else "Para onde?")
+            .setSearchHint(tx("Where to?", "Para onde?"))
             .setShowKeyboardByDefault(true)
             .setItemList(list.build())
             .setLoading(false)
@@ -624,23 +624,21 @@ class DestinationsScreen(ctx: CarContext) : Screen(ctx) {
         val list = ItemList.Builder()
         // Destino novo: busca pelo nome (teclado ou voz do carro).
         list.addItem(Row.Builder()
-            .setTitle(if (CarState.en) "Search a new place" else "Buscar outro destino")
+            .setTitle(tx("Search a new place", "Buscar outro destino"))
             .setOnClickListener { screenManager.push(SearchPlaceScreen(carContext)) }
             .build())
         // Navegando: paradas no caminho (o destino continua o mesmo, 12/11).
         val navigating = CarState.nav != null
         if (navigating) {
             list.addItem(Row.Builder()
-                .setTitle(if (CarState.en) "📍 Add a stop on the way" else "📍 Parada no caminho")
-                .addText(if (CarState.en) "Gas, food, coffee… keeps the destination"
-                    else "Posto, comida, café… o destino continua")
+                .setTitle(tx("📍 Add a stop on the way", "📍 Parada no caminho"))
+                .addText(tx("Gas, food, coffee… keeps the destination", "Posto, comida, café… o destino continua"))
                 .setOnClickListener { screenManager.push(StopKindsScreen(carContext)) }
                 .build())
         }
         val all = CarState.destinations
         if (all.isEmpty()) {
-            list.setNoItemsMessage(if (CarState.en) "Save places or search on the phone first"
-                else "Salve locais ou busque no celular antes")
+            list.setNoItemsMessage(tx("Save places or search on the phone first", "Salve locais ou busque no celular antes"))
         }
         for ((name, lat, lng) in all.take(if (navigating) 4 else 5)) {
             list.addItem(Row.Builder()
@@ -654,14 +652,14 @@ class DestinationsScreen(ctx: CarContext) : Screen(ctx) {
                     val geo = "geo:$lat,$lng?q=" + android.net.Uri.encode(name.replace("(", " ").replace(")", " "))
                     UauGoEngine.send(carContext, "navigate:$geo")
                     CarToast.makeText(carContext,
-                        if (CarState.en) "Calculating route…" else "Calculando a rota…",
+                        tx("Calculating route…", "Calculando a rota…"),
                         CarToast.LENGTH_SHORT).show()
                     screenManager.pop()
                 }
                 .build())
         }
         return ListTemplate.Builder()
-            .setTitle(if (CarState.en) "Go to" else "Destinos")
+            .setTitle(tx("Go to", "Destinos"))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()
@@ -687,12 +685,12 @@ class SpeedEditScreen(ctx: CarContext, private val q: SpeedEdit,
         }
         when (page) {
             0 -> {
-                if (q.current != null) row(if (en) "✅ Confirm ${q.current} km/h" else "✅ Confirmar ${q.current} km/h") { pick(q.current) }
-                if (q.radar) row(if (en) "🚫 Radar does not exist" else "🚫 Radar não existe") { pick(0) }
-                row(if (en) "Correct to 20 – 60 km/h" else "Corrigir para 20 a 60 km/h") {
+                if (q.current != null) row(tx("✅ Confirm ${q.current} km/h", "✅ Confirmar ${q.current} km/h", "✅ Confirmar ${q.current} km/h")) { pick(q.current) }
+                if (q.radar) row(tx("🚫 Radar does not exist", "🚫 Radar não existe")) { pick(0) }
+                row(tx("Correct to 20 – 60 km/h", "Corrigir para 20 a 60 km/h")) {
                     screenManager.push(SpeedEditScreen(carContext, q, 1))
                 }
-                row(if (en) "Correct to 70 – 120 km/h" else "Corrigir para 70 a 120 km/h") {
+                row(tx("Correct to 70 – 120 km/h", "Corrigir para 70 a 120 km/h")) {
                     screenManager.push(SpeedEditScreen(carContext, q, 2))
                 }
             }
@@ -702,7 +700,7 @@ class SpeedEditScreen(ctx: CarContext, private val q: SpeedEdit,
             }
         }
         return ListTemplate.Builder()
-            .setTitle(if (page == 0) q.title else (if (en) "Correct speed" else "Corrigir velocidade"))
+            .setTitle(if (page == 0) q.title else (tx("Correct speed", "Corrigir velocidade")))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()
@@ -719,15 +717,15 @@ class EmergencyScreen(ctx: CarContext) : Screen(ctx) {
             runCatching {
                 carContext.startCarApp(Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$num")))
             }.onFailure {
-                CarToast.makeText(carContext, if (en) "Call $num on the phone" else "Ligue $num pelo celular",
+                CarToast.makeText(carContext, tx("Call $num on the phone", "Ligue $num pelo celular", "Llama al $num desde el celular"),
                     CarToast.LENGTH_LONG).show()
             }
         }
         val name = CarState.emergencyName
         val phone = CarState.emergencyPhone
         if (!name.isNullOrBlank() && !phone.isNullOrBlank()) {
-            list.addItem(Row.Builder().setTitle((if (en) "Call " else "Ligar para ") + name)
-                .addText(if (en) "Emergency contact" else "Contato de emergência")
+            list.addItem(Row.Builder().setTitle((tx("Call ", "Ligar para ")) + name)
+                .addText(tx("Emergency contact", "Contato de emergência"))
                 .setOnClickListener { call(phone) }.build())
         }
         for ((num, pt, enLabel) in listOf(
@@ -735,11 +733,11 @@ class EmergencyScreen(ctx: CarContext) : Screen(ctx) {
             Triple("193", "Bombeiros (resgate)", "Fire and rescue"),
             Triple("191", "PRF (rodovias federais)", "Federal Highway Police"),
             Triple("190", "Polícia Militar", "Police"))) {
-            list.addItem(Row.Builder().setTitle("$num · ${if (en) enLabel else pt}")
+            list.addItem(Row.Builder().setTitle("$num · ${tx(enLabel, pt)}")
                 .setOnClickListener { call(num) }.build())
         }
         return ListTemplate.Builder()
-            .setTitle(if (en) "Emergency · live location on" else "Emergência · localização ao vivo ligada")
+            .setTitle(tx("Emergency · live location on", "Emergência · localização ao vivo ligada"))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()
@@ -757,13 +755,13 @@ class CarSettingsScreen(ctx: CarContext) : Screen(ctx) {
                 .setOnClickListener { screenManager.push(CarSettingsSection(carContext, idx)) }
                 .build())
         }
-        list.addItem(Row.Builder().setTitle(if (en) "Car screen" else "Tela do carro")
+        list.addItem(Row.Builder().setTitle(tx("Car screen", "Tela do carro"))
             .setBrowsable(true)
             .setOnClickListener { screenManager.push(CarSettingsSection(carContext, -1)) }
             .build())
-        if (CarState.cfg.isEmpty()) list.setNoItemsMessage(if (en) "Open UauGo on the phone" else "Abra o UauGo no celular")
+        if (CarState.cfg.isEmpty()) list.setNoItemsMessage(tx("Open UauGo on the phone", "Abra o UauGo no celular"))
         return ListTemplate.Builder()
-            .setTitle(if (en) "Settings" else "Configurações")
+            .setTitle(tx("Settings", "Configurações"))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()
@@ -778,9 +776,9 @@ class CarSettingsSection(ctx: CarContext, private val idx: Int) : Screen(ctx) {
         fun refresh() = android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ invalidate() }, 1200)
         val title: String
         if (idx < 0) {
-            title = if (en) "Car screen" else "Tela do carro"
-            list.addItem(Row.Builder().setTitle(if (en) "North up" else "Norte para cima")
-                .addText(if (en) "Off: map turns with the car" else "Desligado: o mapa gira com o carro")
+            title = tx("Car screen", "Tela do carro")
+            list.addItem(Row.Builder().setTitle(tx("North up", "Norte para cima"))
+                .addText(tx("Off: map turns with the car", "Desligado: o mapa gira com o carro"))
                 .setToggle(androidx.car.app.model.Toggle.Builder { v ->
                     CarState.northUp = v
                     carContext.getSharedPreferences("car", android.content.Context.MODE_PRIVATE)
@@ -825,11 +823,9 @@ class MusicScreen(ctx: CarContext) : Screen(ctx) {
         val now = CarMedia.now(carContext)
         when {
             !CarMedia.hasAccess(carContext) -> list.setNoItemsMessage(
-                if (en) "Allow music access in UauGo on the phone (Settings)"
-                else "Libere o acesso à música no UauGo do celular (Configurações)")
+                tx("Allow music access in UauGo on the phone (Settings)", "Libere o acesso à música no UauGo do celular (Configurações)"))
             now == null -> list.setNoItemsMessage(
-                if (en) "Nothing playing. Start music in your music app."
-                else "Nada tocando. Abra seu app de música (Spotify, YouTube Music...).")
+                tx("Nothing playing. Start music in your music app.", "Nada tocando. Abra seu app de música (Spotify, YouTube Music...)."))
             else -> {
                 fun row(t: String, cmd: String) = list.addItem(Row.Builder().setTitle(t)
                     .setOnClickListener {
@@ -840,13 +836,13 @@ class MusicScreen(ctx: CarContext) : Screen(ctx) {
                     .setTitle(now.title.ifEmpty { now.app })
                     .addText(listOf(now.artist, now.app).filter { it.isNotEmpty() }.joinToString(" · "))
                     .build())
-                row(if (now.playing) (if (en) "⏸  Pause" else "⏸  Pausar") else (if (en) "▶  Play" else "▶  Tocar"), "toggle")
-                row(if (en) "⏭  Next" else "⏭  Próxima", "next")
-                row(if (en) "⏮  Previous" else "⏮  Anterior", "previous")
+                row(if (now.playing) (tx("⏸  Pause", "⏸  Pausar")) else (tx("▶  Play", "▶  Tocar")), "toggle")
+                row(tx("⏭  Next", "⏭  Próxima"), "next")
+                row(tx("⏮  Previous", "⏮  Anterior"), "previous")
             }
         }
         return ListTemplate.Builder()
-            .setTitle(if (en) "Music" else "Música")
+            .setTitle(tx("Music", "Música"))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()
@@ -865,12 +861,12 @@ class AskScreen(ctx: CarContext, private val q: CarState.Ask) : Screen(ctx) {
             .setTitle(q.title)
             .setHeaderAction(Action.APP_ICON)
             .addAction(Action.Builder()
-                .setTitle(q.yesLabel ?: if (en) "Yes, continue" else "Sim, continuar")
+                .setTitle(q.yesLabel ?: tx("Yes, continue", "Sim, continuar"))
                 .setFlags(Action.FLAG_PRIMARY)
                 .setOnClickListener { answer(q.yes) }
                 .build())
             .addAction(Action.Builder()
-                .setTitle(q.noLabel ?: if (en) "No" else "Não")
+                .setTitle(q.noLabel ?: tx("No", "Não"))
                 .setOnClickListener { answer(q.no) }
                 .build())
             .build()
@@ -894,14 +890,14 @@ class StopKindsScreen(ctx: CarContext) : Screen(ctx) {
         // Elétrico/plug-in: eletroposto em primeiro (12/11).
         val kinds = if (CarState.ev) listOf(Triple("charger", "⚡ Eletroposto", "⚡ EV charger")) + STOP_KINDS.take(5) else STOP_KINDS
         for ((cat, pt, en) in kinds) {
-            val t = if (CarState.en) en else pt
+            val t = tx(en, pt)
             list.addItem(Row.Builder()
                 .setTitle(t)
                 .setOnClickListener { screenManager.push(FindStopScreen(carContext, cat, t)) }
                 .build())
         }
         return ListTemplate.Builder()
-            .setTitle(if (CarState.en) "Stop on the way" else "Parada no caminho")
+            .setTitle(tx("Stop on the way", "Parada no caminho"))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()
@@ -913,7 +909,7 @@ private fun sendToApp(ctx: CarContext, code: String): Boolean {
     val sink = CarState.actionSink
     if (sink == null) {
         CarToast.makeText(ctx,
-            if (CarState.en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+            tx("Open UauGo on the phone", "Abra o UauGo no celular"),
             CarToast.LENGTH_LONG).show()
         return false
     }
@@ -934,7 +930,7 @@ class FindStopScreen(ctx: CarContext, private val cat: String, private val title
         val list = ItemList.Builder()
         val res = CarState.searchResults
         if (res.isEmpty() && !CarState.searching) {
-            list.setNoItemsMessage(if (CarState.en) "Nothing found ahead" else "Nada encontrado à frente")
+            list.setNoItemsMessage(tx("Nothing found ahead", "Nada encontrado à frente"))
         }
         for ((id, name, info) in res.take(6)) {
             val row = Row.Builder().setTitle(name)
@@ -942,7 +938,7 @@ class FindStopScreen(ctx: CarContext, private val cat: String, private val title
             row.setOnClickListener {
                 if (sendToApp(carContext, "stopat:$id|$name")) {
                     CarToast.makeText(carContext,
-                        if (CarState.en) "Adding stop…" else "Incluindo a parada…",
+                        tx("Adding stop…", "Incluindo a parada…"),
                         CarToast.LENGTH_SHORT).show()
                 }
                 CarState.onSearchResults = null
@@ -965,25 +961,25 @@ class StopOrGoScreen(ctx: CarContext, private val name: String,
         val en = CarState.en
         val list = ItemList.Builder()
         list.addItem(Row.Builder()
-            .setTitle(if (en) "📍 Add as a stop on the way" else "📍 Parar no caminho")
-            .addText(if (en) "Keeps the current destination" else "O destino atual continua")
+            .setTitle(tx("📍 Add as a stop on the way", "📍 Parar no caminho"))
+            .addText(tx("Keeps the current destination", "O destino atual continua"))
             .setOnClickListener {
                 if (sendToApp(carContext, "stopat:$lat,$lng|$name")) {
                     CarToast.makeText(carContext,
-                        if (en) "Adding stop…" else "Incluindo a parada…",
+                        tx("Adding stop…", "Incluindo a parada…"),
                         CarToast.LENGTH_SHORT).show()
                 }
                 screenManager.popToRoot()
             }
             .build())
         list.addItem(Row.Builder()
-            .setTitle(if (en) "🏁 Go there instead" else "🏁 Ir direto para lá")
-            .addText(if (en) "Replaces the destination" else "Troca o destino")
+            .setTitle(tx("🏁 Go there instead", "🏁 Ir direto para lá"))
+            .addText(tx("Replaces the destination", "Troca o destino"))
             .setOnClickListener {
                 val geo = "geo:$lat,$lng?q=" + android.net.Uri.encode(name.replace("(", " ").replace(")", " "))
                 UauGoEngine.send(carContext, "navigate:$geo")
                 CarToast.makeText(carContext,
-                    if (en) "Calculating route…" else "Calculando a rota…",
+                    tx("Calculating route…", "Calculando a rota…"),
                     CarToast.LENGTH_SHORT).show()
                 screenManager.popToRoot()
             }
@@ -1001,19 +997,19 @@ class AlertListScreen(ctx: CarContext) : Screen(ctx) {
         val en = CarState.en
         // Mesmo nome dos tipos do app (HazardType no Dart).
         val types = listOf(
-            Triple("radar", "📷", if (en) "Mobile speed camera" else "Radar móvel"),
-            Triple("police", "🚓", if (en) "Police" else "Polícia"),
-            Triple("accident", "💥", if (en) "Accident" else "Acidente"),
-            Triple("pothole", "🕳️", if (en) "Pothole" else "Buraco"),
-            Triple("danger", "⚠️", if (en) "Road hazard" else "Perigo na pista"),
-            Triple("animal", "🐄", if (en) "Animal on the road" else "Animal na pista"),
-            Triple("oil", "🛢️", if (en) "Oil / sand" else "Óleo / areia"),
-            Triple("fog", "🌫️", if (en) "Fog" else "Neblina"),
+            Triple("radar", "📷", tx("Mobile speed camera", "Radar móvel")),
+            Triple("police", "🚓", tx("Police", "Polícia")),
+            Triple("accident", "💥", tx("Accident", "Acidente")),
+            Triple("pothole", "🕳️", tx("Pothole", "Buraco")),
+            Triple("danger", "⚠️", tx("Road hazard", "Perigo na pista")),
+            Triple("animal", "🐄", tx("Animal on the road", "Animal na pista")),
+            Triple("oil", "🛢️", tx("Oil / sand", "Óleo / areia")),
+            Triple("fog", "🌫️", tx("Fog", "Neblina")),
         )
         val list = ItemList.Builder()
         if (CarState.hazards.any { it.mine }) {
             list.addItem(Row.Builder()
-                .setTitle(if (en) "🗑️  Remove my alert" else "🗑️  Remover meu alerta")
+                .setTitle(tx("🗑️  Remove my alert", "🗑️  Remover meu alerta"))
                 .setBrowsable(true)
                 .setOnClickListener { screenManager.push(RemoveAlertScreen(carContext)) }
                 .build())
@@ -1025,7 +1021,7 @@ class AlertListScreen(ctx: CarContext) : Screen(ctx) {
                     val sink = CarState.actionSink
                     if (sink == null) {
                         CarToast.makeText(carContext,
-                            if (en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+                            tx("Open UauGo on the phone", "Abra o UauGo no celular"),
                             CarToast.LENGTH_SHORT).show()
                     } else {
                         sink("hazard:$code")
@@ -1035,7 +1031,7 @@ class AlertListScreen(ctx: CarContext) : Screen(ctx) {
                 .build())
         }
         return ListTemplate.Builder()
-            .setTitle(if (en) "Report on the road" else "O que tem na pista?")
+            .setTitle(tx("Report on the road", "O que tem na pista?"))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()
@@ -1062,7 +1058,7 @@ class RemoveAlertScreen(ctx: CarContext, private val only: String? = null) : Scr
                     val sink = CarState.actionSink
                     if (sink == null) {
                         CarToast.makeText(carContext,
-                            if (en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+                            tx("Open UauGo on the phone", "Abra o UauGo no celular"),
                             CarToast.LENGTH_SHORT).show()
                     } else {
                         sink("unhazard:${h.id}")
@@ -1072,7 +1068,7 @@ class RemoveAlertScreen(ctx: CarContext, private val only: String? = null) : Scr
                 .build())
         }
         return ListTemplate.Builder()
-            .setTitle(if (en) "Remove my alert" else "Remover meu alerta")
+            .setTitle(tx("Remove my alert", "Remover meu alerta"))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()
@@ -1084,11 +1080,11 @@ class GroupRequestScreen(ctx: CarContext) : Screen(ctx) {
     override fun onGetTemplate(): Template {
         val en = CarState.en
         val kinds = listOf(
-            Triple("fuel", "⛽", if (en) "I need to refuel" else "Preciso abastecer"),
-            Triple("restroom", "🚻", if (en) "Restroom stop" else "Parada para banheiro"),
-            Triple("rest", "☕", if (en) "I need a rest" else "Preciso descansar"),
-            Triple("problem", "🔧", if (en) "Vehicle problem" else "Problema no veículo"),
-            Triple("behind", "🐢", if (en) "Wait, I fell behind" else "Esperem, fiquei para trás"),
+            Triple("fuel", "⛽", tx("I need to refuel", "Preciso abastecer")),
+            Triple("restroom", "🚻", tx("Restroom stop", "Parada para banheiro")),
+            Triple("rest", "☕", tx("I need a rest", "Preciso descansar")),
+            Triple("problem", "🔧", tx("Vehicle problem", "Problema no veículo")),
+            Triple("behind", "🐢", tx("Wait, I fell behind", "Esperem, fiquei para trás")),
         )
         val list = ItemList.Builder()
         for ((code, emoji, label) in kinds) {
@@ -1098,7 +1094,7 @@ class GroupRequestScreen(ctx: CarContext) : Screen(ctx) {
                     val sink = CarState.actionSink
                     if (sink == null) {
                         CarToast.makeText(carContext,
-                            if (en) "Open UauGo on the phone" else "Abra o UauGo no celular",
+                            tx("Open UauGo on the phone", "Abra o UauGo no celular"),
                             CarToast.LENGTH_SHORT).show()
                     } else {
                         sink("group:$code")
@@ -1108,7 +1104,7 @@ class GroupRequestScreen(ctx: CarContext) : Screen(ctx) {
                 .build())
         }
         return ListTemplate.Builder()
-            .setTitle(if (en) "Request to the group" else "Pedido ao grupo")
+            .setTitle(tx("Request to the group", "Pedido ao grupo"))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()

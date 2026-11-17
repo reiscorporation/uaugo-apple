@@ -358,6 +358,18 @@ function streetOf(t) {
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
 // Na tela do carro (#car): resolução e quadros menores.
 const CAR = location.hash === '#car';
+// Idioma (17/11): o app manda sim3d.setLang('pt'|'en'|'es') antes da rota e
+// dos alertas (as placas viram textura na criação).
+let LANG = 'pt';
+const LTX = {
+  en: { 'RADAR MÉDIA': 'AVG SPEED CAM', 'RADAR SINAL': 'RED LIGHT CAM', 'RADAR MÓVEL': 'MOBILE RADAR',
+    'LOMBADA': 'SPEED BUMP', 'POLÍCIA': 'POLICE', 'PEDÁGIO · MOTO ISENTA': 'TOLL · BIKES FREE',
+    'PEDÁGIO': 'TOLL', 'SAÍDA': 'EXIT', 'Destino': 'Destination', 'Chegada': 'Arrival' },
+  es: { 'RADAR MÉDIA': 'RADAR PROMEDIO', 'RADAR SINAL': 'RADAR SEMÁFORO', 'RADAR MÓVEL': 'RADAR MÓVIL',
+    'LOMBADA': 'REDUCTOR', 'POLÍCIA': 'POLICÍA', 'PEDÁGIO · MOTO ISENTA': 'PEAJE · MOTO EXENTA',
+    'PEDÁGIO': 'PEAJE', 'SAÍDA': 'SALIDA', 'Destino': 'Destino', 'Chegada': 'Llegada' },
+};
+const T = s => (LTX[LANG] && LTX[LANG][s]) || s;
 if (CAR) document.body.classList.add('car');
 renderer.setPixelRatio(CAR ? 1 : Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.setClearColor(0x000000, 0);
@@ -911,7 +923,7 @@ function buildAlert(a) {
       g.add(roadside(signOnPole(tex('lim' + a.lim, () => speedSignTex(a.lim)), 2.3, 1.7), a.s - 150, SIDE_OFF + 0.6));
     }
     radarZone(g, a, a.lim > 0 ? String(a.lim) : '');
-    const name = k === 'radarAvg' ? 'RADAR MÉDIA' : k === 'radarRed' ? 'RADAR SINAL' : 'RADAR';
+    const name = k === 'radarAvg' ? T('RADAR MÉDIA') : k === 'radarRed' ? T('RADAR SINAL') : 'RADAR';
     g.add(top(roadside(tag(name + (a.lim > 0 ? ' ' + a.lim : ''), '#c62828', '📷'), a.s, SIDE_OFF - 2), 7.8));
   } else if (k === 'mradar') {
     const tri = roadside(new THREE.Group(), a.s, SIDE_OFF);
@@ -922,7 +934,7 @@ function buildAlert(a) {
     const cam = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.32, 0.55), MAT.dark); cam.position.y = 1.55; tri.add(cam);
     const fl = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), flash(0xffffff)); fl.position.set(0, 1.55, 0.3); fl.userData.strobe = true; tri.add(fl);
     g.add(tri); radarZone(g, a, '');
-    g.add(top(roadside(tag('RADAR MÓVEL', '#c62828', '📷'), a.s, SIDE_OFF - 2), 6.5));
+    g.add(top(roadside(tag(T('RADAR MÓVEL'), '#c62828', '📷'), a.s, SIDE_OFF - 2), 6.5));
   } else if (k === 'bump') {
     // lombada de verdade na pista, com faixas amarelas e pretas
     const stripes = tex('bumpStripes', () => { const t = canvasTex(256, 64, (c, w, h) => {
@@ -941,7 +953,7 @@ function buildAlert(a) {
     const deck = new THREE.Group().add(roadDecal(bars, ROAD_HW * 2 - 0.6, 10, 0.95));
     g.add(roadside(deck, a.s - 9, 0));
     g.add(roadside(signOnPole(tex('bumpSign', bumpSignTex), 2.2, 1.6), a.s - 60, SIDE_OFF + 0.6));
-    g.add(top(roadside(tag('LOMBADA', '#e09b00', '🚧'), a.s, 0), 3.4));
+    g.add(top(roadside(tag(T('LOMBADA'), '#e09b00', '🚧'), a.s, 0), 3.4));
   } else if (k === 'post') {
     const b = roadside(new THREE.Group(), a.s, SIDE_OFF + 7);
     const house = new THREE.Mesh(new THREE.BoxGeometry(9, 3.4, 6), MAT.white); house.position.y = 1.7; b.add(house);
@@ -952,7 +964,7 @@ function buildAlert(a) {
   } else if (k === 'police') {
     // viatura parada no acostamento com o giroflex ligado
     g.add(roadside(policeCar(), a.s, SIDE_OFF + 0.4));
-    g.add(top(roadside(tag('POLÍCIA', '#1e4fa8', '🚓'), a.s, SIDE_OFF - 1), 4.6));
+    g.add(top(roadside(tag(T('POLÍCIA'), '#1e4fa8', '🚓'), a.s, SIDE_OFF - 1), 4.6));
   } else if (k === 'toll' || k === 'tollMoto') {
     const c = roadside(new THREE.Group(), a.s, 0), W = ROAD_HW * 2 + 6;
     const roof = new THREE.Mesh(new THREE.BoxGeometry(W, 0.7, 7), MAT.white); roof.position.y = 5.6; c.add(roof);
@@ -962,7 +974,7 @@ function buildAlert(a) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(0.3, 5, 0.3), MAT.pole); p.position.set(x, 2.6, 2.6); c.add(p);
     }
     g.add(c);
-    g.add(top(roadside(tag(k === 'tollMoto' ? 'PEDÁGIO · MOTO ISENTA' : 'PEDÁGIO', '#1e4fa8', '💰'), a.s, 0), 8));
+    g.add(top(roadside(tag(k === 'tollMoto' ? T('PEDÁGIO · MOTO ISENTA') : T('PEDÁGIO'), '#1e4fa8', '💰'), a.s, 0), 8));
   } else if (k === 'signal') {
     const t = roadside(new THREE.Group(), a.s, SIDE_OFF);
     const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 5.2, 6), MAT.dark); p1.position.y = 2.6; t.add(p1);
@@ -1211,7 +1223,7 @@ function gantryTex(m, dist) {
     g.beginPath(); g.moveTo(xs + half / 2 - 44, 160); g.lineTo(xs + half / 2, 110); g.lineTo(xs + half / 2 + 44, 160); g.stroke();
     // saída
     g.font = '700 54px ' + FONT; g.textAlign = 'left';
-    const exitTxt = m.num ? 'SAÍDA ' + m.num : 'SAÍDA', tw = g.measureText(exitTxt).width + 32;
+    const exitTxt = m.num ? T('SAÍDA') + ' ' + m.num : T('SAÍDA'), tw = g.measureText(exitTxt).width + 32;
     g.fillStyle = '#ffd400'; rrect(g, xe + 36, 34, tw, 68, 10); g.fill();
     g.fillStyle = '#111'; g.fillText(exitTxt, xe + 52, 70);
     g.fillStyle = '#fff'; g.font = '700 50px ' + FONT; g.fillText(dist, xe + 60 + tw, 70);
@@ -1260,7 +1272,7 @@ function exitBoardTex(m, on) {
     const tx = sx > 0 ? 60 : w - 60;
     g.textAlign = sx > 0 ? 'left' : 'right'; g.textBaseline = 'middle';
     g.fillStyle = '#ffd400'; g.font = '700 110px ' + FONT;
-    g.fillText(m.num ? 'SAÍDA ' + m.num : 'SAÍDA', tx, 130, 620);
+    g.fillText(m.num ? T('SAÍDA') + ' ' + m.num : T('SAÍDA'), tx, 130, 620);
     g.fillStyle = '#ffffff'; g.font = '700 70px ' + FONT;
     const parts = (m.toward || m.street || '').toUpperCase().split(' · ');
     parts.slice(0, 3).forEach((t, i) => g.fillText(t, tx, 250 + i * 80, 600));
@@ -1388,7 +1400,7 @@ function buildDest() {
     mark.scale.setScalar(z);
     pin.position.y = 15 * z + 6; // o nome fica sempre acima do pin
   };
-  const pin = label(DEST || 'Destino', 'Destino');
+  const pin = label(DEST || T('Destino'), T('Destino'));
   pin.position.copy(toV(x, 20, y)); pin.scale.multiplyScalar(1.5);
   destObjs = [mark, pin];
   scene.add(mark, pin);
@@ -1627,7 +1639,7 @@ window.sim3d = {
     if (has) {
       setHudIcon(d.m || '', !!d.last);
       $('nD').textContent = fmtDist(d.d);
-      $('nSt').textContent = streetOf(d.t) || (d.last ? (DEST || 'Destino') : d.t);
+      $('nSt').textContent = streetOf(d.t) || (d.last ? (DEST || T('Destino')) : d.t);
     }
     $('say').hidden = !has || d.d > 320;
     if (has) $('say').textContent = d.t;
@@ -1654,6 +1666,12 @@ window.sim3d = {
     if (typeof list === 'string') list = JSON.parse(list);
     RIDER_RAW = list || [];
     placeRiders();
+  },
+  setLang(l) {
+    LANG = l === 'en' || l === 'es' ? l : 'pt';
+    document.documentElement.lang = LANG === 'pt' ? 'pt-BR' : LANG;
+    const k = document.querySelector('#eta .k');
+    if (k) k.textContent = T('Chegada');
   },
   setDark(on) {
     pal = on ? PAL.night : PAL.day;

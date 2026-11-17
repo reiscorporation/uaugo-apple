@@ -18,6 +18,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../l10n/i18n.dart';
 import '../logic/navigation.dart';
 import '../services/car_service.dart';
 
@@ -161,6 +162,7 @@ class Sim3DController {
   /// Carro conectou agora: manda o estado atual da cena para ele.
   void resendToCar() {
     final car = CarService.instance;
+    car.sim3d('sim3d.setLang("${I18n.code}")');
     car.sim3d('sim3d.setDark($_dark)');
     if (_routeJson != null) car.sim3d('sim3d.setRoute($_routeJson)');
     if (_roadsJson != null) car.sim3d('sim3d.setRoads($_roadsJson)');
@@ -173,6 +175,8 @@ class Sim3DController {
 
   void _onReady() {
     _ready = true;
+    // Idioma antes da rota e dos alertas (placas viram textura).
+    _run('sim3d.setLang("${I18n.code}")');
     _run('sim3d.setDark($_dark)');
     if (_routeJson != null) _run('sim3d.setRoute($_routeJson)');
     if (_alertsJson != null) _run('sim3d.setAlerts($_alertsJson)');
