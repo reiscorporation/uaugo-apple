@@ -108,6 +108,11 @@ List<LatLng> decodePolyline(String encoded) {
   return pts;
 }
 
+/// Tolerância da linha azul da rota. Com 4 m, numa curva suave a linha
+/// virava reta + dobra e saía de cima da rua desenhada no mapa (zoom 20,
+/// Av. Leão XIII, 16/11); com 1 m acompanha a rua.
+const routeToleranceM = 1.0;
+
 /// Simplifica um traçado (Douglas-Peucker) mantendo o desenho das curvas:
 /// tira os pontos que se desviam menos de [toleranceMeters] da reta.
 List<LatLng> simplifyPolyline(List<LatLng> pts, double toleranceMeters) {

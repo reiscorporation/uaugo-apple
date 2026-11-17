@@ -258,7 +258,7 @@ class RouteEngineService {
         .take(1)
         .join();
     final hasToll = (trip['summary'] as Map?)?['has_toll'] == true;
-    return RouteResult(encodePolyline(simplifyPolyline(path, 4)), legs, steps, 0,
+    return RouteResult(encodePolyline(simplifyPolyline(path, routeToleranceM)), legs, steps, 0,
         hasToll, summary);
   }
 

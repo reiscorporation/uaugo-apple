@@ -2991,6 +2991,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (kDebugMode && _routeRecs.length >= 2) {
       debugPrint('UauGoRoute ${[for (final (la, lo) in _routeRecs) '${la.toStringAsFixed(6)},${lo.toStringAsFixed(6)}'].join(';')}');
     }
+    if (kDebugMode && _routeRecs.length >= 2) _diagRouteGeometry();
     _loadChargers(poly);
     // Rota nova: o trânsito da antiga não vale mais.
     _setTrafficRuns(const []);
@@ -5267,6 +5268,38 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (got == null) return;
     _setTrafficRuns(trafficOnRoute(w, got.$1, got.$2, start: from));
     if (RouteEngineService.enabled) _onRouteDelay(to - from, got.$3, got.$4);
+  }
+
+  /// Só depuração (UauGo2): compara a linha azul com o traçado de alta
+  /// qualidade do Google (Routes API) nos primeiros 3 km: quanto a linha
+  /// se afasta da rua (16/11, Av. Leão XIII). Log "UauGoGeo".
+  Future<void> _diagRouteGeometry() async {
+    final w = _walker;
+    if (w == null) return;
+    final end = min(3000.0, w.length);
+    final pts = [
+      for (final f in [0.0, 0.33, 0.66, 1.0]) w.at(end * f),
+    ];
+    final got = await DirectionsService.routeTraffic(
+        [for (final q in pts) LatLng(q.lat, q.lng)]);
+    if (got == null || !identical(w, _walker)) {
+      debugPrint('UauGoGeo sem resposta do Google');
+      return;
+    }
+    final hq = got.$1;
+    final mine = w.pointsBetween(0, end);
+    var worst = 0.0;
+    (double, double)? at;
+    for (final q in hq) {
+      final pr = w.project(q.$1, q.$2);
+      if (pr.along > end) continue;
+      if (pr.offset > worst) {
+        worst = pr.offset;
+        at = q;
+      }
+    }
+    debugPrint('UauGoGeo linha=${mine.length} pontos, google HQ=${hq.length} pontos, '
+        'maior afastamento ${worst.toStringAsFixed(1)} m em ${at?.$1.toStringAsFixed(6)},${at?.$2.toStringAsFixed(6)}');
   }
 
   /// Rota azul com borda escura (a longa só é refeita quando muda; o trecho

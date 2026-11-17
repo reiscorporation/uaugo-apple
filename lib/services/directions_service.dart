@@ -361,7 +361,7 @@ class DirectionsService {
             .toList())
         .toList();
     // O "overview_polyline" é resumido (curvas viram retas). O traçado
-    // fiel vem de cada manobra; simplificamos com 4 m de tolerância.
+    // fiel vem de cada manobra; simplificamos com 1 m (routeToleranceM).
     final detailed = <LatLng>[];
     for (final l in rawLegs) {
       for (final s in l['steps'] as List) {
@@ -372,7 +372,7 @@ class DirectionsService {
       }
     }
     final polyline = detailed.length >= 2
-        ? encodePolyline(simplifyPolyline(detailed, 4))
+        ? encodePolyline(simplifyPolyline(detailed, routeToleranceM))
         : route['overview_polyline']['points'] as String;
     // "Estrada com pedágio" aparece nas instruções do Google.
     final hasToll = rawLegs.any((l) => (l['steps'] as List).any((s) =>
