@@ -60,21 +60,35 @@ class SpeedLimitIndex {
 
   /// Lê o formato compacto gerado pela Cloud Function `updateSpeedLimits`:
   /// [dLat, dLng, limite, estimado, sentido, ...] com lat/lng em diferenças.
-  factory SpeedLimitIndex.fromCompact(List<dynamic> d) {
-    final n = d.length ~/ 5;
+  ///
+  /// [realOnly]: só placas reais; os estimados pelo tipo de via ficam de
+  /// fora. Na cidade quase todo estimado era "~60" (errado em muita rua);
+  /// melhor não mostrar nada do que um limite chutado (Ricardo, 17/11).
+  factory SpeedLimitIndex.fromCompact(List<dynamic> d, {bool realOnly = false}) {
+    final total = d.length ~/ 5;
+    var n = total;
+    if (realOnly) {
+      n = 0;
+      for (var i = 0; i < total; i++) {
+        if ((d[i * 5 + 3] as num).toInt() != 1) n++;
+      }
+    }
     final lat = Int32List(n), lng = Int32List(n);
     final lim = Uint8List(n), est = Uint8List(n);
     final dir = Int16List(n);
-    var la = 0, lo = 0;
-    for (var i = 0; i < n; i++) {
+    var la = 0, lo = 0, o = 0;
+    for (var i = 0; i < total; i++) {
       final k = i * 5;
       la += (d[k] as num).toInt();
       lo += (d[k + 1] as num).toInt();
-      lat[i] = la;
-      lng[i] = lo;
-      lim[i] = (d[k + 2] as num).toInt();
-      est[i] = (d[k + 3] as num).toInt();
-      dir[i] = (d[k + 4] as num).toInt();
+      final e = (d[k + 3] as num).toInt();
+      if (realOnly && e == 1) continue;
+      lat[o] = la;
+      lng[o] = lo;
+      lim[o] = (d[k + 2] as num).toInt();
+      est[o] = e;
+      dir[o] = (d[k + 4] as num).toInt();
+      o++;
     }
     final idx = SpeedLimitIndex._(lat, lng, lim, est, dir);
     for (var i = 0; i < n; i++) {

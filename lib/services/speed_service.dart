@@ -238,5 +238,6 @@ extension TollNear on SpeedService {
 /// Descompacta e monta o índice (roda fora da tela, em compute).
 SpeedLimitIndex _parse(Uint8List bytes) {
   final j = jsonDecode(utf8.decode(gzip.decode(bytes))) as Map<String, dynamic>;
-  return SpeedLimitIndex.fromCompact(j['d'] as List);
+  // Só placas reais: sem placa, o velocímetro fica sem limite (17/11).
+  return SpeedLimitIndex.fromCompact(j['d'] as List, realOnly: true);
 }
