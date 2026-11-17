@@ -483,8 +483,11 @@ class CarMapView(private val context: Context) {
         }
         // Rota (só redesenha quando muda).
         val pts = CarState.route
+        // O trecho detalhado perto do veículo muda o meio da lista (16/11):
+        // o ponto do meio também entra na assinatura.
         val sig = pts.size * 31 + (pts.firstOrNull()?.contentHashCode() ?: 0) +
-            (pts.lastOrNull()?.contentHashCode() ?: 0)
+            (pts.lastOrNull()?.contentHashCode() ?: 0) +
+            (pts.getOrNull(pts.size / 2)?.contentHashCode() ?: 0) * 7
         if (sig != routeSig) {
             routeSig = sig
             routeLine?.remove()

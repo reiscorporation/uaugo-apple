@@ -7686,6 +7686,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final onRoute = (_navigating || _sim != null) && w != null && !_offRoute &&
         (snapAlong != null || (pr != null && pr.offset <= 50));
     final at = !onRoute ? null : w.at(snapAlong ?? pr!.along);
+    // Linha do carro detalhada perto do veículo (anda junto com ele).
+    if (onRoute) CarService.instance.routeAt(snapAlong ?? pr!.along);
     CarService.instance.update(
       convoy: _isExpedition && _view == _MapView.convoy,
       lat: at?.lat ?? shown?.lat ?? p.latitude,

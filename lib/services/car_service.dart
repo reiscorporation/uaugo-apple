@@ -18,8 +18,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import '../widgets/bike_marker.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
-import '../logic/geo.dart' show simplifyPolyline;
+import '../logic/route_window.dart';
 import 'profile_service.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -413,17 +412,36 @@ class CarService {
   /// [force]: manda de novo mesmo igual (o carro reconectou e o lado
   /// nativo pode ter perdido a rota: no teste do painel, 16/11, o carro
   /// ficou sem a linha azul depois de reconectar).
+  ///
+  /// Perto do veículo a linha vai com 1 m (como no celular); o resto da rota
+  /// vai mais leve. Com a rota inteira simplificada em 4-16 m (rotas longas,
+  /// limite de 4000 pontos), a linha do carro cortava as curvas e saía de
+  /// cima da rua (16/11). O trecho detalhado anda junto com o veículo
+  /// ([routeAt]).
   void route(List<(double, double)> pts, {bool force = false}) {
     final sig = pts.isEmpty ? '' : '${pts.length}:${pts.first}:${pts.last}';
     if (sig == _routeSig && !force) return;
     _routeSig = sig;
-    final ll = [for (final p in pts) LatLng(p.$1, p.$2)];
-    var s = ll;
-    for (final tol in [2.0, 4.0, 8.0, 16.0]) {
-      s = simplifyPolyline(ll, tol);
-      if (s.length <= 4000) break;
-    }
-    final flat = <double>[for (final p in s) ...[p.latitude, p.longitude]];
+    _window = pts.length >= 2 ? RouteWindow(pts) : null;
+    _sendRoute(_lastAlong);
+  }
+
+  RouteWindow? _window;
+  double _lastAlong = 0;
+
+  /// Veículo em [along] metros da rota: refaz o trecho detalhado quando ele
+  /// chega perto do fim (a cada ~3 km).
+  void routeAt(double along) {
+    _lastAlong = along;
+    final w = _window;
+    if (w == null || !w.needsMove(along)) return;
+    _sendRoute(along);
+  }
+
+  void _sendRoute(double along) {
+    final w = _window;
+    final s = w == null ? const <(double, double)>[] : w.build(along);
+    final flat = <double>[for (final p in s) ...[p.$1, p.$2]];
     _ch.invokeMethod('route', flat).catchError((_) => null);
   }
 
