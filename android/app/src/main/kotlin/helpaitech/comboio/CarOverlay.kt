@@ -201,10 +201,9 @@ class CarOverlay(private val ctx: Context) {
         background = box(Color.rgb(198, 40, 40), 18); setPadding(dp(12), dp(6), dp(12), dp(6))
     }
 
-    /** Folga dos botões até a borda: a moldura arredondada da tela do carro
-     *  "engolia" o SOS no canto de baixo à direita (17/11). */
-    private val EDGE_R get() = dp(16)
-    private val EDGE_B get() = dp(18)
+    /** Folga dos botões até a borda (direita e embaixo). */
+    private val EDGE_R get() = dp(6)
+    private val EDGE_B get() = dp(10)
 
     private var speedColumn: View? = null
     private var buttonRow: View? = null
@@ -244,7 +243,13 @@ class CarOverlay(private val ctx: Context) {
         val bottom = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
         // Embaixo de tudo: alerta e radar móvel, iguais aos do celular.
         val column = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        val buttons = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        // Sem alinhar pela base do texto: o "SOS" (texto) descia uns pixels em
+        // relação aos ícones e o fundo era cortado embaixo (17/11).
+        val buttons = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            isBaselineAligned = false
+            gravity = Gravity.CENTER_VERTICAL
+        }
         buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(56), dp(56)))
         buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
         buttons.addView(musicBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
