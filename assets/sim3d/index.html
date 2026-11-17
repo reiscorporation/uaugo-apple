@@ -1604,7 +1604,8 @@ window.sim3d = {
     COVER = null; CORR = null;
     if (ROADS_RAW) setRoadsData(ROADS_RAW); // origem nova: desenha as vias de novo
     if (STREETS_RAW) setStreetsData(STREETS_RAW);
-    buildDest();
+    // Trecho de uma rota longa: o fim não é o destino (17/11).
+    if (!(typeof d === 'string' ? d.indexOf('"partial":true') >= 0 : d && d.partial)) buildDest();
     lookInit = false;
   },
   update(d) {

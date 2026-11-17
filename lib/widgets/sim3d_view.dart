@@ -57,8 +57,12 @@ class Sim3DController {
   }
 
   /// Rota (lat, lng), manobras e nome do destino.
-  void route(List<(double, double)> pts, List<NavStep> steps, String dest) {
+  /// [partialEnd]: o trecho termina antes do destino (rota longa): a página
+  /// não põe o pin de chegada no fim.
+  void route(List<(double, double)> pts, List<NavStep> steps, String dest,
+      {bool partialEnd = false}) {
     _routeJson = jsonEncode({
+      if (partialEnd) 'partial': true,
       'pts': [for (final p in pts) [p.$1, p.$2]],
       'steps': [
         for (final s in steps) {'la': s.lat, 'lo': s.lng, 'm': s.maneuver, 't': s.text}

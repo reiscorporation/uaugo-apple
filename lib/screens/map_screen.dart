@@ -500,6 +500,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final _sim3d = Sim3DController();
   bool _show3d = false;
   String _sim3dSig = '';
+
+  // Trecho da rota enviado ao 3D (rotas acima de [_win3dLimit] m).
+  static const _win3dLimit = 90000.0;
+  int _win3dFrom = 0, _win3dTo = 0;
+  double _win3dStart = 0, _win3dEnd = 0;
+  RouteWalker? _win3dWalker;
   /// v2: 3D sempre, só mapa, ou mapa que vira 3D perto de saídas/bifurcações.
   /// Começa no híbrido; depois vale sempre a escolha salva do piloto.
   _Mode3d _mode3d = _Mode3d.map;
@@ -7674,16 +7680,66 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!_canShow3d || (!_show3d && !car && !_mount3d)) return;
     _sim3d.visible(_show3d);
     final steps = _nav?.steps ?? const <NavStep>[];
-    final sig = '$_routeSig|${steps.length}';
+    final pr = _proj;
+    final w = _walker;
+    // Rota longa: só um trecho vai para a página (2 km atrás a 60 km à
+    // frente). Com a rota inteira (expedição de 6.837 km, 17/11) a página
+    // travava no Galaxy A14, o Android fechava processos por memória e o
+    // app caía para o mapa com "Sem internet".
+    final along = pr?.along ?? 0;
+    var from = 0, to = _routeRecs.length;
+    var base = 0.0;
+    if (w != null && w.length > _win3dLimit && w.cumulative.length == _routeRecs.length) {
+      final cum = w.cumulative;
+      if (_win3dTo <= _win3dFrom ||
+          along < _win3dStart + 500 ||
+          along > _win3dEnd - 15000 ||
+          !identical(_win3dWalker, w)) {
+        final a = max(0.0, along - 2000), b = along + 60000;
+        var i = 0;
+        while (i < cum.length - 1 && cum[i + 1] < a) {
+          i++;
+        }
+        var j = i + 1;
+        while (j < cum.length - 1 && cum[j] < b) {
+          j++;
+        }
+        _win3dFrom = i;
+        _win3dTo = j + 1;
+        _win3dStart = cum[i];
+        _win3dEnd = cum[j];
+        _win3dWalker = w;
+      }
+      from = _win3dFrom;
+      to = _win3dTo;
+      base = _win3dStart;
+    } else {
+      _win3dFrom = _win3dTo = 0;
+    }
+    final partial = from > 0 || to < _routeRecs.length;
+    final sig = '$_routeSig|${steps.length}|$from|$to';
     if (sig != _sim3dSig) {
       _sim3dSig = sig;
-      _sim3d.route(_routeRecs, steps, _trip?.title ?? '');
+      final pts = partial ? _routeRecs.sublist(from, to) : _routeRecs;
+      // Só as manobras do trecho (a página procura cada uma na linha).
+      final st = !partial
+          ? steps
+          : [
+              for (final s in steps)
+                if (_win3dWalker != null &&
+                    () {
+                      final d = _win3dWalker!.project(s.lat, s.lng).along;
+                      return d >= _win3dStart - 50 && d <= _win3dEnd + 50;
+                    }())
+                  s
+            ];
+      // Trecho que não chega ao destino: sem o pin de chegada no fim.
+      _sim3d.route(pts, st, _trip?.title ?? '', partialEnd: to < _routeRecs.length);
     }
     _sim3d.dark(_darkMap);
-    final pr = _proj;
     if (pr != null) {
       final me = _me;
-      _sim3d.update(pr.along, _speedMs, _isOff3d(pr, me),
+      _sim3d.update(max(0.0, pr.along - base), _speedMs, _isOff3d(pr, me),
           lat: me?.latitude, lng: me?.longitude, heading: _bearing);
     }
     _feedHud3d();
