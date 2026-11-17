@@ -23,6 +23,7 @@ import '../logic/itinerary.dart';
 import '../logic/radars.dart' show distanceMeters;
 import '../logic/tolls.dart';
 import '../logic/rodizio.dart';
+import '../logic/keep_route.dart';
 import '../models/bike.dart';
 import '../models/expedition.dart' show StopType;
 import '../models/trip.dart';
@@ -704,11 +705,42 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
   /// O piloto escolheu outra rota (na lista ou tocando a linha cinza).
   void _chooseRoute(Trip v) {
     _cancelAuto();
+    final kept = _keepChosen(v);
     setState(() {
-      _trip = v;
+      // A opção na lista vira a com os pontos de passagem (a marcação de
+      // "escolhida" compara pela mesma viagem).
+      if (!identical(kept, v)) {
+        _options = [for (final o in _options) identical(o, v) ? kept : o];
+      }
+      _trip = kept;
       _tollCost = null;
     });
     _calcTolls();
+  }
+
+  /// Outra opção que não a padrão: guarda pontos de passagem nos trechos em
+  /// que ela se separa da padrão, para o recálculo (quando o piloto sai da
+  /// rota) seguir pelo caminho escolhido, e não voltar para a padrão
+  /// (testador motoboy, 16/11). Rota com pontos arrastados já tem os dela.
+  Trip _keepChosen(Trip v) {
+    if (_options.isEmpty || identical(v, _options.first) || v.plan.vias.isNotEmpty) {
+      return v;
+    }
+    List<(double, double)> line(Trip t) => [
+          for (final q in decodePolyline(t.plan.polyline)) (q.latitude, q.longitude)
+        ];
+    final vias = distinctiveVias(line(v), line(_options.first));
+    if (vias.isEmpty) return v;
+    return Trip(
+      title: v.title,
+      plan: v.plan.copyWith(vias: vias),
+      stops: v.stops,
+      typicalS: v.typicalS,
+      riskCount: v.riskCount,
+      hasToll: v.hasToll,
+      summary: v.summary,
+      alternatives: v.alternatives,
+    );
   }
 
   @override
