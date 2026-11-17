@@ -634,17 +634,21 @@ class SettingsScreen extends StatelessWidget {
               title: Text(tr('Idioma')),
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: SegmentedButton<String>(
-                  showSelectedIcon: false,
-                  segments: [
-                    ButtonSegment(value: 'auto', label: Text(tr('Automático'))),
-                    const ButtonSegment(value: 'pt', label: Text('Português')),
-                    const ButtonSegment(value: 'en', label: Text('English')),
-                    const ButtonSegment(value: 'es', label: Text('Español')),
-                  ],
-                  selected: {lang},
-                  onSelectionChanged: (v) => s.setLanguage(v.first),
-                ),
+                // 4 idiomas não cabem lado a lado (quebrava "Automá/tico"):
+                // opções que descem para a linha de baixo quando precisa.
+                child: Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final (v, label) in [
+                    ('auto', tr('Automático')),
+                    ('pt', 'Português'),
+                    ('en', 'English'),
+                    ('es', 'Español'),
+                  ])
+                    ChoiceChip(
+                      label: Text(label),
+                      selected: lang == v,
+                      onSelected: (_) => s.setLanguage(v),
+                    ),
+                ]),
               ),
             ),
           ),
