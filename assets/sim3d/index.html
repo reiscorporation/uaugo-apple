@@ -692,9 +692,7 @@ const carpetMat = new THREE.ShaderMaterial({
 const carpet = new THREE.Mesh(carpetGeo, carpetMat); carpet.renderOrder = 5; carpet.frustumCulled = false; scene.add(carpet);
 function updateCarpet(s) {
   const pos = carpetGeo.attributes.position.array, dist = carpetGeo.attributes.dist.array;
-  // Meia largura: 1,5 m (3 m, quase a faixa toda). No carro, 0,9 m (1,8 m):
-  // "a rota traçada está muito larga" no Android Auto (Ricardo, 17/11).
-  const end = Math.min(TOTAL, s + CARPET_L), hw = CAR ? 0.9 : 1.5, o = lanePosAt(s);
+  const end = Math.min(TOTAL, s + CARPET_L), hw = 1.5, o = lanePosAt(s);
   carpet.position.set(o.x, 0, -o.y);
   for (let i = 0; i <= CARPET_N; i++) {
     const ss = s + (end - s) * (i / CARPET_N), p = lanePosAt(ss);
