@@ -731,8 +731,16 @@ class CarMapView(private val context: Context) {
      *  Google Maps do carro, o veículo fica perto de baixo e a estrada à
      *  frente ocupa a tela (antes 0,35 = pouco abaixo do meio). Seguindo a
      *  direção; com o norte para cima, fica como antes. */
-    private fun extraTop(r: Rect): Int =
-        (r.height() * (if (CarState.northUp) 0.35f else 0.62f)).toInt()
+    private fun extraTop(r: Rect): Int {
+        val h = r.height()
+        if (CarState.northUp) return (h * 0.35f).toInt()
+        // O veículo desce até logo acima da linha de botões do UauGo (56 dp
+        // + margens): em tela baixa (800x480) a foto do piloto ficava atrás
+        // dos botões (DHU, 17/11). Centro = (extraTop + h) / 2.
+        val dens = context.resources.displayMetrics.density
+        val lowest = h - 2 * ((56 + 14 + 34) * dens).toInt()
+        return maxOf((h * 0.35f).toInt(), minOf((h * 0.62f).toInt(), lowest))
+    }
 
     /** O centro do mapa fica na área livre, mais para baixo (vê à frente). */
     private fun applyPadding() {
