@@ -6116,7 +6116,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           left: 6,
           top: landscape ? 8 : null,
           // Embaixo, mas acima do logo do Google (o mapa exige que ele apareça).
-          bottom: _sim != null ? (landscape ? 64 : 196) : 36,
+          // 3D deitado: sem mapa (nem logo), alinhado com a base da linha de
+          // botões, que fica a 12 da borda (17/11).
+          bottom: _sim != null
+              ? (landscape ? 64 : 196)
+              : (landscape && _show3d ? 12 : 36),
           child: _landscapeFit(landscape, Alignment.bottomLeft, Column(
             key: _kLeftCol,
             mainAxisSize: MainAxisSize.min,
