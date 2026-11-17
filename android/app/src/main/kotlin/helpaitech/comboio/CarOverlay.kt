@@ -52,8 +52,9 @@ class CarOverlay(private val ctx: Context) {
     }
     // Aviso amarelo igual ao do celular (12/11): faixa de lado a lado logo
     // abaixo da manobra, emoji grande à esquerda e texto em negrito.
-    private val banner = tv(16f, Color.BLACK).apply {
-        background = box(Color.rgb(255, 193, 7), 12); setPadding(dp(12), dp(6), dp(12), dp(6)); maxLines = 2
+    // 16/11: menor (letra 13, só a largura do texto), pedido do Ricardo.
+    private val banner = tv(13f, Color.BLACK).apply {
+        background = box(Color.rgb(255, 193, 7), 10); setPadding(dp(10), dp(3), dp(10), dp(3)); maxLines = 2
         gravity = Gravity.CENTER_VERTICAL; elevation = dp(6).toFloat()
     }
     private val speed = tv(36f, Color.WHITE).apply { gravity = Gravity.CENTER }
@@ -172,11 +173,15 @@ class CarOverlay(private val ctx: Context) {
         lp.setMargins(r.left + dp(10), dp(10),
             maxOf((width - r.right).coerceAtLeast(0), dp(170)) + dp(10), 0)
         v.layoutParams = lp
+        placeBottom(r, width)
     }
 
     private val pill = tv(15f, Color.WHITE).apply {
         background = box(Color.rgb(198, 40, 40), 18); setPadding(dp(12), dp(6), dp(12), dp(6))
     }
+
+    private var speedColumn: View? = null
+    private var buttonRow: View? = null
 
     init {
         // Faixa de cima, de lado a lado da área livre: manobra e chegada; o
@@ -186,7 +191,7 @@ class CarOverlay(private val ctx: Context) {
         row.addView(turn, LinearLayout.LayoutParams(0, -2, 1f))
         row.addView(info, LinearLayout.LayoutParams(-2, -1).apply { leftMargin = dp(6) })
         top.addView(row, LinearLayout.LayoutParams(-1, -2))
-        top.addView(banner, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        top.addView(banner, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
         top.addView(groupBar, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
         topBox = top
         root.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
@@ -219,10 +224,37 @@ class CarOverlay(private val ctx: Context) {
         bottom.addView(speedBox, LinearLayout.LayoutParams(dp(118), dp(108)))
         bottom.addView(pill, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8); bottomMargin = dp(6) })
         column.addView(bottom)
-        column.addView(buttons, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
+        speedColumn = column
+        buttonRow = buttons
         root.addView(column, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply {
-            setMargins(dp(10), 0, 0, dp(10))
+            setMargins(dp(10), 0, 0, dp(6))
         })
+        root.addView(buttons, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply {
+            setMargins(0, 0, dp(84), dp(10))
+        })
+    }
+
+    /** Botões embaixo à direita, ao lado da coluna do Android Auto (+/−);
+     *  velocímetro no canto de baixo à esquerda (16/11). Tela estreita
+     *  (dividida): não cabem lado a lado, os botões ficam embaixo e o
+     *  velocímetro logo acima deles, como antes. */
+    private fun placeBottom(r: android.graphics.Rect, width: Int) {
+        val b = buttonRow ?: return
+        val c = speedColumn ?: return
+        val narrow = r.width() < 560 // mesmo critério do extraLeft do mapa
+        val blp = b.layoutParams as FrameLayout.LayoutParams
+        val clp = c.layoutParams as FrameLayout.LayoutParams
+        if (narrow) {
+            blp.gravity = Gravity.BOTTOM or Gravity.START
+            blp.setMargins(r.left + dp(10), 0, 0, dp(10))
+            clp.setMargins(r.left + dp(10), 0, 0, dp(10 + 56 + 8))
+        } else {
+            blp.gravity = Gravity.BOTTOM or Gravity.END
+            blp.setMargins(0, 0, maxOf((width - r.right).coerceAtLeast(0), dp(84)) + dp(6), dp(10))
+            clp.setMargins(r.left + dp(10), 0, 0, dp(6))
+        }
+        b.layoutParams = blp
+        c.layoutParams = clp
     }
 
     private fun icon(m: String) = when {
@@ -308,7 +340,7 @@ class CarOverlay(private val ctx: Context) {
         val sp = t.indexOf(' ')
         if (sp <= 0 || sp > 8) return t
         val ss = android.text.SpannableString(t.substring(0, sp) + "  " + t.substring(sp + 1))
-        ss.setSpan(android.text.style.RelativeSizeSpan(1.7f), 0, sp, 0)
+        ss.setSpan(android.text.style.RelativeSizeSpan(1.4f), 0, sp, 0)
         return ss
     }
 }
