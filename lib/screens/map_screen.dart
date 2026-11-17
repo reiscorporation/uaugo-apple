@@ -5755,57 +5755,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ),
-            // SOS com localização em tempo real ligado: faixa fixa com
-            // "Estou bem" (antes só dava para parar reabrindo o SOS).
-            ValueListenableBuilder<String?>(
-              valueListenable: LiveSos.active,
-              builder: (_, token, __) => token == null
-                  ? const SizedBox.shrink()
-                  : Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Material(
-                        color: Colors.red.shade700,
-                        elevation: 6,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
-                          child: Row(children: [
-                            const Icon(Icons.sos, color: Colors.white),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(tr('SOS ativo: sua localização está sendo enviada'),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                            FilledButton(
-                              style: FilledButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: Colors.red.shade800),
-                              onPressed: () async {
-                                final ok = await showDialog<bool>(
-                                  context: context,
-                                  builder: (c) => AlertDialog(
-                                    title: Text(tr('Parar o SOS?')),
-                                    content: Text(tr('Quem recebeu o link deixa de ver sua localização.')),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.pop(c, false), child: Text(tr('Continuar SOS'))),
-                                      FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(tr('Estou bem'))),
-                                    ],
-                                  ),
-                                );
-                                if (ok == true) LiveSos.stop();
-                              },
-                              child: Text(tr('Estou bem')),
-                            ),
-                          ]),
-                        ),
-                      ),
-                    ),
-            ),
             if (_rerouting)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -9125,6 +9074,30 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             title: Text(tr('Emergência'),
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           ),
+          // SOS com localização em tempo real ligado: "Estou bem" fica aqui,
+          // nas opções do SOS (sem faixa no mapa, pedido do Ricardo 16/11).
+          ValueListenableBuilder<String?>(
+            valueListenable: LiveSos.active,
+            builder: (_, token, __) => token == null
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.green.shade700,
+                        minimumSize: const Size.fromHeight(52),
+                        textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                      ),
+                      icon: const Icon(Icons.check_circle),
+                      label: Text(tr('Estou bem: parar a localização em tempo real')),
+                      onPressed: () {
+                        LiveSos.stop();
+                        Navigator.pop(ctx);
+                        _snack(tr('Localização em tempo real desligada.'));
+                      },
+                    ),
+                  ),
+          ),
           for (final (num, label) in [
             ('192', tr('SAMU (ambulância)')),
             ('193', tr('Bombeiros (resgate)')),
@@ -9165,16 +9138,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             leading: const Icon(Icons.share_location),
             title: Text(tr('Enviar por outro app (SMS, Telegram...)')),
             onTap: () => SharePlus.instance.share(ShareParams(text: _sosMessage())),
-          ),
-          ValueListenableBuilder<String?>(
-            valueListenable: LiveSos.active,
-            builder: (_, token, __) => token == null
-                ? const SizedBox.shrink()
-                : ListTile(
-                    leading: const Icon(Icons.location_off, color: Colors.red),
-                    title: Text(tr('Estou bem: parar a localização em tempo real')),
-                    onTap: LiveSos.stop,
-                  ),
           ),
         ]),
       ),
