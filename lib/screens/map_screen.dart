@@ -9141,7 +9141,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         turn,
         const SizedBox(width: 12),
         Expanded(
-          child: Text(_justDriving ? t.text : eta.replaceAll('\n', ' · '),
+          // 3D deitado (17/11): a Chegada já fica embaixo, na cena; aqui
+          // vai a manobra (rua), no lugar da faixa que havia na cena.
+          child: Text(
+              _justDriving || (landscape && _show3d && _sim == null)
+                  ? t.text
+                  : eta.replaceAll('\n', ' · '),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),

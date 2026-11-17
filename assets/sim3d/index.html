@@ -112,12 +112,15 @@
   /* celular deitado com a linha de botões do carro (17/11): Chegada e
      manobra como no Android Auto */
   body.carlike:not(.car) #hud { display: flex !important; }
-  body.carlike #next, body.carlike #eta { display: flex; }
+  body.carlike #eta { display: flex; }
+  /* a manobra fica na barra de cima do app (17/11), aqui só a Chegada */
+  body.carlike #next { display: none !important; }
   /* celular deitado: a manobra fica no alto, no lugar do balão de texto,
      que some (17/11: embaixo ficava apertado) */
   body.carlike #say { display: none !important; }
   body.carlike #eta { padding-left: 24px; padding-right: 18px; }
-  body.carlike #eta .k { letter-spacing: 0.06em; }
+  body.carlike #eta .k { letter-spacing: 0.06em; font-size: 12px; }
+  body.carlike #etaD { font-size: 13px; }
   /* celular em pé: sem a chegada (fica no topo do app) */
   @media (max-width: 560px) {
     #eta { display: none; }
