@@ -90,6 +90,10 @@ const val MAP_FONT_SCALE = 0.85f
  *  pontos menores; o zoom compensa para mostrar a mesma área (12/11). */
 const val MAP_DENSITY_SCALE = 0.6f
 
+/** Inclinação do mapa do carro seguindo a direção (17/11: 45 -> 60, como o
+ *  Google Maps no Android Auto). */
+const val CAR_TILT = 60f
+
 /** Largura da linha da rota (e do trânsito por cima dela) no mapa do carro. */
 const val ROUTE_WIDTH_PX = 4f
 val MAP_ZOOM_FIX = (Math.log(1.0 / MAP_DENSITY_SCALE) / Math.log(2.0)).toFloat()
@@ -521,6 +525,12 @@ class CarMapView(private val context: Context) {
                     .zIndex(3f)))
             }
         }
+        // Norte para cima liga/desliga: o veículo muda de altura na tela.
+        if (CarState.northUp != paddedNorthUp) {
+            paddedNorthUp = CarState.northUp
+            applyPadding()
+            placeMeView()
+        }
         apply3d()
         overlay?.update()
         if (view3d != null) { meView?.visibility = android.view.View.GONE; return } // mapa pausado: a cena 3D cobre a tela
@@ -654,11 +664,12 @@ class CarMapView(private val context: Context) {
             me?.position = p
             g.moveCamera(CameraUpdateFactory.newCameraPosition(
                 CameraPosition.Builder().target(p).zoom(shownZoom)
-                    .bearing(shownBearing).tilt(if (CarState.northUp) 0f else 45f).build()))
+                    .bearing(shownBearing).tilt(if (CarState.northUp) 0f else CAR_TILT).build()))
             if (t < 1f) ticker.postDelayed(this, 50)
         }
     }
 
+    private var paddedNorthUp = false
     private var meView: android.widget.ImageView? = null
     private var meViewIcon = ""
 
@@ -666,7 +677,7 @@ class CarMapView(private val context: Context) {
     private fun placeMeView() {
         val iv = meView ?: return
         val r = visible ?: Rect(0, 0, width, height)
-        val extraTop = (r.height() * 0.35f).toInt()
+        val extraTop = extraTop(r)
         val cx = (r.left + extraLeft(r) + r.right) / 2f
         val cy = (r.top + extraTop + r.bottom) / 2f
         val lp = iv.layoutParams
@@ -709,11 +720,18 @@ class CarMapView(private val context: Context) {
     private fun extraLeft(r: Rect): Int =
         if (r.width() < 560) (r.width() * 0.30f).toInt() else 0
 
+    /** Quanto o centro (e o veículo) desce na área livre. 17/11: como no
+     *  Google Maps do carro, o veículo fica perto de baixo e a estrada à
+     *  frente ocupa a tela (antes 0,35 = pouco abaixo do meio). Seguindo a
+     *  direção; com o norte para cima, fica como antes. */
+    private fun extraTop(r: Rect): Int =
+        (r.height() * (if (CarState.northUp) 0.35f else 0.62f)).toInt()
+
     /** O centro do mapa fica na área livre, mais para baixo (vê à frente). */
     private fun applyPadding() {
         val g = map ?: return
         val r = visible ?: Rect(0, 0, width, height)
-        val extraTop = (r.height() * 0.35f).toInt()
+        val extraTop = extraTop(r)
         g.setPadding(r.left + extraLeft(r), r.top + extraTop, max(0, width - r.right), max(0, height - r.bottom))
     }
 
