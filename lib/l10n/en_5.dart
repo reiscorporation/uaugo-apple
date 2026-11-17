@@ -313,4 +313,9 @@ const en5 = <String, String>{
   '{0} só débito': '{0} debit only',
   '{0} sem informação': '{0} unknown',
   '💳 Cartão nas praças: {0}.': '💳 Cards at toll plazas: {0}.',
+  'Apagar contato': 'Delete contact',
+  'Atenção: pode haver radar móvel na {0}{1}': 'Attention: there may be a mobile speed camera on {0}{1}',
+  'Atenção: em {0} começa trecho com radar móvel na {1}{2}': 'Attention: in {0} a stretch with mobile speed cameras starts on {1}{2}',
+  'Trecho com radar portátil ({0}) · {1} km {2}–{3}': 'Mobile speed camera stretch ({0}) · {1} km {2}–{3}',
+  '🚔 Trecho com possível radar portátil ({0}): {1}, km {2} a {3}': '🚔 Possible mobile speed camera stretch ({0}): {1}, km {2} to {3}',
 };

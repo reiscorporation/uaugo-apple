@@ -1,0 +1,640 @@
+{
+ "org": "DER-PR",
+ "fonte": "https://www.der.pr.gov.br/Pagina/Fiscalizacao-de-velocidade-Locais-de-fiscalizacao",
+ "arquivo": "Planejamento_OperacionalRadarBPRv20102026.pdf",
+ "publicado": "2026-10-20",
+ "obs": "Só as PRC (coincidentes com BR): posicionadas pelo km da BR no SNV do DNIT. As PR- puras ficam de fora (sem malha com km).",
+ "uf": "PR",
+ "trechos": [
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 2,
+   "ate": 5
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 430,
+   "ate": 432
+  },
+  {
+   "rodovia": "PRC-476",
+   "br": "476",
+   "de": 359,
+   "ate": 363
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 62.9,
+   "ate": 63.9
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 67.4,
+   "ate": 68.4
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 69.4,
+   "ate": 70.4
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 76,
+   "ate": 80
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 83,
+   "ate": 86
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 102.8,
+   "ate": 103.8
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 112,
+   "ate": 117
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 210,
+   "ate": 215.2
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 224.8,
+   "ate": 225.8
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 225.3,
+   "ate": 226.3
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 226.3,
+   "ate": 227.3
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 252,
+   "ate": 253
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 83.0,
+   "ate": 84.0
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 105.5,
+   "ate": 106.5
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 110,
+   "ate": 115
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 511,
+   "ate": 516
+  },
+  {
+   "rodovia": "PRC-272",
+   "br": "272",
+   "de": 518,
+   "ate": 521
+  },
+  {
+   "rodovia": "PRC-467",
+   "br": "467",
+   "de": 4,
+   "ate": 8
+  },
+  {
+   "rodovia": "PRC-467",
+   "br": "467",
+   "de": 9.15,
+   "ate": 12.92
+  },
+  {
+   "rodovia": "PRC-467",
+   "br": "467",
+   "de": 15.51,
+   "ate": 19
+  },
+  {
+   "rodovia": "PRC-467",
+   "br": "467",
+   "de": 24.5,
+   "ate": 26.5
+  },
+  {
+   "rodovia": "PRC-467",
+   "br": "467",
+   "de": 111,
+   "ate": 113
+  },
+  {
+   "rodovia": "PRC-467",
+   "br": "467",
+   "de": 113,
+   "ate": 117
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 206,
+   "ate": 207
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 214,
+   "ate": 216
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 218.3,
+   "ate": 219.3
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 420,
+   "ate": 424
+  },
+  {
+   "rodovia": "PRC-460",
+   "br": "460",
+   "de": 2.6,
+   "ate": 4
+  },
+  {
+   "rodovia": "PRC-460",
+   "br": "460",
+   "de": 6,
+   "ate": 8
+  },
+  {
+   "rodovia": "PRC-460",
+   "br": "460",
+   "de": 24.5,
+   "ate": 26
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 132,
+   "ate": 135
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 135,
+   "ate": 138
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 141,
+   "ate": 143
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 144,
+   "ate": 147
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 149,
+   "ate": 153.9
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 160.3,
+   "ate": 162.3
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 162.5,
+   "ate": 165
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 165,
+   "ate": 166
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 166,
+   "ate": 168
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 168.2,
+   "ate": 170.2
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 171.4,
+   "ate": 173.4
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 177.7,
+   "ate": 179.7
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 181,
+   "ate": 186
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 186.6,
+   "ate": 188.6
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 204,
+   "ate": 206
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 209,
+   "ate": 210.6
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 210.6,
+   "ate": 212.6
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 218,
+   "ate": 219
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 220,
+   "ate": 224
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 229,
+   "ate": 231
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 233,
+   "ate": 234.5
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 239.1,
+   "ate": 241
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 244,
+   "ate": 245
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 255,
+   "ate": 257
+  },
+  {
+   "rodovia": "PRC-466",
+   "br": "466",
+   "de": 258.4,
+   "ate": 261
+  },
+  {
+   "rodovia": "PRC-487",
+   "br": "487",
+   "de": 242.2,
+   "ate": 245
+  },
+  {
+   "rodovia": "PRC-487",
+   "br": "487",
+   "de": 245,
+   "ate": 249
+  },
+  {
+   "rodovia": "PRC-487",
+   "br": "487",
+   "de": 249,
+   "ate": 252
+  },
+  {
+   "rodovia": "PRC-487",
+   "br": "487",
+   "de": 252,
+   "ate": 253
+  },
+  {
+   "rodovia": "PRC-487",
+   "br": "487",
+   "de": 257.7,
+   "ate": 259
+  },
+  {
+   "rodovia": "PRC-487",
+   "br": "487",
+   "de": 259,
+   "ate": 262.5
+  },
+  {
+   "rodovia": "PRC-487",
+   "br": "487",
+   "de": 262.0,
+   "ate": 263.5
+  },
+  {
+   "rodovia": "PRC-487",
+   "br": "487",
+   "de": 438,
+   "ate": 441
+  },
+  {
+   "rodovia": "PRC-487",
+   "br": "487",
+   "de": 443,
+   "ate": 447
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 405,
+   "ate": 410
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 411,
+   "ate": 415
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 415.6,
+   "ate": 419
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 424,
+   "ate": 427
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 430,
+   "ate": 434
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 435,
+   "ate": 439
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 440,
+   "ate": 444
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 450,
+   "ate": 454
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 457.5,
+   "ate": 462
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 471,
+   "ate": 475
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 491,
+   "ate": 493
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 536,
+   "ate": 539
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 539,
+   "ate": 543
+  },
+  {
+   "rodovia": "PRC-158",
+   "br": "158",
+   "de": 550,
+   "ate": 552
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 71.3,
+   "ate": 73.7
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 82.2,
+   "ate": 85.98
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 108,
+   "ate": 112
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 113,
+   "ate": 117
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 118.5,
+   "ate": 120
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 121,
+   "ate": 124
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 125,
+   "ate": 127
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 127.0,
+   "ate": 128.5
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 128.4,
+   "ate": 129.5
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 135.5,
+   "ate": 136.5
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 162.5,
+   "ate": 164.5
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 165,
+   "ate": 167
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 171,
+   "ate": 173
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 176,
+   "ate": 178
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 183,
+   "ate": 185
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 192,
+   "ate": 194
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 198.5,
+   "ate": 200.5
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 201,
+   "ate": 203
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 207,
+   "ate": 209
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 210,
+   "ate": 212
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 224,
+   "ate": 227
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 228,
+   "ate": 233
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 250.2,
+   "ate": 251.8
+  },
+  {
+   "rodovia": "PRC-280",
+   "br": "280",
+   "de": 251.3,
+   "ate": 252.3
+  }
+ ]
+}

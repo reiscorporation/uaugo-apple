@@ -40,16 +40,36 @@ class FixedRadar {
   double get alertMeters => kind == RadarKind.redLight ? 300 : 1000;
 }
 
-/// Trecho onde a PRF pode fiscalizar com radar portátil.
+/// Trecho onde a PRF (ou outro órgão, ex.: DER-PR) pode fiscalizar com
+/// radar portátil (Resolução CONTRAN 798/20: cada órgão publica a lista).
 class PrfStretch {
   final int id;
   final String uf;
-  final String br; // "101"
+  final String br; // "101" (PRF) ou o número da rodovia do outro órgão
   final double kmFrom;
   final double kmTo;
   final List<(double, double)> points; // (lat, lng)
+
+  /// Órgão que publicou o trecho ("PRF", "DER-PR"...).
+  final String org;
+
+  /// Rodovia como o órgão escreve ("PRC-466"); null = "BR-<br>".
+  final String? road;
   const PrfStretch(
-      this.id, this.uf, this.br, this.kmFrom, this.kmTo, this.points);
+      this.id, this.uf, this.br, this.kmFrom, this.kmTo, this.points,
+      {this.org = 'PRF', this.road});
+
+  bool get isPrf => org == 'PRF';
+
+  /// "BR-101", "PRC-466".
+  String get roadLabel => road ?? 'BR-$br';
+
+  /// Para a voz: "B R 101", "P R C 466".
+  String get roadSpoken {
+    final parts = roadLabel.split('-');
+    if (parts.length < 2) return roadLabel;
+    return '${parts.first.split('').join(' ')} ${int.tryParse(parts.last) ?? parts.last}';
+  }
 }
 
 /// Índice em células de 0,1° (~11 km), igual ao dos alertas.
@@ -72,7 +92,16 @@ class RadarIndex {
   factory RadarIndex.fromJson(Map<String, dynamic> j) {
     final radars = (j['radars'] as List?) ?? const [];
     final prf = j['prf'] as Map<String, dynamic>?;
-    final stretches = (prf?['stretches'] as List?) ?? const [];
+    // Trechos de outros órgãos (DER-PR...): {org, stretches: [[uf, rodovia,
+    // km de, km até, polilinha]]}. Fica fora de "prf" para as versões
+    // antigas do app não chamarem de PRF.
+    final stretches = <(List, String, String?)>[
+      for (final s in (prf?['stretches'] as List?) ?? const []) (s as List, 'PRF', null),
+      for (final o in (j['outros'] as List?) ?? const [])
+        if (o is Map)
+          for (final s in (o['stretches'] as List?) ?? const [])
+            (s as List, '${o['org'] ?? ''}', '${(s)[1]}'),
+    ];
     final idx = RadarIndex._(
       (j['attribution'] ?? '') as String,
       (prf?['label'] ?? '') as String,
@@ -92,13 +121,15 @@ class RadarIndex {
       idx._radars.putIfAbsent(_cell(lat, lng), () => []).add(radar);
     }
     for (var i = 0; i < stretches.length; i++) {
-      final s = stretches[i] as List;
+      final (s, org, road) = stretches[i];
       final pts = decodePolyline(s[4] as String)
           .map((p) => (p.latitude, p.longitude))
           .toList();
       if (pts.isEmpty) continue;
-      final st = PrfStretch(i, s[0] as String, s[1] as String,
-          (s[2] as num).toDouble(), (s[3] as num).toDouble(), pts);
+      final st = PrfStretch(i, s[0] as String,
+          road == null ? s[1] as String : road.replaceAll(RegExp(r'\D'), ''),
+          (s[2] as num).toDouble(), (s[3] as num).toDouble(), pts,
+          org: org, road: road);
       final cells = {for (final p in pts) _cell(p.$1, p.$2)};
       for (final c in cells) {
         idx._stretches.putIfAbsent(c, () => []).add(st);
@@ -320,7 +351,12 @@ String prfStretchSpeech(PrfStretch s, double meters) {
   final span = len >= 1
       ? tr(' nos próximos {0}', [spokenDistance(len * 1000.0)])
       : '';
-  final road = 'B R ${int.parse(s.br)}';
+  final road = s.roadSpoken;
+  if (!s.isPrf) {
+    return meters < 100
+        ? tr('Atenção: pode haver radar móvel na {0}{1}', [road, span])
+        : tr('Atenção: em {0} começa trecho com radar móvel na {1}{2}', [spokenDistance(meters), road, span]);
+  }
   return meters < 100
       ? tr('Atenção: pode haver radar móvel da polícia rodoviária na {0}{1}', [road, span])
       : tr('Atenção: em {0} começa trecho com radar móvel da polícia rodoviária na {1}{2}', [spokenDistance(meters), road, span]);

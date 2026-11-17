@@ -1431,7 +1431,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _announceRadar(
         kind: 'radar',
         emoji: '🚔',
-        text: tr('Trecho com radar portátil da PRF · BR-{0} km {1}–{2}', [s.br, s.kmFrom.round(), s.kmTo.round()]),
+        text: s.isPrf
+            ? tr('Trecho com radar portátil da PRF · BR-{0} km {1}–{2}', [s.br, s.kmFrom.round(), s.kmTo.round()])
+            : tr('Trecho com radar portátil ({0}) · {1} km {2}–{3}', [s.org, s.roadLabel, s.kmFrom.round(), s.kmTo.round()]),
         speech: prfStretchSpeech(s, n.meters),
         // Some ao sair do trecho (ou se não chegar a entrar nele).
         passed: (q) =>
@@ -5133,7 +5135,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             patterns: [PatternItem.dash(24), PatternItem.gap(10)],
             consumeTapEvents: true,
             onTap: () => _snack(
-                tr('🚔 Trecho com possível radar portátil da PRF: BR-{0}, km {1} a {2}', [s.br, s.kmFrom.round(), s.kmTo.round()])),
+                s.isPrf
+                    ? tr('🚔 Trecho com possível radar portátil da PRF: BR-{0}, km {1} a {2}', [s.br, s.kmFrom.round(), s.kmTo.round()])
+                    : tr('🚔 Trecho com possível radar portátil ({0}): {1}, km {2} a {3}', [s.org, s.roadLabel, s.kmFrom.round(), s.kmTo.round()])),
           ),
       };
     }

@@ -440,8 +440,11 @@ class SettingsScreen extends StatelessWidget {
     final r = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
+        // Rola: com o teclado aberto e a letra grande do celular, os botões
+        // ficavam por cima do texto (Galaxy, 17/11).
+        scrollable: true,
         title: Text(tr('Contato de emergência')),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           TextField(
             controller: name,
             textCapitalization: TextCapitalization.words,
@@ -456,10 +459,19 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Text(tr('Fica só no seu celular. Usado apenas quando você toca no SOS.'),
               style: TextStyle(fontSize: 12)),
+          // Apagar fica no conteúdo, separado de Cancelar/Salvar.
+          if (c != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: TextButton.icon(
+                style: TextButton.styleFrom(foregroundColor: Colors.red.shade400, padding: EdgeInsets.zero),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: Text(tr('Apagar contato')),
+                onPressed: () => Navigator.pop(ctx, 'apagar'),
+              ),
+            ),
         ]),
         actions: [
-          if (c != null)
-            TextButton(onPressed: () => Navigator.pop(ctx, 'apagar'), child: Text(tr('Apagar'))),
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Cancelar'))),
           FilledButton(onPressed: () => Navigator.pop(ctx, 'salvar'), child: Text(tr('Salvar'))),
         ],

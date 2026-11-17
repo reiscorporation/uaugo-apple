@@ -418,15 +418,41 @@ async function buildRadarData({ log = console.log, today = new Date(), extra = [
     log(`PRF indisponível: ${e.message}`);
   }
 
+  // Outros órgãos (Resolução CONTRAN 798/20: cada um publica a sua lista).
+  // DER-PR: só as PRC (coincidentes com BR), posicionadas pelo km da BR no
+  // SNV. Vai em "outros" (fora de "prf"): versões antigas do app ignoram.
+  const outros = [];
+  try {
+    const der = require("./data/radar-portatil-der-pr.json");
+    const roads = new Map();
+    await mapLimit([...new Set(der.trechos.map((t) => t.br))], 4, async (br) => {
+      try { roads.set(br, await loadSnvRoad(der.uf, br.padStart(3, "0"))); } catch (e) {
+        log(`SNV ${der.uf}|${br} falhou: ${e.message}`);
+        roads.set(br, []);
+      }
+    });
+    const stretches = [];
+    for (const t of der.trechos) {
+      const pts = stretchGeometry(roads.get(t.br) || [], t.de, t.ate);
+      if (pts.length < 2) continue;
+      stretches.push([der.uf, t.rodovia, t.de, t.ate, encodePolyline(pts)]);
+    }
+    log(`${der.org}: ${stretches.length} de ${der.trechos.length} trechos no mapa`);
+    if (stretches.length) outros.push({ org: der.org, label: `Lista de ${der.publicado}`, stretches });
+  } catch (e) {
+    log(`DER-PR indisponível: ${e.message}`);
+  }
+
   return {
     v: 1,
     builtAt: new Date().toISOString(),
     attribution:
       "Radares fixos: projeto Pardal (ODbL) – DNIT, ANTT, DERs, prefeituras e " +
       "© colaboradores do OpenStreetMap; pilotos do UauGo. Trechos de radar portátil: Polícia " +
-      "Rodoviária Federal; traçado: DNIT/SNV.",
+      "Rodoviária Federal e DER-PR; traçado: DNIT/SNV.",
     radars,
     prf,
+    outros,
   };
 }
 
