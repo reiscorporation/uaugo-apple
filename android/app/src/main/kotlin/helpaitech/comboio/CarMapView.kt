@@ -274,7 +274,9 @@ class CarMapView(private val context: Context) {
                 }
             }
             root.addView(v.view, 1, FrameLayout.LayoutParams(-1, -1))
+            overlay?.in3d = true
         } else {
+            overlay?.in3d = false
             view3d?.let {
                 root.removeView(it.view)
                 runCatching { it.destroy() }

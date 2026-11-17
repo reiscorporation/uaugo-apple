@@ -162,15 +162,36 @@ class CarOverlay(private val ctx: Context) {
     }
 
     private var topBox: View? = null
+    private var lastArea: android.graphics.Rect? = null
+    private var lastWidth = 0
+
+    /** Estrada em 3D na tela: o minimapa da página fica no canto de cima à
+     *  esquerda, então o aviso amarelo começa à direita dele (17/11: o aviso
+     *  "Lombada à frente" cobria o minimapa). */
+    var in3d = false
+        set(v) {
+            if (field == v) return
+            field = v
+            lastArea?.let { setArea(it, lastWidth) }
+        }
+
+    /** Largura do minimapa da página 3D (sim3d: 32% da altura, de 80 a 120
+     *  px da página) + as margens dele, em px da tela. */
+    private fun miniSpace(): Int {
+        val hDp = root.height / d
+        return dp((hDp * 0.32f).coerceIn(80f, 120f).toInt() + 10 + 8)
+    }
 
     /** Área livre (fora dos botões do Android Auto): a faixa de cima cabe nela. */
     fun setArea(r: android.graphics.Rect, width: Int) {
+        lastArea = android.graphics.Rect(r)
+        lastWidth = width
         val v = topBox ?: return
         val lp = v.layoutParams as FrameLayout.LayoutParams
         // 12/11: a faixa sobe até o topo da tela (antes começava abaixo da
         // linha dos botões do Android Auto); à direita deixa o espaço da
         // lupa e da porta, que ficam no canto de cima.
-        lp.setMargins(r.left + dp(10), dp(10),
+        lp.setMargins(r.left + dp(10) + (if (in3d) miniSpace() else 0), dp(10),
             maxOf((width - r.right).coerceAtLeast(0), dp(170)) + dp(10), 0)
         v.layoutParams = lp
         placeBottom(r, width)

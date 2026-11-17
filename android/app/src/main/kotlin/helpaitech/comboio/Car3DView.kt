@@ -99,7 +99,10 @@ class Car3DView(context: Context) {
         val d = density
         val left = (r.left / d).toInt() + 8
         val right = ((view.width - r.right) / d).toInt() + 8
-        val bottom = ((view.height - r.bottom) / d).toInt() + 8
+        // + a linha de botões do UauGo (56 + margens), que fica embaixo:
+        // o painel de chegada/manobra da página passava por baixo dela
+        // (17/11, foto no carro).
+        val bottom = ((view.height - r.bottom) / d).toInt() + 8 + 56 + 12
         // topo livre (abaixo do cartão de manobra do Android Auto): minimapa
         // 12/11: minimapa no alto da tela (antes abaixo da linha de botões do
         // Android Auto, que ficam só no canto direito).
