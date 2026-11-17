@@ -318,4 +318,5 @@ const en5 = <String, String>{
   'Atenção: em {0} começa trecho com radar móvel na {1}{2}': 'Attention: in {0} a stretch with mobile speed cameras starts on {1}{2}',
   'Trecho com radar portátil ({0}) · {1} km {2}–{3}': 'Mobile speed camera stretch ({0}) · {1} km {2}–{3}',
   '🚔 Trecho com possível radar portátil ({0}): {1}, km {2} a {3}': '🚔 Possible mobile speed camera stretch ({0}): {1}, km {2} to {3}',
+  'Caminho de uma viagem já feita (sem internet)': 'Path from a past trip (no internet)',
 };
