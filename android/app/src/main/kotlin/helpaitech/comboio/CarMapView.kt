@@ -742,7 +742,7 @@ class CarMapView(private val context: Context) {
         // + margens): em tela baixa (800x480) a foto do piloto ficava atrás
         // dos botões (DHU, 17/11). Centro = (extraTop + h) / 2.
         val dens = context.resources.displayMetrics.density
-        val lowest = h - 2 * ((56 + 14 + 34) * dens).toInt()
+        val lowest = h - 2 * ((56 + 22 + 34) * dens).toInt()
         return maxOf((h * 0.35f).toInt(), minOf((h * 0.62f).toInt(), lowest))
     }
 

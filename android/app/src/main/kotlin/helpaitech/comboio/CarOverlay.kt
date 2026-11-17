@@ -201,6 +201,11 @@ class CarOverlay(private val ctx: Context) {
         background = box(Color.rgb(198, 40, 40), 18); setPadding(dp(12), dp(6), dp(12), dp(6))
     }
 
+    /** Folga dos botões até a borda: a moldura arredondada da tela do carro
+     *  "engolia" o SOS no canto de baixo à direita (17/11). */
+    private val EDGE_R get() = dp(16)
+    private val EDGE_B get() = dp(18)
+
     private var speedColumn: View? = null
     private var buttonRow: View? = null
 
@@ -259,7 +264,7 @@ class CarOverlay(private val ctx: Context) {
             setMargins(dp(10), 0, 0, dp(6))
         })
         root.addView(buttons, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply {
-            setMargins(0, 0, dp(84), dp(10))
+            setMargins(0, 0, dp(84) + EDGE_R, EDGE_B)
         })
     }
 
@@ -275,11 +280,11 @@ class CarOverlay(private val ctx: Context) {
         val clp = c.layoutParams as FrameLayout.LayoutParams
         if (narrow) {
             blp.gravity = Gravity.BOTTOM or Gravity.START
-            blp.setMargins(r.left + dp(10), 0, 0, dp(10))
-            clp.setMargins(r.left + dp(10), 0, 0, dp(10 + 56 + 8))
+            blp.setMargins(r.left + dp(10), 0, 0, EDGE_B)
+            clp.setMargins(r.left + dp(10), 0, 0, EDGE_B + dp(56 + 8))
         } else {
             blp.gravity = Gravity.BOTTOM or Gravity.END
-            blp.setMargins(0, 0, maxOf((width - r.right).coerceAtLeast(0), dp(84)) + dp(6), dp(10))
+            blp.setMargins(0, 0, maxOf((width - r.right).coerceAtLeast(0), dp(84)) + EDGE_R, EDGE_B)
             clp.setMargins(r.left + dp(10), 0, 0, dp(6))
         }
         b.layoutParams = blp
