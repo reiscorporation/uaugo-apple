@@ -101,6 +101,7 @@ import '../services/route_engine_service.dart';
 import '../services/minimized_trip.dart';
 import '../services/vias_service.dart';
 import '../services/mini_streets_service.dart';
+import '../services/usage_service.dart';
 
 /// Tela de mapa/navegação. Três usos:
 /// - expedição em grupo: [code] preenchido;
@@ -969,6 +970,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (kDebugMode) debugPrint('UauGoPos: leitura ignorada (impossível)');
       return;
     }
+    _countDrive(p);
     // Minimizado / tela apagada: guarda a posição sem redesenhar a tela
     // (a voz, os avisos e a gravação continuam).
     // Posição na rota: calculada uma vez por leitura e usada pela voz,
@@ -5302,6 +5304,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     debugPrint('UauGoGeo linha=${mine.length} pontos, google HQ=${hq.length} pontos, '
         'maior afastamento ${worst.toStringAsFixed(1)} m em ${at?.$1.toStringAsFixed(6)},${at?.$2.toStringAsFixed(6)}');
+  }
+
+  /// Tempo de uso (prêmios no futuro): tempo e km rodando com o mapa
+  /// aberto, só com GPS de verdade (simulação não conta).
+  Position? _usageLast;
+  void _countDrive(Position p) {
+    if (_sim != null || widget.simulate) return;
+    final last = _usageLast;
+    _usageLast = p;
+    if (last == null || p.accuracy > 50) return;
+    final s = p.timestamp.difference(last.timestamp).inMilliseconds / 1000;
+    final m = distanceMeters(last.latitude, last.longitude, p.latitude, p.longitude);
+    // Andando de verdade: mais de 2 m/s e menos de 70 m/s (252 km/h).
+    if (s <= 0 || s > 60 || m / s < 2 || m / s > 70) return;
+    UsageService.instance.addDrive(s, m);
   }
 
   /// Rota azul com borda escura (a longa só é refeita quando muda; o trecho

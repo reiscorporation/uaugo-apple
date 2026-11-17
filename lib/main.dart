@@ -36,6 +36,7 @@ import 'services/car_service.dart';
 import 'services/expedition_service.dart';
 import 'services/analytics_service.dart';
 import 'l10n/i18n.dart';
+import 'services/usage_service.dart';
 
 /// Paleta da marca: azul-marinho (confiança, segurança, tecnologia) como base,
 /// laranja só no que chama ação (iniciar, alertas, a marca) e verde-água para
@@ -170,6 +171,8 @@ Future<void> main() async {
   await NotificationService.init();
   await SharedPlaceService.instance.init();
   CarService.instance.init(); // modo carro (Android Auto)
+  // Tempo de uso por piloto (prêmios no futuro, 16/11).
+  UsageService.instance.start();
   runApp(const ComboioApp());
   NotificationService.handleInitialMessage();
 }
