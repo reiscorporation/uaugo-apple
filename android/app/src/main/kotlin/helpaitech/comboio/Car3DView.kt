@@ -92,6 +92,18 @@ class Car3DView(context: Context) {
         view.postDelayed({ onShown?.invoke() }, 300)
     }
 
+    private var speedR: Rect? = null
+    private var buttonsR: Rect? = null
+
+    /** Velocímetro e linha de botões do UauGo (px da tela); refaz o painel
+     *  só quando mudam. */
+    fun setControls(speed: Rect?, buttons: Rect?) {
+        if (speed == speedR && buttons == buttonsR) return
+        speedR = speed?.let { Rect(it) }
+        buttonsR = buttons?.let { Rect(it) }
+        sendLayout()
+    }
+
     /** Painel entre as bordas da área livre (em px da página). */
     private fun sendLayout() {
         val r = area ?: return
@@ -107,7 +119,19 @@ class Car3DView(context: Context) {
         // 12/11: minimapa no alto da tela (antes abaixo da linha de botões do
         // Android Auto, que ficam só no canto direito).
         val top = 0
-        view.evaluateJavascript("sim3d.layout({l:$left,r:$right,b:$bottom,t:$top})", null)
+        // 17/11: Chegada no canto de baixo, entre o velocímetro e os botões;
+        // a manobra esticada na largura dos botões, logo acima deles.
+        val s = speedR
+        val b = buttonsR
+        val extra = if (s != null && b != null && b.left > s.right) {
+            val sr = (s.right / d).toInt()
+            val bl = (b.left / d).toInt()
+            val bw = (b.width() / d).toInt()
+            val bb = ((view.height - b.bottom) / d).toInt()
+            val bt = ((view.height - b.top) / d).toInt()
+            ",car:{sr:$sr,bl:$bl,bw:$bw,bb:$bb,bt:$bt}"
+        } else ""
+        view.evaluateJavascript("sim3d.layout({l:$left,r:$right,b:$bottom,t:$top$extra})", null)
     }
 
     fun destroy() {

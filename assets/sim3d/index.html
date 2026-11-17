@@ -1621,6 +1621,23 @@ window.sim3d = {
     // avisos do app no topo (radar, metade do trajeto...): desce para baixo deles
     mini.style.top = Math.max(10, (d.t || 0) + 8) + 'px';
     document.getElementById('say').style.top = Math.max(10, (d.t || 0) + 8) + 'px';
+    // Carro: Chegada no canto de baixo (entre o velocímetro e os botões) e a
+    // manobra na largura dos botões, logo acima deles (17/11).
+    const eta = document.getElementById('eta'), nx = document.getElementById('next');
+    const c = d.car;
+    const gap = c ? c.bl - c.sr - 16 : 0;
+    if (CAR && c && gap >= 110) {
+      eta.style.position = 'fixed';
+      eta.style.left = (c.sr + 8) + 'px'; eta.style.bottom = c.bb + 'px';
+      eta.style.width = Math.min(150, gap) + 'px';
+      nx.style.position = 'fixed';
+      nx.style.left = c.bl + 'px'; nx.style.bottom = (c.bt + 6) + 'px';
+      nx.style.width = c.bw + 'px'; nx.style.maxWidth = 'none';
+    } else {
+      for (const e of [eta, nx]) {
+        e.style.position = e.style.left = e.style.bottom = e.style.width = e.style.maxWidth = '';
+      }
+    }
     const w = innerWidth - d.l - d.r;
     h.classList.toggle('narrow', !CAR && w < 470);
     h.classList.toggle('tiny', !CAR && w < 280);

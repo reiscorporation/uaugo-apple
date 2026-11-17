@@ -7249,10 +7249,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (w != null && trip != null) {
       final left = p == null ? w.length : _leftOn(w, p);
       rem = formatDistance(left.round());
-      if (!widget.simulate) {
-        final secs = (left / (_etaSpeed ?? trip.averageSpeed)).round();
-        eta = formatTime(DateTime.now().add(Duration(seconds: secs)));
-      }
+      // Também na simulação (17/11: "--:--" no 3D do carro, enquanto o mapa
+      // do carro mostrava a chegada).
+      final secs = (left / (_etaSpeed ?? trip.averageSpeed)).round();
+      eta = formatTime(DateTime.now().add(Duration(seconds: secs)));
     }
     _sim3d.hud({
       'kmh': kmh?.round(),

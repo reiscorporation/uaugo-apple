@@ -533,6 +533,10 @@ class CarMapView(private val context: Context) {
         }
         apply3d()
         overlay?.update()
+        // 3D: a página encaixa Chegada e manobra no espaço real dos botões.
+        view3d?.let { v ->
+            overlay?.let { o -> v.setControls(o.speedRect(), o.buttonsRect()) }
+        }
         if (view3d != null) { meView?.visibility = android.view.View.GONE; return } // mapa pausado: a cena 3D cobre a tela
         drawPois(g)
         drawHazards(g)

@@ -204,6 +204,14 @@ class CarOverlay(private val ctx: Context) {
     private var speedColumn: View? = null
     private var buttonRow: View? = null
 
+    /** Linha de botões na tela (null antes do 1º desenho). */
+    fun buttonsRect(): android.graphics.Rect? = buttonRow?.takeIf { it.width > 0 && it.visibility == View.VISIBLE }
+        ?.let { android.graphics.Rect(it.left, it.top, it.right, it.bottom) }
+
+    /** Coluna do velocímetro na tela (null antes do 1º desenho). */
+    fun speedRect(): android.graphics.Rect? = speedColumn?.takeIf { it.width > 0 }
+        ?.let { android.graphics.Rect(it.left, it.top, it.right, it.bottom) }
+
     init {
         // Faixa de cima, de lado a lado da área livre: manobra e chegada; o
         // aviso amarelo fica logo abaixo.
