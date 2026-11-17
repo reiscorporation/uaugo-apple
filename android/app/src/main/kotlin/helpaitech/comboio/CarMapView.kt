@@ -683,6 +683,13 @@ class CarMapView(private val context: Context) {
         val lp = iv.layoutParams
         iv.translationX = cx - lp.width / 2f
         iv.translationY = cy - lp.height / 2f
+        // Ícone "deitado" na estrada, acompanhando a inclinação do mapa
+        // (17/11, como o carrinho do Google Maps no carro). Norte para cima:
+        // mapa plano, ícone reto.
+        iv.pivotX = lp.width / 2f
+        iv.pivotY = lp.height / 2f
+        iv.cameraDistance = 6000f * context.resources.displayMetrics.density
+        iv.rotationX = if (CarState.northUp) 0f else CAR_TILT * 0.8f
         iv.visibility = android.view.View.VISIBLE
     }
 
