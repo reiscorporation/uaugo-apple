@@ -89,6 +89,9 @@ const val MAP_FONT_SCALE = 0.85f
  *  da tela (a escala de letra quase não muda de perto). 0,75 = letras ~3
  *  pontos menores; o zoom compensa para mostrar a mesma área (12/11). */
 const val MAP_DENSITY_SCALE = 0.6f
+
+/** Largura da linha da rota (e do trânsito por cima dela) no mapa do carro. */
+const val ROUTE_WIDTH_PX = 4f
 val MAP_ZOOM_FIX = (Math.log(1.0 / MAP_DENSITY_SCALE) / Math.log(2.0)).toFloat()
 
 class CarMapView(private val context: Context) {
@@ -496,7 +499,8 @@ class CarMapView(private val context: Context) {
                 PolylineOptions()
                     .addAll(pts.map { LatLng(it[0], it[1]) })
                     .color(Color.rgb(26, 115, 232)) // azul da rota do celular
-                    .width(6f)
+                    // 17/11: 6 -> 4 px ("muito larga" no mapa do carro).
+                    .width(ROUTE_WIDTH_PX)
                     .zIndex(2f)) else null
         }
         if (CarState.traffic !== trafficDrawn) {
@@ -511,7 +515,7 @@ class CarMapView(private val context: Context) {
                         1 -> Color.rgb(249, 168, 37)
                         else -> Color.rgb(46, 160, 67)
                     })
-                    .width(6f)
+                    .width(ROUTE_WIDTH_PX)
                     .zIndex(3f)))
             }
         }
