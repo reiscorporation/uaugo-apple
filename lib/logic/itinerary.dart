@@ -155,10 +155,11 @@ String formatTime(DateTime t) => '${_pad2(t.hour)}:${_pad2(t.minute)}';
 
 const _weekdays = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
 const _weekdaysEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const _weekdaysEs = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
 
 /// "sáb 12/10" (em inglês, "Sat 12/10")
 String formatDay(DateTime d) =>
-    '${(I18n.isEn ? _weekdaysEn : _weekdays)[d.weekday - 1]} ${_pad2(d.day)}/${_pad2(d.month)}';
+    '${(I18n.isEn ? _weekdaysEn : (I18n.isEs ? _weekdaysEs : _weekdays))[d.weekday - 1]} ${_pad2(d.day)}/${_pad2(d.month)}';
 
 /// "850 m", "12,3 km", "245 km"
 String formatDistance(int meters) {

@@ -72,7 +72,7 @@ class PlacesService {
 
   /// Chama a função "places" do servidor e devolve o resultado como Map.
   Future<Map<String, dynamic>> _call(Map<String, dynamic> data) async {
-    data = {...data, 'lang': I18n.isEn ? 'en' : 'pt'};
+    data = {...data, 'lang': I18n.code};
     final res = await _fn
         .httpsCallable('places',
             options:

@@ -640,6 +640,7 @@ class SettingsScreen extends StatelessWidget {
                     ButtonSegment(value: 'auto', label: Text(tr('Automático'))),
                     const ButtonSegment(value: 'pt', label: Text('Português')),
                     const ButtonSegment(value: 'en', label: Text('English')),
+                    const ButtonSegment(value: 'es', label: Text('Español')),
                   ],
                   selected: {lang},
                   onSelectionChanged: (v) => s.setLanguage(v.first),

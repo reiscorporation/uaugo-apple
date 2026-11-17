@@ -298,7 +298,7 @@ class DirectionsService {
         'avoid': avoid,
         'alternatives': wantAlternatives && mids.isEmpty,
         'traffic': prefs.liveTraffic,
-        'lang': I18n.isEn ? 'en' : 'pt',
+        'lang': I18n.code,
       });
       // Converte o mapa da função para Map<String, dynamic>.
       final body =

@@ -116,10 +116,11 @@ class _TermsScreenState extends State<TermsScreen> {
   @override
   void initState() {
     super.initState();
-    // Inglês: versão traduzida (_en.md), com o original como reserva.
+    // Inglês/espanhol: versão traduzida (_en.md/_es.md), com o original
+    // como reserva.
     final asset = I18n.isEn
         ? widget.asset.replaceFirst('.md', '_en.md')
-        : widget.asset;
+        : (I18n.isEs ? widget.asset.replaceFirst('.md', '_es.md') : widget.asset);
     rootBundle
         .loadString(asset)
         .catchError((_) => rootBundle.loadString(widget.asset))

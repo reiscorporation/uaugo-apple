@@ -132,7 +132,7 @@ class RouteEngineService {
             if (avoidFerries) 'use_ferry': 0.0,
           }
         },
-        'language': I18n.isEn ? 'en-US' : 'pt-BR',
+        'language': I18n.isEn ? 'en-US' : (I18n.isEs ? 'es-ES' : 'pt-BR'),
         'directions_options': {'units': 'kilometers'},
         if (avoid.isNotEmpty) 'exclude_polygons': avoidPolygons(avoid, areaSide),
         if (alternatives && points.length == 2) 'alternates': 2,
@@ -264,7 +264,7 @@ class RouteEngineService {
 
   /// O motor manda a entrada de rotatória em inglês mesmo no pedido em português.
   static String roundaboutText(String t) {
-    if (I18n.isEn) return t;
+    if (I18n.isEn || I18n.isEs) return t;
     // Retorno: o motor manda meio em inglês ("Make a à esquerda U-turn
     // toward Aguai/São João.", teste de 06/11).
     final u = RegExp(r'^Make a (à esquerda|à direita|left|right) U-turn'
@@ -288,7 +288,7 @@ class RouteEngineService {
   /// 13/11): troca as palavras em inglês que sobram. Frase toda em
   /// português passa sem mudança.
   static String mixedEnglishText(String t) {
-    if (I18n.isEn) return t;
+    if (I18n.isEn || I18n.isEs) return t;
     if (!RegExp(r'\b(Turn|Bear|Keep|Make|Head|Take|toward|onto|slight|sharp|left|right|exit)\b')
         .hasMatch(t)) {
       return t;

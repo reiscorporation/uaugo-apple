@@ -220,8 +220,10 @@ class ComboioApp extends StatelessWidget {
       title: 'UauGo',
       debugShowCheckedModeBanner: false,
       // Calendário, relógio e botões do sistema no idioma do app.
-      locale: I18n.isEn ? const Locale('en', 'US') : const Locale('pt', 'BR'),
-      supportedLocales: const [Locale('pt', 'BR'), Locale('en', 'US')],
+      locale: I18n.isEn
+          ? const Locale('en', 'US')
+          : (I18n.isEs ? const Locale('es') : const Locale('pt', 'BR')),
+      supportedLocales: const [Locale('pt', 'BR'), Locale('en', 'US'), Locale('es')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       navigatorKey: NotificationService.navigatorKey,
       theme: _theme(schemeFor(s.cleanTheme.value, s.accent.value)),

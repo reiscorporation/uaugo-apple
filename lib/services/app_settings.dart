@@ -349,8 +349,8 @@ class AppSettings {
   /// laranja); true = Clean (tudo claro).
   final cleanTheme = ValueNotifier<bool>(false);
 
-  /// Idioma: 'auto' (o do celular: português se for pt, senão inglês),
-  /// 'pt' ou 'en'. O efetivo fica em I18n.lang.
+  /// Idioma: 'auto' (o do celular: português, espanhol ou, nos demais,
+  /// inglês), 'pt', 'en' ou 'es'. O efetivo fica em I18n.lang.
   final language = ValueNotifier<String>('auto');
 
   Future<void> setLanguage(String v) async {
@@ -362,7 +362,11 @@ class AppSettings {
   void _applyLanguage() {
     final v = language.value;
     I18n.lang.value = v == 'auto'
-        ? (PlatformDispatcher.instance.locale.languageCode == 'pt' ? 'pt' : 'en')
+        ? switch (PlatformDispatcher.instance.locale.languageCode) {
+            'pt' => 'pt',
+            'es' => 'es',
+            _ => 'en',
+          }
         : v;
   }
 
