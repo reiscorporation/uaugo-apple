@@ -59,7 +59,8 @@ const FIND = {
 const POLYLINE = /^[\x3f-\x7e]{2,100000}$/; // caracteres de polilinha codificada
 
 /** Idioma pedido pelo app ("en" ou português, o padrão). */
-const langOf = (data) => (data && data.lang === "en" ? "en" : "pt-BR");
+// Idioma das manobras e lugares: en, es (17/11) ou pt-BR (padrão).
+const langOf = (data) => (data && data.lang === "en" ? "en" : data && data.lang === "es" ? "es" : "pt-BR");
 
 const COORD = /^-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?$/;
 const key = () => process.env.MAPS_SERVER_KEY || "";
