@@ -6380,7 +6380,28 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             GestureDetector(
               onLongPress: _sosHold,
               onTap: () => _showEmergency(openChat: false),
-              child: Container(
+              // Localização em tempo real ligada: pontinho vermelho (borda
+              // branca) no canto do SOS; "Estou bem" fica nas opções.
+              child: ValueListenableBuilder<String?>(
+                valueListenable: LiveSos.active,
+                builder: (_, token, sos) => Stack(clipBehavior: Clip.none, children: [
+                  sos!,
+                  if (token != null)
+                    Positioned(
+                      right: 2,
+                      top: 2,
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade700,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 3),
+                        ),
+                      ),
+                    ),
+                ]),
+                child: Container(
                 width: 88,
                 height: 88,
                 alignment: Alignment.center,
@@ -6397,6 +6418,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         color: Colors.white,
                         fontSize: 26,
                         fontWeight: FontWeight.w900)),
+              ),
               ),
             ),
             ],
