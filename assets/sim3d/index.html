@@ -109,6 +109,10 @@
   /* velocímetro: o do app/carro, no canto (08/11); no celular o painel some */
   #speedo { display: none !important; }
   body:not(.car) #hud { display: none !important; }
+  /* celular deitado com a linha de botões do carro (17/11): Chegada e
+     manobra como no Android Auto */
+  body.carlike:not(.car) #hud { display: flex !important; }
+  body.carlike #next, body.carlike #eta { display: flex; }
   /* celular em pé: sem a chegada (fica no topo do app) */
   @media (max-width: 560px) {
     #eta { display: none; }
@@ -1626,7 +1630,9 @@ window.sim3d = {
     const eta = document.getElementById('eta'), nx = document.getElementById('next');
     const c = d.car;
     const gap = c ? c.bl - c.sr - 16 : 0;
-    if (CAR && c && gap >= 110) {
+    // (Também no celular deitado com a linha de botões do carro, 17/11.)
+    document.body.classList.toggle('carlike', !CAR && !!c && gap >= 110);
+    if (c && gap >= 110) {
       eta.style.position = 'fixed';
       eta.style.left = (c.sr + 8) + 'px'; eta.style.bottom = c.bb + 'px';
       eta.style.width = Math.min(150, gap) + 'px';

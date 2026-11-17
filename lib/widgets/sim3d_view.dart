@@ -144,8 +144,12 @@ class Sim3DController {
 
   /// Espaço livre para o painel (px a partir das bordas da visão 3D),
   /// medido pelo app em volta dos botões.
-  void layout({required double left, required double right, required double bottom, double top = 0}) {
-    final j = jsonEncode({'l': left.round(), 'r': right.round(), 'b': bottom.round(), 't': top.round()});
+  void layout({required double left, required double right, required double bottom, double top = 0,
+      Map<String, int>? car}) {
+    final j = jsonEncode({
+      'l': left.round(), 'r': right.round(), 'b': bottom.round(), 't': top.round(),
+      if (car != null) 'car': car,
+    });
     if (j == _layoutJson) return;
     _layoutJson = j;
     _run('sim3d.layout($j)');

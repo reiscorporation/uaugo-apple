@@ -6241,12 +6241,30 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Reportar perigo e, ao lado, o radar móvel com UM toque (o alerta
         // mais usado, precisa ser rápido): à esquerda do SOS, no mapa e no 3D
         // (pedido de 04/11), em pé ou deitado.
-        if (_sim == null)
+        if (_sim == null && !(landscape && _show3d))
         Positioned(
           right: 6 + 88 + 10,
           // No 3D maiores (64): de luva, na moto (14/11).
           bottom: 24 + (88 - (_show3d ? 64 : 50)) / 2,
           child: Row(key: _kBottomLeft, mainAxisSize: MainAxisSize.min, children: [
+            // Deitado, no mapa: o 3D fica aqui, ao lado do radar móvel
+            // (pedido de 17/11; antes na coluna da direita).
+            if (landscape && !_show3d && _show3dButton) ...[
+              GestureDetector(
+                onLongPress: _chooseMode3d,
+                child: SizedBox(
+                  width: 50,
+                  height: 50,
+                  child: FloatingActionButton(
+                    heroTag: '3dRow',
+                    tooltip: tr('Ver em 3D'),
+                    onPressed: _toggle3dMap,
+                    child: const _Label3d(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
             // Radar móvel à esquerda, alerta amarelo ao lado do SOS (13/11).
             SizedBox(
               width: _show3d ? 64 : 50,
@@ -6284,7 +6302,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ]),
         ),
 
+        // 3D deitado: linha de botões quadrados embaixo, como no carro.
+        if (landscape && _show3d && _sim == null) _carLikeRow(),
+
         // Botões
+        if (!(landscape && _show3d && _sim == null))
         Positioned(
           right: 6,
           top: landscape ? 8 : null,
@@ -6317,7 +6339,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // v2: 3D (estrada em primeira pessoa) ou mapa de cima.
             // Toque: no mapa vai para o 3D, no 3D volta ao mapa (11/11).
             // Segurar: escolher a visão.
-            if (_show3dButton) ...[
+            if (_show3dButton && !(landscape && !_show3d && _sim == null)) ...[
               GestureDetector(
                 onLongPress: _chooseMode3d,
                 child: _sideFab(
@@ -7280,7 +7302,139 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // v2: botões que o painel do 3D não pode cobrir (medidos na tela).
   final _kTopBanners = GlobalKey();
   final _kWeb3d = GlobalKey(), _kLeftCol = GlobalKey(), _kRightCol = GlobalKey();
-  final _kBottomLeft = GlobalKey(), _kSimBar = GlobalKey();
+  final _kBottomLeft = GlobalKey(), _kSimBar = GlobalKey(), _kCarRow = GlobalKey();
+
+  /// Botão quadrado do 3D deitado, no visual do Android Auto (56, cantos 14).
+  Widget _carBtn({
+    required Object heroTag,
+    required String tooltip,
+    required VoidCallback onPressed,
+    required Widget child,
+    Color color = const Color(0xFF1B2A41),
+    Color fg = Colors.white,
+    VoidCallback? onLongPress,
+  }) =>
+      GestureDetector(
+        onLongPress: onLongPress,
+        child: SizedBox(
+          width: 56,
+          height: 56,
+          child: FloatingActionButton(
+            heroTag: heroTag,
+            tooltip: tooltip,
+            onPressed: onPressed,
+            backgroundColor: color,
+            foregroundColor: fg,
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            child: child,
+          ),
+        ),
+      );
+
+  /// 3D deitado no celular (17/11): a mesma linha de botões do Android Auto,
+  /// embaixo à direita, terminando no SOS.
+  Widget _carLikeRow() {
+    final gap = const SizedBox(width: 8);
+    return Positioned(
+      right: 10,
+      bottom: 12,
+      child: Row(key: _kCarRow, mainAxisSize: MainAxisSize.min, children: [
+        _carBtn(
+          heroTag: 'rowHazard',
+          tooltip: tr('Reportar perigo'),
+          color: Colors.amber,
+          fg: Colors.black,
+          onPressed: _showReportSheet,
+          onLongPress: _showReportSheet,
+          child: const Icon(Icons.warning_amber_rounded, size: 30),
+        ),
+        gap,
+        _carBtn(
+          heroTag: 'rowRadar',
+          tooltip: tr('Avisar radar móvel aqui'),
+          color: HazardType.radar.color,
+          onPressed: _quickRadar,
+          child: Text(HazardType.radar.emoji, style: const TextStyle(fontSize: 26)),
+        ),
+        gap,
+        _carBtn(
+          heroTag: 'rowMusic',
+          tooltip: tr('Música'),
+          onPressed: _onMusicButton,
+          child: const Icon(Icons.music_note, size: 28),
+        ),
+        gap,
+        ValueListenableBuilder<bool>(
+          valueListenable: _voice.alertsOn,
+          builder: (_, on, __) => _carBtn(
+            heroTag: 'rowVoice',
+            tooltip: tr('Voz'),
+            onPressed: _showVoiceSettings,
+            child: Icon(on ? Icons.volume_up : Icons.volume_off, size: 28),
+          ),
+        ),
+        gap,
+        _carBtn(
+          heroTag: 'rowView',
+          tooltip: _view == _MapView.convoy
+              ? tr('Visão: comboio (toque para solo)')
+              : tr('Visão: solo (toque para comboio)'),
+          onPressed: _toggleView,
+          child: Icon(_view == _MapView.convoy ? Icons.groups_2 : Icons.visibility, size: 28),
+        ),
+        gap,
+        _carBtn(
+          heroTag: 'rowMap',
+          tooltip: tr('Ver o mapa'),
+          onPressed: _toggle3dMap,
+          onLongPress: _chooseMode3d,
+          child: const Icon(Icons.map, size: 28),
+        ),
+        if (_canAddSoloStop) ...[
+          gap,
+          _carBtn(
+            heroTag: 'rowStop',
+            tooltip: tr('Adicionar parada (ou segure no mapa)'),
+            onPressed: _addSoloStopBySearch,
+            child: const Icon(Icons.add_location_alt, size: 28),
+          ),
+        ],
+        gap,
+        // SOS: toque = opções; segurar = pede ajuda (como no resto do app).
+        GestureDetector(
+          onLongPress: _sosHold,
+          child: ValueListenableBuilder<String?>(
+            valueListenable: LiveSos.active,
+            builder: (_, token, __) => Stack(clipBehavior: Clip.none, children: [
+              _carBtn(
+                heroTag: 'rowSos',
+                tooltip: 'SOS',
+                color: const Color(0xFFD32F2F),
+                onPressed: () => _showEmergency(openChat: false),
+                child: const Text('SOS',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              ),
+              if (token != null)
+                Positioned(
+                  right: -4,
+                  top: -4,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                    ),
+                  ),
+                ),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
 
   /// v2: posição do painel do 3D em função dos outros botões: entre a coluna
   /// da esquerda e a da direita, e acima do que estiver embaixo (alerta,
@@ -7316,11 +7470,25 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Avisos do app no topo: o minimapa e a frase do 3D descem para baixo.
     final tb = rect(_kTopBanners);
     final topUsed = tb == null || tb.height < 4 ? 0.0 : tb.bottom - web.top;
+    // Deitado (linha de botões do carro): Chegada entre o velocímetro e os
+    // botões, manobra esticada logo acima deles (igual ao Android Auto).
+    final row = rect(_kCarRow);
+    Map<String, int>? car;
+    if (row != null && lc != null) {
+      car = {
+        'sr': (lc.right - web.left).round(),
+        'bl': (row.left - web.left).round(),
+        'bw': row.width.round(),
+        'bb': (web.bottom - row.bottom).round(),
+        'bt': (web.bottom - row.top).round(),
+      };
+    }
     _sim3d.layout(
       top: max(0.0, topUsed),
       left: left - web.left,
       right: web.right - right,
       bottom: web.bottom - top + 8,
+      car: car,
     );
   }
 
@@ -8051,13 +8219,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     // Tira só os espaços entre botões (SizedBox vazio); botão também pode
     // ser um SizedBox (com filho).
     final items = col.children.where((w) => !(w is SizedBox && w.child == null)).toList();
-    const gap = 10.0;
+    const gap = 6.0;
     return LayoutBuilder(
       key: col.key,
       builder: (_, c) {
-        // Quantos cabem numa coluna (botão de 52; o SOS é maior, conta 2).
-        final fit = c.maxHeight.isFinite ? ((c.maxHeight + gap) / (52 + gap)).floor() - 1 : items.length;
-        final n = fit.clamp(1, items.length);
+        // Quantos cabem numa coluna, de baixo para cima: o último (SOS) tem
+        // ~90, os outros 52.
+        var n = items.length;
+        if (c.maxHeight.isFinite) {
+          var used = 84.0;
+          n = 1;
+          while (n < items.length && used + gap + 52 <= c.maxHeight) {
+            used += gap + 52;
+            n++;
+          }
+        }
         final right = items.sublist(items.length - n);
         final left = items.sublist(0, items.length - n);
         // A coluna extra fica no alto (embaixo, à esquerda do SOS, ficam a
