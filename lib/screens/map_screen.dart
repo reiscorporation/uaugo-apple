@@ -527,7 +527,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _view = _MapView.solo;
       if (!widget.simulate) {
         _navigating = true;
-        if (_trip != null) _voice.setNarration(true);
+        // A narração fica como o piloto deixou (antes religava a cada rota
+        // e "toda rota tem que tirar o som", testador 16/11).
       }
     }
     final trip = _trip;
@@ -2668,9 +2669,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final nav = _nav;
     // Na simulação a narração sempre fala (é para conhecer o trajeto).
     final sim = _sim;
-    final on = sim != null
-        ? _simStarted
-        : _navigating && (_voice.narrationOn.value || _helpTarget != null);
+    // Navegando, confere a rota SEMPRE: antes só com a narração ligada, e
+    // quem tirava o som ficava sem recálculo (testador motoboy, 16/11).
+    // Com a narração desligada as falas simplesmente não saem (narrate).
+    final on = sim != null ? _simStarted : _navigating;
     if (!on || nav == null) return;
     void say(String t) => _voice.narrate(t, force: sim != null);
     if (!_navSynced) {
@@ -6046,7 +6048,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           // do limite maior).
           left: landscape ? 210 : 146,
           right: landscape ? null : 76,
-          bottom: _sim != null ? (landscape ? 64 : 196) : (landscape ? 28 : 104),
+          // Em pé, acima do radar móvel / alerta (no 3D eles vão até 100):
+          // com 104 o "Recentralizar" ficava atrás da câmera (testador, 16/11).
+          bottom: _sim != null ? (landscape ? 64 : 196) : (landscape ? 28 : 128),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             if (!_follow && _me != null)
               Padding(
@@ -7766,7 +7770,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _follow = true;
         _navSynced = false;
       });
-      _voice.setNarration(true);
     }
     ActiveTrip.save(_trip!);
     if (_sim == null && _bgGps != _keepGpsInBackground) _startGps();
@@ -8105,7 +8108,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _follow = true;
       _navSynced = false;
     });
-    _voice.setNarration(true);
     final p = _me;
     if (p != null) _updateCamera(p, force: true);
   }

@@ -54,12 +54,21 @@ Future<BitmapDescriptor> bikeMarker({
   required String name,
   required BikeProfile bike,
   bool isMe = false,
-}) async =>
-    BitmapDescriptor.bytes(await bikeMarkerPng(name: name, bike: bike, isMe: isMe),
-        width: bikeMarkerSize.width, height: bikeMarkerSize.height);
+}) async {
+  // O mapa do Google ignorava o width/height e desenhava a imagem no
+  // tamanho dela (240 px): o ícone nunca diminuía (16/11). A imagem já sai
+  // no tamanho certo em pixels da tela.
+  final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+  final scale = bikeMarkerSize.width * dpr / _w;
+  return BitmapDescriptor.bytes(
+      await bikeMarkerPng(name: name, bike: bike, isMe: isMe, scale: scale),
+      width: bikeMarkerSize.width,
+      height: bikeMarkerSize.height);
+}
 
 /// Tamanho do marcador do piloto no mapa (pontos lógicos).
-const bikeMarkerSize = Size(80, 80 * _h / _w);
+// 16/11: 80 -> 60 (testador: "meio grande", tapava as entradas próximas).
+const bikeMarkerSize = Size(60, 60 * _h / _w);
 
 /// O mesmo desenho de [bikeMarker] em PNG: o "Você" fixo na tela (vista
 /// solo), desenhado pelo app em vez de marcador do Google.
@@ -67,9 +76,10 @@ Future<Uint8List> bikeMarkerPng({
   required String name,
   required BikeProfile bike,
   bool isMe = false,
+  double scale = 1,
 }) async {
   final rec = ui.PictureRecorder();
-  final c = Canvas(rec);
+  final c = Canvas(rec)..scale(scale);
   await _paintBadge(c, const Offset(_w / 2, _cy), bike, isMe);
   // Etiqueta: nome + modelo
   final title = TextPainter(
@@ -108,7 +118,8 @@ Future<Uint8List> bikeMarkerPng({
     sub.paint(c, Offset((_w - sub.width) / 2, top + 6 + title.height));
   }
 
-  final img = await rec.endRecording().toImage(_w.toInt(), _h.toInt());
+  final img = await rec.endRecording()
+      .toImage((_w * scale).round(), (_h * scale).round());
   final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
   return bytes!.buffer.asUint8List();
 }

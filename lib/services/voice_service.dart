@@ -43,8 +43,9 @@ class VoiceService {
   /// Avisos falados (perigos, radares, SOS, paradas). Ligado por padrão.
   final alertsOn = ValueNotifier<bool>(true);
 
-  /// Narração do trajeto (curva a curva). Desligada por padrão.
-  final narrationOn = ValueNotifier<bool>(false);
+  /// Narração do trajeto (curva a curva). Ligada por padrão; depois fica
+  /// como o piloto deixou (não religa a cada rota, 16/11).
+  final narrationOn = ValueNotifier<bool>(true);
 
   static const _kAlerts = 'voiceAlerts';
   static const _kNarration = 'voiceNarration';
@@ -59,7 +60,7 @@ class VoiceService {
     if (_ready) return;
     final prefs = await SharedPreferences.getInstance();
     alertsOn.value = prefs.getBool(_kAlerts) ?? true;
-    narrationOn.value = prefs.getBool(_kNarration) ?? false;
+    narrationOn.value = prefs.getBool(_kNarration) ?? true;
     try {
       await _tts.setLanguage(I18n.ttsLang);
       // Trocou o idioma do app: a voz acompanha.
