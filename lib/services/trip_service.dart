@@ -8,14 +8,12 @@
 
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import '../logic/geo.dart' show decodePolyline, encodePolyline;
-import '../logic/offline_route.dart';
+import '../logic/geo.dart' show decodePolyline;
 import '../logic/navigation.dart';
 import '../logic/radars.dart' show distanceMeters, nearestOnLine;
 import '../models/expedition.dart';
 import '../models/trip.dart';
 import 'directions_service.dart';
-import 'history_service.dart';
 import '../l10n/i18n.dart';
 
 /// Um ponto da viagem sozinho (saída, parada ou destino).
@@ -49,58 +47,12 @@ class TripService {
       avoidHighways: avoidHighways,
       alternatives: alternatives,
     );
-    if (r == null || r.legs.length != points.length - 1) {
-      // Sem internet (ou falha): uma viagem já feita até o destino (17/11).
-      return r == null ? await _fromHistory(title, points) : null;
-    }
+    if (r == null || r.legs.length != points.length - 1) return null;
     return _fromRoute(r, title, points, avoidTolls, avoidHighways, [
       for (final a in r.alternatives)
         if (a.legs.length == points.length - 1)
           _fromRoute(a, title, points, avoidTolls, avoidHighways, const [])
     ]);
-  }
-
-  /// Rota tirada de uma viagem já feita (sem internet): da posição do
-  /// piloto (1º ponto) ao destino (último), sem as paradas do meio. Sem
-  /// manobras: a linha, os radares e a distância funcionam; a narração não.
-  static Future<Trip?> _fromHistory(String title, List<TripPoint> points) async {
-    try {
-      await HistoryService.instance.load();
-    } catch (_) {}
-    final recs = HistoryService.instance.trips.value;
-    if (recs.isEmpty) return null;
-    final lines = <List<(double, double)>>[];
-    final speeds = <double>[];
-    for (final t in recs) {
-      // Rota planejada (mais limpa) e o caminho de fato percorrido.
-      for (final pl in [t.routePolyline, t.trackPolyline]) {
-        if (pl.isEmpty) continue;
-        final pts = [for (final p in decodePolyline(pl)) (p.latitude, p.longitude)];
-        if (pts.length < 2) continue;
-        lines.add(pts);
-        speeds.add(t.movingS > 60 && t.distanceM > 500 ? t.distanceM / t.movingS : 40 / 3.6);
-      }
-    }
-    final o = points.first, d = points.last;
-    final found = offlineRouteFrom(lines, (o.lat, o.lng), (d.lat, d.lng));
-    if (found == null) return null;
-    final speed = speeds[found.source].clamp(5.0, 30.0);
-    final len = found.lengthM.round();
-    final dur = (found.lengthM / speed).round();
-    return Trip(
-      title: title,
-      summary: tr('Caminho de uma viagem já feita (sem internet)'),
-      plan: TripPlan(
-        polyline: encodePolyline([for (final (la, lo) in found.line) LatLng(la, lo)]),
-        routeVersion: TripPlan.currentRouteVersion,
-      ),
-      stops: [
-        Stop(id: 'p0', name: o.name, lat: o.lat, lng: o.lng, order: 0, createdBy: '',
-            type: o.type, legDistanceM: 0, legDurationS: 0, steps: const []),
-        Stop(id: 'p1', name: d.name, lat: d.lat, lng: d.lng, order: 1, createdBy: '',
-            type: d.type, legDistanceM: len, legDurationS: dur, steps: const []),
-      ],
-    );
   }
 
   /// Onde cada ponto de passagem entra: entre os dois pontos em que o

@@ -105,8 +105,6 @@ class CarMapView(private val context: Context) {
     private var map: GoogleMap? = null
     private var routeLine: Polyline? = null
     private val trafficLines = mutableListOf<Polyline>()
-    /** Pontos originais de cada trecho de trânsito (para recortar). */
-    private val trafficPts = mutableListOf<List<LatLng>>()
     private var trafficDrawn: Any? = null
     private var routeSig = 0
     private var trimIdx = 0
@@ -246,60 +244,6 @@ class CarMapView(private val context: Context) {
         }
         trimIdx = best
         line.points = listOf(pos) + pts.subList(best + 1, pts.size).map { LatLng(it[0], it[1]) }
-        trimTraffic(pts, best, pos)
-    }
-
-    /** Trânsito por cima da rota: o trecho que já ficou para trás some
-     *  (antes só a linha azul sumia e o vermelho/laranja ficava, 17/11). */
-    private fun trimTraffic(pts: List<DoubleArray>, idx: Int, pos: LatLng) {
-        if (trafficLines.size != trafficPts.size) return
-        val k = Math.cos(Math.toRadians(pos.latitude))
-        // Até onde (pela rota) fica o fim de cada trecho de trânsito.
-        fun routeIdx(p: LatLng): Int {
-            var bi = 0
-            var bd = Double.MAX_VALUE
-            val from = maxOf(0, idx - 400)
-            val to = minOf(pts.size - 1, idx + 4000)
-            for (i in from..to) {
-                val dx = (pts[i][1] - p.longitude) * k
-                val dy = pts[i][0] - p.latitude
-                val d = dx * dx + dy * dy
-                if (d < bd) { bd = d; bi = i }
-            }
-            return bi
-        }
-        for (n in trafficLines.indices) {
-            val orig = trafficPts[n]
-            if (orig.size < 2) continue
-            val endIdx = routeIdx(orig.last())
-            val startIdx = routeIdx(orig.first())
-            val poly = trafficLines[n]
-            when {
-                endIdx <= idx -> { if (poly.isVisible) poly.isVisible = false }
-                startIdx > idx -> {
-                    if (!poly.isVisible) poly.isVisible = true
-                    if (poly.points.size != orig.size) poly.points = orig
-                }
-                else -> {
-                    // O veículo está dentro deste trecho: começa nele.
-                    var cut = 0
-                    var bd = Double.MAX_VALUE
-                    for (i in orig.indices) {
-                        val dx = (orig[i].longitude - pos.longitude) * k
-                        val dy = orig[i].latitude - pos.latitude
-                        val d = dx * dx + dy * dy
-                        if (d < bd) { bd = d; cut = i }
-                    }
-                    val rest = orig.subList(minOf(cut + 1, orig.size), orig.size)
-                    if (rest.isEmpty()) {
-                        poly.isVisible = false
-                    } else {
-                        poly.isVisible = true
-                        poly.points = listOf(pos) + rest
-                    }
-                }
-            }
-        }
     }
 
     private var me: Marker? = null
@@ -517,7 +461,6 @@ class CarMapView(private val context: Context) {
         map = null
         routeLine = null
         trafficLines.clear()
-        trafficPts.clear()
         trafficDrawn = null
         poiMarkers.clear()
         poiSig = 0
@@ -570,9 +513,7 @@ class CarMapView(private val context: Context) {
             trafficDrawn = CarState.traffic
             trafficLines.forEach { it.remove() }
             trafficLines.clear()
-            trafficPts.clear()
             for ((level, line) in CarState.traffic) {
-                trafficPts.add(line.map { LatLng(it[0], it[1]) })
                 trafficLines.add(g.addPolyline(PolylineOptions()
                     .addAll(line.map { LatLng(it[0], it[1]) })
                     .color(when (level) {

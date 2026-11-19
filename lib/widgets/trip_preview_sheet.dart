@@ -1071,14 +1071,6 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                   // Elétrico/híbrido: kWh e/ou litros (12/11).
                   return Text(tripEnergyText(t.distanceM.toDouble(), f, formatDecimal));
                 }),
-              // Sem internet: rota tirada de uma viagem já feita (17/11).
-              if (t.summary == tr('Caminho de uma viagem já feita (sem internet)'))
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                      tr('📵 Sem internet: rota de uma viagem que você já fez. Sem narração das curvas.'),
-                      style: TextStyle(color: Colors.amber.shade700, fontWeight: FontWeight.bold)),
-                ),
               if (_rodizio != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),

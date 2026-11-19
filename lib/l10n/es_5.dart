@@ -312,6 +312,4 @@ const es5 = <String, String>{
   'Atenção: em {0} começa trecho com radar móvel na {1}{2}': 'Atención: a {0} empieza un tramo con radar móvil en la {1}{2}',
   'Trecho com radar portátil ({0}) · {1} km {2}–{3}': 'Tramo con radar portátil ({0}) · {1} km {2}–{3}',
   '🚔 Trecho com possível radar portátil ({0}): {1}, km {2} a {3}': '🚔 Tramo con posible radar portátil ({0}): {1}, km {2} a {3}',
-  'Caminho de uma viagem já feita (sem internet)': 'Camino de un viaje ya hecho (sin internet)',
-  '📵 Sem internet: rota de uma viagem que você já fez. Sem narração das curvas.': '📵 Sin internet: ruta de un viaje que ya hiciste. Sin narración de las curvas.',
 };
