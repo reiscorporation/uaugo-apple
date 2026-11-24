@@ -58,13 +58,13 @@
     pointer-events: none; z-index: 1; overflow: hidden; }
   #cockpit svg { position: absolute; bottom: 0; left: 50%; height: 100%; width: auto;
     aspect-ratio: 12 / 1; transform: translateX(-50%); display: block; }
-  /* Moto (23/11): guidão grande, com o painel da moto na base da tela; os
-     botões do app (alerta, radar, SOS, velocímetro) ficam POR CIMA do painel.
+  /* Moto (23/11): guidão grande na base da tela (sem o painel, a pedido do
+     Ricardo); os botões do app ficam por cima.
      O meio do desenho (guidão até as manoplas) ocupa a largura do celular em
      pé; deitado e no carro, a altura é até 45% da tela e o painel continua pelas
      laterais. Mesmo desenho e proporção em todos. */
-  body[data-vehicle="moto"] #cockpit { height: min(45vh, 50vw); }
-  body[data-vehicle="moto"] #cockpit svg { aspect-ratio: 10 / 1; }
+  body[data-vehicle="moto"] #cockpit { height: min(16vh, 15vw); }
+  body[data-vehicle="moto"] #cockpit svg { aspect-ratio: 100 / 3; }
   #hud, #say, #mini { z-index: 2; }
   /* celular (23/11): a manobra fica só na barra de cima do app; o balão
      repetia a mesma frase no meio da estrada, por cima dos botões */
@@ -401,9 +401,9 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPr
 const COCKPIT = {
   // Área útil 1200 x 100 (de -400 a 800), centro em x = 200: o meio (0..400)
   // é o que cabe num celular em pé; as pontas aparecem em telas largas.
-  // Moto: área 2000 x 200 (de -800 a 1200); o meio (0..400) é o guidão de
-  // manopla a manopla; embaixo, o painel da moto em toda a largura.
-  moto: `<svg viewBox="-800 0 2000 200" preserveAspectRatio="xMidYMax meet">
+  // Moto: área 2000 x 60 (de -800 a 1200); o meio (0..400) é o guidão de
+  // manopla a manopla, com espelhos e para-brisa (23/11: sem o painel).
+  moto: `<svg viewBox="-800 0 2000 60" preserveAspectRatio="xMidYMax meet">
     <defs>
       <linearGradient id="mg" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="#3d4656"/><stop offset=".2" stop-color="#1c222c"/><stop offset="1" stop-color="#07090d"/></linearGradient>
@@ -421,13 +421,6 @@ const COCKPIT = {
     <rect x="2" y="29" width="50" height="18" rx="9" fill="#090b0f"/>
     <rect x="348" y="29" width="50" height="18" rx="9" fill="#090b0f"/>
     <path d="M42 30 L12 22 M358 30 L388 22" stroke="#2c333e" stroke-width="5" stroke-linecap="round"/>
-    <path d="M-800 200 L-800 70 C-300 64 60 52 200 50 C340 52 700 64 1200 70 L1200 200 Z" fill="url(#mg)"/>
-    <path d="M-800 70 C-300 64 60 52 200 50 C340 52 700 64 1200 70" stroke="#a7b3c2" stroke-width="2" fill="none" opacity=".55"/>
-    <rect x="140" y="64" width="120" height="58" rx="14" fill="#04060a" stroke="#5f6b7a" stroke-width="2"/>
-    <path d="M158 108 A42 42 0 0 1 242 108" stroke="#46dcff" stroke-width="3" fill="none" opacity=".8"/>
-    <text x="200" y="102" text-anchor="middle" font-size="15" font-weight="700" fill="#e9f6ff" font-family="sans-serif">UauGo</text>
-    <circle cx="120" cy="88" r="5" fill="#2ecc71" opacity=".8"/>
-    <circle cx="280" cy="88" r="5" fill="#ff9f1a" opacity=".8"/>
   </svg>`,
   car: `<svg viewBox="-400 0 1200 100" preserveAspectRatio="xMidYMax meet">
     <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
@@ -1715,6 +1708,8 @@ window.sim3d = {
     h.style.left = d.l + 'px'; h.style.right = d.r + 'px'; h.style.bottom = d.b + 'px';
     h.style.padding = '0';
     // minimapa: à direita da coluna de botões quando ela fica em cima (deitado)
+    // Guidão/capô acima da barra do Android (ela cobre a base da página).
+    document.getElementById('cockpit').style.bottom = (d.ib || 0) + 'px';
     // 23/11: sempre no canto de cima à esquerda (deitado ficava no meio da
     // estrada, à direita da coluna do velocímetro).
     mini.style.left = '10px';

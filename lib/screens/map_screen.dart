@@ -5911,7 +5911,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         Positioned.fill(child: Padding(
           padding: EdgeInsets.only(
             left: _sideInset(MediaQuery.viewPaddingOf(context).left),
-            right: _sideInset(MediaQuery.viewPaddingOf(context).right),
+            // Com o painel dos passos à direita (23/11), a barra do Android
+            // fica do lado do painel: os botões encostam na borda do mapa.
+            right: _splitOn(landscape) ? 0 : _sideInset(MediaQuery.viewPaddingOf(context).right),
             bottom: MediaQuery.viewPaddingOf(context).bottom,
           ),
           child: Stack(children: [
@@ -7528,6 +7530,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       right: web.right - right,
       bottom: web.bottom - top + 8,
       car: car,
+      // Barra do Android por cima da base da página: o guidão/capô fica
+      // logo acima dela (23/11).
+      inset: MediaQuery.viewPaddingOf(context).bottom,
     );
   }
 
