@@ -112,7 +112,7 @@ class Sim3DController {
   void vehicle(String kind) {
     if (kind == _vehicle) return;
     _vehicle = kind;
-    if (_ready) _web?.runJavaScript('sim3d.setVehicle("$kind")').catchError((_) {});
+    _run('sim3d.setVehicle("$kind")'); // celular e tela do carro
   }
 
   String? _vehicle;
@@ -182,6 +182,7 @@ class Sim3DController {
     final car = CarService.instance;
     car.sim3d('sim3d.setLang("${I18n.code}")');
     car.sim3d('sim3d.setDark($_dark)');
+    if (_vehicle != null) car.sim3d('sim3d.setVehicle("$_vehicle")');
     if (_routeJson != null) car.sim3d('sim3d.setRoute($_routeJson)');
     if (_roadsJson != null) car.sim3d('sim3d.setRoads($_roadsJson)');
     if (_streetsJson != null) car.sim3d('sim3d.setStreets($_streetsJson)');
