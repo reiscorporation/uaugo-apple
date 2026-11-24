@@ -996,15 +996,19 @@ class AlertListScreen(ctx: CarContext) : Screen(ctx) {
     override fun onGetTemplate(): Template {
         val en = CarState.en
         // Mesmo nome dos tipos do app (HazardType no Dart).
+        // 23/11: a mesma ordem da tela de alertas do celular (alertSheetOrder).
         val types = listOf(
-            Triple("radar", "📷", tx("Mobile speed camera", "Radar móvel")),
-            Triple("police", "🚓", tx("Police", "Polícia")),
-            Triple("accident", "💥", tx("Accident", "Acidente")),
-            Triple("pothole", "🕳️", tx("Pothole", "Buraco")),
-            Triple("danger", "⚠️", tx("Road hazard", "Perigo na pista")),
-            Triple("animal", "🐄", tx("Animal on the road", "Animal na pista")),
-            Triple("oil", "🛢️", tx("Oil / sand", "Óleo / areia")),
-            Triple("fog", "🌫️", tx("Fog", "Neblina")),
+            Triple("police", "🚓", tx("Police", "Polícia", "Policía")),
+            Triple("fixedRadar", "📸", tx("Fixed speed camera", "Radar fixo", "Radar fijo")),
+            Triple("oil", "🛢️", tx("Oil / sand", "Óleo / areia", "Aceite / arena")),
+            Triple("animal", "🐄", tx("Animal on the road", "Animal na pista", "Animal en la vía")),
+            Triple("kite", "🪁", tx("Kites / cutting line", "Pipas / cerol", "Cometas / hilo cortante")),
+            Triple("pothole", "🕳️", tx("Pothole", "Buraco", "Bache")),
+            Triple("danger", "⚠️", tx("Road hazard", "Risco na pista", "Peligro en la vía")),
+            Triple("risk", "🚨", tx("Risk area", "Área de risco", "Zona de riesgo")),
+            Triple("radar", "📷", tx("Mobile speed camera", "Radar móvel", "Radar móvil")),
+            Triple("accident", "💥", tx("Accident", "Acidente", "Accidente")),
+            Triple("fog", "🌫️", tx("Fog", "Neblina", "Niebla")),
         )
         val list = ItemList.Builder()
         if (CarState.hazards.any { it.mine }) {

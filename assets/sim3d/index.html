@@ -176,6 +176,9 @@
   body.car #hud { gap: 8px; }
   body.car .hex { min-height: 46px; padding: 4px 16px; }
   body.car #eta { width: 130px; padding-left: 20px; }
+  /* Chegada e dados: fundo branco, letra preta, como no celular (23/11) */
+  body.car #eta { background: #fff; color: #000; text-shadow: none; }
+  body.car #eta::after { display: none; }
   body.car #eta .k { font-size: 12px; letter-spacing: 0.08em; }
   body.car #eta .v { font-size: 19px; }
   body.car #speedo { flex-direction: row; gap: 6px; min-width: 0; }

@@ -33,22 +33,23 @@ class CarOverlay(private val ctx: Context) {
 
     val root = FrameLayout(ctx)
     private val turnIcon = ImageView(ctx)
-    private val turnDist = tv(20f, Color.WHITE)
-    private val turnText = tv(13f, Color.WHITE).apply {
+    // 23/11: manobra e chegada em branco com letra preta, como no celular.
+    private val turnDist = tv(20f, Color.BLACK)
+    private val turnText = tv(13f, Color.BLACK).apply {
         maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
     }
     private val turn = LinearLayout(ctx).apply {
         orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-        background = box(Color.rgb(46, 125, 50), 14); setPadding(dp(10), dp(5), dp(12), dp(5))
+        background = box(Color.WHITE, 14); setPadding(dp(10), dp(5), dp(12), dp(5))
         addView(turnIcon, LinearLayout.LayoutParams(dp(32), dp(32)))
         addView(LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, 0, 0)
             addView(turnDist); addView(turnText)
         })
     }
-    private val info = tv(16f, Color.WHITE).apply {
+    private val info = tv(16f, Color.BLACK).apply {
         gravity = Gravity.CENTER_VERTICAL; maxLines = 2
-        background = box(Color.argb(238, 15, 27, 45), 14); setPadding(dp(12), dp(5), dp(12), dp(5))
+        background = box(Color.WHITE, 14); setPadding(dp(12), dp(5), dp(12), dp(5))
     }
     // Aviso amarelo igual ao do celular (12/11): faixa de lado a lado logo
     // abaixo da manobra, emoji grande à esquerda e texto em negrito.
@@ -323,7 +324,7 @@ class CarOverlay(private val ctx: Context) {
         view3dBtn.visibility = View.GONE
         if (n != null) {
             turnIcon.setImageResource(icon(n.maneuver))
-            turnIcon.setColorFilter(Color.WHITE)
+            turnIcon.setColorFilter(Color.BLACK)
             turnDist.text = dist(n.meters)
             turnText.text = n.text
             val secs = ((n.etaMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
@@ -349,7 +350,8 @@ class CarOverlay(private val ctx: Context) {
         val group = if (CarState.groupOn) View.VISIBLE else View.GONE
         requestBtn.visibility = group
         viewBtn.visibility = group
-        viewBtn.text = if (CarState.convoyView) (tx("CONVOY", "COMBOIO")) else "SOLO"
+        // 23/11: Solo = uma pessoa, Comboio = três pessoas (como no celular).
+        viewBtn.text = if (CarState.convoyView) "👥\n" + tx("CONVOY", "COMBOIO") else "👤\nSOLO"
         // SOS e bússola sempre, em todas as telas, como no celular (16/11).
         // Sozinho, o SOS abre os telefones de emergência no carro.
         sosBtn.visibility = View.VISIBLE

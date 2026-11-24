@@ -8219,7 +8219,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         CarService.instance.toast(tr('Alerta enviado: radar móvel'));
       case 'hazard':
         await _reportHazard(HazardType.danger);
-        CarService.instance.toast(tr('Alerta enviado: perigo na pista'));
+        CarService.instance.toast(tr('Alerta enviado: {0}', [HazardType.danger.label]));
       // Lista de alertas do carro: "hazard:police", "hazard:pothole"...
       case final x when x.startsWith('hazard:'):
         final t = HazardType.fromName(x.substring(7));
