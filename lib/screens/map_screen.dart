@@ -11,7 +11,7 @@
 // ============================================================================
 
 import 'dart:async';
-import 'dart:io' show HttpClient;
+import 'dart:io' show HttpClient, Platform;
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -3741,7 +3741,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           onPressed: () => _svc.resolveAlert(_code, id),
         ),
       ));
-      // Também o contato de emergência (WhatsApp com a localização).
+      // Também o contato de emergência (SMS com a localização).
       _sosToContact();
     } catch (e) {
       _snack(tr('Não foi possível obter sua posição: {0}', [e]));
@@ -6569,8 +6569,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ],
             if (_sim == null) ...[
             const SizedBox(height: 20),
-            // Um toque: opções (telefones, WhatsApp, compartilhar). Segurar:
-            // pede ajuda direto (contato de emergência pelo WhatsApp com a
+            // Um toque: opções (telefones, SMS, compartilhar). Segurar:
+            // pede ajuda direto (contato de emergência por SMS com a
             // localização e, no comboio, SOS aos pilotos). Pedido de 08/11.
             GestureDetector(
               onLongPress: _sosHold,
@@ -9515,11 +9515,30 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         '${me == null ? '' : '\n\n${_sosText(me)}'}';
   }
 
-  Future<void> _openSosChat(String number) => launchUrl(
-      Uri.parse('https://wa.me/$number?text=${Uri.encodeComponent(_sosMessage())}'),
-      mode: LaunchMode.externalApplication);
+  /// SOS por SMS (23/11, antes WhatsApp): abre o app de mensagens do
+  /// celular com o número do contato de emergência e a mensagem (com a
+  /// localização) já escritos; o piloto só toca em Enviar. Não usa a
+  /// permissão de enviar SMS sozinho (a Play só libera para apps de SMS) e
+  /// nunca diz que foi enviado: quem envia é o app de mensagens.
+  Future<bool> _openSosSms(String number) async {
+    final body = Uri.encodeComponent(_sosMessage());
+    // iPhone separa o texto com "&"; Android, com "?".
+    final sep = Platform.isIOS ? '&' : '?';
+    var ok = false;
+    try {
+      ok = await launchUrl(Uri.parse('sms:+$number${sep}body=$body'),
+          mode: LaunchMode.externalApplication);
+    } catch (_) {}
+    if (!mounted) return ok;
+    if (ok) {
+      _snack(tr('SOS pronto no app de mensagens: toque em Enviar.'));
+    } else {
+      _snack(tr('Não foi possível abrir o app de mensagens (SMS).'));
+    }
+    return ok;
+  }
 
-  /// Contato de emergência no formato do WhatsApp (com o 55 do Brasil).
+  /// Contato de emergência com o 55 do Brasil (formato internacional).
   String _sosNumber(String fone) =>
       fone.startsWith('55') && fone.length >= 12 ? fone : '55$fone';
 
@@ -9536,16 +9555,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Abre o WhatsApp do contato de emergência com a mensagem e a localização.
-  /// false se não houver contato cadastrado.
+  /// Abre o SMS para o contato de emergência com a mensagem e a localização.
+  /// false se não houver contato cadastrado. Se o SMS não abrir, mostra as
+  /// opções de emergência (190/192...).
   bool _sosToContact() {
     final contact = AppSettings.instance.emergencyContact.value;
     if (contact == null) return false;
-    _openSosChat(_sosNumber(contact.$2));
+    _openSosSms(_sosNumber(contact.$2)).then((ok) {
+      if (!ok && mounted) _showEmergency(openChat: false);
+    });
     return true;
   }
 
-  /// Opções de emergência. [openChat]: também abre o WhatsApp do contato.
+  /// Opções de emergência. [openChat]: também abre o SMS para o contato.
   void _showEmergency({bool openChat = true}) {
     HapticFeedback.heavyImpact();
     if (openChat) _sosToContact();
@@ -9593,16 +9615,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               title: Text('$num · $label'),
               onTap: () => launchUrl(Uri.parse('tel:$num')),
             ),
-          // Contato de emergência (Configurações): um toque avisa pelo WhatsApp.
+          // Contato de emergência (Configurações): um toque avisa por SMS.
           if (AppSettings.instance.emergencyContact.value != null)
             Builder(builder: (_) {
               final (nome, fone) = AppSettings.instance.emergencyContact.value!;
               return ListTile(
                 leading: const Icon(Icons.contact_emergency, color: Color(0xFF25D366), size: 30),
-                title: Text(tr('Avisar {0} pelo WhatsApp', [nome]),
+                title: Text(tr('Avisar {0} por SMS', [nome]),
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text(tr('Mensagem pronta com a sua localização')),
-                onTap: () => _openSosChat(_sosNumber(fone)),
+                onTap: () => _openSosSms(_sosNumber(fone)),
               );
             }),
           // Direto no WhatsApp (a pessoa escolhe o contato); a lista de

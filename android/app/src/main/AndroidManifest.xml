@@ -147,6 +147,9 @@
         </intent>
         <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="https"/></intent>
         <intent><action android:name="android.intent.action.DIAL"/><data android:scheme="tel"/></intent>
+        <!-- SOS: abre o app de mensagens com o texto pronto (23/11). -->
+        <intent><action android:name="android.intent.action.SENDTO"/><data android:scheme="sms"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="sms"/></intent>
         <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>
         <!-- "UauGo, ir para": reconhecimento de voz do Android (frase livre). -->
         <intent><action android:name="android.speech.RecognitionService"/></intent>
