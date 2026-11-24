@@ -88,13 +88,14 @@ const val MAP_FONT_SCALE = 0.85f
 /** Densidade do mapa do carro: o Google desenha nomes de rua pela densidade
  *  da tela (a escala de letra quase não muda de perto). 0,75 = letras ~3
  *  pontos menores; o zoom compensa para mostrar a mesma área (12/11). */
-const val MAP_DENSITY_SCALE = 0.6f
+const val MAP_DENSITY_SCALE = 0.42f
 
 /** Inclinação do mapa do carro seguindo a direção (17/11: 45 -> 60, como o
  *  Google Maps no Android Auto). */
 const val CAR_TILT = 60f
 
-/** Largura da linha da rota (e do trânsito por cima dela) no mapa do carro. */
+/** Largura da linha da rota (e do trânsito por cima dela) no mapa do carro.
+ *  23/11: 4 -> 1,5 ("tosca", grossa demais na tela do carro). */
 const val ROUTE_WIDTH_PX = 1.5f
 val MAP_ZOOM_FIX = (Math.log(1.0 / MAP_DENSITY_SCALE) / Math.log(2.0)).toFloat()
 
