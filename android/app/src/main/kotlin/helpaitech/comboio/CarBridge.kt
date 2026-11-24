@@ -160,7 +160,11 @@ object CarState {
 
     /** Botão do carro -> Dart ("radar", "hazard", "stop"). */
     var actionSink: ((String) -> Unit)? = null
-    var connectedSink: ((Boolean) -> Unit)? = null
+    // 23/11: uma lista, não um só: o app pode ter duas cópias do Flutter (a do
+    // celular e a que atende o carro em segundo plano). Com um só, o aviso
+    // "carro desligou" ia para a última e a tela do celular ficava presa em
+    // "UauGo está na tela do carro".
+    val connectedSinks = java.util.concurrent.CopyOnWriteArrayList<(Boolean) -> Unit>()
 
     fun listen(l: () -> Unit) = synchronized(listeners) { listeners.add(l) }
     fun unlisten(l: () -> Unit) = synchronized(listeners) { listeners.remove(l) }
@@ -172,7 +176,7 @@ object CarState {
 
     fun updateConnected(on: Boolean) {
         connected = on
-        main.post { connectedSink?.invoke(on) }
+        main.post { connectedSinks.forEach { s -> runCatching { s(on) } } }
     }
 }
 
@@ -403,7 +407,7 @@ class CarBridge(messenger: BinaryMessenger) {
         CarState.actionSink = { a ->
             if (CarState.dartReady) channel.invokeMethod("action", a) else CarState.pending.add(a)
         }
-        CarState.connectedSink = { on -> channel.invokeMethod("connected", on) }
+        CarState.connectedSinks.add { on -> channel.invokeMethod("connected", on) }
     }
 }
 

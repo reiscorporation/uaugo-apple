@@ -25,6 +25,14 @@ class MainActivity : FlutterActivity() {
         shared = SharedPlace(flutterEngine.dartExecutor.binaryMessenger)
         // Modo carro (Android Auto): estado da navegação para a tela do carro.
         CarBridge(flutterEngine.dartExecutor.binaryMessenger)
+        // O próprio Android diz quando o Android Auto desconecta (cabo,
+        // carro desligado, sessão encerrada sem aviso): solta a trava da tela.
+        runCatching {
+            androidx.car.app.connection.CarConnection(applicationContext).type.observe(this) { t ->
+                if (t == androidx.car.app.connection.CarConnection.CONNECTION_TYPE_NOT_CONNECTED &&
+                    CarState.connected) CarState.updateConnected(false)
+            }
+        }
         // Controles da música que está tocando (mini player no mapa).
         MediaBridge(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         // Memória do aparelho (modo leve automático em celulares mais simples).
@@ -55,6 +63,24 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     } catch (e: android.content.ActivityNotFoundException) {
                         result.success(false)
+                    }
+                } else if (call.method == "openSms") {
+                    // SOS (23/11): abre DIRETO o app de SMS padrão com o número e
+                    // o texto prontos (sem a lista "Abrir com", que atrasa numa
+                    // emergência). Quem envia é o piloto, tocando em Enviar.
+                    val num = call.argument<String>("number") ?: ""
+                    val body = call.argument<String>("body") ?: ""
+                    val i = Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("smsto:$num"))
+                        .putExtra("sms_body", body)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    val pkg = android.provider.Telephony.Sms.getDefaultSmsPackage(this)
+                    if (pkg != null) i.setPackage(pkg)
+                    try {
+                        startActivity(i); result.success(true)
+                    } catch (_: Exception) {
+                        try {
+                            startActivity(i.setPackage(null)); result.success(true)
+                        } catch (_: Exception) { result.success(false) }
                     }
                 } else if (call.method == "openTtsSettings") {
                     // Voz: tela do Android para baixar vozes do Google/Samsung.

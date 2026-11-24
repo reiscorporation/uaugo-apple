@@ -102,6 +102,15 @@ class CarService {
     },
         onError: (_) {});
     connected.addListener(_onConnected);
+    // Segurança (23/11): com a trava na tela, confere a cada 5 s se o carro
+    // ainda está conectado (se o aviso de desconexão se perder, a tela do
+    // celular volta sozinha).
+    Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!connected.value) return;
+      _ch.invokeMethod<bool>('connected').then((v) {
+        if (v != true && connected.value) connected.value = false;
+      }, onError: (_) {});
+    });
     SavedPlacesService.instance.places.addListener(sendDestinations);
   }
 

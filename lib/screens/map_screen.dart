@@ -9507,14 +9507,25 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// permissão de enviar SMS sozinho (a Play só libera para apps de SMS) e
   /// nunca diz que foi enviado: quem envia é o app de mensagens.
   Future<bool> _openSosSms(String number) async {
-    final body = Uri.encodeComponent(_sosMessage());
-    // iPhone separa o texto com "&"; Android, com "?".
-    final sep = Platform.isIOS ? '&' : '?';
+    final msg = _sosMessage();
     var ok = false;
-    try {
-      ok = await launchUrl(Uri.parse('sms:+$number${sep}body=$body'),
-          mode: LaunchMode.externalApplication);
-    } catch (_) {}
+    if (Platform.isAndroid) {
+      // Android: o app de SMS padrão, direto (sem "Abrir com").
+      try {
+        ok = await const MethodChannel('uaugo/device')
+                .invokeMethod<bool>('openSms', {'number': '+$number', 'body': msg}) ??
+            false;
+      } catch (_) {}
+    }
+    if (!ok) {
+      // iPhone (separa o texto com "&") ou se o Android falhar.
+      final sep = Platform.isIOS ? '&' : '?';
+      try {
+        ok = await launchUrl(
+            Uri.parse('sms:+$number${sep}body=${Uri.encodeComponent(msg)}'),
+            mode: LaunchMode.externalApplication);
+      } catch (_) {}
+    }
     if (!mounted) return ok;
     if (ok) {
       _snack(tr('SOS pronto no app de mensagens: toque em Enviar.'));
