@@ -9,6 +9,7 @@
 // Quem usa: Home ("Para onde?").
 // ============================================================================
 
+import 'route_weather_card.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
 
@@ -1035,6 +1036,16 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
                             )));
                   },
                 ),
+              ),
+              // Clima na rota (23/11): previsão na hora de passagem em cada
+              // trecho (também na viagem compartilhada).
+              RouteWeatherCard(
+                line: [
+                  for (final p in decodePolyline(t.plan.polyline)) (p.latitude, p.longitude)
+                ],
+                stops: [for (final s in t.stops) (s.name, s.lat, s.lng)],
+                durationS: t.durationS,
+                departAt: _departAt,
               ),
               const SizedBox(height: 4),
               // Versão de teste do motor próprio: mostra de onde veio a rota.

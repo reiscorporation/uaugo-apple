@@ -29,6 +29,7 @@ import '../services/app_settings.dart';
 import '../widgets/safe_sheet.dart';
 import '../widgets/emoji_marker.dart';
 import '../widgets/place_search.dart';
+import '../widgets/route_weather_card.dart';
 import '../logic/tolls.dart';
 import '../services/profile_service.dart';
 import '../services/toll_service.dart';
@@ -610,6 +611,90 @@ class _PlanScreenState extends State<PlanScreen> {
     );
   }
 
+  /// 23/11: no roteiro da expedição, Turismo, Hospedagem e Postos à vista
+  /// (antes só dentro de "editar parada") e o clima na rota. Os lugares
+  /// escolhidos viram paradas do roteiro (com tempo parado), entram no
+  /// cálculo da rota e do tempo e todo o grupo vê (roteiro compartilhado).
+  Widget _planExtras() {
+    final ready = _stops.length >= 2 && _plan.polyline.isNotEmpty;
+    if (!ready) return const SizedBox.shrink();
+    Widget btn(String emoji, String label, int aba) => Expanded(
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10)),
+            onPressed: () => _openNaRota(aba),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(emoji, style: const TextStyle(fontSize: 20)),
+              Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ]),
+          ),
+        );
+    final route = decodePolyline(_plan.polyline);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(tr('Planejar paradas'), style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 6),
+        Row(children: [
+          btn('🏞️', tr('Turismo'), 0),
+          const SizedBox(width: 8),
+          btn('🏨', tr('Hospedagem'), 1),
+          const SizedBox(width: 8),
+          btn('⛽', tr('Postos'), 2),
+        ]),
+        RouteWeatherCard(
+          line: [for (final p in route) (p.latitude, p.longitude)],
+          stops: [for (final s in _stops) (s.name, s.lat, s.lng)],
+          durationS: _stops.fold(0, (a, s) => a + s.legDurationS),
+          departAt: _departDateTime(),
+        ),
+      ]),
+    );
+  }
+
+  /// Saída marcada no roteiro (data e hora), se houver e for no futuro.
+  DateTime? _departDateTime() {
+    final d = DateTime.tryParse(_plan.startDate);
+    if (d == null) return null;
+    final hm = _plan.startTime.split(':');
+    final t = DateTime(d.year, d.month, d.day,
+        int.tryParse(hm.first) ?? 8, hm.length > 1 ? int.tryParse(hm[1]) ?? 0 : 0);
+    return t.isAfter(DateTime.now()) ? t : null;
+  }
+
+  /// Escolhe perto de qual ponto do roteiro procurar e abre Turismo (0),
+  /// Hospedagem (1) ou Postos (2). Só o líder adiciona paradas.
+  Future<void> _openNaRota(int aba) async {
+    final stop = await showSafeSheet<Stop>(
+      context: context,
+      builder: (ctx) => Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(
+          title: Text(tr('Perto de qual ponto do roteiro?'),
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        for (final s in _stops)
+          ListTile(
+            leading: Text(s.type.emoji, style: const TextStyle(fontSize: 22)),
+            title: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            onTap: () => Navigator.pop(ctx, s),
+          ),
+      ]),
+    );
+    if (stop == null || !mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => NaRotaScreen(
+        lat: stop.lat,
+        lng: stop.lng,
+        lugar: stop.name,
+        aba: aba,
+        rota: decodePolyline(_plan.polyline),
+        onAddStop: _isLeader
+            ? (name, lat, lng, type) => _addAfter(stop, name, lat, lng, type)
+            : null,
+      ),
+    ));
+  }
+
   /// "Adicionar como parada" do turismo/hospedagem/postos de uma parada:
   /// entra logo DEPOIS dela no roteiro (antes do destino, se for o último).
   Future<void> _addAfter(Stop after, String name, double lat, double lng, StopType type) async {
@@ -916,7 +1001,11 @@ class _PlanScreenState extends State<PlanScreen> {
       padding: EdgeInsets.only(
           bottom: 16 +
               (_isLeader ? 0 : MediaQuery.of(context).viewPadding.bottom)),
-      header: header,
+      header: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [header, _planExtras()],
+      ),
       buildDefaultDragHandles: false,
       itemCount: items.length,
       onReorderItem: _isLeader ? _onReorder : (_, __) {},
