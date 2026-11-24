@@ -37,17 +37,26 @@ IconData maneuverIcon(String m) => switch (m) {
 /// Lista das próximas manobras. [dark]: fundo escuro (tela do carro
 /// conectado); senão branco com letra preta, como o cartão de chegada.
 class UpcomingSteps extends StatelessWidget {
-  const UpcomingSteps({super.key, this.dark = false, this.shrinkWrap = false});
+  const UpcomingSteps(
+      {super.key, this.dark = false, this.shrinkWrap = false, this.maxItems, this.skipFirst = false});
 
   final bool dark;
   final bool shrinkWrap;
+
+  /// Em pé (23/11): só as próximas [maxItems] manobras, num cartão compacto.
+  final int? maxItems;
+
+  /// Pula a 1ª (já está na barra de cima).
+  final bool skipFirst;
 
   @override
   Widget build(BuildContext context) {
     final fg = dark ? Colors.white : Colors.black;
     return ValueListenableBuilder<List<(String, String, int)>>(
       valueListenable: CarService.instance.upcoming,
-      builder: (_, list, __) {
+      builder: (_, all, __) {
+        var list = skipFirst && all.isNotEmpty ? all.sublist(1) : all;
+        if (maxItems != null && list.length > maxItems!) list = list.sublist(0, maxItems);
         if (list.isEmpty) {
           return shrinkWrap
               ? const SizedBox.shrink()
@@ -62,29 +71,30 @@ class UpcomingSteps extends StatelessWidget {
         }
         return ListView(
           shrinkWrap: shrinkWrap,
-          padding: const EdgeInsets.all(8),
+          physics: maxItems != null ? const NeverScrollableScrollPhysics() : null,
+          padding: EdgeInsets.all(maxItems != null ? 6 : 8),
           children: [
             for (final (i, (m, text, d)) in list.indexed)
               Container(
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
-                  color: i == 0
+                  color: (i == 0 && !skipFirst)
                       ? const Color(0xFFFF7A1A)
                       : (dark ? Colors.white10 : const Color(0xFFF1F3F5)),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(children: [
                   Icon(maneuverIcon(m),
-                      color: i == 0 ? Colors.white : fg, size: i == 0 ? 32 : 26),
+                      color: (i == 0 && !skipFirst) ? Colors.white : fg, size: (i == 0 && !skipFirst) ? 32 : 26),
                   const SizedBox(width: 8),
                   SizedBox(
                     width: 70,
                     child: Text(formatDistance(d),
                         maxLines: 1,
                         style: TextStyle(
-                            color: i == 0 ? Colors.white : fg,
-                            fontSize: i == 0 ? 18 : 15,
+                            color: (i == 0 && !skipFirst) ? Colors.white : fg,
+                            fontSize: (i == 0 && !skipFirst) ? 18 : 15,
                             fontWeight: FontWeight.w900)),
                   ),
                   Expanded(
@@ -92,9 +102,9 @@ class UpcomingSteps extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            color: i == 0 ? Colors.white : fg,
-                            fontSize: i == 0 ? 15 : 14,
-                            fontWeight: i == 0 ? FontWeight.w700 : FontWeight.w500)),
+                            color: (i == 0 && !skipFirst) ? Colors.white : fg,
+                            fontSize: (i == 0 && !skipFirst) ? 15 : 14,
+                            fontWeight: (i == 0 && !skipFirst) ? FontWeight.w700 : FontWeight.w500)),
                   ),
                 ]),
               ),

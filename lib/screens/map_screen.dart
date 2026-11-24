@@ -5917,6 +5917,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           child: Column(key: _kTopBanners, mainAxisSize: MainAxisSize.min, children: [
             // Chegada e dados: cartão branco no topo do mapa (23/11).
             if (_turnInfo() != null) _arrivalCard(),
+            // Em pé (23/11): as 3 manobras seguintes num cartão branco logo
+            // abaixo da chegada (deitado elas ficam no painel da direita).
+            if (_turnInfo() != null && !landscape)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: Colors.white,
+                  elevation: 4,
+                  borderRadius: BorderRadius.circular(12),
+                  clipBehavior: Clip.antiAlias,
+                  child: const UpcomingSteps(shrinkWrap: true, maxItems: 3, skipFirst: true),
+                ),
+              ),
             // Sem internet: selo pequeno (o mapa do Google sai e fica a
             // estrada desenhada da rota). Não recebe toque; some sozinho.
             if (!_online3d)
