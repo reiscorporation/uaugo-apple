@@ -1712,7 +1712,9 @@ window.sim3d = {
     h.style.left = d.l + 'px'; h.style.right = d.r + 'px'; h.style.bottom = d.b + 'px';
     h.style.padding = '0';
     // minimapa: à direita da coluna de botões quando ela fica em cima (deitado)
-    mini.style.left = (innerWidth > innerHeight ? Math.max(10, d.l) : 10) + 'px';
+    // 23/11: sempre no canto de cima à esquerda (deitado ficava no meio da
+    // estrada, à direita da coluna do velocímetro).
+    mini.style.left = '10px';
     // avisos do app no topo (radar, metade do trajeto...): desce para baixo deles
     mini.style.top = Math.max(10, (d.t || 0) + 8) + 'px';
     document.getElementById('say').style.top = Math.max(10, (d.t || 0) + 8) + 'px';

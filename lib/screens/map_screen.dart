@@ -5693,12 +5693,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ? (landscape ? 52 : 64)
             : (landscape || _justDriving ? 52 : 90),
         titleSpacing: 12,
+        // 23/11 (pedido do Ricardo): navegando, barra BRANCA com letra preta.
+        // Em pé: a próxima manobra. Deitado (passos no painel da direita): a
+        // Chegada e os dados, em letra grande.
+        backgroundColor: _turnInfo() != null ? Colors.white : null,
+        foregroundColor: _turnInfo() != null ? Colors.black : null,
+        systemOverlayStyle:
+            _turnInfo() != null ? SystemUiOverlayStyle.dark : null,
         // Toque no título: resumo da viagem (tempo, km, custo).
         title: _turnInfo() != null
             ? GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _showTripSummary,
-                child: _turnTitle(landscape),
+                child: _splitOn(landscape) ? _arrivalTitle() : _turnTitle(landscape),
               )
             : GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -5738,7 +5745,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           // Configurações: o mesmo botão em todos os modos (23/11).
           IconButton(
             tooltip: tr('Configurações'),
-            icon: const Icon(Icons.settings),
+            icon: Icon(Icons.settings,
+                color: _turnInfo() != null ? Colors.black87 : null),
             onPressed: _openSettings,
           ),
           // Expedição: roteiro, veículo, código e sair do grupo no menu.
@@ -5916,20 +5924,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           right: landscape ? 136 : 8, // deitado: livra as 2 colunas de botões (52 + 6 + 52 + folga)
           child: Column(key: _kTopBanners, mainAxisSize: MainAxisSize.min, children: [
             // Chegada e dados: cartão branco no topo do mapa (23/11).
-            if (_turnInfo() != null) _arrivalCard(),
-            // Em pé (23/11): as 2 manobras seguintes num cartão branco logo
-            // abaixo da chegada (deitado elas ficam no painel da direita).
-            if (_turnInfo() != null && !landscape)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Material(
-                  color: Colors.white,
-                  elevation: 4,
-                  borderRadius: BorderRadius.circular(12),
-                  clipBehavior: Clip.antiAlias,
-                  child: const UpcomingSteps(shrinkWrap: true, maxItems: 2, skipFirst: true),
-                ),
-              ),
+            // Em pé: cartão de chegada. Deitado, a chegada vai na barra de
+            // cima e os passos no painel da direita (23/11).
+            if (_turnInfo() != null && !_splitOn(landscape)) _arrivalCard(),
             // Sem internet: selo pequeno (o mapa do Google sai e fica a
             // estrada desenhada da rota). Não recebe toque; some sozinho.
             if (!_online3d)
@@ -9235,11 +9232,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// daqui para o cartão branco no topo do mapa ([_arrivalCard]).
   Widget _turnTitle(bool landscape) {
     final t = _turnInfo()!;
-    final cs = Theme.of(context).colorScheme;
     return IconTheme.merge(
-      data: IconThemeData(color: cs.onSurface),
+      data: const IconThemeData(color: Colors.black),
       child: DefaultTextStyle.merge(
-        style: TextStyle(color: cs.onSurface),
+        style: const TextStyle(color: Colors.black),
         child: Row(children: [
           Icon(t.icon, size: landscape ? 30 : 38),
           const SizedBox(width: 8),
@@ -9262,6 +9258,27 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ]),
       ),
     );
+  }
+
+  /// Deitado com o painel dos passos: a barra de cima (branca) mostra a
+  /// chegada e os dados em letra grande (23/11).
+  Widget _arrivalTitle() {
+    final text = (_isExpedition ? _expeditionSubtitle() : _etaText())
+        .replaceAll('\n', ' · ');
+    return Row(children: [
+      const Icon(Icons.sports_score, color: Colors.black, size: 28),
+      const SizedBox(width: 10),
+      Expanded(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(text,
+              maxLines: 1,
+              style: const TextStyle(
+                  color: Colors.black, fontSize: 22, fontWeight: FontWeight.w900)),
+        ),
+      ),
+    ]);
   }
 
   /// "Chegada e dados" (23/11): cartão BRANCO com letra PRETA no topo do
