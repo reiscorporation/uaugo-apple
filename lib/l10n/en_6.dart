@@ -44,5 +44,4 @@ const en6 = <String, String>{
   '{0} · {1}\nNo SOS: SMS pronto para {2}.': '{0} · {1}\nOn SOS: ready SMS to {2}.',
   '⚠️ {0} em {1} (~{2})': '⚠️ {0} at {1} (~{2})',
   'Não, corrigir agora': 'No, correct now',
-  'Valor do pedágio': 'Toll price',
 };

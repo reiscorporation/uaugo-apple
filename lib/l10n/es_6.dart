@@ -44,5 +44,4 @@ const es6 = <String, String>{
   '{0} · {1}\nNo SOS: SMS pronto para {2}.': '{0} · {1}\nEn el SOS: SMS listo para {2}.',
   '⚠️ {0} em {1} (~{2})': '⚠️ {0} en {1} (~{2})',
   'Não, corrigir agora': 'No, corregir ahora',
-  'Valor do pedágio': 'Valor del peaje',
 };
