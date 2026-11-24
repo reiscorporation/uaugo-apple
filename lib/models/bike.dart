@@ -14,22 +14,25 @@
 import 'package:flutter/material.dart';
 import '../l10n/i18n.dart';
 
-/// Tipo do veículo: define o ícone genérico usado quando não há foto e a
-/// categoria no pedágio.
+/// Tipo do veículo: define o ícone usado quando não há foto e a categoria
+/// no pedágio. O ícone é a ÚNICA fonte do desenho do veículo sem foto
+/// (marcador no mapa, carro, lista do grupo, "Meu veículo"): moto = moto,
+/// carro = carro, ônibus = ônibus, caminhão = caminhão (23/11: a esportiva
+/// mostrava um capacete e o 4x4 uma montanha).
 enum BikeStyle {
   adventure('Big trail', Icons.two_wheeler, 'sua moto'),
   trail('Trail / Off-road', Icons.two_wheeler, 'sua moto'),
   custom('Custom', Icons.motorcycle, 'sua moto'),
   touring('Touring', Icons.motorcycle, 'sua moto'),
   naked('Naked / Street', Icons.two_wheeler, 'sua moto'),
-  sport('Esportiva', Icons.sports_motorsports, 'sua moto'),
+  sport('Esportiva', Icons.two_wheeler, 'sua moto'),
   scooter('Scooter', Icons.moped, 'sua moto'),
   tricycle('Triciclo', Icons.electric_rickshaw, 'seu triciclo'),
   // O app também serve para quem viaja de carro, ônibus ou caminhão.
   car('Carro', Icons.directions_car, 'seu carro'),
   pickup('Camionete / picape', Icons.airport_shuttle, 'sua camionete'),
   suv('SUV', Icons.directions_car_filled, 'seu SUV'),
-  jeep('Jeep / 4x4', Icons.terrain, 'seu 4x4'),
+  jeep('Jeep / 4x4', Icons.directions_car_filled, 'seu 4x4'),
   motorhome('Motorhome', Icons.rv_hookup, 'seu motorhome'),
   bus('Ônibus', Icons.directions_bus, 'seu ônibus'),
   truck('Caminhão', Icons.local_shipping, 'seu caminhão'),
