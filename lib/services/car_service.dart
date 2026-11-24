@@ -305,6 +305,10 @@ class CarService {
 
   /// Opções de velocidade na tela do carro (confirmar, radar não existe,
   /// corrigir). A escolha volta como "speedpick:N" (0 = radar não existe).
+  /// Corrigir o pedágio na tela do carro (valor atual em centavos).
+  void tollEdit(String title, int cents) => _ch
+      .invokeMethod('tollEdit', {'title': title, 'cents': cents}).catchError((_) => null);
+
   void speedEdit(String title, int? current, bool radar) => _ch.invokeMethod(
       'speedEdit', {'title': title, 'current': current, 'radar': radar}).catchError((_) => null);
 

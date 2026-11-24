@@ -146,6 +146,9 @@ class CarOverlay(private val ctx: Context) {
             inside(groupBar) && CarState.groupAction != null -> "do:${CarState.groupAction}"
             // Faixa amarela: confirmar/corrigir velocidade, radar não existe.
             inside(banner) -> "bannertap"
+            // Velocímetro: confirmar/corrigir o limite da via (23/11), como
+            // segurar o velocímetro no celular.
+            inside(speedArea) -> "roadspeed"
             inside(viewBtn) -> "toggleview"
             inside(mPrev) -> "mprev"
             inside(mPlay) -> "mtoggle"

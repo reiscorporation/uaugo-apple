@@ -71,6 +71,7 @@ object CarState {
     @Volatile var closeAskSink: (() -> Unit)? = null
     /** Opções de velocidade pedidas pelo celular (toque na faixa amarela). */
     @Volatile var speedEditSink: ((SpeedEdit) -> Unit)? = null
+    @Volatile var tollEditSink: ((TollEdit) -> Unit)? = null
     @Volatile var askSink: ((Ask) -> Unit)? = null
     /** Configurações do celular mostradas no ⚙ do carro (por seção). */
     data class CfgItem(val key: String, val title: String, val on: Boolean, val sub: String)
@@ -356,6 +357,13 @@ class CarBridge(messenger: BinaryMessenger) {
                     CarState.changed()
                     result.success(null)
                 }
+                "tollEdit" -> {
+                    val m = call.arguments as? Map<*, *>
+                    val q = TollEdit(m?.get("title") as? String ?: "",
+                        (m?.get("cents") as? Number)?.toInt() ?: 0)
+                    CarState.tollEditSink?.let { s -> Handler(Looper.getMainLooper()).post { s(q) } }
+                    result.success(null)
+                }
                 "speedEdit" -> {
                     val m = call.arguments as? Map<*, *>
                     val q = SpeedEdit(m?.get("title") as? String ?: "",
@@ -394,3 +402,4 @@ class CarBridge(messenger: BinaryMessenger) {
 
 /** Pedido de confirmar/corrigir velocidade na tela do carro. */
 data class SpeedEdit(val title: String, val current: Int?, val radar: Boolean)
+data class TollEdit(val title: String, val currentCents: Int)

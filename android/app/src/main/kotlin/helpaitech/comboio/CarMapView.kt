@@ -95,7 +95,7 @@ const val MAP_DENSITY_SCALE = 0.6f
 const val CAR_TILT = 60f
 
 /** Largura da linha da rota (e do trânsito por cima dela) no mapa do carro. */
-const val ROUTE_WIDTH_PX = 4f
+const val ROUTE_WIDTH_PX = 1.5f
 val MAP_ZOOM_FIX = (Math.log(1.0 / MAP_DENSITY_SCALE) / Math.log(2.0)).toFloat()
 
 class CarMapView(private val context: Context) {

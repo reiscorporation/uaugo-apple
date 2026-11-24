@@ -2483,7 +2483,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           yes: 'toll:yes',
           no: 'toll:no',
           yesLabel: tr('Sim, está certo'),
-          noLabel: tr('Não, corrijo depois'));
+          noLabel: tr('Não, corrigir agora'));
       // Sem resposta em 25 s a pergunta some (nada é registrado).
       _askTollTimer?.cancel();
       _askTollTimer = Timer(const Duration(seconds: 25), () {
@@ -2501,13 +2501,31 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (t == null) return; // toque repetido ou pergunta já fechada
     _askTollTimer?.cancel();
     _askToll = null;
+    double? car = t.car, moto = t.motoValue;
     if (!ok) {
-      _tollsToFix[t.key] = t;
-      CarService.instance.toast(tr('Certo! Corrija o valor no celular quando parar.'));
-      return;
+      // 23/11: corrige na própria tela do carro (lista de valores perto do
+      // atual); sem escolha em 60 s, fica para corrigir no celular.
+      final isMoto = _myBike.style.isMoto;
+      final cur = ((isMoto ? (moto ?? car) : car) ?? 0) * 100;
+      final c = _carTollPick = Completer<int?>();
+      CarService.instance.tollEdit(
+          t.name.isEmpty ? tr('Valor do pedágio') : t.name, cur.round());
+      final cents = await c.future
+          .timeout(const Duration(seconds: 60), onTimeout: () => null);
+      if (identical(_carTollPick, c)) _carTollPick = null;
+      if (cents == null) {
+        _tollsToFix[t.key] = t;
+        CarService.instance.toast(tr('Certo! Corrija o valor no celular quando parar.'));
+        return;
+      }
+      if (isMoto) {
+        moto = cents / 100;
+      } else {
+        car = cents / 100;
+      }
     }
     try {
-      await TollService.instance.report(t.key, car: t.car, moto: t.motoValue);
+      await TollService.instance.report(t.key, car: car, moto: moto);
       final prefs = await SharedPreferences.getInstance();
       final sent = (prefs.getStringList('tollReported') ?? []).toSet()..add(t.key);
       await prefs.setStringList('tollReported', sent.toList());
@@ -2517,6 +2535,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       CarService.instance.toast(tr('Não foi possível enviar agora. Confira no celular depois.'));
     }
   }
+
+  /// Valor escolhido na tela do carro para o pedágio (centavos).
+  Completer<int?>? _carTollPick;
 
   /// Praças marcadas "Não" no carro: abre a correção no celular (parado).
   Future<void> _fixPendingTolls() async {
@@ -8254,6 +8275,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         }
         _editFromCar = true;
         tap();
+      // Velocímetro tocado no carro: limite da via (como segurar no celular).
+      case 'roadspeed':
+        _editFromCar = true;
+        _editRoadSpeed();
+      case final x when x.startsWith('tollpick:'):
+        _carTollPick?.complete(int.tryParse(x.substring(9)));
+        _carTollPick = null;
       case final x when x.startsWith('speedpick:'):
         _carPick?.complete(int.tryParse(x.substring(10)));
         _carPick = null;

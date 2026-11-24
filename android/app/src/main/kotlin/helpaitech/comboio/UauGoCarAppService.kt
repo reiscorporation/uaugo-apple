@@ -124,6 +124,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             if (screenManager.top is AskScreen || screenManager.top is SpeedEditScreen) screenManager.popToRoot()
         }
         CarState.speedEditSink = { q -> screenManager.push(SpeedEditScreen(carContext, q)) }
+        CarState.tollEditSink = { q -> screenManager.push(TollEditScreen(carContext, q)) }
         // Depois de a tela do mapa entrar (no init ela ainda não está na pilha).
         CarState.pendingAsk?.let { q ->
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ showAsk(q) }, 800)
@@ -214,6 +215,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 CarState.askSink = null
                 CarState.closeAskSink = null
                 CarState.speedEditSink = null
+                CarState.tollEditSink = null
                 carMap.stop()
                 if (navigating) runCatching { nav.navigationEnded() }
             }
@@ -456,9 +458,9 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ carMap.update() }, 500)
             }
             hit == "settings" -> screenManager.push(CarSettingsScreen(carContext))
-            hit == "bannertap" -> {
+            hit == "bannertap" || hit == "roadspeed" -> {
                 val sink = CarState.actionSink
-                if (sink == null) toast(tx("Open UauGo on the phone", "Abra o UauGo no celular")) else sink("bannertap")
+                if (sink == null) toast(tx("Open UauGo on the phone", "Abra o UauGo no celular")) else sink(hit)
             }
             hit != null -> screenManager.push(RemoveAlertScreen(carContext, hit.removePrefix("hazard:")))
         }
@@ -701,6 +703,42 @@ class SpeedEditScreen(ctx: CarContext, private val q: SpeedEdit,
         }
         return ListTemplate.Builder()
             .setTitle(if (page == 0) q.title else (tx("Correct speed", "Corrigir velocidade")))
+            .setHeaderAction(Action.BACK)
+            .setSingleList(list.build())
+            .build()
+    }
+}
+
+/** Corrigir o valor do pedágio na tela do carro (23/11): o motorista não
+ *  digita dirigindo, então escolhe entre valores perto do atual (páginas de
+ *  até 6 linhas, limite do Android Auto). Resposta: "tollpick:<centavos>". */
+class TollEditScreen(ctx: CarContext, private val q: TollEdit,
+                     private val page: Int = 0) : Screen(ctx) {
+    private fun pick(cents: Int) {
+        CarState.actionSink?.invoke("tollpick:$cents")
+        screenManager.popToRoot()
+    }
+
+    private fun money(c: Int) = "R$ %d,%02d".format(c / 100, c % 100)
+
+    override fun onGetTemplate(): Template {
+        val list = ItemList.Builder()
+        fun row(t: String, click: () -> Unit) =
+            list.addItem(Row.Builder().setTitle(t).setOnClickListener(click).build())
+        val cur = q.currentCents
+        val steps = listOf(10, 20, 30, 50, 100, 200)
+        when (page) {
+            0 -> {
+                if (cur > 0) row(tx("✅ Confirm ${money(cur)}", "✅ Confirmar ${money(cur)}", "✅ Confirmar ${money(cur)}")) { pick(cur) }
+                row(tx("Lower value", "Valor menor", "Valor menor")) { screenManager.push(TollEditScreen(carContext, q, 1)) }
+                row(tx("Higher value", "Valor maior", "Valor mayor")) { screenManager.push(TollEditScreen(carContext, q, 2)) }
+                row(tx("Free (exempt)", "Isento (grátis)", "Exento (gratis)")) { pick(0) }
+            }
+            1 -> for (s in steps) if (cur - s > 0) row(money(cur - s)) { pick(cur - s) }
+            else -> for (s in steps) row(money(cur + s)) { pick(cur + s) }
+        }
+        return ListTemplate.Builder()
+            .setTitle(if (page == 0) q.title else tx("Correct toll", "Corrigir pedágio", "Corregir peaje"))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()
