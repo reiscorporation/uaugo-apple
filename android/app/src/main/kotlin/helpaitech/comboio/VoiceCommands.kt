@@ -62,6 +62,8 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
     private var helmet = false
     private var helmetOn = false
     private var destResult: MethodChannel.Result? = null
+    /** A frase livre está usando o microfone do comunicador. */
+    private var destHelmet = false
 
     init {
         channel.setMethodCallHandler(this)
@@ -98,7 +100,8 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
                 result.success(true)
             }
             "listenDestination" -> listenDestination(
-                call.argument<String>("language") ?: "pt-BR", result)
+                call.argument<String>("language") ?: "pt-BR",
+                call.argument<Boolean>("helmet") ?: false, result)
             "beep" -> {
                 beep()
                 result.success(true)
@@ -241,9 +244,14 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
      * português, usa o do Google (internet). Bipe ao começar; o texto parcial
      * vai para o Dart ("destPartial") e o final volta em [result].
      */
-    private fun listenDestination(language: String, result: MethodChannel.Result) {
+    private fun listenDestination(language: String, helmet: Boolean, result: MethodChannel.Result) {
         destResult?.success(null)
         destResult = result
+        // Comunicador do capacete (23/11): a frase livre (destino, alerta)
+        // também é ouvida pelo microfone dele, sem apertar nada. Vai na fila
+        // da thread principal, depois do "desligar" do Vosk.
+        destHelmet = helmet
+        if (helmet) main.post { helmetMic(true) }
         val onDevice = Build.VERSION.SDK_INT >= 31 &&
             SpeechRecognizer.isOnDeviceRecognitionAvailable(activity)
         startDestination(language, onDevice)
@@ -301,6 +309,10 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
     private fun finishDestination(text: String?) {
         dest?.destroy()
         dest = null
+        if (destHelmet) {
+            destHelmet = false
+            main.post { helmetMic(false) }
+        }
         destResult?.success(text)
         destResult = null
     }

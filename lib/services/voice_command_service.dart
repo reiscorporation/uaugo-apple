@@ -173,6 +173,7 @@ class VoiceCommandService {
     try {
       return await _method.invokeMethod<String>('listenDestination', {
         'language': I18n.ttsLang,
+        'helmet': helmetMic.value,
       });
     } catch (e) {
       debugPrint('Frase livre por voz: $e');
@@ -181,6 +182,22 @@ class VoiceCommandService {
       destListening.value = false;
       if (wasListening) await start();
     }
+  }
+
+  /// Tela de alertas (23/11): ouve o alerta falado ("tem óleo na pista") assim
+  /// que a tela abre, sem botão. Pede o microfone se ainda não tiver; com o
+  /// comunicador ligado, ouve por ele. Os comandos "UauGo" pausam enquanto
+  /// isso (um microfone por vez) e voltam depois. null = não ouviu nada,
+  /// sem permissão ou aparelho sem reconhecimento (ex.: iPhone, por ora).
+  Future<String?> listenAlert(String prompt) async {
+    if (!supported) return null;
+    try {
+      final mic = await _method.invokeMethod<bool>('requestMic') ?? false;
+      if (!mic) return null;
+    } catch (_) {
+      return null;
+    }
+    return listenFree(prompt);
   }
 
   /// Ouve o destino (frase livre) logo após um bipe, dentro do app. O Vosk
@@ -201,6 +218,7 @@ class VoiceCommandService {
     try {
       final text = await _method.invokeMethod<String>('listenDestination', {
         'language': I18n.ttsLang,
+        'helmet': helmetMic.value,
       });
       return text == null ? null : cleanDestination(text);
     } catch (e) {

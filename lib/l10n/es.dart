@@ -5,6 +5,7 @@ import 'es_2.dart';
 import 'es_3.dart';
 import 'es_4.dart';
 import 'es_5.dart';
+import 'es_6.dart';
 
 const esStrings = <String, String>{
   ...es1,
@@ -12,6 +13,7 @@ const esStrings = <String, String>{
   ...es3,
   ...es4,
   ...es5,
+  ...es6,
   // Frases que nos arquivos do inglês estão em formato especial.
   'Estou bem: parar a localização em tempo real': 'Estoy bien: detener la ubicación en tiempo real',
   r'Carro (R$)': r'Auto (R$)',

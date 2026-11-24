@@ -24,8 +24,9 @@ enum HazardType {
   // Lombada nova ou que não está no mapa (as conhecidas vêm do OpenStreetMap).
   bump('Lombada', '🚧', Color(0xFFF9A825), Duration(days: 7), 500,
       'lombada'),
-  danger('Perigo na pista', '⚠️', Color(0xFFFFA000), Duration(hours: 3), 500,
-      'perigo na pista'),
+  // "Risco na pista" (23/11; antes "Perigo na pista"): objeto/obstáculo.
+  danger('Risco na pista', '⚠️', Color(0xFFFFA000), Duration(hours: 3), 500,
+      'risco na pista'),
   oil('Óleo / areia', '🛢️', Color(0xFF546E7A), Duration(hours: 12), 1500,
       'óleo ou areia na pista'),
   animal('Animal na pista', '🐄', Color(0xFF7CB342), Duration(hours: 1), 500,

@@ -27,6 +27,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../logic/gps_speed.dart';
 import '../logic/route_traffic.dart';
+import '../logic/alert_intent.dart';
 import '../logic/voice_commands.dart';
 import '../logic/group_requests.dart';
 import '../logic/find_places.dart';
@@ -1964,6 +1965,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Folha "O que tem na pista?" para reportar um alerta. Reportar exige
   /// conta (evita alertas falsos anônimos); ver os alertas, não.
+  /// 23/11: categorias na ordem de [alertSheetOrder] e o microfone já abre
+  /// ouvindo: "tem óleo na pista", "cachorro na pista"... (alertFromSpeech).
+  /// Com o comunicador ligado, ouve por ele. A mesma folha em todos os modos.
   Future<void> _showReportSheet() async {
     if (!await requireAccount(
         context,
@@ -1971,73 +1975,155 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       return;
     }
     if (!mounted) return;
-    showSafeSheet(
+    var closed = false;
+    BuildContext? sheetCtx;
+    // '' = ouvindo; outro texto = aviso (não entendi, sem microfone...).
+    final status = ValueNotifier<String>('');
+    void pick(HazardType t) {
+      if (closed) return;
+      closed = true;
+      final c = sheetCtx;
+      if (c != null && c.mounted) Navigator.pop(c);
+      _reportHazard(t);
+    }
+
+    Future<void> listen() async {
+      if (closed || !VoiceCommandService.supported) {
+        status.value = tr('Toque no alerta.');
+        return;
+      }
+      status.value = '';
+      final said = await _voiceCmd.listenAlert(tr('Fale o alerta: óleo, polícia, buraco...'));
+      if (closed || !mounted) return;
+      final t = alertFromSpeech(said);
+      if (t != null) {
+        pick(t);
+      } else {
+        status.value = said == null || said.trim().isEmpty
+            ? tr('Não ouvi. Toque no alerta ou no microfone para falar de novo.')
+            : tr('Não entendi "{0}". Toque no alerta ou no microfone.', [said]);
+      }
+    }
+
+    final sheet = showSafeSheet(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(tr('O que tem na pista?'),
-                style: Theme.of(ctx).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                for (final t in HazardType.values)
-                  InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _reportHazard(t);
-                    },
-                    child: Ink(
-                      decoration: BoxDecoration(
-                        color: t.color.withAlpha(60),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: t.color, width: 2),
-                      ),
-                      // Letra grande no celular: o desenho encolhe e o nome
-                      // cabe em 2 linhas (antes cortava "Perigo na pista").
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(t.emoji,
-                                    style: const TextStyle(fontSize: 36)),
+      builder: (ctx) {
+        sheetCtx = ctx;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(tr('O que tem na pista?'),
+                  style: Theme.of(ctx).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              // Microfone: ouvindo (com o que já entendeu) ou o aviso, e o
+              // toque para ouvir de novo.
+              ValueListenableBuilder<String>(
+                valueListenable: status,
+                builder: (_, msg, __) => ValueListenableBuilder<bool>(
+                  valueListenable: _voiceCmd.destListening,
+                  builder: (_, listening, __) => ValueListenableBuilder<String>(
+                    valueListenable: _voiceCmd.destHeard,
+                    builder: (_, heard, __) {
+                      final on = listening && msg.isEmpty;
+                      return Material(
+                        color: on
+                            ? Theme.of(ctx).colorScheme.primary
+                            : Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: on ? null : listen,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            child: Row(children: [
+                              Icon(on ? Icons.mic : Icons.mic_none,
+                                  color: on ? Colors.white : null, size: 28),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  on
+                                      ? (heard.isEmpty
+                                          ? tr('Ouvindo… fale o alerta')
+                                          : '“$heard”')
+                                      : (msg.isEmpty ? tr('Toque para falar o alerta') : msg),
+                                  style: TextStyle(
+                                      color: on ? Colors.white : null,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(t.label,
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    fontSize: 12, height: 1.1)),
-                          ],
+                            ]),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              GridView.count(
+                crossAxisCount: 3,
+                shrinkWrap: true,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  for (final t in alertSheetOrder)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => pick(t),
+                      child: Ink(
+                        decoration: BoxDecoration(
+                          color: t.color.withAlpha(60),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: t.color, width: 2),
+                        ),
+                        // Letra grande no celular: o desenho encolhe e o nome
+                        // cabe em 2 linhas.
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(t.emoji,
+                                      style: const TextStyle(fontSize: 36)),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(t.label,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 12, height: 1.1)),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              tr('O alerta é marcado na sua posição atual e aparece para todos os usuários do app.'),
-              textAlign: TextAlign.center,
-              style: Theme.of(ctx).textTheme.bodySmall,
-            ),
-          ]),
-        ),
-      ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                tr('O alerta é marcado na sua posição atual e aparece para todos os usuários do app.'),
+                textAlign: TextAlign.center,
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+            ]),
+          ),
+        );
+      },
     );
+    // Fechou a folha: solta o microfone na hora.
+    sheet.whenComplete(() {
+      if (_voiceCmd.destListening.value) _voiceCmd.cancelDestination();
+      closed = true;
+    });
+    listen();
   }
 
   /// Botão roxo: marca radar móvel na posição atual com um toque (exige
