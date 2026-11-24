@@ -55,14 +55,28 @@ private fun styleFor(dark: Boolean, places: Boolean): String {
     return if (places) base else "[" + NO_PLACES + base.trim().removePrefix("[")
 }
 
-/** Dia: nomes em cinza, mais discretos (12/11: "bem sutil"). Dia e noite sem
+/** 23/11 (comparando com o Waze no painel da moto): mapa limpo, sem nomes
+ *  de bairro, comércio e ônibus; só as ruas.
+ *  Dia: nomes em cinza, mais discretos (12/11: "bem sutil"). Dia e noite sem
  *  as plaquinhas de número de rodovia (15/11: dezenas de "SP-330"/"050"). */
 private const val DAY = """[
+{"featureType":"administrative.neighborhood","elementType":"labels","stylers":[{"visibility":"off"}]},
+{"featureType":"administrative.land_parcel","elementType":"labels","stylers":[{"visibility":"off"}]},
+{"featureType":"poi","elementType":"labels","stylers":[{"visibility":"off"}]},
+{"featureType":"poi.business","stylers":[{"visibility":"off"}]},
+{"featureType":"transit","elementType":"labels","stylers":[{"visibility":"off"}]},
+{"featureType":"road.local","elementType":"labels","stylers":[{"visibility":"simplified"}]},
 {"elementType":"labels.text.fill","stylers":[{"color":"#6b7584"}]},
 {"featureType":"road","elementType":"labels.icon","stylers":[{"visibility":"off"}]}
 ]"""
 
 private const val NIGHT = """[
+{"featureType":"administrative.neighborhood","elementType":"labels","stylers":[{"visibility":"off"}]},
+{"featureType":"administrative.land_parcel","elementType":"labels","stylers":[{"visibility":"off"}]},
+{"featureType":"poi","elementType":"labels","stylers":[{"visibility":"off"}]},
+{"featureType":"poi.business","stylers":[{"visibility":"off"}]},
+{"featureType":"transit","elementType":"labels","stylers":[{"visibility":"off"}]},
+{"featureType":"road.local","elementType":"labels","stylers":[{"visibility":"simplified"}]},
 {"elementType":"geometry","stylers":[{"color":"#1d2c4d"}]},
 {"elementType":"labels.text.fill","stylers":[{"color":"#d0dcef"}]},
 {"elementType":"labels.text.stroke","stylers":[{"color":"#1a3646"}]},
@@ -349,7 +363,8 @@ class CarMapView(private val context: Context) {
         val iv = android.widget.ImageView(p.context)
         iv.scaleType = android.widget.ImageView.ScaleType.FIT_XY
         iv.visibility = android.view.View.GONE
-        root.addView(iv, FrameLayout.LayoutParams(56, 56))
+        // 23/11: menor ("muito grande" na tela do carro), 56 -> 38 px.
+        root.addView(iv, FrameLayout.LayoutParams(38, 38))
         meView = iv
         root3d = root
         ctx3d = p.context
