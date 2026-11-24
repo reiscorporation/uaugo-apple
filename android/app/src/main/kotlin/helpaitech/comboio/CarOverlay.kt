@@ -352,7 +352,9 @@ class CarOverlay(private val ctx: Context) {
         val lp = stepsPanel.layoutParams as FrameLayout.LayoutParams
         lp.width = w
         stepsPanel.layoutParams = lp
-        stepsPanel.setPadding(0, 0, padR, 0)
+        // A coluna do Android Auto (lupa, sair, zoom) fica por cima da borda
+        // direita: o conteúdo do painel para antes dela.
+        stepsPanel.setPadding(0, 0, maxOf(padR, dp(84)), 0)
         stepsPanel.visibility = if (w > 0) View.VISIBLE else View.GONE
         lastArea?.let { setArea(it, lastWidth) }
         update()
@@ -367,11 +369,14 @@ class CarOverlay(private val ctx: Context) {
             setPadding(dp(8), dp(6), dp(8), dp(6))
             addView(ImageView(ctx).apply { setImageResource(icon(m)); setColorFilter(fg) },
                 LinearLayout.LayoutParams(dp(if (first) 30 else 24), dp(if (first) 30 else 24)))
-            addView(tv(if (first) 17f else 14f, fg).apply { this.text = dist(meters.toDouble()) },
-                LinearLayout.LayoutParams(dp(64), -2).apply { leftMargin = dp(6) })
-            addView(tv(if (first) 14f else 13f, fg, first).apply {
-                this.text = text; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
-            }, LinearLayout.LayoutParams(0, -2, 1f))
+            // Distância em cima e a rua embaixo (2 linhas): cabe no painel.
+            addView(LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(tv(if (first) 16f else 14f, fg).apply { this.text = dist(meters.toDouble()) })
+                addView(tv(if (first) 13f else 12f, fg, first).apply {
+                    this.text = text; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+                })
+            }, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(8) })
         }
     }
 
@@ -433,6 +438,15 @@ class CarOverlay(private val ctx: Context) {
         val b = CarState.banner
         banner.visibility = if (b.isNullOrBlank()) View.GONE else View.VISIBLE
         info.visibility = if (n == null) View.GONE else View.VISIBLE
+        (info.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
+            val full = panelW > 0
+            val w = if (full) 0 else -2
+            if (lp.width != w) {
+                lp.width = w; lp.weight = if (full) 1f else 0f
+                lp.leftMargin = if (full) 0 else dp(6)
+                info.layoutParams = lp
+            }
+        }
         banner.text = bannerText(b ?: "")
         musicBar.visibility = if (musicOpen) View.VISIBLE else View.GONE
         if (musicOpen) {
@@ -453,7 +467,8 @@ class CarOverlay(private val ctx: Context) {
         // SOS e bússola sempre, em todas as telas, como no celular (16/11).
         // Sozinho, o SOS abre os telefones de emergência no carro.
         sosBtn.visibility = View.VISIBLE
-        compassBtn.visibility = View.VISIBLE
+        // Bússola só no mapa, como no celular (no 3D não faz sentido).
+        compassBtn.visibility = if (hud3d) View.GONE else View.VISIBLE
         val armed = CarState.sosArmed
         sosBtn.textSize = if (armed) 12f else 17f
         sosBtn.text = when {

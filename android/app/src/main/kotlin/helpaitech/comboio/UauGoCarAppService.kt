@@ -358,13 +358,20 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             .build()
         // 3D primeiro: em tela baixa o último botão ficava escondido embaixo.
         // Bússola e zoom só no mapa: no 3D não mudam nada (14 e 15/11).
+        // 23/11: com toque no mapa (API 5+), o 3D e a bússola são os botões
+        // do UauGo, nos mesmos lugares do celular; aqui fica só o zoom (no
+        // mapa). Carro sem toque no mapa: continuam aqui.
+        val touch = carContext.carAppApiLevel >= 5
         val mapStrip = ActionStrip.Builder()
-            .addAction(view3d)
             .apply {
+                if (!touch) addAction(view3d)
                 if (CarState.mode3d != 2) {
-                    addAction(compass)
+                    if (!touch) addAction(compass)
                     addAction(zoom(R.drawable.car_zoom_in, 1f))
                     addAction(zoom(R.drawable.car_zoom_out, -1f))
+                } else if (touch) {
+                    // No 3D não há zoom: a coluna fica só com o voltar ao mapa.
+                    addAction(view3d)
                 }
             }
             .build()
