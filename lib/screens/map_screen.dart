@@ -493,8 +493,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool _rerouting = false;
   DateTime _lastReroute = DateTime.fromMillisecondsSinceEpoch(0);
   double _zoomOffset = 0; // botões + e − (somam ao zoom de acompanhamento)
-  /// Mapa navegando: começa no zoom mais perto (pedido de 08/11); o − afasta.
+  /// Zoom do mapa navegando (2D). Era 20 (o mais perto, 08/11): com a
+  /// inclinação de 65° mostrava só ~100 m de rua. 23/11: começa em 18,5,
+  /// que mostra cerca de 3x mais área em volta (quarteirões e a próxima
+  /// conversão) sem perder o nome das ruas; o + ainda chega a 20. Um valor só
+  /// para todos os modos do mapa 2D (o 3D não usa este zoom).
   static const _navZoomMax = 20.0;
+  static const _navZoomBase = 18.5;
 
   // v2: estrada em 3D, em primeira pessoa, por cima do mapa. Pinça para
   // afastar volta ao mapa de cima; zoom bem perto no mapa volta para o 3D.
@@ -736,6 +741,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _autoRecenterTimer?.cancel();
     // Saiu do mapa por vontade própria; o Android fechar o app não passa aqui.
     if (!_isExpedition && _sim == null) ActiveTrip.clear();
     // Simulação retomada e encerrada: apaga a guardada (senão reabria sozinha).
@@ -3886,6 +3892,24 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (p != null) _updateCamera(p, force: true);
   }
 
+  /// Recentralização automática (23/11): 5 s depois do último toque no mapa,
+  /// a câmera volta sozinha para o veículo (mesmo zoom e sentido de antes),
+  /// deslizando. Cada novo toque recomeça a contagem. Vale para mapa e 3D,
+  /// em pé e deitado (o 3D sempre acompanha; o mapa por baixo também volta).
+  static const _autoRecenterAfter = Duration(seconds: 5);
+  Timer? _autoRecenterTimer;
+  bool _smoothNextCamera = false;
+
+  void _armAutoRecenter() {
+    _autoRecenterTimer?.cancel();
+    _autoRecenterTimer = Timer(_autoRecenterAfter, () {
+      if (!mounted || _follow || _touchStart != null || _me == null) return;
+      _smoothNextCamera = true;
+      _recenter();
+      _smoothNextCamera = false;
+    });
+  }
+
   /// Volta a câmera para a moto (no modo atual) depois de arrastar o mapa.
   void _recenter() {
     setState(() => _follow = true);
@@ -3968,7 +3992,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // Norte para cima: mapa plano, sem girar, centrado no piloto.
       _followCamera((CameraPosition(
         target: here,
-        zoom: (_navZoomMax + _zoomOffset).clamp(12.0, _navZoomMax),
+        zoom: (_navZoomBase + _zoomOffset).clamp(12.0, _navZoomMax),
         tilt: 0,
         bearing: 0,
       )), force);
@@ -3982,7 +4006,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       final turn = _navigating ? _upcomingTurn(p) : null;
       final nearTurn = turn != null && turn.meters < 400 && !turn.step.isSilent &&
           turn.step.maneuver.isNotEmpty && turn.step.maneuver != 'straight';
-      final zoom = (_navZoomMax + _zoomOffset + (nearTurn ? 0.8 : 0)).clamp(12.0, _navZoomMax);
+      final zoom = (_navZoomBase + _zoomOffset + (nearTurn ? 0.8 : 0)).clamp(12.0, _navZoomMax);
       _followCamera((CameraPosition(
         // Quanto mais afastado o zoom, mais à frente fica o centro.
         // Deitado a tela é baixa: centro menos à frente, senão o "Você"
@@ -4032,7 +4056,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     // Comboio, só a minha moto: vista de cima, norte para cima.
     _followCamera((CameraPosition(
-        target: here, zoom: (15.5 + _zoomOffset).clamp(5.0, 20.0))), force);
+        // 23/11: 14 (era 15,5), mais área em volta, como a vista solo.
+        target: here, zoom: (14.0 + _zoomOffset).clamp(5.0, 20.0))), force);
   }
 
   // ---- Câmera acompanhando: desliza no MESMO passo do ícone "Você"
@@ -4056,7 +4081,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             _jumpMeters) {
       _camFrom = _camTo = null;
       _camShown = to;
-      map.moveCamera(CameraUpdate.newCameraPosition(to));
+      if (_smoothNextCamera) {
+        // Recentralização automática: desliza em vez de pular.
+        _smoothNextCamera = false;
+        map.animateCamera(CameraUpdate.newCameraPosition(to),
+            duration: const Duration(milliseconds: 900));
+      } else {
+        map.moveCamera(CameraUpdate.newCameraPosition(to));
+      }
       return;
     }
     // Passos pequenos e instantâneos (moveCamera) junto com o ícone. A
@@ -4086,7 +4118,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _zoom(double delta) {
     final p = _me;
     if (_follow && p != null && !(_view == _MapView.convoy && _showAll)) {
-      _zoomOffset = (_zoomOffset + delta).clamp(-10.0, 0.0);
+      _zoomOffset = (_zoomOffset + delta).clamp(-10.0, _navZoomMax - _navZoomBase);
       _updateCamera(p, force: true);
     } else {
       _moveCamera(CameraUpdate.zoomBy(delta));
@@ -5743,14 +5775,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         LayoutBuilder(builder: (context, box) {
           _mapH = box.maxHeight;
           return Listener(
-          onPointerDown: (e) => _touchStart = e.position,
+          onPointerDown: (e) {
+            _touchStart = e.position;
+            _armAutoRecenter();
+          },
           onPointerMove: (e) {
             final s = _touchStart;
             if (_follow && s != null && (e.position - s).distance > 24) {
               setState(() => _follow = false);
             }
+            _armAutoRecenter();
           },
-          onPointerUp: (_) => _touchStart = null,
+          onPointerUp: (_) {
+            _touchStart = null;
+            _armAutoRecenter();
+          },
           child: GoogleMap(
           initialCameraPosition: const CameraPosition(
               target: LatLng(-15.78, -47.93), zoom: 4), // Brasil
