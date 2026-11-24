@@ -5913,7 +5913,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           top: 8,
           // Deitado: no meio, entre a coluna do velocímetro e a dos botões.
           left: landscape ? 140 : 8,
-          right: landscape ? 120 : 8,
+          right: landscape ? 136 : 8, // deitado: livra as 2 colunas de botões (52 + 6 + 52 + folga)
           child: Column(key: _kTopBanners, mainAxisSize: MainAxisSize.min, children: [
             // Chegada e dados: cartão branco no topo do mapa (23/11).
             if (_turnInfo() != null) _arrivalCard(),
