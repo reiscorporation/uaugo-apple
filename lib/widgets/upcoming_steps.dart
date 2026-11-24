@@ -76,8 +76,8 @@ class UpcomingSteps extends StatelessWidget {
           children: [
             for (final (i, (m, text, d)) in list.indexed)
               Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                margin: EdgeInsets.only(bottom: maxItems != null ? 4 : 6),
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: maxItems != null ? 5 : 8),
                 decoration: BoxDecoration(
                   color: (i == 0 && !skipFirst)
                       ? const Color(0xFFFF7A1A)
@@ -99,7 +99,7 @@ class UpcomingSteps extends StatelessWidget {
                   ),
                   Expanded(
                     child: Text(text,
-                        maxLines: 2,
+                        maxLines: maxItems != null ? 1 : 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             color: (i == 0 && !skipFirst) ? Colors.white : fg,

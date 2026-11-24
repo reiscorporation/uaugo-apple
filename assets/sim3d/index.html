@@ -63,9 +63,13 @@
      O meio do desenho (guidão até as manoplas) ocupa a largura do celular em
      pé; deitado e no carro, a altura é até 45% da tela e o painel continua pelas
      laterais. Mesmo desenho e proporção em todos. */
-  body[data-vehicle="moto"] #cockpit { height: min(45vh, 46vw); }
+  body[data-vehicle="moto"] #cockpit { height: min(45vh, 50vw); }
   body[data-vehicle="moto"] #cockpit svg { aspect-ratio: 10 / 1; }
   #hud, #say, #mini { z-index: 2; }
+  /* celular (23/11): a manobra fica só na barra de cima do app; o balão
+     repetia a mesma frase no meio da estrada, por cima dos botões */
+  body:not(.car) #say { display: none !important; }
+
   #hud {
     position: fixed; left: 0; right: 0; bottom: 96px;
     display: flex; justify-content: center; align-items: center; gap: 10px;
@@ -399,28 +403,28 @@ const COCKPIT = {
   moto: `<svg viewBox="-800 0 2000 200" preserveAspectRatio="xMidYMax meet">
     <defs>
       <linearGradient id="mg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#3d4656"/><stop offset=".25" stop-color="#1c222c"/><stop offset="1" stop-color="#07090d"/></linearGradient>
+        <stop offset="0" stop-color="#3d4656"/><stop offset=".2" stop-color="#1c222c"/><stop offset="1" stop-color="#07090d"/></linearGradient>
       <linearGradient id="mw" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="#9fe9ff" stop-opacity=".18"/><stop offset="1" stop-color="#9fe9ff" stop-opacity=".02"/></linearGradient>
     </defs>
-    <path d="M118 92 C130 40 270 40 282 92 Z" fill="url(#mw)" stroke="#9aa6b6" stroke-opacity=".35" stroke-width="1.5"/>
-    <path d="M70 74 L46 26 M330 74 L354 26" stroke="#20262f" stroke-width="5" stroke-linecap="round"/>
-    <ellipse cx="42" cy="20" rx="30" ry="16" fill="#10151c" stroke="#7b8796" stroke-width="2"/>
-    <ellipse cx="358" cy="20" rx="30" ry="16" fill="#10151c" stroke="#7b8796" stroke-width="2"/>
-    <ellipse cx="42" cy="20" rx="23" ry="10" fill="#3b4a5c" opacity=".6"/>
-    <ellipse cx="358" cy="20" rx="23" ry="10" fill="#3b4a5c" opacity=".6"/>
-    <path d="M22 70 C80 64 140 66 180 78 M378 70 C320 64 260 66 220 78" stroke="#1a1f27" stroke-width="12" fill="none" stroke-linecap="round"/>
-    <path d="M22 68 C80 62 140 64 180 76 M378 68 C320 62 260 64 220 76" stroke="#7b8796" stroke-width="2" fill="none" stroke-linecap="round" opacity=".7"/>
-    <rect x="-18" y="60" width="56" height="20" rx="10" fill="#090b0f"/>
-    <rect x="362" y="60" width="56" height="20" rx="10" fill="#090b0f"/>
-    <path d="M30 60 L-6 50 M370 60 L406 50" stroke="#2c333e" stroke-width="5" stroke-linecap="round"/>
-    <path d="M-800 200 L-800 104 C-300 98 60 86 200 84 C340 86 700 98 1200 104 L1200 200 Z" fill="url(#mg)"/>
-    <path d="M-800 104 C-300 98 60 86 200 84 C340 86 700 98 1200 104" stroke="#a7b3c2" stroke-width="2" fill="none" opacity=".55"/>
-    <rect x="140" y="96" width="120" height="58" rx="14" fill="#04060a" stroke="#5f6b7a" stroke-width="2"/>
-    <path d="M158 140 A42 42 0 0 1 242 140" stroke="#46dcff" stroke-width="3" fill="none" opacity=".8"/>
-    <text x="200" y="134" text-anchor="middle" font-size="15" font-weight="700" fill="#e9f6ff" font-family="sans-serif">UauGo</text>
-    <circle cx="120" cy="120" r="5" fill="#2ecc71" opacity=".8"/>
-    <circle cx="280" cy="120" r="5" fill="#ff9f1a" opacity=".8"/>
+    <path d="M128 56 C138 18 262 18 272 56 Z" fill="url(#mw)" stroke="#9aa6b6" stroke-opacity=".35" stroke-width="1.5"/>
+    <path d="M78 40 L58 14 M322 40 L342 14" stroke="#20262f" stroke-width="5" stroke-linecap="round"/>
+    <ellipse cx="54" cy="11" rx="26" ry="10" fill="#10151c" stroke="#7b8796" stroke-width="2"/>
+    <ellipse cx="346" cy="11" rx="26" ry="10" fill="#10151c" stroke="#7b8796" stroke-width="2"/>
+    <ellipse cx="54" cy="11" rx="20" ry="6" fill="#3b4a5c" opacity=".6"/>
+    <ellipse cx="346" cy="11" rx="20" ry="6" fill="#3b4a5c" opacity=".6"/>
+    <path d="M36 38 C90 33 140 35 182 46 M364 38 C310 33 260 35 218 46" stroke="#1a1f27" stroke-width="12" fill="none" stroke-linecap="round"/>
+    <path d="M36 36 C90 31 140 33 182 44 M364 36 C310 31 260 33 218 44" stroke="#7b8796" stroke-width="2" fill="none" stroke-linecap="round" opacity=".7"/>
+    <rect x="2" y="29" width="50" height="18" rx="9" fill="#090b0f"/>
+    <rect x="348" y="29" width="50" height="18" rx="9" fill="#090b0f"/>
+    <path d="M42 30 L12 22 M358 30 L388 22" stroke="#2c333e" stroke-width="5" stroke-linecap="round"/>
+    <path d="M-800 200 L-800 70 C-300 64 60 52 200 50 C340 52 700 64 1200 70 L1200 200 Z" fill="url(#mg)"/>
+    <path d="M-800 70 C-300 64 60 52 200 50 C340 52 700 64 1200 70" stroke="#a7b3c2" stroke-width="2" fill="none" opacity=".55"/>
+    <rect x="140" y="64" width="120" height="58" rx="14" fill="#04060a" stroke="#5f6b7a" stroke-width="2"/>
+    <path d="M158 108 A42 42 0 0 1 242 108" stroke="#46dcff" stroke-width="3" fill="none" opacity=".8"/>
+    <text x="200" y="102" text-anchor="middle" font-size="15" font-weight="700" fill="#e9f6ff" font-family="sans-serif">UauGo</text>
+    <circle cx="120" cy="88" r="5" fill="#2ecc71" opacity=".8"/>
+    <circle cx="280" cy="88" r="5" fill="#ff9f1a" opacity=".8"/>
   </svg>`,
   car: `<svg viewBox="-400 0 1200 100" preserveAspectRatio="xMidYMax meet">
     <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">

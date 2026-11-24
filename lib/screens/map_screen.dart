@@ -5917,7 +5917,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           child: Column(key: _kTopBanners, mainAxisSize: MainAxisSize.min, children: [
             // Chegada e dados: cartão branco no topo do mapa (23/11).
             if (_turnInfo() != null) _arrivalCard(),
-            // Em pé (23/11): as 3 manobras seguintes num cartão branco logo
+            // Em pé (23/11): as 2 manobras seguintes num cartão branco logo
             // abaixo da chegada (deitado elas ficam no painel da direita).
             if (_turnInfo() != null && !landscape)
               Padding(
@@ -5927,7 +5927,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   elevation: 4,
                   borderRadius: BorderRadius.circular(12),
                   clipBehavior: Clip.antiAlias,
-                  child: const UpcomingSteps(shrinkWrap: true, maxItems: 3, skipFirst: true),
+                  child: const UpcomingSteps(shrinkWrap: true, maxItems: 2, skipFirst: true),
                 ),
               ),
             // Sem internet: selo pequeno (o mapa do Google sai e fica a
@@ -6212,14 +6212,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // Música (como no Waze): em pé, ícone redondo à direita, logo abaixo
             // das faixas; deitado, fica no topo da coluna da direita. Na
             // expedição a coluna da direita é alta: vai para a da esquerda.
-            if (_sim == null && !landscape && !_isExpedition)
-              Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: _musicButton(),
-                ),
-              ),
           ]),
         ),
 
@@ -6480,7 +6472,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
             ],
-            if (_sim == null && landscape) _musicButton(),
+            // Música no topo da coluna da direita (em pé também desde 23/11).
+            if (_sim == null && (landscape || !_isExpedition)) _musicButton(),
             // Visão (o "olho"): SOLO (primeira pessoa) ou COMBOIO (de cima).
             _sideFab(
               heroTag: 'view',
