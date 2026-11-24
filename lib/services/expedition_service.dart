@@ -20,6 +20,7 @@ import '../logic/navigation.dart';
 import '../models/bike.dart';
 import '../logic/group_requests.dart';
 import '../models/expedition.dart';
+import '../models/trip.dart';
 import 'app_settings.dart';
 import 'directions_service.dart';
 
@@ -72,6 +73,45 @@ class ExpeditionService {
       ).toMap(),
     });
     await join(code: code, uid: uid, userName: userName);
+    return code;
+  }
+
+  /// "Compartilhar viagem" (23/11): transforma a rota escolhida numa
+  /// expedição com código próprio. As paradas, os trechos, as manobras e o
+  /// traçado já calculados vão junto (sem pedir a rota de novo), então quem
+  /// entra pelo código vê e segue exatamente a mesma viagem. O código é o
+  /// mesmo das expedições (8 caracteres, único, conferido no servidor).
+  /// Exige internet: o código só vale depois de gravado.
+  Future<String> createFromTrip({
+    required Trip trip,
+    required String uid,
+    required String userName,
+  }) async {
+    final code = await create(name: trip.title, uid: uid, userName: userName);
+    final batch = _db.batch();
+    for (var i = 0; i < trip.stops.length; i++) {
+      final s = trip.stops[i];
+      batch.set(_exp(code).collection('stops').doc(), {
+        'name': s.name,
+        'address': s.address,
+        'lat': s.lat,
+        'lng': s.lng,
+        'type': s.type.name,
+        'stayMin': s.stayMin,
+        'notes': '',
+        'nextDayStart': '08:00',
+        'order': i,
+        'createdBy': uid,
+        'legDistanceM': s.legDistanceM,
+        'legDurationS': s.legDurationS,
+        'steps': s.steps.map((x) => x.toMap()).toList(),
+      });
+    }
+    batch.update(_exp(code), {
+      'plan': trip.plan.toMap(),
+      'sharedTrip': true,
+    });
+    await batch.commit().timeout(const Duration(seconds: 15));
     return code;
   }
 

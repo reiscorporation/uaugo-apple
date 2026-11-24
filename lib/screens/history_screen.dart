@@ -25,6 +25,7 @@ import '../widgets/trip_preview_sheet.dart';
 import '../widgets/community_post_sheet.dart';
 import '../widgets/trip_share.dart';
 import 'map_screen.dart';
+import 'trip_launcher.dart';
 import '../l10n/i18n.dart';
 
 /// Data curta: "05/10/2026".
@@ -181,13 +182,7 @@ class _TripDetail extends StatelessWidget {
       TripPoint(dest.name, dest.lat, dest.lng, type: StopType.destination),
     ]);
     if (res == null || !context.mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => MapScreen(
-          uid: uid,
-          userName: userName,
-          trip: res.$2,
-          simulate: res.$1 == TripAction.simulate),
-    ));
+    await launchTrip(context, uid: uid, userName: userName, res: res);
   }
 
   /// Exclui a viagem do celular (com confirmação).

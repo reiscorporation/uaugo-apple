@@ -40,7 +40,8 @@ import 'toll_confirm_sheet.dart';
 import '../services/calendar_service.dart';
 
 /// O que o piloto escolheu na prévia da viagem.
-enum TripAction { start, simulate }
+/// [share] = "Compartilhar viagem": vira expedição com código (23/11).
+enum TripAction { start, simulate, share }
 
 /// Prévia da navegação sozinho: distância, tempo, opções e os botões
 /// "Simular" e "Iniciar". Recalcula ao mudar as opções.
@@ -862,6 +863,19 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
             ]);
   }
 
+  /// "Compartilhar viagem" (23/11): gera um código de expedição para outras
+  /// pessoas entrarem nesta mesma viagem (ver trip_launcher.dart).
+  Widget _shareButton(Trip? t) => Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: OutlinedButton.icon(
+          onPressed: t == null || _departAt != null || _countdown != null
+              ? null
+              : () => Navigator.pop(context, (TripAction.share, t)),
+          icon: const Icon(Icons.group_add),
+          label: Text(tr('Compartilhar viagem')),
+        ),
+      );
+
   /// Painel com os cálculos da rota (tempo, km, pedágio, custo, opções).
   Widget _details(ScrollController scroll) {
     final theme = Theme.of(context);
@@ -991,6 +1005,7 @@ class _TripPreviewSheetState extends State<TripPreviewSheet> {
               // Iniciar / Simular logo aqui, junto das rotas sugeridas.
               const SizedBox(height: 8),
               _actions(t),
+              _shareButton(t),
               // Turismo, hospedagem e postos perto do destino (08/11).
               Align(
                 alignment: Alignment.centerLeft,

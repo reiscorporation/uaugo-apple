@@ -43,6 +43,7 @@ import '../logic/itinerary.dart' show formatDay, formatTime;
 import 'club_screen.dart';
 import 'consent_screen.dart';
 import 'map_screen.dart';
+import 'trip_launcher.dart';
 import 'plan_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
@@ -277,14 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
       TripPoint(name, la2, lo2, type: StopType.destination),
     ]);
     if (res == null || !mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => MapScreen(
-        uid: uid,
-        userName: _riderName,
-        trip: res.$2,
-        simulate: res.$1 == TripAction.simulate,
-      ),
-    ));
+    await launchTrip(context, uid: uid, userName: _riderName, res: res);
   }
 
   /// Lê do celular o nome, o veículo, o clube e a última expedição.
@@ -559,16 +553,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ]);
     if (res == null || !mounted) return;
     AnalyticsService.event(
-        res.$1 == TripAction.simulate ? 'route_simulate' : 'route_start');
+        switch (res.$1) {
+          TripAction.simulate => 'route_simulate',
+          TripAction.share => 'route_share',
+          _ => 'route_start',
+        });
     MinimizedTrip.trip.value = null; // rota nova substitui a minimizada
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => MapScreen(
-        uid: uid,
-        userName: _riderName,
-        trip: res.$2,
-        simulate: res.$1 == TripAction.simulate,
-      ),
-    ));
+    await launchTrip(context, uid: uid, userName: _riderName, res: res);
   }
 
   // ---- Viagens planejadas (prévia da rota → "Saída" → Salvar)
@@ -638,14 +629,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final res = await TripPreviewSheet.show(context, title: t.title, points: pts);
     if (res == null || !mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => MapScreen(
-        uid: uid,
-        userName: _riderName,
-        trip: res.$2,
-        simulate: res.$1 == TripAction.simulate,
-      ),
-    ));
+    await launchTrip(context, uid: uid, userName: _riderName, res: res);
   }
 
   // ---- Locais salvos (Casa, Trabalho e outros; só no celular)
