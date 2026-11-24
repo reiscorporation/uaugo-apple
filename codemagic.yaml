@@ -27,6 +27,21 @@ workflows:
     triggering:
       events: []   # só quando disparar manualmente no Codemagic
     scripts:
+      - name: Identificador e capacidades (Sign in with Apple + Push)
+        script: |
+          set -x
+          ID=$(app-store-connect bundle-ids list \
+                 --bundle-id-identifier "helpaitech.comboio" \
+                 --strict-match-identifier --platform IOS --json \
+               | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[0]["id"] if d else "")')
+          if [ -z "$ID" ]; then
+            ID=$(app-store-connect bundle-ids create "helpaitech.comboio" \
+                   --name "UauGo" --platform IOS --json \
+                 | python3 -c 'import sys,json; print(json.load(sys.stdin)["id"])')
+          fi
+          echo "Bundle ID resource: $ID"
+          app-store-connect bundle-ids enable-capabilities "$ID" \
+            --capability APPLE_ID_AUTH PUSH_NOTIFICATIONS || true
       - name: Assinatura (perfis do App Store Connect)
         script: |
           app-store-connect fetch-signing-files "helpaitech.comboio" \
