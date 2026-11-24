@@ -7950,8 +7950,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Manda para a tela do carro a manobra, a chegada, o radar e a posição.
   void _sendToCar(Position p) {
-    if (!CarService.instance.connected.value) return;
+    // Próximos passos: a lista lateral do celular deitado (23/11) usa os
+    // mesmos dados, então atualiza sempre, com ou sem o carro.
     _publishUpcoming(p);
+    if (!CarService.instance.connected.value) return;
     final ec = AppSettings.instance.emergencyContact.value;
     CarService.instance.emergency(ec?.$1, ec?.$2);
     _sendVehicleToCar();
