@@ -454,7 +454,7 @@ class SettingsScreen extends StatelessWidget {
             controller: phone,
             keyboardType: TextInputType.phone,
             decoration: InputDecoration(
-                labelText: tr('WhatsApp com DDD'), hintText: '(16) 99999-9999'),
+                labelText: tr('Celular com DDD'), hintText: '(16) 99999-9999'),
           ),
           const SizedBox(height: 8),
           Text(tr('Fica só no seu celular. Usado apenas quando você toca no SOS.'),
@@ -485,7 +485,7 @@ class SettingsScreen extends StatelessWidget {
       if (name.text.trim().isEmpty || digits.length < 10) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(tr('Contato não salvo: informe o nome e o WhatsApp com DDD.'))));
+              content: Text(tr('Contato não salvo: informe o nome e o celular com DDD.'))));
         }
         return;
       }
@@ -533,8 +533,8 @@ class SettingsScreen extends StatelessWidget {
                 title: Text(tr('Contato de emergência'),
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text(c == null
-                    ? tr('Ninguém cadastrado. No SOS, um toque avisa essa pessoa pelo WhatsApp com a sua localização.')
-                    : tr('{0} · {1}\nNo SOS: "Avisar {2} pelo WhatsApp".', [c.$1, c.$2, c.$1])),
+                    ? tr('Ninguém cadastrado. Segurando o SOS, abre um SMS pronto para essa pessoa com a sua localização.')
+                    : tr('{0} · {1}\nNo SOS: SMS pronto para {2}.', [c.$1, c.$2, c.$1])),
                 isThreeLine: c != null,
                 trailing: const Icon(Icons.edit_outlined),
                 onTap: () => _editEmergency(ctx, c),
