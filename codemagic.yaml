@@ -1,33 +1,28 @@
-# Codemagic: compila o UauGo para iPhone e envia ao TestFlight.
+# Codemagic (equipe "UauGo"): compila o UauGo para iPhone e envia ao TestFlight.
 #
-# Antes da 1ª compilação (feito pelo Ricardo, nunca pelo Claude):
-#   1. App Store Connect: criar o app com o bundle "helpaitech.comboio".
-#   2. App Store Connect > Usuários e acesso > Integrações > chave de API
-#      (função "App Manager") e baixar o .p8.
-#   3. Codemagic > Teams > Integrations > Developer Portal: cadastrar a
-#      chave com o nome "UauGo ASC" (Issuer ID, Key ID e o .p8).
-#   4. developer.apple.com > Identifiers > helpaitech.comboio: ligar
-#      "Sign in with Apple" e "Push Notifications".
+# Já feito (24/11): chave da App Store Connect "UauGo ASC" na equipe,
+# certificado "uaugo_distribution" (Apple Distribution) guardado no Codemagic,
+# app uaugo-apple transferido para a equipe.
+#
+# Ordem:
+#   1. ios-preparar (uma vez): cria o identificador helpaitech.comboio, liga
+#      Sign in with Apple + Push e cria o perfil "UauGo App Store".
+#   2. Codemagic > Settings > Code signing identities > iOS provisioning
+#      profiles > Fetch profiles: trazer o "UauGo App Store".
+#   3. ios-testflight: compila e manda para o TestFlight.
 #
 # Como a versão da Play: sem dart-defines (rotas do Google).
 workflows:
-  ios-testflight:
-    name: UauGo iOS -> TestFlight
+  ios-preparar:
+    name: UauGo iOS - preparar (1 vez)
     instance_type: mac_mini_m2
-    max_build_duration: 90
+    max_build_duration: 15
     integrations:
       app_store_connect: UauGo ASC
-    environment:
-      flutter: stable
-      xcode: latest
-      cocoapods: default
-      # Sem "ios_signing": os perfis são criados/baixados no script de
-      # assinatura (fetch-signing-files --create). Com ele, o Codemagic
-      # exige o perfil antes de começar e o 1º build falha.
     triggering:
-      events: []   # só quando disparar manualmente no Codemagic
+      events: []
     scripts:
-      - name: Identificador e capacidades (Sign in with Apple + Push)
+      - name: Identificador, capacidades e perfil
         script: |
           set -x
           ID=$(app-store-connect bundle-ids list \
@@ -41,14 +36,40 @@ workflows:
           fi
           echo "Bundle ID resource: $ID"
           app-store-connect bundle-ids enable-capabilities "$ID" \
-            --capability APPLE_ID_AUTH PUSH_NOTIFICATIONS || true
-      - name: Assinatura (perfis do App Store Connect)
-        script: |
-          app-store-connect fetch-signing-files "helpaitech.comboio" \
-            --type IOS_APP_STORE --create
-          keychain initialize
-          keychain add-certificates
-          xcode-project use-profiles
+            --capability PUSH_NOTIFICATIONS \
+            || app-store-connect bundle-ids enable-capabilities --help
+          app-store-connect bundle-ids enable-capabilities "$ID" \
+            --capability APPLE_ID_AUTH || true
+          CERT=$(app-store-connect certificates list --type DISTRIBUTION --json \
+                 | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[0]["id"] if d else "")')
+          echo "Certificado: $CERT"
+          app-store-connect profiles list --json | python3 -c '
+          import sys,json
+          for p in json.load(sys.stdin):
+              a=p["attributes"]; print(a["name"], a["profileType"], a["profileState"])'
+          app-store-connect profiles create "$ID" \
+            --certificate-ids "$CERT" --type IOS_APP_STORE \
+            --name "UauGo App Store" \
+            || app-store-connect profiles create --help
+
+  ios-testflight:
+    name: UauGo iOS -> TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    integrations:
+      app_store_connect: UauGo ASC
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: helpaitech.comboio
+    triggering:
+      events: []   # só quando disparar manualmente no Codemagic
+    scripts:
+      - name: Assinatura
+        script: xcode-project use-profiles
       - name: Dependências
         script: |
           flutter pub get
