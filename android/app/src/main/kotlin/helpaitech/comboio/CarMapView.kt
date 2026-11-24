@@ -583,10 +583,12 @@ class CarMapView(private val context: Context) {
         // Perto de uma saída/conversão (até 400 m), aproxima sozinho.
         val n = CarState.nav
         val nearTurn = n != null && n.meters < 400 && n.maneuver.isNotEmpty() && n.maneuver != "straight"
+        // 23/11: 1,2 nível mais afastado (o mapa do carro ficava "grande",
+        // pouca área à vista): 13,4/14,2/15,0 -> 12,2/13,0/13,8.
         val zoom = (when {
-            CarState.speedKmh >= 90 -> 13.4f
-            CarState.speedKmh >= 50 -> 14.2f
-            else -> 15.0f
+            CarState.speedKmh >= 90 -> 12.2f
+            CarState.speedKmh >= 50 -> 13.0f
+            else -> 13.8f
         } + CarState.zoomOffset + (if (nearTurn) 1.2f else 0f)).coerceIn(10f, 19f) + MAP_ZOOM_FIX
         // Mapa bem afastado: os radares viram um amontoado que cobre as ruas.
         val show = zoom >= 13f
