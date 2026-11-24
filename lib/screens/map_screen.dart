@@ -7763,6 +7763,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       _sim3d.route(pts, st, _trip?.title ?? '', partialEnd: to < _routeRecs.length);
     }
     _sim3d.dark(_darkMap);
+    // Primeira pessoa (23/11): guidão na moto, capô no carro, cabine no
+    // caminhão/ônibus, conforme "Meu veículo".
+    _sim3d.vehicle(_cockpitKind(_myBike.style));
     if (pr != null) {
       final me = _me;
       _sim3d.update(max(0.0, pr.along - base), _speedMs, _isOff3d(pr, me),
@@ -8844,6 +8847,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           icon: const Icon(Icons.logout, size: 22),
         ),
       );
+
+  /// Desenho da primeira pessoa no 3D para o tipo do veículo.
+  static String _cockpitKind(BikeStyle s) => s.isMoto
+      ? 'moto'
+      : switch (s) {
+          BikeStyle.bus => 'bus',
+          BikeStyle.truck || BikeStyle.bitrain || BikeStyle.motorhome => 'truck',
+          _ => 'car',
+        };
 
   /// Configurações do app (mesmo botão em todos os modos).
   void _openSettings() => Navigator.of(context)

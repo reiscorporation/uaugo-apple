@@ -107,6 +107,16 @@ class Sim3DController {
     _run('sim3d.update($j)');
   }
 
+  /// Visão em primeira pessoa conforme o veículo (23/11): 'moto', 'car',
+  /// 'truck' ou 'bus' (guidão, capô ou cabine na base da tela).
+  void vehicle(String kind) {
+    if (kind == _vehicle) return;
+    _vehicle = kind;
+    if (_ready) _web?.runJavaScript('sim3d.setVehicle("$kind")').catchError((_) {});
+  }
+
+  String? _vehicle;
+
   void dark(bool on) {
     if (on == _dark) return;
     _dark = on;
@@ -186,6 +196,9 @@ class Sim3DController {
     // Idioma antes da rota e dos alertas (placas viram textura).
     _run('sim3d.setLang("${I18n.code}")');
     _run('sim3d.setDark($_dark)');
+    if (_vehicle != null) {
+      _web?.runJavaScript('sim3d.setVehicle("$_vehicle")').catchError((_) {});
+    }
     if (_routeJson != null) _run('sim3d.setRoute($_routeJson)');
     if (_alertsJson != null) _run('sim3d.setAlerts($_alertsJson)');
     if (_ridersJson != null) _run('sim3d.setRiders($_ridersJson)');
