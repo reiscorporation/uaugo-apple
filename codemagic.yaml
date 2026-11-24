@@ -42,7 +42,27 @@ workflows:
           pip3 install -q pyjwt cryptography requests
           BUNDLE_RES="$ID" python3 - <<'PY'
           import os, time, jwt, requests
-          key = os.environ["APP_STORE_CONNECT_PRIVATE_KEY"]
+          import base64
+          key = os.environ["APP_STORE_CONNECT_PRIVATE_KEY"].strip()
+          if key.startswith("@file:"):
+              key = open(os.path.expanduser(key[6:])).read()
+          elif key.startswith("@env:"):
+              key = os.environ[key[5:]]
+          key = key.replace("\\n", "\n").strip()
+          if "BEGIN" not in key:
+              try:
+                  key = base64.b64decode(key).decode()
+              except Exception:
+                  pass
+          # Remonta o PEM (às vezes chega numa linha só, com espaços).
+          import re
+          body = re.sub(r"-----[A-Z ]+-----", "", key)
+          body = re.sub(r"\s+", "", body)
+          key = ("-----BEGIN PRIVATE KEY-----\n"
+                 + "\n".join(body[i:i+64] for i in range(0, len(body), 64))
+                 + "\n-----END PRIVATE KEY-----\n")
+          print("formato da chave:", "PEM" if key.startswith("-----BEGIN") else "?",
+                key.count("\n"), "linhas")
           tok = jwt.encode(
               {"iss": os.environ["APP_STORE_CONNECT_ISSUER_ID"],
                "iat": int(time.time()), "exp": int(time.time()) + 600,
