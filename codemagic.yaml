@@ -96,6 +96,20 @@ workflows:
             --name "UauGo App Store" \
             || app-store-connect profiles create --help
 
+  ios-testadores:
+    name: UauGo iOS - grupo Equipe do TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 10
+    integrations:
+      app_store_connect: UauGo ASC
+    triggering:
+      events: []
+    scripts:
+      - name: Grupo interno e testadores
+        script: |
+          pip3 install -q pyjwt cryptography requests
+          python3 tool/asc_testflight_equipe.py
+
   ios-testflight:
     name: UauGo iOS -> TestFlight
     instance_type: mac_mini_m2
