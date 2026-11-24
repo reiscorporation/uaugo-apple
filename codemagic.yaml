@@ -36,10 +36,12 @@ workflows:
           fi
           echo "Bundle ID resource: $ID"
           app-store-connect bundle-ids enable-capabilities "$ID" \
-            --capability PUSH_NOTIFICATIONS \
-            || app-store-connect bundle-ids enable-capabilities --help
-          app-store-connect bundle-ids enable-capabilities "$ID" \
-            --capability APPLE_ID_AUTH || true
+            --capability "Push Notifications" "Sign In with Apple"
+          # Perfil antigo (sem as capacidades) sai; o novo já as inclui.
+          for P in $(app-store-connect profiles list --json \
+                     | python3 -c 'import sys,json; print(" ".join(p["id"] for p in json.load(sys.stdin) if p["attributes"]["name"]=="UauGo App Store"))'); do
+            app-store-connect profiles delete "$P"
+          done
           CERT=$(app-store-connect certificates list --type DISTRIBUTION --json \
                  | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[0]["id"] if d else "")')
           echo "Certificado: $CERT"
