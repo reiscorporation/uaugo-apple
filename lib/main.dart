@@ -24,6 +24,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'firebase_options.dart';
+import 'widgets/upcoming_steps.dart';
 import 'screens/startup_gate.dart';
 import 'screens/terms_screen.dart';
 import 'services/voice_command_service.dart';
@@ -246,66 +247,13 @@ class ComboioApp extends StatelessWidget {
 class _CarSteps extends StatelessWidget {
   const _CarSteps();
 
-  static IconData _icon(String m) => switch (m) {
-        'turn-slight-left' || 'ramp-left' || 'keep-left' => Icons.turn_slight_left,
-        'turn-slight-right' || 'ramp-right' || 'keep-right' => Icons.turn_slight_right,
-        'turn-sharp-left' => Icons.turn_sharp_left,
-        'turn-sharp-right' => Icons.turn_sharp_right,
-        'fork-left' || 'fork-right' => Icons.fork_right,
-        'uturn-left' => Icons.u_turn_left,
-        'uturn-right' => Icons.u_turn_right,
-        'roundabout-left' => Icons.roundabout_left,
-        final x when x.startsWith('roundabout') => Icons.roundabout_right,
-        'merge' => Icons.merge,
-        final x when x.contains('left') => Icons.turn_left,
-        final x when x.contains('right') => Icons.turn_right,
-        _ => Icons.straight,
-      };
-
-  static String _dist(int m) => m >= 1000
-      ? '${(m / 1000).toStringAsFixed(m >= 10000 ? 0 : 1).replaceAll('.', ',')} km'
-      : '${(m / 10).round() * 10} m';
-
   @override
-  Widget build(BuildContext context) => ValueListenableBuilder<List<(String, String, int)>>(
-        valueListenable: CarService.instance.upcoming,
-        builder: (_, list, __) => list.isEmpty
-            ? const SizedBox.shrink()
-            : Padding(
-                padding: const EdgeInsets.only(top: 24),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
-                  child: ListView(shrinkWrap: true, children: [
-                    for (final (i, (m, text, d)) in list.indexed)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: i == 0 ? const Color(0xFFFF7A1A) : Colors.white10,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(children: [
-                          Icon(_icon(m), color: Colors.white, size: i == 0 ? 34 : 26),
-                          const SizedBox(width: 10),
-                          SizedBox(
-                            width: 74,
-                            child: Text(_dist(d),
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: i == 0 ? 20 : 16,
-                                    fontWeight: FontWeight.w900)),
-                          ),
-                          Expanded(
-                            child: Text(text,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: Colors.white, fontSize: i == 0 ? 16 : 14)),
-                          ),
-                        ]),
-                      ),
-                  ]),
-                ),
-              ),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 24),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
+          child: const UpcomingSteps(dark: true, shrinkWrap: true),
+        ),
       );
 }
 

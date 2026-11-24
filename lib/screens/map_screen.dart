@@ -61,6 +61,7 @@ import '../widgets/bike_marker.dart';
 import '../widgets/emoji_marker.dart';
 import '../widgets/compass_button.dart';
 import '../widgets/speedometer.dart';
+import '../widgets/upcoming_steps.dart';
 import '../logic/itinerary.dart' show formatDistance, formatDuration, formatTime;
 import '../logic/navigation.dart';
 import '../logic/radars.dart';
@@ -5683,31 +5684,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // o fechamento da tela derrubava o app (defeito do Flutter com o mapa).
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        // Topo com as informações da viagem em 2 linhas, letra maior; deitado
-        // ou no "Dirigir agora" sem destino, uma linha só (sobra mapa).
-        // Navegando: a próxima manobra e a chegada ficam numa faixa logo
-        // abaixo do título (pedido de 08/11: antes a manobra era uma faixa
-        // verde separada, por cima do mapa).
-        // Deitado e navegando (17/11): uma faixa só, com a manobra e a
-        // chegada; o nome do destino fica no toque (resumo da viagem).
+        // 23/11 (padronização): navegando, a barra de cima mostra só a
+        // próxima manobra (seta, distância e rua), igual no mapa e no 3D, em
+        // pé e deitado. A chegada e os dados ficam no cartão branco no topo
+        // do mapa (_arrivalCard). Sem rota: nome da viagem e o resumo.
+        // Configurações e Sair ficam SEMPRE à direita, em todos os modos.
         toolbarHeight: _turnInfo() != null
-            ? (landscape ? 52 : 48)
+            ? (landscape ? 52 : 64)
             : (landscape || _justDriving ? 52 : 90),
-        bottom: _turnInfo() == null || landscape
-            ? null
-            : PreferredSize(
-                preferredSize: Size.fromHeight(landscape ? 50 : 92),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _showTripSummary,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 12, 8),
-                    child: _turnTitle(landscape),
-                  ),
-                ),
-              ),
+        titleSpacing: 12,
         // Toque no título: resumo da viagem (tempo, km, custo).
-        title: landscape && _turnInfo() != null
+        title: _turnInfo() != null
             ? GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _showTripSummary,
@@ -5727,7 +5714,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         : (_trip?.title ?? tr('Navegação')),
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: landscape ? 16 : 19, fontWeight: FontWeight.bold)),
-            if (!_justDriving && _turnInfo() == null) ...[
+            if (!_justDriving) ...[
               if (!landscape) const SizedBox(height: 2),
               // cada linha encolhe para caber inteira (não corta com "...")
               for (final line in (_isExpedition ? _expeditionSubtitle() : _etaText())
@@ -5747,29 +5734,58 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ],
         ),
         ),
-        actions: !_isExpedition
-            ? [if (_navigating && _sim == null) _exitNavButton()]
-            : [
-          if (_navigating && _sim == null) _exitNavButton(),
+        actions: [
+          // Configurações: o mesmo botão em todos os modos (23/11).
           IconButton(
-              icon: const Icon(Icons.route),
-              tooltip: tr('Roteiro'),
-              onPressed: _openPlan),
-          IconButton(
-              icon: Icon(_myBike.style.icon),
-              tooltip: tr('Meu veículo'),
-              onPressed: _editBike),
-          IconButton(
-              icon: const Icon(Icons.share),
-              tooltip: tr('Copiar código'),
-              onPressed: _copyCode),
-          IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: tr('Sair da expedição'),
-              onPressed: _leave),
+            tooltip: tr('Configurações'),
+            icon: const Icon(Icons.settings),
+            onPressed: _openSettings,
+          ),
+          // Expedição: roteiro, veículo, código e sair do grupo no menu.
+          if (_isExpedition)
+            PopupMenuButton<String>(
+              tooltip: tr('Mais opções'),
+              onSelected: (v) {
+                switch (v) {
+                  case 'plan':
+                    _openPlan();
+                  case 'bike':
+                    _editBike();
+                  case 'code':
+                    _copyCode();
+                  default:
+                    _leave();
+                }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                    value: 'plan',
+                    child: ListTile(
+                        leading: const Icon(Icons.route), title: Text(tr('Roteiro')))),
+                PopupMenuItem(
+                    value: 'bike',
+                    child: ListTile(
+                        leading: Icon(_myBike.style.icon), title: Text(tr('Meu veículo')))),
+                PopupMenuItem(
+                    value: 'code',
+                    child: ListTile(
+                        leading: const Icon(Icons.share), title: Text(tr('Copiar código')))),
+                PopupMenuItem(
+                    value: 'leave',
+                    child: ListTile(
+                        leading: const Icon(Icons.logout),
+                        title: Text(tr('Sair da expedição')))),
+              ],
+            ),
+          // Sair: sempre visível (navegando encerra a navegação; senão sai do
+          // mapa, perguntando antes quando é preciso).
+          _exitNavButton(),
         ],
       ),
-      body: Stack(children: [
+      // 23/11: deitado, com rota, o mapa (ou o 3D) fica com 60% da largura
+      // e a lista dos próximos passos com 40%, em todos os modos e aparelhos.
+      // Em pé, nada muda.
+      body: _split(landscape, Stack(children: [
         // Arrastar, girar ou dar zoom com os dedos pausa o acompanhamento
         // (aparece o botão "Recentralizar"). Um toque simples não pausa.
         LayoutBuilder(builder: (context, box) {
@@ -5899,6 +5915,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           left: landscape ? 140 : 8,
           right: landscape ? 120 : 8,
           child: Column(key: _kTopBanners, mainAxisSize: MainAxisSize.min, children: [
+            // Chegada e dados: cartão branco no topo do mapa (23/11).
+            if (_turnInfo() != null) _arrivalCard(),
             // Sem internet: selo pequeno (o mapa do Google sai e fica a
             // estrada desenhada da rota). Não recebe toque; some sozinho.
             if (!_online3d)
@@ -6202,7 +6220,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (_sim != null)
           Positioned(left: 8, bottom: landscape ? 4 : 16,
               right: landscape ? null : 8,
-              width: landscape ? min(MediaQuery.of(context).size.width * 0.6, 620) : null,
+              width: landscape
+                  ? min(MediaQuery.of(context).size.width * (_splitOn(landscape) ? 0.36 : 0.6), 620)
+                  : null,
               child: KeyedSubtree(key: _kSimBar, child: _simControls())),
 
         // Recentralizar (aparece ao arrastar o mapa) + Iniciar / encerrar.
@@ -6215,7 +6235,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           right: landscape ? null : 76,
           // Em pé, acima do radar móvel / alerta (no 3D eles vão até 100):
           // com 104 o "Recentralizar" ficava atrás da câmera (testador, 16/11).
-          bottom: _sim != null ? (landscape ? 64 : 196) : (landscape ? 28 : 128),
+          // Deitado (23/11): acima da linha do alerta/radar/3D, que agora
+          // fica também no 3D e divide a largura com os próximos passos.
+          bottom: _sim != null ? (landscape ? 64 : 196) : (landscape ? 96 : 128),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             if (!_follow && _me != null)
               Padding(
@@ -6251,7 +6273,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           // botões, que fica a 12 da borda (17/11).
           bottom: _sim != null
               ? (landscape ? 64 : 196)
-              : (landscape && _show3d ? 12 : 36),
+              : 36,
           child: _landscapeFit(landscape, Alignment.bottomLeft, Column(
             key: _kLeftCol,
             mainAxisSize: MainAxisSize.min,
@@ -6355,8 +6377,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                         : SpeedAlerter.level(kmh, _roadLimit, s.personalMax),
                     onTap: _showSpeedSettings,
                     onLongPress: _editRoadSpeed,
-                    // No 3D, o visual do painel do 3D (no canto, 13/11).
-                    hud: _show3d,
+                    // 23/11: o velocímetro do 3D é o oficial de todos os modos.
+                    hud: true,
                   );
                 },
               ),
@@ -6376,34 +6398,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Reportar perigo e, ao lado, o radar móvel com UM toque (o alerta
         // mais usado, precisa ser rápido): à esquerda do SOS, no mapa e no 3D
         // (pedido de 04/11), em pé ou deitado.
-        if (_sim == null && !(landscape && _show3d))
+        // 23/11: o mesmo tamanho (56) e lugar no mapa e no 3D.
+        if (_sim == null)
         Positioned(
           right: 6 + 88 + 10,
-          // No 3D maiores (64): de luva, na moto (14/11).
-          bottom: 24 + (88 - (_show3d ? 64 : 50)) / 2,
+          bottom: 24 + (88 - _kHazardBtn) / 2,
           child: Row(key: _kBottomLeft, mainAxisSize: MainAxisSize.min, children: [
-            // Deitado, no mapa: o 3D fica aqui, ao lado do radar móvel
-            // (pedido de 17/11; antes na coluna da direita).
-            if (landscape && !_show3d && _show3dButton) ...[
-              GestureDetector(
-                onLongPress: _chooseMode3d,
-                child: SizedBox(
-                  width: 50,
-                  height: 50,
-                  child: FloatingActionButton(
-                    heroTag: '3dRow',
-                    tooltip: tr('Ver em 3D'),
-                    onPressed: _toggle3dMap,
-                    child: const _Label3d(),
-                  ),
-                ),
-              ),
+            // Deitado: o 3D fica aqui, ao lado do radar móvel (17/11), no
+            // mapa E no 3D (23/11: mesmo botão, mesmo lugar; no 3D mostra o
+            // mapa para voltar).
+            if (landscape && (_show3dButton || _show3d)) ...[
+              _button3d(),
               const SizedBox(width: 10),
             ],
             // Radar móvel à esquerda, alerta amarelo ao lado do SOS (13/11).
             SizedBox(
-              width: _show3d ? 64 : 50,
-              height: _show3d ? 64 : 50,
+              width: _kHazardBtn,
+              height: _kHazardBtn,
               child: FloatingActionButton(
                 heroTag: 'radar',
                 tooltip: tr('Avisar radar móvel aqui'),
@@ -6411,7 +6422,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 foregroundColor: Colors.white,
                 onPressed: _quickRadar,
                 child: Text(HazardType.radar.emoji,
-                    style: TextStyle(fontSize: _show3d ? 27 : 21)),
+                    style: const TextStyle(fontSize: 24)),
               ),
             ),
             const SizedBox(width: 10),
@@ -6422,14 +6433,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               child: GestureDetector(
                 onLongPress: _showReportSheet,
                 child: SizedBox(
-                  width: _show3d ? 64 : 50,
-                  height: _show3d ? 64 : 50,
+                  width: _kHazardBtn,
+                  height: _kHazardBtn,
                   child: FloatingActionButton(
                     heroTag: 'hazard',
                     backgroundColor: Colors.amber,
                     foregroundColor: Colors.black,
                     onPressed: _showReportSheet,
-                    child: Icon(Icons.warning_amber_rounded, size: _show3d ? 34 : 26),
+                    child: const Icon(Icons.warning_amber_rounded, size: 30),
                   ),
                 ),
               ),
@@ -6437,11 +6448,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ]),
         ),
 
-        // 3D deitado: linha de botões quadrados embaixo, como no carro.
-        if (landscape && _show3d && _sim == null) _carLikeRow(),
-
-        // Botões
-        if (!(landscape && _show3d && _sim == null))
+        // Botões (os mesmos no mapa e no 3D, 23/11)
         Positioned(
           right: 6,
           top: landscape ? 8 : null,
@@ -6468,22 +6475,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ? tr('Visão: comboio (toque para solo)')
                   : tr('Visão: solo (toque para comboio)'),
               onPressed: _toggleView,
-              child: Icon(_view == _MapView.convoy ? Icons.groups_2 : Icons.visibility),
+              child: Icon(_view == _MapView.convoy ? Icons.groups : Icons.person),
             ),
             const SizedBox(height: 12),
             // v2: 3D (estrada em primeira pessoa) ou mapa de cima.
             // Toque: no mapa vai para o 3D, no 3D volta ao mapa (11/11).
             // Segurar: escolher a visão.
-            if (_show3dButton && !(landscape && !_show3d && _sim == null)) ...[
-              GestureDetector(
-                onLongPress: _chooseMode3d,
-                child: _sideFab(
-                  heroTag: '3d',
-                  tooltip: _show3d ? tr('Ver o mapa') : tr('Ver em 3D'),
-                  onPressed: _toggle3dMap,
-                  child: _show3d ? const Icon(Icons.map) : const _Label3d(),
-                ),
-              ),
+            if ((_show3dButton || _show3d) && !(landscape && _sim == null)) ...[
+              _button3d(),
               const SizedBox(height: 12),
             ],
             ValueListenableBuilder<bool>(
@@ -6620,8 +6619,41 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ])),
         ),
       ]))),
-      ]),
+      ])),
     ));
+  }
+
+  /// Deitado com rota: mapa à esquerda (60%) e próximos passos (40%).
+  bool _splitOn(bool landscape) => landscape && _nav != null && _turnInfo() != null;
+
+  Widget _split(bool landscape, Widget map) {
+    if (!_splitOn(landscape)) return map;
+    return Row(children: [
+      Expanded(flex: 6, child: map),
+      Expanded(
+        flex: 4,
+        child: Material(
+          color: Colors.white,
+          child: SafeArea(
+            left: false,
+            top: false,
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+                child: Row(children: [
+                  const Icon(Icons.format_list_numbered, color: Colors.black54, size: 20),
+                  const SizedBox(width: 6),
+                  Text(tr('Próximos passos'),
+                      style: const TextStyle(
+                          color: Colors.black87, fontSize: 15, fontWeight: FontWeight.w800)),
+                ]),
+              ),
+              const Expanded(child: UpcomingSteps()),
+            ]),
+          ),
+        ),
+      ),
+    ]);
   }
 
   // ---- "UauGo, procurar posto": lugares no caminho
@@ -7440,137 +7472,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final _kBottomLeft = GlobalKey(), _kSimBar = GlobalKey(), _kCarRow = GlobalKey();
 
   /// Botão quadrado do 3D deitado, no visual do Android Auto (56, cantos 14).
-  Widget _carBtn({
-    required Object heroTag,
-    required String tooltip,
-    required VoidCallback onPressed,
-    required Widget child,
-    Color color = const Color(0xFF1B2A41),
-    Color fg = Colors.white,
-    VoidCallback? onLongPress,
-  }) =>
-      GestureDetector(
-        onLongPress: onLongPress,
-        child: SizedBox(
-          width: 56,
-          height: 56,
-          child: FloatingActionButton(
-            heroTag: heroTag,
-            tooltip: tooltip,
-            onPressed: onPressed,
-            backgroundColor: color,
-            foregroundColor: fg,
-            elevation: 4,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            child: child,
-          ),
-        ),
-      );
-
-  /// 3D deitado no celular (17/11): a mesma linha de botões do Android Auto,
-  /// embaixo à direita, terminando no SOS.
-  Widget _carLikeRow() {
-    final gap = const SizedBox(width: 8);
-    return Positioned(
-      right: 10,
-      bottom: 12,
-      child: Row(key: _kCarRow, mainAxisSize: MainAxisSize.min, children: [
-        _carBtn(
-          heroTag: 'rowHazard',
-          tooltip: tr('Reportar perigo'),
-          color: Colors.amber,
-          fg: Colors.black,
-          onPressed: _showReportSheet,
-          onLongPress: _showReportSheet,
-          child: const Icon(Icons.warning_amber_rounded, size: 30),
-        ),
-        gap,
-        _carBtn(
-          heroTag: 'rowRadar',
-          tooltip: tr('Avisar radar móvel aqui'),
-          color: HazardType.radar.color,
-          onPressed: _quickRadar,
-          child: Text(HazardType.radar.emoji, style: const TextStyle(fontSize: 26)),
-        ),
-        gap,
-        _carBtn(
-          heroTag: 'rowMusic',
-          tooltip: tr('Música'),
-          onPressed: _onMusicButton,
-          child: const Icon(Icons.music_note, size: 28),
-        ),
-        gap,
-        ValueListenableBuilder<bool>(
-          valueListenable: _voice.alertsOn,
-          builder: (_, on, __) => _carBtn(
-            heroTag: 'rowVoice',
-            tooltip: tr('Voz'),
-            onPressed: _showVoiceSettings,
-            child: Icon(on ? Icons.volume_up : Icons.volume_off, size: 28),
-          ),
-        ),
-        gap,
-        _carBtn(
-          heroTag: 'rowView',
-          tooltip: _view == _MapView.convoy
-              ? tr('Visão: comboio (toque para solo)')
-              : tr('Visão: solo (toque para comboio)'),
-          onPressed: _toggleView,
-          child: Icon(_view == _MapView.convoy ? Icons.groups_2 : Icons.visibility, size: 28),
-        ),
-        gap,
-        _carBtn(
-          heroTag: 'rowMap',
-          tooltip: tr('Ver o mapa'),
-          onPressed: _toggle3dMap,
-          onLongPress: _chooseMode3d,
-          child: const Icon(Icons.map, size: 28),
-        ),
-        if (_canAddSoloStop) ...[
-          gap,
-          _carBtn(
-            heroTag: 'rowStop',
-            tooltip: tr('Adicionar parada (ou segure no mapa)'),
-            onPressed: _addSoloStopBySearch,
-            child: const Icon(Icons.add_location_alt, size: 28),
-          ),
-        ],
-        gap,
-        // SOS: toque = opções; segurar = pede ajuda (como no resto do app).
-        GestureDetector(
-          onLongPress: _sosHold,
-          child: ValueListenableBuilder<String?>(
-            valueListenable: LiveSos.active,
-            builder: (_, token, __) => Stack(clipBehavior: Clip.none, children: [
-              _carBtn(
-                heroTag: 'rowSos',
-                tooltip: 'SOS',
-                color: const Color(0xFFD32F2F),
-                onPressed: () => _showEmergency(openChat: false),
-                child: const Text('SOS',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-              ),
-              if (token != null)
-                Positioned(
-                  right: -4,
-                  top: -4,
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
-                    ),
-                  ),
-                ),
-            ]),
-          ),
-        ),
-      ]),
-    );
-  }
-
   /// v2: posição do painel do 3D em função dos outros botões: entre a coluna
   /// da esquerda e a da direita, e acima do que estiver embaixo (alerta,
   /// câmera, controles da simulação). Se os botões mudarem de lugar ou de
@@ -8047,7 +7948,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Manda para a tela do carro a manobra, a chegada, o radar e a posição.
   void _sendToCar(Position p) {
     if (!CarService.instance.connected.value) return;
-    if (kDebugMode) _publishUpcoming(p);
+    _publishUpcoming(p);
     final ec = AppSettings.instance.emergencyContact.value;
     CarService.instance.emergency(ec?.$1, ec?.$2);
     _sendVehicleToCar();
@@ -8721,34 +8622,32 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     required VoidCallback? onPressed,
     required Widget child,
   }) {
-    final landscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    if (!_show3d && !landscape) {
-      return FloatingActionButton.small(
-          heroTag: heroTag, tooltip: tooltip, onPressed: onPressed, child: child);
-    }
-    if (!_show3d) {
-      // Deitado: tamanho de dedo (o pequeno de 40 ficava difícil de acertar).
-      return SizedBox(
-        width: 52,
-        height: 52,
-        child: FloatingActionButton(
-            heroTag: heroTag, tooltip: tooltip, onPressed: onPressed, child: child),
-      );
-    }
+    // 23/11: o mesmo botão (desenho e tamanho) no mapa e no 3D, em pé e
+    // deitado (antes 40 em pé, 52 deitado e 64 no 3D).
     return SizedBox(
-      width: 64,
-      height: 64,
+      width: _kSideBtn,
+      height: _kSideBtn,
       child: FloatingActionButton(
-        heroTag: heroTag,
-        tooltip: tooltip,
-        onPressed: onPressed,
-        child: IconTheme.merge(
-            data: const IconThemeData(size: 32),
-            child: DefaultTextStyle.merge(
-                style: const TextStyle(fontSize: 22), child: child)),
-      ),
+          heroTag: heroTag, tooltip: tooltip, onPressed: onPressed, child: child),
     );
   }
+
+  /// Tamanho dos botões laterais e da linha de baixo (alerta, radar).
+  static const _kSideBtn = 52.0;
+  static const _kHazardBtn = 56.0;
+
+  /// Botão 3D/mapa: o desenho do botão 3D do modo mapa é o oficial
+  /// (23/11). Toque: no mapa vai para o 3D, no 3D volta ao mapa; segurar:
+  /// escolher a visão. Mesmo lugar e tamanho no mapa e no 3D.
+  Widget _button3d() => GestureDetector(
+        onLongPress: _chooseMode3d,
+        child: _sideFab(
+          heroTag: '3d',
+          tooltip: _show3d ? tr('Ver o mapa') : tr('Ver em 3D'),
+          onPressed: _toggle3dMap,
+          child: _show3d ? const Icon(Icons.map) : const _Label3d(),
+        ),
+      );
 
   /// Ícone de música: o do app que está tocando (abre/fecha os controles)
   /// ou o de liberar/abrir o app de música.
@@ -8924,20 +8823,31 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         },
       );
 
-  /// "Encerrar" no canto superior (barra do título): pequeno, vermelho, só
-  /// o ícone de sair; pede confirmação ao tocar.
+  /// "Sair" no canto superior (barra do título): pequeno, vermelho, só o
+  /// ícone de sair. 23/11: aparece em TODOS os modos (mapa, 3D, em pé,
+  /// deitado, simulação, expedição) com o mesmo desenho. Navegando: encerra
+  /// a navegação (pergunta antes). Sem navegar: sai do mapa como o "voltar"
+  /// (a simulação pergunta antes de perder o andamento).
   Widget _exitNavButton() => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
+        padding: const EdgeInsets.only(left: 2, right: 8),
         child: IconButton.filled(
-          tooltip: _justDriving ? tr('Sair do Dirigir agora?') : tr('Encerrar navegação'),
+          tooltip: _navigating && _sim == null
+              ? (_justDriving ? tr('Sair do Dirigir agora?') : tr('Encerrar navegação'))
+              : tr('Sair'),
           style: IconButton.styleFrom(
               backgroundColor: Colors.red.shade700,
               foregroundColor: Colors.white,
               minimumSize: const Size(40, 40)),
-          onPressed: _stopNavigation,
-          icon: Icon(_isExpedition ? Icons.close : Icons.logout, size: 22),
+          onPressed: _navigating && _sim == null
+              ? _stopNavigation
+              : () => Navigator.of(context).maybePop(),
+          icon: const Icon(Icons.logout, size: 22),
         ),
       );
+
+  /// Configurações do app (mesmo botão em todos os modos).
+  void _openSettings() => Navigator.of(context)
+      .push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
 
   /// Botão grande de iniciar/encerrar (acima do botão Comboio/Solo).
   Widget? _tripButton() {
@@ -9300,75 +9210,78 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     CarService.instance.upcoming.value = list;
   }
 
-  /// Topo navegando: seta e distância da próxima manobra à esquerda; a rua e
-  /// a chegada (hora, tempo e km que faltam, letra grande) à direita.
+  /// Barra de cima navegando: seta e distância da próxima manobra e a rua.
+  /// 23/11: o mesmo desenho no mapa e no 3D, em pé e deitado; a chegada saiu
+  /// daqui para o cartão branco no topo do mapa ([_arrivalCard]).
   Widget _turnTitle(bool landscape) {
     final t = _turnInfo()!;
     final cs = Theme.of(context).colorScheme;
-    final eta = (_isExpedition ? _expeditionSubtitle() : _etaText());
-    final turn = Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(t.icon, size: landscape ? 30 : 40),
-      const SizedBox(width: 6),
-      Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(t.dist,
-            style: TextStyle(
-                fontSize: landscape ? 19 : 23, fontWeight: FontWeight.w900, height: 1.1)),
-        if (t.stopTime != null)
-          Text(t.stopTime!,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-      ]),
-    ]);
-    Widget themed(Widget w) => IconTheme.merge(
-        data: IconThemeData(color: cs.onSurface),
-        child: DefaultTextStyle.merge(style: TextStyle(color: cs.onSurface), child: w));
-    if (landscape || _justDriving) {
-      return themed(Row(children: [
-        turn,
-        const SizedBox(width: 12),
-        Expanded(
-          // 3D deitado (17/11): a Chegada já fica embaixo, na cena; aqui
-          // vai a manobra (rua), no lugar da faixa que havia na cena.
-          child: Text(
-              _justDriving || (landscape && _show3d && _sim == null)
-                  ? t.text
-                  : eta.replaceAll('\n', ' · '),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        ),
-      ]));
-    }
-    return themed(Row(children: [
-      turn,
-      const SizedBox(width: 10),
-      Container(width: 1, height: 58, color: cs.outlineVariant),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Em pé (13/11): a manobra usa até 2 linhas e cada linha da
-            // chegada encolhe a letra para caber inteira, em vez de cortar
-            // com "..." (em celular estreito sumia o horário/km).
-            Text(t.text,
-                maxLines: 2,
+    return IconTheme.merge(
+      data: IconThemeData(color: cs.onSurface),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: cs.onSurface),
+        child: Row(children: [
+          Icon(t.icon, size: landscape ? 30 : 38),
+          const SizedBox(width: 8),
+          Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(t.dist,
+                style: TextStyle(
+                    fontSize: landscape ? 19 : 23, fontWeight: FontWeight.w900, height: 1.1)),
+            if (t.stopTime != null)
+              Text(t.stopTime!,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+          ]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(t.text,
+                maxLines: landscape ? 1 : 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.15)),
-            const SizedBox(height: 2),
-            for (final line in eta.split('\n'))
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(line,
-                    maxLines: 1,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w700, height: 1.2)),
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700, height: 1.15)),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// "Chegada e dados" (23/11): cartão BRANCO com letra PRETA no topo do
+  /// mapa: hora de chegada, tempo e quanto falta (na expedição, também o
+  /// código). Um componente só para mapa e 3D, em pé e deitado, celular e
+  /// tablet. Toque: resumo da viagem.
+  Widget _arrivalCard() {
+    final text = (_isExpedition ? _expeditionSubtitle() : _etaText())
+        .replaceAll('\n', ' · ');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.white,
+        elevation: 4,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: _showTripSummary,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(children: [
+              const Icon(Icons.sports_score, color: Colors.black, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(text,
+                      maxLines: 1,
+                      style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800)),
+                ),
               ),
-          ],
+            ]),
+          ),
         ),
       ),
-    ]));
+    );
   }
 
   /// Barra da simulação: pausar, 1x/5x/20x, visão, encerrar e linha do tempo.
