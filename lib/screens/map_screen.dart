@@ -6473,16 +6473,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ],
             // Música no topo da coluna da direita (em pé também desde 23/11).
             if (_sim == null && (landscape || !_isExpedition)) _musicButton(),
-            // Visão (o "olho"): SOLO (primeira pessoa) ou COMBOIO (de cima).
-            _sideFab(
-              heroTag: 'view',
-              tooltip: _view == _MapView.convoy
-                  ? tr('Visão: comboio (toque para solo)')
-                  : tr('Visão: solo (toque para comboio)'),
-              onPressed: _toggleView,
-              child: Icon(_view == _MapView.convoy ? Icons.groups : Icons.person),
-            ),
-            const SizedBox(height: 12),
+            // Visão: SOLO (primeira pessoa) ou COMBOIO (de cima). Só no mapa:
+            // o 3D já é sempre em primeira pessoa (23/11).
+            if (!_show3d) ...[
+              _sideFab(
+                heroTag: 'view',
+                tooltip: _view == _MapView.convoy
+                    ? tr('Visão: comboio (toque para solo)')
+                    : tr('Visão: solo (toque para comboio)'),
+                onPressed: _toggleView,
+                child: Icon(_view == _MapView.convoy ? Icons.groups : Icons.person),
+              ),
+              const SizedBox(height: 12),
+            ],
             // v2: 3D (estrada em primeira pessoa) ou mapa de cima.
             // Toque: no mapa vai para o 3D, no 3D volta ao mapa (11/11).
             // Segurar: escolher a visão.

@@ -349,7 +349,8 @@ class CarOverlay(private val ctx: Context) {
         }
         val group = if (CarState.groupOn) View.VISIBLE else View.GONE
         requestBtn.visibility = group
-        viewBtn.visibility = group
+        // No 3D não há Solo/Comboio (sempre primeira pessoa), 23/11.
+        viewBtn.visibility = if (hud3d) View.GONE else group
         // 23/11: Solo = uma pessoa, Comboio = três pessoas (como no celular).
         viewBtn.text = if (CarState.convoyView) "👥\n" + tx("CONVOY", "COMBOIO") else "👤\nSOLO"
         // SOS e bússola sempre, em todas as telas, como no celular (16/11).
