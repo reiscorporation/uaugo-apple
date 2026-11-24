@@ -118,7 +118,9 @@ class Car3DView(context: Context) {
         // topo livre (abaixo do cartão de manobra do Android Auto): minimapa
         // 12/11: minimapa no alto da tela (antes abaixo da linha de botões do
         // Android Auto, que ficam só no canto direito).
-        val top = 0
+        // 23/11: a Chegada (faixa branca do UauGo) fica no topo: o minimapa
+        // desce para baixo dela, como no celular.
+        val top = 64
         // 17/11: Chegada no canto de baixo, entre o velocímetro e os botões;
         // a manobra esticada na largura dos botões, logo acima deles.
         val s = speedR
@@ -131,7 +133,10 @@ class Car3DView(context: Context) {
             val bt = ((view.height - b.top) / d).toInt()
             ",car:{sr:$sr,bl:$bl,bw:$bw,bb:$bb,bt:$bt}"
         } else ""
-        view.evaluateJavascript("sim3d.layout({l:$left,r:$right,b:$bottom,t:$top$extra})", null)
+        // 23/11: sem o painel da página (Chegada/manobra), como no celular: a
+        // Chegada fica no topo e os passos no painel da direita.
+        @Suppress("UNUSED_VARIABLE") val unused = extra
+        view.evaluateJavascript("sim3d.layout({l:$left,r:$right,b:$bottom,t:$top})", null)
     }
 
     fun destroy() {

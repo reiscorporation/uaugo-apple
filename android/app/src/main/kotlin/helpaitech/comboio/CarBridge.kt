@@ -27,6 +27,8 @@ object CarState {
     )
 
     @Volatile var nav: Nav? = null
+    /** Próximas manobras (manobra, texto, metros), a 1ª é a atual (23/11). */
+    @Volatile var steps: List<Triple<String, String, Int>> = emptyList()
     @Volatile var route: List<DoubleArray> = emptyList() // [lat, lng]
     /** Trechos da rota com trânsito: nível (0–2) e pontos [lat, lng]. */
     @Volatile var traffic: List<Pair<Int, List<DoubleArray>>> = emptyList()
@@ -208,6 +210,11 @@ class CarBridge(messenger: BinaryMessenger) {
                                             i["t"] as? String ?: "", i["v"] == true, i["s"] as? String ?: "")
                                     })
                             }
+                        }
+                        CarState.steps = (a["steps"] as? List<*>).orEmpty().mapNotNull { st ->
+                            val l = st as? List<*> ?: return@mapNotNull null
+                            Triple(l.getOrNull(0) as? String ?: "", l.getOrNull(1) as? String ?: "",
+                                (l.getOrNull(2) as? Number)?.toInt() ?: 0)
                         }
                         val text = a["text"] as? String
                         CarState.nav = if (text == null) null else CarState.Nav(

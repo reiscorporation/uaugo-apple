@@ -446,6 +446,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
                 if (sink == null) toast(tx("Open UauGo on the phone", "Abra o UauGo no celular")) else sink("radar")
             }
             hit == "to3d" -> setMode3d(2)
+            hit == "tomap" -> setMode3d(0)
             hit == "requests" -> screenManager.push(GroupRequestScreen(carContext))
             hit == "sos" -> sosTap()
             hit == "compass" -> toggleNorthUp()

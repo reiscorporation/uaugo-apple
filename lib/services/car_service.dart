@@ -400,6 +400,10 @@ class CarService {
       if (alert != null) 'alert': alert,
       if (banner != null) 'banner': banner,
       'vehicle': vehicle,
+      // Próximos passos (painel da direita no carro, como no celular deitado).
+      'steps': [
+        for (final s in upcoming.value.take(8)) [s.$1, s.$2, s.$3],
+      ],
       if (text != null) ...{
         'text': text,
         'maneuver': maneuver,

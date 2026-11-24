@@ -265,7 +265,7 @@ class CarMapView(private val context: Context) {
         val root = root3d ?: return
         if (on) {
             val v = Car3DView(ctx3d ?: return)
-            v.area = visible
+            v.area = visible?.let { Rect(it.left, it.top, mapRight(it), it.bottom) }
             v.onMap = { onMode?.invoke(0) }
             v.dark = dark
             view3d = v
@@ -278,7 +278,9 @@ class CarMapView(private val context: Context) {
                     runCatching { mapView?.onPause() }
                 }
             }
-            root.addView(v.view, 1, FrameLayout.LayoutParams(-1, -1))
+            val pw = panelW(visible ?: Rect(0, 0, width, height))
+            root.addView(v.view, 1, FrameLayout.LayoutParams(if (pw > 0) width - pw else -1, -1,
+                android.view.Gravity.START))
             overlay?.in3d = true
         } else {
             overlay?.in3d = false
@@ -443,7 +445,8 @@ class CarMapView(private val context: Context) {
     /** Área livre da tela (fora dos cartões do Android Auto). */
     fun setVisibleArea(r: Rect) {
         visible = r
-        view3d?.area = r
+        lastPanel = -1
+        view3d?.area = Rect(r.left, r.top, mapRight(r), r.bottom)
         overlay?.setArea(r, width)
         applyPadding()
         update()
@@ -485,6 +488,7 @@ class CarMapView(private val context: Context) {
 
     /** Novo estado do celular: rota, posição, velocidade, limite, aviso. */
     fun update() {
+        syncPanel()
         val g = map ?: return
         // Opção "nomes de lugares" mudou no celular: refaz o estilo.
         if (stylePlaces != CarState.placeNames) runCatching {
@@ -683,7 +687,7 @@ class CarMapView(private val context: Context) {
         val iv = meView ?: return
         val r = visible ?: Rect(0, 0, width, height)
         val extraTop = extraTop(r)
-        val cx = (r.left + extraLeft(r) + r.right) / 2f
+        val cx = (r.left + extraLeft(r) + mapRight(r)) / 2f
         val cy = (r.top + extraTop + r.bottom) / 2f
         val lp = iv.layoutParams
         iv.translationX = cx - lp.width / 2f
@@ -747,12 +751,45 @@ class CarMapView(private val context: Context) {
         return maxOf((h * 0.35f).toInt(), minOf((h * 0.62f).toInt(), lowest))
     }
 
+    /** Painel dos próximos passos (23/11): com rota, 40% da largura à
+     *  direita, como no celular deitado. Tela dividida (estreita): sem painel. */
+    private fun panelW(r: Rect): Int =
+        if (CarState.route.size >= 2 && CarState.nav != null && r.width() >= 560) (width * 0.4f).toInt() else 0
+
+    /** Borda direita do mapa (antes do painel ou da coluna do Android Auto). */
+    private fun mapRight(r: Rect): Int {
+        val p = panelW(r)
+        return if (p > 0) width - p else r.right
+    }
+
+    private var lastPanel = -1
+
+    /** Liga/desliga o painel e ajusta mapa, veículo e 3D aos 60%. */
+    private fun syncPanel() {
+        val r = visible ?: Rect(0, 0, width, height)
+        val p = panelW(r)
+        if (p == lastPanel) return
+        lastPanel = p
+        overlay?.setPanel(p, max(0, width - r.right))
+        view3d?.let { v ->
+            val lp = v.view.layoutParams as? FrameLayout.LayoutParams
+            if (lp != null) {
+                lp.width = if (p > 0) width - p else -1
+                lp.gravity = android.view.Gravity.START
+                v.view.layoutParams = lp
+            }
+            v.area = Rect(r.left, r.top, mapRight(r), r.bottom)
+        }
+        applyPadding()
+        placeMeView()
+    }
+
     /** O centro do mapa fica na área livre, mais para baixo (vê à frente). */
     private fun applyPadding() {
         val g = map ?: return
         val r = visible ?: Rect(0, 0, width, height)
         val extraTop = extraTop(r)
-        g.setPadding(r.left + extraLeft(r), r.top + extraTop, max(0, width - r.right), max(0, height - r.bottom))
+        g.setPadding(r.left + extraLeft(r), r.top + extraTop, max(0, width - mapRight(r)), max(0, height - r.bottom))
     }
 
     /** Seta do piloto (branca com borda azul), sempre apontando para cima. */

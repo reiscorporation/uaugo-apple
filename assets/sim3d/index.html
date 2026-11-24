@@ -68,7 +68,10 @@
   #hud, #say, #mini { z-index: 2; }
   /* celular (23/11): a manobra fica só na barra de cima do app; o balão
      repetia a mesma frase no meio da estrada, por cima dos botões */
-  body:not(.car) #say { display: none !important; }
+  #say { display: none !important; }
+  /* carro (23/11): igual ao celular, sem o painel da página (a Chegada e
+     os passos ficam no UauGo); só a estrada, o minimapa e o guidão/capô */
+  body.car #hud { display: none !important; }
 
   #hud {
     position: fixed; left: 0; right: 0; bottom: 96px;

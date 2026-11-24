@@ -108,10 +108,32 @@ class CarOverlay(private val ctx: Context) {
         text = "\uD83D\uDCE2"; gravity = Gravity.CENTER
         background = box(Color.rgb(245, 124, 0), 14)
     }
+    // SOS redondo, vermelho com borda branca, como no celular (23/11).
     private val sosBtn = tv(17f, Color.WHITE).apply {
-        text = "SOS"; gravity = Gravity.CENTER; minWidth = dp(56)
-        background = box(Color.rgb(211, 47, 47), 14); setPadding(dp(8), 0, dp(8), 0)
+        text = "SOS"; gravity = Gravity.CENTER
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL; setColor(Color.rgb(229, 57, 53)); setStroke(dp(3), Color.WHITE)
+        }
     }
+    // Próximos passos (23/11): painel branco com 40% da largura à direita,
+    // a 1ª manobra em laranja, igual ao celular deitado.
+    private val stepsTitle = tv(15f, Color.rgb(33, 33, 33)).apply {
+        setPadding(dp(12), dp(10), dp(12), dp(6))
+    }
+    private val stepRows = LinearLayout(ctx).apply {
+        orientation = LinearLayout.VERTICAL; setPadding(dp(8), 0, dp(8), dp(8))
+    }
+    private val stepsPanel = LinearLayout(ctx).apply {
+        orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE)
+        visibility = View.GONE
+        addView(stepsTitle); addView(stepRows)
+    }
+    /** Largura do painel dos passos (px); 0 = sem painel. */
+    var panelW = 0
+        private set
+    private var panelPadR = 0
+    /** Coluna de botões da direita (música, ⚙, bússola, visão, pedidos). */
+    private var sideColumn: LinearLayout? = null
     private val groupBar = tv(15f, Color.WHITE).apply {
         setPadding(dp(12), dp(8), dp(12), dp(8)); maxLines = 2
     }
@@ -160,7 +182,7 @@ class CarOverlay(private val ctx: Context) {
             inside(compassBtn) -> "compass"
             inside(alertBtn) -> "alert"
             inside(radarBtn) -> "radar"
-            inside(view3dBtn) -> "to3d"
+            inside(view3dBtn) -> if (hud3d) "tomap" else "to3d"
             else -> null
         }
     }
@@ -195,8 +217,8 @@ class CarOverlay(private val ctx: Context) {
         // 12/11: a faixa sobe até o topo da tela (antes começava abaixo da
         // linha dos botões do Android Auto); à direita deixa o espaço da
         // lupa e da porta, que ficam no canto de cima.
-        lp.setMargins(r.left + dp(10) + (if (in3d) miniSpace() else 0), dp(10),
-            maxOf((width - r.right).coerceAtLeast(0), dp(170)) + dp(10), 0)
+        val rightGap = if (panelW > 0) panelW else maxOf((width - r.right).coerceAtLeast(0), dp(170))
+        lp.setMargins(r.left + dp(10) + (if (in3d) miniSpace() else 0), dp(10), rightGap + dp(10), 0)
         v.layoutParams = lp
         placeBottom(r, width)
     }
@@ -239,7 +261,9 @@ class CarOverlay(private val ctx: Context) {
         val speedBox = speedArea
         val sp = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-            background = box(Color.argb(238, 15, 27, 45), 18)
+            // Hexágono escuro com borda clara: o velocímetro do 3D do
+            // celular, oficial em todos os modos (23/11).
+            background = HexDrawable(Color.argb(225, 14, 24, 36), Color.argb(200, 244, 251, 255), dp(2).toFloat())
             addView(speed); addView(tv(13f, Color.WHITE, false).apply { text = "km/h"; gravity = Gravity.CENTER })
         }
         speedBox.addView(sp, FrameLayout.LayoutParams(dp(96), dp(96), Gravity.BOTTOM or Gravity.START))
@@ -254,16 +278,19 @@ class CarOverlay(private val ctx: Context) {
             isBaselineAligned = false
             gravity = Gravity.CENTER_VERTICAL
         }
-        buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(56), dp(56)))
+        // Como no celular deitado (23/11): embaixo 3D/mapa, radar móvel,
+        // alerta e o SOS redondo; a coluna da direita fica acima do SOS.
+        buttons.addView(view3dBtn, LinearLayout.LayoutParams(dp(56), dp(56)))
         buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
-        buttons.addView(musicBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
-        buttons.addView(musicBar, LinearLayout.LayoutParams(-2, dp(56)).apply { leftMargin = dp(8) })
-        buttons.addView(settingsBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
-        buttons.addView(compassBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
-        buttons.addView(viewBtn, LinearLayout.LayoutParams(dp(78), dp(56)).apply { leftMargin = dp(8) })
-        buttons.addView(requestBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
-        buttons.addView(sosBtn, LinearLayout.LayoutParams(-2, dp(56)).apply { leftMargin = dp(8) })
-        buttons.addView(view3dBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
+        buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
+        buttons.addView(sosBtn, LinearLayout.LayoutParams(dp(68), dp(68)).apply { leftMargin = dp(8) })
+        val side = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.END
+        }
+        fun sideAdd(v: View, w: Int = 52) = side.addView(v, LinearLayout.LayoutParams(dp(w), dp(52)).apply { topMargin = dp(8) })
+        side.addView(musicBar, LinearLayout.LayoutParams(-2, dp(52)))
+        sideAdd(musicBtn); sideAdd(settingsBtn); sideAdd(compassBtn); sideAdd(viewBtn, 72); sideAdd(requestBtn)
+        sideColumn = side
         bottom.addView(speedBox, LinearLayout.LayoutParams(dp(118), dp(108)))
         bottom.addView(pill, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8); bottomMargin = dp(6) })
         column.addView(bottom)
@@ -275,6 +302,10 @@ class CarOverlay(private val ctx: Context) {
         root.addView(buttons, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply {
             setMargins(0, 0, dp(84) + EDGE_R, EDGE_B)
         })
+        root.addView(side, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply {
+            setMargins(0, 0, dp(84) + EDGE_R, EDGE_B + dp(68 + 4))
+        })
+        root.addView(stepsPanel, FrameLayout.LayoutParams(0, -1, Gravity.END))
     }
 
     /** Botões embaixo à direita, ao lado da coluna do Android Auto (+/−);
@@ -293,12 +324,58 @@ class CarOverlay(private val ctx: Context) {
             clp.setMargins(r.left + dp(10), 0, 0, EDGE_B + dp(56 + 8))
         } else {
             blp.gravity = Gravity.BOTTOM or Gravity.END
-            blp.setMargins(0, 0, maxOf((width - r.right).coerceAtLeast(0), dp(84)) + EDGE_R, EDGE_B)
+            blp.setMargins(0, 0, rightEdge(r, width) + EDGE_R, EDGE_B)
             clp.setMargins(r.left + dp(10), 0, 0, dp(6))
         }
         b.layoutParams = blp
         c.layoutParams = clp
+        sideColumn?.let { sc ->
+            val slp = sc.layoutParams as FrameLayout.LayoutParams
+            slp.gravity = Gravity.BOTTOM or Gravity.END
+            slp.setMargins(0, 0, rightEdge(r, width) + EDGE_R + dp(8), EDGE_B + dp(68 + 4))
+            sc.layoutParams = slp
+            sc.visibility = if (narrow) View.GONE else View.VISIBLE
+        }
     }
+
+    /** Distância da borda direita da tela até a borda do mapa: o painel dos
+     *  passos (se houver) ou a coluna de botões do Android Auto. */
+    private fun rightEdge(r: android.graphics.Rect, width: Int) =
+        if (panelW > 0) panelW else maxOf((width - r.right).coerceAtLeast(0), dp(84))
+
+    /** Liga/desliga o painel dos próximos passos (40% da largura). [padR]:
+     *  espaço da coluna do Android Auto, que fica por cima do painel. */
+    fun setPanel(w: Int, padR: Int) {
+        if (w == panelW && padR == panelPadR) return
+        panelW = w
+        panelPadR = padR
+        val lp = stepsPanel.layoutParams as FrameLayout.LayoutParams
+        lp.width = w
+        stepsPanel.layoutParams = lp
+        stepsPanel.setPadding(0, 0, padR, 0)
+        stepsPanel.visibility = if (w > 0) View.VISIBLE else View.GONE
+        lastArea?.let { setArea(it, lastWidth) }
+        update()
+    }
+
+    private fun stepRow(i: Int, m: String, text: String, meters: Int): View {
+        val first = i == 0
+        val fg = if (first) Color.WHITE else Color.BLACK
+        return LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            background = box(if (first) Color.rgb(255, 122, 26) else Color.rgb(241, 243, 245), 10)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            addView(ImageView(ctx).apply { setImageResource(icon(m)); setColorFilter(fg) },
+                LinearLayout.LayoutParams(dp(if (first) 30 else 24), dp(if (first) 30 else 24)))
+            addView(tv(if (first) 17f else 14f, fg).apply { this.text = dist(meters.toDouble()) },
+                LinearLayout.LayoutParams(dp(64), -2).apply { leftMargin = dp(6) })
+            addView(tv(if (first) 14f else 13f, fg, first).apply {
+                this.text = text; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+    }
+
+    private var stepsSig = ""
 
     private fun icon(m: String) = when {
         m.startsWith("uturn") -> R.drawable.car_uturn
@@ -319,12 +396,29 @@ class CarOverlay(private val ctx: Context) {
     /** Atualiza com o estado mandado pelo celular. */
     fun update() {
         val n = CarState.nav
-        turn.visibility = if (n == null || hud3d) View.GONE else View.VISIBLE
+        // Com o painel dos passos (deitado, como no celular), a manobra vai
+        // na 1ª linha do painel e o topo mostra só a Chegada (23/11).
+        turn.visibility = if (n == null || panelW > 0) View.GONE else View.VISIBLE
         // Velocímetro sempre no canto, também com o 3D (08/11).
         speedArea.visibility = View.VISIBLE
-        // 12/11: o "3D" fica só nos botões do Android Auto (à direita); este
-        // de baixo repetia o mesmo botão.
-        view3dBtn.visibility = View.GONE
+        // 3D/mapa ao lado do radar, no mapa E no 3D, como no celular (23/11).
+        view3dBtn.visibility = View.VISIBLE
+        view3dBtn.text = if (hud3d) "🗺" else "3D"
+        stepsTitle.text = tx("Next steps", "Próximos passos", "Próximos pasos")
+        if (panelW > 0) {
+            val st = CarState.steps
+            val sig = st.joinToString("|") { "${it.first}${it.second}${it.third / 10}" }
+            if (sig != stepsSig) {
+                stepsSig = sig
+                stepRows.removeAllViews()
+                val h = root.height
+                val max = if (h > 0) ((h / d - 50) / 62).toInt().coerceIn(2, 8) else 5
+                for ((i, x) in st.take(max).withIndex()) {
+                    stepRows.addView(stepRow(i, x.first, x.second, x.third),
+                        LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) })
+                }
+            }
+        }
         if (n != null) {
             turnIcon.setImageResource(icon(n.maneuver))
             turnIcon.setColorFilter(Color.BLACK)
@@ -338,7 +432,7 @@ class CarOverlay(private val ctx: Context) {
         }
         val b = CarState.banner
         banner.visibility = if (b.isNullOrBlank()) View.GONE else View.VISIBLE
-        info.visibility = turn.visibility
+        info.visibility = if (n == null) View.GONE else View.VISIBLE
         banner.text = bannerText(b ?: "")
         musicBar.visibility = if (musicOpen) View.VISIBLE else View.GONE
         if (musicOpen) {
@@ -387,4 +481,28 @@ class CarOverlay(private val ctx: Context) {
         ss.setSpan(android.text.style.RelativeSizeSpan(1.4f), 0, sp, 0)
         return ss
     }
+}
+
+/** Fundo em hexágono (velocímetro, como o do 3D do celular). */
+class HexDrawable(private val fill: Int, private val stroke: Int, private val sw: Float) :
+    android.graphics.drawable.Drawable() {
+    private val pf = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = fill }
+    private val ps = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = stroke; style = android.graphics.Paint.Style.STROKE; strokeWidth = sw
+    }
+    override fun draw(c: android.graphics.Canvas) {
+        val b = bounds
+        val w = b.width().toFloat(); val h = b.height().toFloat()
+        val x0 = b.left + sw; val y0 = b.top + sw; val x1 = b.right - sw; val y1 = b.bottom - sw
+        val k = w * 0.2f
+        val p = android.graphics.Path().apply {
+            moveTo(x0 + k, y0); lineTo(x1 - k, y0); lineTo(x1, b.top + h / 2)
+            lineTo(x1 - k, y1); lineTo(x0 + k, y1); lineTo(x0, b.top + h / 2); close()
+        }
+        c.drawPath(p, pf); c.drawPath(p, ps)
+    }
+    override fun setAlpha(a: Int) {}
+    override fun setColorFilter(f: android.graphics.ColorFilter?) {}
+    @Deprecated("Deprecated in Java")
+    override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
 }
