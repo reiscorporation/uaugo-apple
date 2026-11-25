@@ -251,8 +251,16 @@ class CarService {
     try {
       me = await Geolocator.getLastKnownPosition();
     } catch (_) {}
-    final res = await _places
-        .search(text, nearLat: me?.latitude, nearLng: me?.longitude);
+    // Erro na busca: responde a lista vazia mesmo assim (senão a tela do
+    // carro ficava em "Buscando…" para sempre).
+    var res = <PlaceSuggestion>[];
+    try {
+      res = await _places
+          .search(text, nearLat: me?.latitude, nearLng: me?.longitude)
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      _places.lastFailed = true;
+    }
     _found
       ..clear()
       ..addEntries(res.map((s) => MapEntry(s.placeId, s)));
