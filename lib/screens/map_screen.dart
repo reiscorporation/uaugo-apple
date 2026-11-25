@@ -7619,6 +7619,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     _sim3d.layout(
       top: max(0.0, topUsed),
+      topLeft: tb == null ? null : tb.left - web.left,
+      topRight: tb == null ? null : tb.right - web.left,
       left: left - web.left,
       right: web.right - right,
       bottom: web.bottom - top + 8,

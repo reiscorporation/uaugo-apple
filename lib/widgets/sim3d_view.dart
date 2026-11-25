@@ -159,9 +159,13 @@ class Sim3DController {
   /// Espaço livre para o painel (px a partir das bordas da visão 3D),
   /// medido pelo app em volta dos botões.
   void layout({required double left, required double right, required double bottom, double top = 0,
-      Map<String, int>? car, double inset = 0}) {
+      double? topLeft, double? topRight, Map<String, int>? car, double inset = 0}) {
     final j = jsonEncode({
       'l': left.round(), 'r': right.round(), 'b': bottom.round(), 't': top.round(),
+      // Onde ficam os avisos do topo (x, na página): o minimapa só desce se
+      // estiver embaixo deles (25/11).
+      if (topLeft != null) 'tl': topLeft.round(),
+      if (topRight != null) 'tr': topRight.round(),
       'ib': inset.round(),
       if (car != null) 'car': car,
     });

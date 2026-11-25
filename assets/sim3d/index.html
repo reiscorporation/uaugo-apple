@@ -1718,7 +1718,10 @@ window.sim3d = {
     // estrada, à direita da coluna do velocímetro).
     mini.style.left = '10px';
     // avisos do app no topo (radar, metade do trajeto...): desce para baixo deles
-    mini.style.top = Math.max(10, (d.t || 0) + 8) + 'px';
+    // 25/11: só quando o aviso fica por cima dele. Deitado, a faixa vai no
+    // meio e o minimapa descia à toa, por cima do velocímetro.
+    const miniHit = d.tl == null || (d.tl < 10 + miniSize().d + 6 && d.tr > 10);
+    mini.style.top = (miniHit ? Math.max(10, (d.t || 0) + 8) : 10) + 'px';
     document.getElementById('say').style.top = Math.max(10, (d.t || 0) + 8) + 'px';
     // Carro: Chegada no canto de baixo (entre o velocímetro e os botões) e a
     // manobra na largura dos botões, logo acima deles (17/11).
