@@ -5201,6 +5201,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// Altura da área do mapa (medida no build).
   double _mapH = 0;
 
+  /// Largura da área do mapa (medida no build; deitado com os próximos
+  /// passos abertos é só 60% da tela).
+  double _mapW = 0;
+
+  /// Margem lateral das faixas do topo, deitado: entre as colunas de botões.
+  /// Com o mapa estreito (próximos passos abertos) sobrava quase nada e o
+  /// "Radar fixo" saía uma letra por linha (iPhone, 25/11): aí a faixa fica
+  /// com pelo menos 320 de largura, no meio.
+  double _bannerSide(double side) {
+    final w = _mapW;
+    if (w <= 0 || w - 276 >= 320) return side;
+    return max(8, (w - 320) / 2);
+  }
+
   /// Desenho do "Você" (o mesmo do marcador), gerado uma vez por veículo.
   void _ensureMePng() {
     final key = '${widget.userName}|${_myBike.cacheKey}';
@@ -5833,6 +5847,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // (aparece o botão "Recentralizar"). Um toque simples não pausa.
         LayoutBuilder(builder: (context, box) {
           _mapH = box.maxHeight;
+          _mapW = box.maxWidth;
           return Listener(
           onPointerDown: (e) {
             _touchStart = e.position;
@@ -5957,8 +5972,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         Positioned(
           top: 8,
           // Deitado: no meio, entre a coluna do velocímetro e a dos botões.
-          left: landscape ? 140 : 8,
-          right: landscape ? 136 : 8, // deitado: livra as 2 colunas de botões (52 + 6 + 52 + folga)
+          left: landscape ? _bannerSide(140) : 8,
+          right: landscape ? _bannerSide(136) : 8, // deitado: livra as 2 colunas de botões (52 + 6 + 52 + folga)
           child: Column(key: _kTopBanners, mainAxisSize: MainAxisSize.min, children: [
             // Chegada e dados: cartão branco no topo do mapa (23/11).
             // Em pé: cartão de chegada. Deitado, a chegada vai na barra de
@@ -6168,6 +6183,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(_radarBanner!.text,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               color: _bannerBlinkRed ? Colors.white : Colors.black,
                               fontSize: 16,
