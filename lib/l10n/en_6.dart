@@ -35,6 +35,8 @@ const en6 = <String, String>{
   'Previsão indisponível agora (sem internet?). Toque em atualizar.': 'Forecast unavailable now (no internet?). Tap refresh.',
   'Previsão para o horário estimado de passagem · Open-Meteo · atualizada às {0}': 'Forecast for the estimated passing time · Open-Meteo · updated at {0}',
   'Próximos passos': 'Next steps',
+  'Mostrar próximos passos': 'Show next steps',
+  'Minimizar próximos passos': 'Minimize next steps',
   'SOS pronto no app de mensagens: toque em Enviar.': 'SOS ready in the messaging app: tap Send.',
   'Some da tela em {0} s. O código continua valendo.': 'Disappears in {0} s. The code stays valid.',
   'Toque no alerta.': 'Tap the alert.',

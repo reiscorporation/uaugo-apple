@@ -123,11 +123,29 @@ class CarOverlay(private val ctx: Context) {
     private val stepRows = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL; setPadding(dp(8), 0, dp(8), dp(8))
     }
+    /** 24/11: minimizar o painel (o mapa e os botões vão para a direita). */
+    private val stepsMinBtn = tv(26f, Color.rgb(33, 33, 33), true).apply {
+        text = "›"; gravity = Gravity.CENTER
+    }
     private val stepsPanel = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE)
         visibility = View.GONE
-        addView(stepsTitle); addView(stepRows)
+        addView(LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            addView(stepsTitle, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(stepsMinBtn, LinearLayout.LayoutParams(dp(48), dp(44)))
+        })
+        addView(stepRows)
     }
+    /** Minimizado: aba fina branca na direita; tocar restaura o painel. */
+    private val stepsTab = tv(22f, Color.rgb(33, 33, 33), true).apply {
+        text = "‹\n☰"; gravity = Gravity.CENTER_VERTICAL or Gravity.START
+        setBackgroundColor(Color.WHITE); visibility = View.GONE
+        setPadding(dp(12), 0, 0, 0)
+    }
+    /** Painel dos passos aberto (com a lista); minimizado fica só a aba. */
+    private var stepsMinNow = false
+    private val listOn get() = panelW > 0 && !stepsMinNow
     /** Largura do painel dos passos (px); 0 = sem painel. */
     var panelW = 0
         private set
@@ -172,6 +190,8 @@ class CarOverlay(private val ctx: Context) {
             // segurar o velocímetro no celular.
             inside(speedArea) -> "roadspeed"
             inside(viewBtn) -> "toggleview"
+            inside(stepsMinBtn) -> "stepsmin"
+            inside(stepsTab) -> "stepsrestore"
             inside(mPrev) -> "mprev"
             inside(mPlay) -> "mtoggle"
             inside(mNext) -> "mnext"
@@ -217,7 +237,11 @@ class CarOverlay(private val ctx: Context) {
         // 12/11: a faixa sobe até o topo da tela (antes começava abaixo da
         // linha dos botões do Android Auto); à direita deixa o espaço da
         // lupa e da porta, que ficam no canto de cima.
-        val rightGap = if (panelW > 0) panelW else maxOf((width - r.right).coerceAtLeast(0), dp(170))
+        val rightGap = when {
+            listOn -> panelW
+            panelW > 0 -> maxOf(panelW, dp(170)) // aba fina: lupa e porta ficam por cima
+            else -> maxOf((width - r.right).coerceAtLeast(0), dp(170))
+        }
         lp.setMargins(r.left + dp(10) + (if (in3d) miniSpace() else 0), dp(10), rightGap + dp(10), 0)
         v.layoutParams = lp
         placeBottom(r, width)
@@ -306,6 +330,7 @@ class CarOverlay(private val ctx: Context) {
             setMargins(0, 0, dp(84) + EDGE_R, EDGE_B + dp(68 + 4))
         })
         root.addView(stepsPanel, FrameLayout.LayoutParams(0, -1, Gravity.END))
+        root.addView(stepsTab, FrameLayout.LayoutParams(0, -1, Gravity.END))
     }
 
     /** Botões embaixo à direita, ao lado da coluna do Android Auto (+/−);
@@ -345,17 +370,23 @@ class CarOverlay(private val ctx: Context) {
 
     /** Liga/desliga o painel dos próximos passos (40% da largura). [padR]:
      *  espaço da coluna do Android Auto, que fica por cima do painel. */
-    fun setPanel(w: Int, padR: Int) {
-        if (w == panelW && padR == panelPadR) return
+    fun setPanel(w: Int, padR: Int, min: Boolean = false) {
+        if (w == panelW && padR == panelPadR && min == stepsMinNow) return
         panelW = w
         panelPadR = padR
+        stepsMinNow = min
+        stepsSig = "" // ao restaurar, refaz a lista
         val lp = stepsPanel.layoutParams as FrameLayout.LayoutParams
-        lp.width = w
+        lp.width = if (min) 0 else w
         stepsPanel.layoutParams = lp
         // A coluna do Android Auto (lupa, sair, zoom) fica por cima da borda
         // direita: o conteúdo do painel para antes dela.
         stepsPanel.setPadding(0, 0, maxOf(padR, dp(96)), 0)
-        stepsPanel.visibility = if (w > 0) View.VISIBLE else View.GONE
+        stepsPanel.visibility = if (w > 0 && !min) View.VISIBLE else View.GONE
+        val tlp = stepsTab.layoutParams as FrameLayout.LayoutParams
+        tlp.width = if (min) w else 0
+        stepsTab.layoutParams = tlp
+        stepsTab.visibility = if (w > 0 && min) View.VISIBLE else View.GONE
         lastArea?.let { setArea(it, lastWidth) }
         update()
     }
@@ -403,14 +434,14 @@ class CarOverlay(private val ctx: Context) {
         val n = CarState.nav
         // Com o painel dos passos (deitado, como no celular), a manobra vai
         // na 1ª linha do painel e o topo mostra só a Chegada (23/11).
-        turn.visibility = if (n == null || panelW > 0) View.GONE else View.VISIBLE
+        turn.visibility = if (n == null || listOn) View.GONE else View.VISIBLE
         // Velocímetro sempre no canto, também com o 3D (08/11).
         speedArea.visibility = View.VISIBLE
         // 3D/mapa ao lado do radar, no mapa E no 3D, como no celular (23/11).
         view3dBtn.visibility = View.VISIBLE
         view3dBtn.text = if (hud3d) "🗺" else "3D"
         stepsTitle.text = tx("Next steps", "Próximos passos", "Próximos pasos")
-        if (panelW > 0) {
+        if (listOn) {
             val st = CarState.steps
             val sig = st.joinToString("|") { "${it.first}${it.second}${it.third / 10}" }
             if (sig != stepsSig) {
@@ -439,7 +470,7 @@ class CarOverlay(private val ctx: Context) {
         banner.visibility = if (b.isNullOrBlank()) View.GONE else View.VISIBLE
         info.visibility = if (n == null) View.GONE else View.VISIBLE
         (info.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
-            val full = panelW > 0
+            val full = listOn
             val w = if (full) 0 else -2
             if (lp.width != w) {
                 lp.width = w; lp.weight = if (full) 1f else 0f

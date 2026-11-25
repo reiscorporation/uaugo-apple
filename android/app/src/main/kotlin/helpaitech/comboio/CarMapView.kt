@@ -770,8 +770,13 @@ class CarMapView(private val context: Context) {
 
     /** Painel dos próximos passos (23/11): com rota, 40% da largura à
      *  direita, como no celular deitado. Tela dividida (estreita): sem painel. */
-    private fun panelW(r: Rect): Int =
-        if (CarState.route.size >= 2 && CarState.nav != null && r.width() >= 560) (width * 0.4f).toInt() else 0
+    private fun panelW(r: Rect): Int {
+        if (CarState.route.size < 2 || CarState.nav == null || r.width() < 560) return 0
+        // 24/11: minimizado = aba fina (coluna do Android Auto + 48 dp).
+        val dens = context.resources.displayMetrics.density
+        return if (CarState.stepsMin) maxOf(width - r.right, (96 * dens).toInt()) + (48 * dens).toInt()
+        else (width * 0.4f).toInt()
+    }
 
     /** Borda direita do mapa (antes do painel ou da coluna do Android Auto). */
     private fun mapRight(r: Rect): Int {
@@ -780,14 +785,16 @@ class CarMapView(private val context: Context) {
     }
 
     private var lastPanel = -1
+    private var lastMin = false
 
     /** Liga/desliga o painel e ajusta mapa, veículo e 3D aos 60%. */
     private fun syncPanel() {
         val r = visible ?: Rect(0, 0, width, height)
         val p = panelW(r)
-        if (p == lastPanel) return
+        if (p == lastPanel && CarState.stepsMin == lastMin) return
         lastPanel = p
-        overlay?.setPanel(p, max(0, width - r.right))
+        lastMin = CarState.stepsMin
+        overlay?.setPanel(p, max(0, width - r.right), CarState.stepsMin)
         view3d?.let { v ->
             val lp = v.view.layoutParams as? FrameLayout.LayoutParams
             if (lp != null) {

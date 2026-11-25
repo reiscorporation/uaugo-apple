@@ -459,6 +459,11 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             hit == "compass" -> toggleNorthUp()
             hit?.startsWith("do:") == true -> CarState.actionSink?.invoke(hit.removePrefix("do:"))
             hit == "toggleview" -> CarState.actionSink?.invoke("toggleview")
+            // 24/11: minimizar/restaurar os próximos passos.
+            hit == "stepsmin" || hit == "stepsrestore" -> {
+                CarState.stepsMin = hit == "stepsmin"
+                carMap.update()
+            }
             // ♪ abre/fecha o mini player no próprio mapa (como no celular).
             hit == "music" -> carMap.toggleMusic()
             hit == "mprev" || hit == "mtoggle" || hit == "mnext" -> {

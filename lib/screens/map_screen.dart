@@ -403,6 +403,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   _MapView _view = _MapView.convoy;
   bool _showAll = false; // no modo comboio: enquadrar o grupo todo
   bool _follow = true; // a câmera acompanha (desliga ao arrastar o mapa)
+
+  /// 24/11: próximos passos minimizados (deitado). O mapa ocupa a largura
+  /// toda e os botões da borda vão junto; uma aba fina na direita restaura.
+  /// Estático: vale até fechar o app, mesmo saindo e voltando ao mapa.
+  static bool _stepsMin = false;
   Offset? _touchStart;
   double _bearing = 0;
   Position? _bearingFrom;
@@ -5726,7 +5731,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ? GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _showTripSummary,
-                child: _splitOn(landscape) ? _arrivalTitle() : _turnTitle(landscape),
+                child: _splitOn(landscape) && !_stepsMin ? _arrivalTitle() : _turnTitle(landscape),
               )
             : GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -5949,7 +5954,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // Chegada e dados: cartão branco no topo do mapa (23/11).
             // Em pé: cartão de chegada. Deitado, a chegada vai na barra de
             // cima e os passos no painel da direita (23/11).
-            if (_turnInfo() != null && !_splitOn(landscape)) _arrivalCard(),
+            if (_turnInfo() != null && (!_splitOn(landscape) || _stepsMin)) _arrivalCard(),
             // Sem internet: selo pequeno (o mapa do Google sai e fica a
             // estrada desenhada da rota). Não recebe toque; some sozinho.
             if (!_online3d)
@@ -6246,7 +6251,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           Positioned(left: 8, bottom: landscape ? 4 : 16,
               right: landscape ? null : 8,
               width: landscape
-                  ? min(MediaQuery.of(context).size.width * (_splitOn(landscape) ? 0.36 : 0.6), 620)
+                  ? min(MediaQuery.of(context).size.width * (_splitOn(landscape) && !_stepsMin ? 0.4 : 0.6), 620)
                   : null,
               child: KeyedSubtree(key: _kSimBar, child: _simControls())),
 
@@ -6657,6 +6662,34 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   Widget _split(bool landscape, Widget map) {
     if (!_splitOn(landscape)) return map;
+    if (_stepsMin) {
+      // Minimizado: só uma aba fina (toque para restaurar).
+      return Row(children: [
+        Expanded(child: map),
+        Material(
+          color: Colors.white,
+          child: SafeArea(
+            left: false,
+            top: false,
+            child: Semantics(
+              button: true,
+              label: tr('Mostrar próximos passos'),
+              child: InkWell(
+                onTap: () => setState(() => _stepsMin = false),
+                child: const SizedBox(
+                  width: 44,
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.chevron_left, color: Colors.black87, size: 28),
+                    SizedBox(height: 6),
+                    Icon(Icons.format_list_numbered, color: Colors.black54, size: 22),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ]);
+    }
     return Row(children: [
       Expanded(flex: 6, child: map),
       Expanded(
@@ -6672,9 +6705,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 child: Row(children: [
                   const Icon(Icons.format_list_numbered, color: Colors.black54, size: 20),
                   const SizedBox(width: 6),
-                  Text(tr('Próximos passos'),
+                  Expanded(child: Text(tr('Próximos passos'),
                       style: const TextStyle(
-                          color: Colors.black87, fontSize: 15, fontWeight: FontWeight.w800)),
+                          color: Colors.black87, fontSize: 15, fontWeight: FontWeight.w800))),
+                  // 24/11: minimizar (o mapa e os botões ocupam a largura toda).
+                  IconButton(
+                    tooltip: tr('Minimizar próximos passos'),
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.chevron_right, color: Colors.black87, size: 28),
+                    onPressed: () => setState(() => _stepsMin = true),
+                  ),
                 ]),
               ),
               const Expanded(child: UpcomingSteps()),

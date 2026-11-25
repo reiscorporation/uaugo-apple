@@ -51,6 +51,8 @@ object CarState {
     @Volatile var groupUrgent = false
     /** SOS tocado uma vez: o próximo toque em até 3 s envia. */
     @Volatile var sosArmed = false
+    /** 24/11: próximos passos minimizados na tela do carro (só a aba fina). */
+    @Volatile var stepsMin = false
     @Volatile var lat = 0.0
     @Volatile var lng = 0.0
     @Volatile var bearing = 0.0
