@@ -44,7 +44,12 @@ Future<ui.Image?> _loadPhoto(String url) async {
   }
 }
 
-const double _w = 240, _h = 210, _r = 58, _cy = 64;
+// 25/11: área do veículo "3D" maior (_top 128 -> 190, _w 240 -> 300, ~50%
+// maior); a foto no círculo e a etiqueta continuam do mesmo tamanho.
+const double _w = 300, _r = 58, _top = 190, _cy = _top - _r - 6, _h = _top + 82;
+
+/// Largura máxima da etiqueta (nome e modelo).
+const double _labelW = 216;
 
 /// Ponto do marcador que fica sobre a posição (centro do círculo).
 const bikeMarkerAnchor = Offset(0.5, _cy / _h);
@@ -74,7 +79,7 @@ Future<BitmapDescriptor> bikeMarker({
 
 /// Tamanho do marcador do piloto no mapa (pontos lógicos).
 // 16/11: 80 -> 60 (testador: "meio grande", tapava as entradas próximas).
-const bikeMarkerSize = Size(60, 60 * _h / _w);
+const bikeMarkerSize = Size(60 * _w / 240, 60 * _h / 240);
 
 /// O mesmo desenho de [bikeMarker] em PNG: o "Você" fixo na tela (vista
 /// solo), desenhado pelo app em vez de marcador do Google.
@@ -88,7 +93,7 @@ Future<Uint8List> bikeMarkerPng({
   final rec = ui.PictureRecorder();
   final c = Canvas(rec)..scale(scale);
   await _paintBadge(c, const Offset(_w / 2, _cy), bike, isMe,
-      dir: dir, spriteBox: const Size(_w - 40, _cy + _r + 6));
+      dir: dir, spriteBox: const Size(_w - 8, _top));
   // Etiqueta: nome + modelo
   final title = TextPainter(
     text: TextSpan(
@@ -99,7 +104,7 @@ Future<Uint8List> bikeMarkerPng({
     textDirection: TextDirection.ltr,
     maxLines: 1,
     ellipsis: '…',
-  )..layout(maxWidth: _w - 24);
+  )..layout(maxWidth: _labelW);
   final sub = bike.displayName.isEmpty
       ? null
       : (TextPainter(
@@ -110,7 +115,7 @@ Future<Uint8List> bikeMarkerPng({
           textDirection: TextDirection.ltr,
           maxLines: 1,
           ellipsis: '…',
-        )..layout(maxWidth: _w - 24));
+        )..layout(maxWidth: _labelW));
 
   final pillW = max(title.width, sub?.width ?? 0) + 24;
   final pillH = title.height + (sub?.height ?? 0) + 12;
