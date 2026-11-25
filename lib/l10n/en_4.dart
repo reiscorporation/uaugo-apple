@@ -47,7 +47,7 @@ const en4 = <String, String>{
   'Membro de passagem': 'Member passing through',
   'Ligar': 'Call',
   'Cidade não identificada': 'City not identified',
-  'Disponível por enquanto só no Android.': 'Available only on Android for now.',
+  'Ainda não disponível neste sistema.': 'Not available on this system yet.',
   'Sem permissão do microfone, os comandos de voz não funcionam.': 'Without microphone permission, voice commands do not work.',
   'Não foi possível baixar o reconhecimento de voz. Confira a internet e tente de novo.': 'Could not download voice recognition. Check your internet and try again.',
   'Ouvindo destino… fale agora': 'Listening for the destination… speak now',

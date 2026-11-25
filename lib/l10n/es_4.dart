@@ -47,7 +47,7 @@ const es4 = <String, String>{
   'Membro de passagem': 'Miembro de paso',
   'Ligar': 'Llamar',
   'Cidade não identificada': 'Ciudad no identificada',
-  'Disponível por enquanto só no Android.': 'Disponible por ahora solo en Android.',
+  'Ainda não disponível neste sistema.': 'Aún no disponible en este sistema.',
   'Sem permissão do microfone, os comandos de voz não funcionam.': 'Sin permiso del micrófono, los comandos de voz no funcionan.',
   'Não foi possível baixar o reconhecimento de voz. Confira a internet e tente de novo.': 'No fue posible descargar el reconocimiento de voz. Revisa el internet e inténtalo de nuevo.',
   'Ouvindo destino… fale agora': 'Escuchando el destino… habla ahora',

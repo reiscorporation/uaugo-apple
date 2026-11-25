@@ -112,8 +112,9 @@ class OfflineVoiceService {
       }
       await sink.close();
       prog(null); // extraindo
-      final out = root.path;
-      await Isolate.run(() => extractFileToDisk(tar.path, out));
+      // Função de topo: o closure não pode levar o serviço junto (tem um
+      // Completer, que não passa para outro isolate; era o erro do download).
+      await _extrairEmIsolate(tar.path, root.path);
       await refresh();
       return isInstalled(v);
     } catch (e) {
@@ -295,3 +296,7 @@ class StreamQueue {
     _waiting.clear();
   }
 }
+
+/// Extrai o .tar.bz2 da voz num isolate, sem levar nada além dos caminhos.
+Future<void> _extrairEmIsolate(String tar, String out) =>
+    Isolate.run(() => extractFileToDisk(tar, out));

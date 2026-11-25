@@ -114,7 +114,7 @@ const en3 = <String, String>{
   'Avisar {0} pelo WhatsApp': 'Notify {0} on WhatsApp',
   'Tentar de novo': 'Try again',
   'Automática. Toque para ouvir e escolher outra (feminina ou masculina).': 'Automatic. Tap to listen and pick another (female or male).',
-  'Nenhuma voz extra instalada. Em Configurações do Android > Conversão de texto em voz, baixe vozes em português.': 'No extra voices installed. In Android Settings > Text-to-speech, download more voices.',
+  'Nenhuma voz extra instalada. Em Configurações do sistema > Conversão de texto em voz, baixe vozes em português.': 'No extra voices installed. In system Settings > Text-to-speech, download more voices.',
   'Em 300 metros, vire à direita.': 'In 300 meters, turn right.',
   'Voz {0}': 'Voice {0}',
   'masculina': 'male',

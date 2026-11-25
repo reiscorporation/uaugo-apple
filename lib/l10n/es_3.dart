@@ -114,7 +114,7 @@ const es3 = <String, String>{
   'Avisar {0} pelo WhatsApp': 'Avisar a {0} por WhatsApp',
   'Tentar de novo': 'Intentar de nuevo',
   'Automática. Toque para ouvir e escolher outra (feminina ou masculina).': 'Automática. Toca para escuchar y elegir otra (femenina o masculina).',
-  'Nenhuma voz extra instalada. Em Configurações do Android > Conversão de texto em voz, baixe vozes em português.': 'No hay voces extra instaladas. En Configuración de Android > Texto a voz, descarga voces en español.',
+  'Nenhuma voz extra instalada. Em Configurações do sistema > Conversão de texto em voz, baixe vozes em português.': 'No hay voces extra instaladas. En Configuración del sistema > Texto a voz, descarga voces en español.',
   'Em 300 metros, vire à direita.': 'En 300 metros, gira a la derecha.',
   'Voz {0}': 'Voz {0}',
   'masculina': 'masculina',

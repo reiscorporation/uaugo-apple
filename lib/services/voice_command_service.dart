@@ -104,7 +104,7 @@ class VoiceCommandService {
   /// Liga a função: pede o microfone e baixa o modelo (se ainda não tiver).
   /// Devolve uma mensagem de erro, ou null se deu certo.
   Future<String?> enable() async {
-    if (!supported) return tr('Disponível por enquanto só no Android.');
+    if (!supported) return tr('Ainda não disponível neste sistema.');
     final mic = await _method.invokeMethod<bool>('requestMic') ?? false;
     if (!mic) return tr('Sem permissão do microfone, os comandos de voz não funcionam.');
     if (!await _modelReady()) {

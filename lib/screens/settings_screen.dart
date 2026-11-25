@@ -378,14 +378,14 @@ class SettingsScreen extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.add_circle_outline),
                   title: Text(tr('Baixar mais vozes do Google')),
-                  subtitle: Text(tr('Abre o Android: escolha Português (Brasil) e baixe as vozes. Depois volte aqui.')),
+                  subtitle: Text(tr('Abre o sistema: escolha Português (Brasil) e baixe as vozes. Depois volte aqui.')),
                   onTap: () async {
                     final ok = await const MethodChannel('uaugo/device')
                         .invokeMethod<bool>('openTtsSettings')
                         .catchError((_) => false);
                     if (ok != true && ctx.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text(tr('Em Configurações do Android > Conversão de texto em voz, baixe vozes em português.'))));
+                          content: Text(tr('Em Configurações do sistema > Conversão de texto em voz, baixe vozes em português.'))));
                     }
                   },
                 ),
@@ -718,7 +718,7 @@ class SettingsScreen extends StatelessWidget {
             builder: (_, on, __) => SwitchListTile(
               secondary: const Icon(Icons.music_note),
               title: Text(tr('Controles de música no mapa')),
-              subtitle: Text(tr('Spotify, YouTube Music, Deezer, rádio...: música, anterior, tocar/pausar e próxima sem sair do mapa. O Android pede para liberar o "Acesso a notificações" ao UauGo; nada sai do celular.')),
+              subtitle: Text(tr('Spotify, YouTube Music, Deezer, rádio...: música, anterior, tocar/pausar e próxima sem sair do mapa. O sistema pede para liberar o "Acesso a notificações" ao UauGo; nada sai do celular.')),
               value: on,
               onChanged: (v) async {
                 await s.setMediaControls(v);
@@ -727,7 +727,7 @@ class SettingsScreen extends StatelessWidget {
                   context: context,
                   builder: (ctx) => AlertDialog(
                     title: Text(tr('Liberar acesso')),
-                    content: Text(tr('Na próxima tela, ative o UauGo em "Acesso a notificações". É assim que o Android deixa o app ver a música que está tocando. O UauGo não lê nem guarda suas notificações.')),
+                    content: Text(tr('Na próxima tela, ative o UauGo em "Acesso a notificações". É assim que o sistema deixa o app ver a música que está tocando. O UauGo não lê nem guarda suas notificações.')),
                     actions: [
                       TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Agora não'))),
                       FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Abrir'))),
