@@ -236,7 +236,10 @@ class ComboioApp extends StatelessWidget {
         valueListenable: CarService.instance.connected,
         builder: (_, car, __) => Stack(children: [
           if (child != null) child,
-          if (car) const Positioned.fill(child: _CarLock()),
+          // Só no Android Auto (regra da Play). No CarPlay o celular segue
+          // livre: é por ele que se escolhe o destino (24/11).
+          if (car && defaultTargetPlatform == TargetPlatform.android)
+            const Positioned.fill(child: _CarLock()),
         ]),
       ),
     ));

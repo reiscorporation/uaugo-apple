@@ -111,6 +111,37 @@ workflows:
           pip3 install -q pyjwt cryptography requests
           python3 tool/asc_testflight_equipe.py
 
+  ios-compilar:
+    name: UauGo iOS - só compilar (sem publicar)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: UauGo ASC
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: helpaitech.comboio
+    triggering:
+      events: []
+    scripts:
+      - name: Assinatura
+        script: |
+          pip3 install -q pyjwt cryptography requests
+          python3 tool/asc_baixar_perfil.py
+          xcode-project use-profiles
+      - name: Dependências
+        script: |
+          flutter pub get
+          cd ios && pod install --repo-update
+      - name: Compilar IPA
+        script: |
+          flutter build ipa --release             --build-number=$BUILD_NUMBER             --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - /tmp/xcodebuild_logs/*.log
+
   ios-testflight:
     name: UauGo iOS -> TestFlight
     instance_type: mac_mini_m2
