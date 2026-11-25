@@ -146,6 +146,14 @@ class OfflineVoiceService {
         usageType: AndroidUsageType.assistanceNavigationGuidance,
         audioFocus: AndroidAudioFocus.gainTransientMayDuck,
       ),
+      // iPhone: modo de fala do GPS (abaixa a música e interrompe podcast).
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.playback,
+        options: const {
+          AVAudioSessionOptions.duckOthers,
+          AVAudioSessionOptions.interruptSpokenAudioAndMixWithOthers,
+        },
+      ),
     ));
     await _player.setReleaseMode(ReleaseMode.stop);
     _playerReady = true;
@@ -168,7 +176,12 @@ class OfflineVoiceService {
       }
       final tmp = await getTemporaryDirectory();
       final t0 = DateTime.now();
-      final wav = await _worker!.say(text, speed, '${tmp.path}/uaugo_voz.wav');
+      // Um arquivo por frase: no iPhone o player reaproveita o áudio já
+      // carregado quando o caminho é o mesmo, e falava a frase anterior
+      // (ou um pedaço dela) no lugar da nova.
+      _seq = (_seq + 1) % 4;
+      final path = '${tmp.path}/uaugo_voz_$_seq.wav';
+      final wav = await _worker!.say(text, speed, path);
       // Tempo para montar a frase (10/11: testador achou a voz
       // desincronizada; frase longa em celular simples pode demorar).
       debugPrint('Voz do UauGo: ${DateTime.now().difference(t0).inMilliseconds} ms para ${text.length} letras');
@@ -186,6 +199,7 @@ class OfflineVoiceService {
   }
 
   Completer<void> _stopped = Completer<void>();
+  int _seq = 0;
 
   Future<void> stop() async {
     if (!_stopped.isCompleted) _stopped.complete();

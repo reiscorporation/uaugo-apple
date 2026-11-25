@@ -649,7 +649,12 @@ final class VoiceBridgeIOS {
     if let p = pending {
       pending = nil
       p(text)
-      try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+      let s = AVAudioSession.sharedInstance()
+      try? s.setActive(false, options: .notifyOthersOnDeactivation)
+      // Volta para o modo de fala do GPS: o modo de gravação (measurement)
+      // deixava a voz baixa e estranha nas frases seguintes.
+      try? s.setCategory(.playback, mode: .voicePrompt,
+                         options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
     }
   }
 }
