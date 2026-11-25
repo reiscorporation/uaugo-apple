@@ -301,9 +301,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     MediaService.instance.stop();
     _ticker?.cancel();
     _onlineTimer?.cancel();
-    _routeTrafficTimer?.cancel();
-    _rainTimer?.cancel();
-    _trafficTimer?.cancel();
+    // 25/11: com o Android Auto/CarPlay o celular costuma ficar travado no
+    // bolso; chuva e trânsito à frente continuam (no carro vale o mesmo que
+    // no celular). O relógio da chuva nunca para: _checkRain decide (sem
+    // carro e fora da tela, não consulta).
+    if (!CarService.instance.connected.value) {
+      _routeTrafficTimer?.cancel();
+      _trafficTimer?.cancel();
+    }
     _autosave?.cancel();
     _saveRecord();
     BatteryService.instance.stop();
@@ -1763,7 +1768,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final p = _me;
     // Só com a opção ligada e com rota traçada.
     if (!mounted || p == null || !AppSettings.instance.alerts.value.rain ||
-        _walker == null || _inBackground) {
+        _walker == null ||
+        (_inBackground && !CarService.instance.connected.value)) {
       return;
     }
     if (_speedMs < 3 && _sim == null) return; // parado: nada "à frente"
@@ -3077,6 +3083,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Faixa laranja temporária (20 s): trânsito, chuva, metade do trajeto.
   void _showTrafficBanner(String text) {
+    // No carro também (Android Auto/CarPlay): a mesma faixa vira aviso na
+    // tela do carro (25/11: chuva à frente não aparecia no Android Auto).
+    if (CarService.instance.connected.value) CarService.instance.toast(text);
     setState(() => _trafficBanner = text);
     _trafficBannerTimer?.cancel();
     _trafficBannerTimer = Timer(const Duration(seconds: 20), () {
