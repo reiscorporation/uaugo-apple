@@ -59,6 +59,27 @@ class CarOverlay(private val ctx: Context) {
         gravity = Gravity.CENTER_VERTICAL; elevation = dp(6).toFloat()
     }
     private val speed = tv(36f, Color.WHITE).apply { gravity = Gravity.CENTER }
+    /** Fundo do velocímetro: escuro; vermelho acima do limite (24/11). */
+    private val hexNormal by lazy { HexDrawable(Color.argb(225, 14, 24, 36), Color.argb(200, 244, 251, 255), dp(2).toFloat()) }
+    private val hexOver by lazy { HexDrawable(Color.rgb(211, 47, 47), Color.WHITE, dp(2).toFloat()) }
+    private var speedHex: View? = null
+    private var hexIsOver = false
+    /** Faixa do radar piscando (acima do limite do radar), a cada 0,5 s. */
+    private val blinker = android.os.Handler(android.os.Looper.getMainLooper())
+    private var blinkRed = false
+    private var blinking = false
+    private val blinkTick = object : Runnable {
+        override fun run() {
+            if (!CarState.radarOver) { blinking = false; blinkRed = false; paintBanner(); return }
+            blinkRed = !blinkRed
+            paintBanner()
+            blinker.postDelayed(this, 500)
+        }
+    }
+    private fun paintBanner() {
+        banner.background = box(if (blinkRed) Color.rgb(229, 57, 53) else Color.rgb(255, 193, 7), 10)
+        banner.setTextColor(if (blinkRed) Color.WHITE else Color.BLACK)
+    }
     private val speedArea = FrameLayout(ctx)
     private val limit = tv(18f, Color.BLACK).apply {
         gravity = Gravity.CENTER
@@ -287,7 +308,8 @@ class CarOverlay(private val ctx: Context) {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
             // Hexágono escuro com borda clara: o velocímetro do 3D do
             // celular, oficial em todos os modos (23/11).
-            background = HexDrawable(Color.argb(225, 14, 24, 36), Color.argb(200, 244, 251, 255), dp(2).toFloat())
+            background = hexNormal
+            speedHex = this
             addView(speed); addView(tv(13f, Color.WHITE, false).apply { text = "km/h"; gravity = Gravity.CENTER })
         }
         speedBox.addView(sp, FrameLayout.LayoutParams(dp(96), dp(96), Gravity.BOTTOM or Gravity.START))
@@ -468,6 +490,10 @@ class CarOverlay(private val ctx: Context) {
         }
         val b = CarState.banner
         banner.visibility = if (b.isNullOrBlank()) View.GONE else View.VISIBLE
+        if (CarState.radarOver && !blinking) {
+            blinking = true
+            blinker.post(blinkTick)
+        }
         info.visibility = if (n == null) View.GONE else View.VISIBLE
         (info.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
             val full = listOn
@@ -512,6 +538,10 @@ class CarOverlay(private val ctx: Context) {
         groupBar.background = box(
             if (CarState.groupUrgent) Color.rgb(198, 40, 40) else Color.rgb(46, 125, 50), 12)
         speed.text = "${CarState.speedKmh}"
+        if (CarState.speedOver != hexIsOver) {
+            hexIsOver = CarState.speedOver
+            speedHex?.background = if (hexIsOver) hexOver else hexNormal
+        }
         limit.visibility = if (CarState.limitKmh > 0) View.VISIBLE else View.GONE
         limit.text = "${CarState.limitKmh}"
         val a = CarState.alert

@@ -375,6 +375,8 @@ class CarService {
     required double bearing,
     required int speedKmh,
     int limitKmh = 0,
+    bool speedOver = false,
+    bool radarOver = false,
     String? text,
     String maneuver = '',
     double meters = 0,
@@ -395,6 +397,8 @@ class CarService {
       'bearing': bearing,
       'speedKmh': speedKmh,
       'limitKmh': limitKmh,
+      'speedOver': speedOver,
+      'radarOver': radarOver,
       'lang': I18n.lang.value, // textos da tela do carro
       'placeNames': AppSettings.instance.carPlaceNames.value,
       'convoy': convoy,

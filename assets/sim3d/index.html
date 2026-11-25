@@ -1644,8 +1644,9 @@ function drawMini(now) {
     mg.lineWidth = w; mg.strokeStyle = c; mg.lineCap = mg.lineJoin = 'round'; mg.stroke();
   };
   const dark = document.body.classList.contains('dark');
-  for (const st of MINI_STREETS) line(st.pts, STREET_W[st.cls] || 1.4, dark ? (st.cls <= 2 ? '#4a6078' : '#33465a') : (st.cls <= 2 ? '#ffffff' : '#f4f7f9'));
-  for (const rd of MINI_ROADS) line(rd.pts, rd.cls <= 2 ? 2.5 : 1.5, dark ? '#3a4d61' : '#ffffff');
+  // 24/11: ruas em cinza médio (brancas no fundo claro quase sumiam).
+  for (const st of MINI_STREETS) line(st.pts, STREET_W[st.cls] || 1.4, dark ? (st.cls <= 2 ? '#8a96a3' : '#6c7884') : (st.cls <= 2 ? '#7f8890' : '#9aa2aa'));
+  for (const rd of MINI_ROADS) line(rd.pts, rd.cls <= 2 ? 2.5 : 1.5, dark ? '#8a96a3' : '#7f8890');
   // rota: de 300 m atrás até 1,5 km à frente
   const ahead = [];
   for (let q = Math.max(0, s - 300); q <= Math.min(TOTAL, s + 1500); q += 8) { const c = centerAt(q); ahead.push([c.x, c.y]); }

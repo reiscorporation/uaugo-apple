@@ -8065,6 +8065,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       bearing: shown?.bearing ?? _bearing,
       speedKmh: (_speedMs * 3.6).round(),
       limitKmh: _roadLimit?.kmh ?? 0,
+      // 24/11: velocímetro vermelho e faixa do radar piscando no carro,
+      // com o mesmo critério do celular.
+      speedOver: SpeedAlerter.level(_speedMs * 3.6, _roadLimit,
+              _speedSvc.settings.value.personalMax) !=
+          SpeedLevel.normal,
+      radarOver: _blinkTimer != null,
       text: turn?.step.text,
       maneuver: turn?.step.maneuver ?? '',
       meters: turn?.meters ?? 0,

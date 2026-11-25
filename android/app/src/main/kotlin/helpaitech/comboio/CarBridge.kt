@@ -62,6 +62,10 @@ object CarState {
     @Volatile var onRoute = false
     @Volatile var speedKmh = 0
     @Volatile var limitKmh = 0
+    /** 24/11: acima do limite da via (velocímetro vermelho) e acima do
+     *  limite do radar à frente (faixa pisca vermelho/amarelo). */
+    @Volatile var speedOver = false
+    @Volatile var radarOver = false
     /** Contagem do radar ("📸 80 em 450 m") e faixa amarela de aviso. */
     @Volatile var alert: String? = null
     @Volatile var banner: String? = null
@@ -196,6 +200,8 @@ class CarBridge(messenger: BinaryMessenger) {
                         CarState.bearing = (a["bearing"] as? Number)?.toDouble() ?: CarState.bearing
                         CarState.speedKmh = (a["speedKmh"] as? Number)?.toInt() ?: 0
                         CarState.limitKmh = (a["limitKmh"] as? Number)?.toInt() ?: 0
+                        CarState.speedOver = a["speedOver"] as? Boolean ?: false
+                        CarState.radarOver = a["radarOver"] as? Boolean ?: false
                         CarState.hasPosition = true
                         CarState.lastDartUpdate = System.currentTimeMillis()
                         CarState.alert = a["alert"] as? String
