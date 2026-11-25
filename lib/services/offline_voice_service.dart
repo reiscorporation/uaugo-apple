@@ -270,8 +270,15 @@ class _Worker {
       final m = msg as List;
       try {
         final a = tts!.generate(text: m[0] as String, speed: m[1] as double);
+        var samples = a.samples;
+        if (Platform.isIOS) {
+          // iPhone: o áudio leva um instante para "acordar" (abaixar a música,
+          // ligar a saída) e comia o começo da frase. 0,25 s de silêncio antes.
+          final pad = a.sampleRate ~/ 4;
+          samples = Float32List(pad + a.samples.length)..setAll(pad, a.samples);
+        }
         final ok = sherpa.writeWave(
-            filename: m[2] as String, samples: a.samples, sampleRate: a.sampleRate);
+            filename: m[2] as String, samples: samples, sampleRate: a.sampleRate);
         out.send(ok ? m[2] : null);
       } catch (_) {
         out.send(null);
