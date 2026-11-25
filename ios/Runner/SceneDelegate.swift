@@ -503,3 +503,153 @@ final class PaddedLabel: UILabel {
     return CGSize(width: s.width + 20, height: s.height + 12)
   }
 }
+
+// MARK: - Voz (alerta falado e frase livre) no iPhone
+
+import AVFoundation
+import Speech
+
+/// 24/11: no Android o canal "rodajunto/voice" usa o Vosk + reconhecedor do
+/// Google. No iPhone, o reconhecimento de fala da Apple faz a escuta de uma
+/// frase (alerta falado, destino, "o que você procura?"). O "UauGo" ouvindo
+/// o tempo todo continua só no Android.
+final class VoiceBridgeIOS {
+  static let shared = VoiceBridgeIOS()
+
+  private var channel: FlutterMethodChannel?
+  private let engine = AVAudioEngine()
+  private var request: SFSpeechAudioBufferRecognitionRequest?
+  private var task: SFSpeechRecognitionTask?
+  private var pending: FlutterResult?
+  private var best = ""
+  private var silence: Timer?
+  private var maxTimer: Timer?
+
+  func attach(_ messenger: FlutterBinaryMessenger) {
+    let ch = FlutterMethodChannel(name: "rodajunto/voice", binaryMessenger: messenger)
+    ch.setMethodCallHandler { [weak self] call, result in
+      self?.handle(call, result)
+    }
+    channel = ch
+  }
+
+  private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    switch call.method {
+    case "requestMic":
+      requestPermissions { result($0) }
+    case "hasMic":
+      result(AVAudioSession.sharedInstance().recordPermission == .granted
+        && SFSpeechRecognizer.authorizationStatus() == .authorized)
+    case "listenDestination":
+      let a = call.arguments as? [String: Any]
+      listen(lang: a?["language"] as? String ?? "pt-BR",
+             helmet: a?["helmet"] as? Bool ?? false, result: result)
+    case "cancelDestination":
+      finish(nil)
+      result(nil)
+    case "beep":
+      AudioServicesPlaySystemSound(1113)
+      result(nil)
+    default:
+      // start/stop/pause/unzip: escuta contínua (Vosk), só no Android.
+      result(nil)
+    }
+  }
+
+  /// Pede o microfone e o reconhecimento de fala (o iPhone pergunta 1 vez;
+  /// depois o UauGo aparece em Ajustes > Privacidade > Microfone).
+  private func requestPermissions(_ done: @escaping (Bool) -> Void) {
+    AVAudioSession.sharedInstance().requestRecordPermission { ok in
+      guard ok else {
+        DispatchQueue.main.async { done(false) }
+        return
+      }
+      SFSpeechRecognizer.requestAuthorization { st in
+        DispatchQueue.main.async { done(st == .authorized) }
+      }
+    }
+  }
+
+  private func listen(lang: String, helmet: Bool, result: @escaping FlutterResult) {
+    finish(nil)
+    guard let rec = SFSpeechRecognizer(locale: Locale(identifier: lang)), rec.isAvailable else {
+      result(nil)
+      return
+    }
+    let s = AVAudioSession.sharedInstance()
+    do {
+      // Com o comunicador do capacete: microfone Bluetooth.
+      var opts: AVAudioSession.CategoryOptions = [.duckOthers, .defaultToSpeaker]
+      if helmet { opts.insert(.allowBluetooth) }
+      try s.setCategory(.playAndRecord, mode: .measurement, options: opts)
+      try s.setActive(true, options: .notifyOthersOnDeactivation)
+    } catch {
+      result(nil)
+      return
+    }
+    let req = SFSpeechAudioBufferRecognitionRequest()
+    req.shouldReportPartialResults = true
+    request = req
+    pending = result
+    best = ""
+    let input = engine.inputNode
+    let fmt = input.outputFormat(forBus: 0)
+    input.removeTap(onBus: 0)
+    input.installTap(onBus: 0, bufferSize: 1024, format: fmt) { buf, _ in
+      req.append(buf)
+    }
+    engine.prepare()
+    do {
+      try engine.start()
+    } catch {
+      finish(nil)
+      return
+    }
+    channel?.invokeMethod("destListening", arguments: true)
+    task = rec.recognitionTask(with: req) { [weak self] r, err in
+      DispatchQueue.main.async {
+        guard let self = self else { return }
+        if let r = r {
+          self.best = r.bestTranscription.formattedString
+          self.channel?.invokeMethod("destPartial", arguments: self.best)
+          self.armSilence()
+          if r.isFinal { self.finish(self.best) }
+        } else if err != nil {
+          self.finish(self.best.isEmpty ? nil : self.best)
+        }
+      }
+    }
+    // No máximo 8 s de escuta (como no Android).
+    maxTimer = Timer.scheduledTimer(withTimeInterval: 8, repeats: false) { [weak self] _ in
+      guard let self = self else { return }
+      self.finish(self.best.isEmpty ? nil : self.best)
+    }
+  }
+
+  /// Parou de falar por 1,5 s: entrega o que ouviu.
+  private func armSilence() {
+    silence?.invalidate()
+    silence = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
+      guard let self = self else { return }
+      self.finish(self.best.isEmpty ? nil : self.best)
+    }
+  }
+
+  private func finish(_ text: String?) {
+    silence?.invalidate()
+    silence = nil
+    maxTimer?.invalidate()
+    maxTimer = nil
+    if engine.isRunning { engine.stop() }
+    engine.inputNode.removeTap(onBus: 0)
+    request?.endAudio()
+    request = nil
+    task?.cancel()
+    task = nil
+    if let p = pending {
+      pending = nil
+      p(text)
+      try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+  }
+}

@@ -38,6 +38,10 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>O UauGo usa o microfone para você falar o alerta ("óleo na pista", "polícia") ou o destino sem tirar as mãos do guidão ou do volante.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>O UauGo transforma em texto o que você fala (alerta ou destino) para marcar o alerta ou procurar o lugar.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

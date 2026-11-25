@@ -20,5 +20,9 @@ import UIKit
     if let reg = engineBridge.pluginRegistry.registrar(forPlugin: "UauGoCar") {
       CarBridgeIOS.shared.attach(reg.messenger())
     }
+    // Voz: alerta falado e frase livre pelo reconhecimento de fala da Apple.
+    if let reg = engineBridge.pluginRegistry.registrar(forPlugin: "UauGoVoice") {
+      VoiceBridgeIOS.shared.attach(reg.messenger())
+    }
   }
 }

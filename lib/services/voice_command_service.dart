@@ -55,6 +55,10 @@ class VoiceCommandService {
   /// Disponível neste aparelho? (por enquanto, só Android)
   static bool get supported => !kIsWeb && Platform.isAndroid;
 
+  /// Ouvir uma frase (alerta falado, destino): Android e iPhone (24/11).
+  /// O "UauGo" ouvindo o tempo todo ([supported]) segue só no Android.
+  static bool get canListen => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
   /// Ligado pelo piloto (fica salvo no celular).
   final enabled = ValueNotifier<bool>(false);
 
@@ -190,7 +194,7 @@ class VoiceCommandService {
   /// isso (um microfone por vez) e voltam depois. null = não ouviu nada,
   /// sem permissão ou aparelho sem reconhecimento (ex.: iPhone, por ora).
   Future<String?> listenAlert(String prompt) async {
-    if (!supported) return null;
+    if (!canListen) return null;
     try {
       final mic = await _method.invokeMethod<bool>('requestMic') ?? false;
       if (!mic) return null;

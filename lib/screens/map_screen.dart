@@ -2000,7 +2000,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
 
     Future<void> listen() async {
-      if (closed || !VoiceCommandService.supported) {
+      if (closed || !VoiceCommandService.canListen) {
         status.value = tr('Toque no alerta.');
         return;
       }
