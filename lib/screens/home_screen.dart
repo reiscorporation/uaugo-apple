@@ -496,10 +496,14 @@ class _HomeScreenState extends State<HomeScreen> {
     Position? me;
     if (uid != null) {
       // Posição recente (até 2 min) serve de saída: não espera o GPS.
-      final last = await Geolocator.getLastKnownPosition();
-      if (last != null &&
-          DateTime.now().difference(last.timestamp).inMinutes < 2) {
-        me = last;
+      // Também a última do mapa: com o celular bloqueado (destino pedido no
+      // carro) o Android não entrega a posição atual.
+      for (final p in [await Geolocator.getLastKnownPosition(), LocationService.last]) {
+        if (p != null &&
+            DateTime.now().difference(p.timestamp).inMinutes < 2 &&
+            (me == null || p.timestamp.isAfter(me.timestamp))) {
+          me = p;
+        }
       }
     }
     if (uid != null && me == null) {
@@ -508,13 +512,14 @@ class _HomeScreenState extends State<HomeScreen> {
             locationSettings:
                 const LocationSettings(timeLimit: Duration(seconds: 10)));
       } catch (_) {
-        me = await Geolocator.getLastKnownPosition();
+        me = await Geolocator.getLastKnownPosition() ?? LocationService.last;
       }
     }
     if (mounted) setState(() => _busy = false);
     if (uid == null || !mounted) return;
     if (me == null) {
       _snack(tr('Não foi possível obter sua posição pelo GPS'));
+      CarService.instance.toast(tr('Não foi possível obter sua posição pelo GPS'));
       return;
     }
     // Texto recebido: com um só resultado na busca vai direto para a rota;

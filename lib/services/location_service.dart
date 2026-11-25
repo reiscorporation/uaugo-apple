@@ -51,6 +51,11 @@ class LocationService {
   /// com a precisão normal.
   static const _mockGps = bool.fromEnvironment('MOCK_GPS');
 
+  /// Última posição lida pelo GPS do mapa. Com o celular bloqueado (carro),
+  /// o Android não deixa ler a posição de novo fora da tela: a rota nova
+  /// pedida no carro sai daqui (antes a busca do carro não virava rota).
+  static Position? last;
+
   static Stream<Position> track({
     bool saving = false,
     bool background = false,
@@ -92,6 +97,7 @@ class LocationService {
     } else {
       settings = LocationSettings(accuracy: accuracy, distanceFilter: 0);
     }
-    return Geolocator.getPositionStream(locationSettings: settings);
+    return Geolocator.getPositionStream(locationSettings: settings)
+        .map((p) => last = p);
   }
 }
