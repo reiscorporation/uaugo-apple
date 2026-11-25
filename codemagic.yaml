@@ -78,6 +78,14 @@ workflows:
           r = requests.post("https://api.appstoreconnect.apple.com/v1/bundleIdCapabilities",
                             json=body, headers={"Authorization": "Bearer " + tok})
           print("Sign in with Apple:", r.status_code, r.text[:300])
+          for cap in ("APP_ATTEST", "DEVICE_CHECK", "APP_ATTESTATION"):
+              body["data"]["attributes"] = {"capabilityType": cap}
+              r = requests.post("https://api.appstoreconnect.apple.com/v1/bundleIdCapabilities",
+                                json=body, headers={"Authorization": "Bearer " + tok})
+              print("CAP", cap, r.status_code, r.text[:3000].replace("
+", " "))
+              if r.status_code < 300:
+                  break
           PY
           # Perfil antigo (sem as capacidades) sai; o novo já as inclui.
           for P in $(app-store-connect profiles list --json \
