@@ -6,7 +6,7 @@
 #
 # Ordem:
 #   1. ios-preparar (uma vez): cria o identificador helpaitech.comboio, liga
-#      Sign in with Apple + Push + App Attest e cria o perfil "UauGo App Store".
+#      Sign in with Apple + Push e cria o perfil "UauGo App Store".
 #   2. Codemagic > Settings > Code signing identities > iOS provisioning
 #      profiles > Fetch profiles: trazer o "UauGo App Store".
 #   3. ios-testflight: compila e manda para o TestFlight.
@@ -78,11 +78,6 @@ workflows:
           r = requests.post("https://api.appstoreconnect.apple.com/v1/bundleIdCapabilities",
                             json=body, headers={"Authorization": "Bearer " + tok})
           print("Sign in with Apple:", r.status_code, r.text[:300])
-          # App Attest: o App Check do Firebase usa para provar que é o app real.
-          body["data"]["attributes"] = {"capabilityType": "APP_ATTEST"}
-          r = requests.post("https://api.appstoreconnect.apple.com/v1/bundleIdCapabilities",
-                            json=body, headers={"Authorization": "Bearer " + tok})
-          print("App Attest:", r.status_code, r.text[:300])
           PY
           # Perfil antigo (sem as capacidades) sai; o novo já as inclui.
           for P in $(app-store-connect profiles list --json \
