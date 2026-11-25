@@ -81,6 +81,29 @@ if grupo is None:
 GID = grupo["id"]
 print("Grupo:", GRUPO, GID, "interno:", grupo["attributes"].get("isInternalGroup"))
 
+# Convida novas pessoas (variável CONVIDAR, e-mails separados por vírgula)
+# como usuários do App Store Connect com acesso limitado só ao UauGo: o
+# TestFlight interno só aceita usuários da conta. Depois que a pessoa aceita o
+# convite da Apple, rodar este workflow de novo a coloca no grupo Equipe.
+usuarios = {u["attributes"]["username"].lower() for u in get("/users", limit=200)}
+pendentes = {i["attributes"]["email"].lower() for i in get("/userInvitations", limit=200)}
+for email in [e.strip() for e in os.environ.get("CONVIDAR", "").split(",") if e.strip()]:
+    if email.lower() in usuarios:
+        print("Já é usuário:", mascara(email))
+    elif email.lower() in pendentes:
+        print("Convite já enviado, esperando aceitar:", mascara(email))
+    else:
+        nome = email.split("@")[0]
+        r = post("/userInvitations", {
+            "type": "userInvitations",
+            "attributes": {"email": email, "firstName": nome, "lastName": "Testador",
+                           "roles": ["MARKETING"], "allAppsVisible": False,
+                           "provisioningAllowed": False},
+            "relationships": {"visibleApps": {"data": [{"type": "apps", "id": APP}]}}})
+        print("Convite enviado:" if r.ok else "Convite falhou:", mascara(email))
+for i in get("/userInvitations", limit=200):
+    print("Convite pendente:", mascara(i["attributes"]["email"]))
+
 for u in get("/users", limit=50):
     a = u["attributes"]
     email = a["username"]
