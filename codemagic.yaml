@@ -128,7 +128,10 @@ workflows:
       events: []   # só quando disparar manualmente no Codemagic
     scripts:
       - name: Assinatura
-        script: xcode-project use-profiles
+        script: |
+          pip3 install -q pyjwt cryptography requests
+          python3 tool/asc_baixar_perfil.py
+          xcode-project use-profiles
       - name: Dependências
         script: |
           flutter pub get
