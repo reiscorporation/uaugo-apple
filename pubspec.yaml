@@ -1,7 +1,7 @@
 name: comboio
 description: App para expedições de moto em comboio.
 publish_to: 'none'
-version: 1.2.24+56
+version: 1.2.25+57
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
