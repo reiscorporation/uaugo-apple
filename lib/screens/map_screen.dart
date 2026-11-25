@@ -58,6 +58,7 @@ import '../services/user_service.dart';
 import '../widgets/safe_sheet.dart';
 import '../widgets/club_nearby_sheet.dart';
 import '../widgets/bike_marker.dart';
+import '../widgets/vehicle_sprite.dart' show screenDir;
 import '../widgets/emoji_marker.dart';
 import '../widgets/compass_button.dart';
 import '../widgets/speedometer.dart';
@@ -718,13 +719,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   /// Gera (uma vez) e guarda o marcador com a foto/ícone da moto.
+  /// [heading] (membros): rumo do veículo, para a vista do desenho sem foto.
   BitmapDescriptor? _bikeIcon(String name, BikeProfile bike,
-      {bool isMe = false}) {
-    final key = '$name|${bike.cacheKey}|$isMe';
+      {bool isMe = false, double? heading}) {
+    final dir = heading == null || bike.photoUrl != null
+        ? 0
+        : screenDir(heading, _mapBearing.value);
+    final key = '$name|${bike.cacheKey}|$isMe|$dir';
     final cached = _bikeIcons[key];
     if (cached != null) return cached;
     if (_bikePending.add(key)) {
-      bikeMarker(name: name, bike: bike, isMe: isMe).then((icon) {
+      bikeMarker(name: name, bike: bike, isMe: isMe, dir: dir).then((icon) {
         if (mounted) setState(() => _bikeIcons[key] = icon);
       }).catchError((_) {});
     }
@@ -5599,7 +5604,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     for (final m in _members) {
       if (!m.hasLocation || m.uid == widget.uid) continue;
       if (_groupGrid && _watchesGroup) continue; // visão em grade
-      final icon = _bikeIcon(m.name, m.bike);
+      final icon = _bikeIcon(m.name, m.bike, heading: m.heading);
       markers.add(Marker(
         markerId: MarkerId('member_${m.uid}'),
         position: _memberPos(m),
