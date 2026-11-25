@@ -212,6 +212,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate, CPM
     // Mesmas regras do celular: velocímetro vermelho acima do limite e faixa
     // do radar piscando acima do limite dele (calculado no app).
     mapVC.setOver(speed: m["speedOver"] as? Bool ?? false, radar: m["radarOver"] as? Bool ?? false)
+    mapVC.setAppDark(m["dark"] as? Bool ?? false)
     mapVC.setHint(nil)
 
     guard let text = m["text"] as? String, !text.isEmpty else {
@@ -399,10 +400,18 @@ final class CarPlayMapViewController: UIViewController {
     map?.padding = view.safeAreaInsets
   }
 
+  /// Noite pela regra do celular (pôr do sol / opção do app).
+  private var appDark = false
+  func setAppDark(_ on: Bool) {
+    if on == appDark { return }
+    appDark = on
+    applyStyle()
+  }
+
   /// Noite: mapa escuro (como no Android Auto).
   private func applyStyle() {
     guard let map = map else { return }
-    if traitCollection.userInterfaceStyle == .dark {
+    if traitCollection.userInterfaceStyle == .dark || appDark {
       map.mapStyle = try? GMSMapStyle(jsonString: Self.night)
     } else {
       map.mapStyle = nil

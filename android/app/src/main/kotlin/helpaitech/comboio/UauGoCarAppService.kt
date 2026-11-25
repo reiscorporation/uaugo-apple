@@ -145,8 +145,13 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         invalidate()
     }
     private var navigating = false
+
+    /** Noite: a do carro OU a do celular (pôr do sol / opção do app). Muitos
+     *  carros (ou o Android Auto em "sempre dia") não avisam a noite. */
+    private fun isNight() = carContext.isDarkMode || CarState.appDark
     private val nav: NavigationManager = ctx.getCarService(NavigationManager::class.java)
     private val onChange: () -> Unit = {
+        carMap.setDark(isNight())
         if (carMap.running) carMap.update() else renderer.draw()
         updateNavigationState()
         invalidate()
@@ -298,7 +303,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
 
     override fun onGetTemplate(): Template {
         // Modo noturno do carro: mapa escuro (exigência da Play, 11/11).
-        carMap.setDark(carContext.isDarkMode)
+        carMap.setDark(isNight())
         fun action(title: String, code: String) = Action.Builder()
             .setTitle(title)
             .setOnClickListener {

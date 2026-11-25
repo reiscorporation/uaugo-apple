@@ -66,6 +66,8 @@ object CarState {
      *  limite do radar à frente (faixa pisca vermelho/amarelo). */
     @Volatile var speedOver = false
     @Volatile var radarOver = false
+    /** Noite pela regra do celular (pôr do sol / opção do app). */
+    @Volatile var appDark = false
     /** Contagem do radar ("📸 80 em 450 m") e faixa amarela de aviso. */
     @Volatile var alert: String? = null
     @Volatile var banner: String? = null
@@ -202,6 +204,7 @@ class CarBridge(messenger: BinaryMessenger) {
                         CarState.limitKmh = (a["limitKmh"] as? Number)?.toInt() ?: 0
                         CarState.speedOver = a["speedOver"] as? Boolean ?: false
                         CarState.radarOver = a["radarOver"] as? Boolean ?: false
+                        CarState.appDark = a["dark"] as? Boolean ?: false
                         CarState.hasPosition = true
                         CarState.lastDartUpdate = System.currentTimeMillis()
                         CarState.alert = a["alert"] as? String

@@ -8083,6 +8083,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               _speedSvc.settings.value.personalMax) !=
           SpeedLevel.normal,
       radarOver: _blinkTimer != null,
+      dark: _darkMap,
       text: turn?.step.text,
       maneuver: turn?.step.maneuver ?? '',
       meters: turn?.meters ?? 0,

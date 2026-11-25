@@ -377,6 +377,7 @@ class CarService {
     int limitKmh = 0,
     bool speedOver = false,
     bool radarOver = false,
+    bool dark = false,
     String? text,
     String maneuver = '',
     double meters = 0,
@@ -399,6 +400,9 @@ class CarService {
       'limitKmh': limitKmh,
       'speedOver': speedOver,
       'radarOver': radarOver,
+      // Noite pela regra do celular (pôr do sol / opção do app): muitos carros
+      // não informam o modo noturno (25/11).
+      'dark': dark,
       'lang': I18n.lang.value, // textos da tela do carro
       'placeNames': AppSettings.instance.carPlaceNames.value,
       'convoy': convoy,
