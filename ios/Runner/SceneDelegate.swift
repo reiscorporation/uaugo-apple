@@ -209,6 +209,9 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate, CPM
     mapVC.setSpeed((m["speedKmh"] as? NSNumber)?.intValue ?? 0,
                    limit: (m["limitKmh"] as? NSNumber)?.intValue ?? 0)
     mapVC.setBanner(m["banner"] as? String, alert: m["alert"] as? String)
+    // Mesmas regras do celular: velocímetro vermelho acima do limite e faixa
+    // do radar piscando acima do limite dele (calculado no app).
+    mapVC.setOver(speed: m["speedOver"] as? Bool ?? false, radar: m["radarOver"] as? Bool ?? false)
     mapVC.setHint(nil)
 
     guard let text = m["text"] as? String, !text.isEmpty else {
@@ -442,6 +445,34 @@ final class CarPlayMapViewController: UIViewController {
     let t = [alert, banner].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
     bannerLabel.text = t
     bannerLabel.isHidden = t.isEmpty
+  }
+
+  private var blink: Timer?
+  private var blinkRed = false
+
+  func setOver(speed: Bool, radar: Bool) {
+    speedBox.backgroundColor = speed
+      ? UIColor(red: 0.83, green: 0.18, blue: 0.18, alpha: 1)
+      : UIColor(red: 0.06, green: 0.11, blue: 0.18, alpha: 0.92)
+    if radar, blink == nil {
+      blink = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        guard let self = self else { return }
+        self.blinkRed.toggle()
+        self.paintBanner()
+      }
+    } else if !radar, let t = blink {
+      t.invalidate()
+      blink = nil
+      blinkRed = false
+      paintBanner()
+    }
+  }
+
+  private func paintBanner() {
+    bannerLabel.backgroundColor = blinkRed
+      ? UIColor(red: 0.9, green: 0.22, blue: 0.21, alpha: 1)
+      : UIColor(red: 1, green: 0.84, blue: 0.0, alpha: 0.95)
+    bannerLabel.textColor = blinkRed ? .white : .black
   }
 
   func setHint(_ t: String?) {
