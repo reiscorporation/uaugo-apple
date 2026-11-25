@@ -6661,7 +6661,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool _splitOn(bool landscape) => landscape && _nav != null && _turnInfo() != null;
 
   Widget _split(bool landscape, Widget map) {
-    if (!_splitOn(landscape)) return map;
+    // Sempre a mesma estrutura (Row > Expanded > mapa): ao girar o celular
+    // o mapa do Google é o MESMO, não é recriado. No iPhone, recriar o mapa
+    // no meio da simulação deixava o mapa travado (25/11).
+    if (!_splitOn(landscape)) return Row(children: [Expanded(child: map)]);
     if (_stepsMin) {
       // Minimizado: só uma aba fina (toque para restaurar).
       return Row(children: [
