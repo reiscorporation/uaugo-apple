@@ -278,6 +278,35 @@ class _Sim3DViewState extends State<Sim3DView> with WidgetsBindingObserver {
     }
   }
 
+  /// Tela em que a página foi criada (lado menor em dp e densidade).
+  double _createdSide = 0;
+  double _createdDpr = 0;
+  Timer? _metricsDebounce;
+
+  (double, double) _screen() {
+    final v = WidgetsBinding.instance.platformDispatcher.views.first;
+    final dpr = v.devicePixelRatio;
+    return (v.physicalSize.shortestSide / dpr, dpr);
+  }
+
+  /// 27/11 (Galaxy Fold): abriu/fechou o celular dobrável = outra tela, com
+  /// outro tamanho e densidade. A página seguia desenhando nas medidas da
+  /// tela antiga e o minimapa abria gigante (só corrigia ao fechar de novo).
+  /// Recria a página quando o lado menor ou a densidade mudam; girar o
+  /// celular não muda o lado menor, então não recarrega.
+  @override
+  void didChangeMetrics() {
+    _metricsDebounce?.cancel();
+    _metricsDebounce = Timer(const Duration(milliseconds: 700), () {
+      if (!mounted || _createdSide <= 0) return;
+      final (side, dpr) = _screen();
+      if (side <= 0) return;
+      final changed = (side - _createdSide).abs() / _createdSide > 0.15 ||
+          (dpr - _createdDpr).abs() > 0.05;
+      if (changed) _recreate('tela mudou (dobrável)');
+    });
+  }
+
   void _recreate(String why) {
     if (!mounted) return;
     debugPrint('3D página recriada ($why)');
@@ -293,6 +322,9 @@ class _Sim3DViewState extends State<Sim3DView> with WidgetsBindingObserver {
 
   void _create() {
     debugPrint('3D página criada');
+    final (side0, dpr0) = _screen();
+    _createdSide = side0;
+    _createdDpr = dpr0;
     _lastMsg = DateTime.now().add(const Duration(seconds: 20)); // carregando
     _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -322,6 +354,7 @@ class _Sim3DViewState extends State<Sim3DView> with WidgetsBindingObserver {
   @override
   void dispose() {
     _watch?.cancel();
+    _metricsDebounce?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     widget.controller
       .._web = null
