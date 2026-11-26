@@ -753,9 +753,9 @@ final class VoiceBridgeIOS {
     var t = " " + text.lowercased() + " "
     t = t.replacingOccurrences(of: "[.,!?;:\"“”]", with: " ", options: .regularExpression)
     // "UauGo" chega como "Uau Go", "Wow, go", "Uaugo"...
-    t = t.replacingOccurrences(of: "\\b(uau|uáu|wow|uao|ual|uol)\\s*(go|gô|gou|gol)\\b",
+    t = t.replacingOccurrences(of: "\\b(uau|uáu|wow|uao|ual|uol|au|wau|vau|uai|wal|uaw)\\s*(go|gô|gó|gou|gol|goo)\\b",
                                with: "uau go", options: .regularExpression)
-    t = t.replacingOccurrences(of: "\\b(uaugo|uago|wowgo|uaogo)\\b",
+    t = t.replacingOccurrences(of: "\\b(uaugo|uago|wowgo|uaogo|waugo|augo|uaigo)\\b",
                                with: "uau go", options: .regularExpression)
     var words: [[String: Any]] = []
     for w in t.split(separator: " ").map(String.init) {

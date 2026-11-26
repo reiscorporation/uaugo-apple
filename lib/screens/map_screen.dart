@@ -615,6 +615,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (mounted && CarService.instance.connected.value) _askResumeOnCar();
       });
     }
+    _voiceCmd.mapOpen = true;
     _voiceCmd.start();
     _radarSvc.index.addListener(_onRadarIndex);
     PoiService.instance.loaded.addListener(_onPoisLoaded);
@@ -776,6 +777,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       s.cancel();
     }
     _voiceCmd.cancelDestination();
+    _voiceCmd.mapOpen = false;
     _voiceCmd.stop();
     CarService.instance.clear();
     _gpsSub?.cancel();

@@ -142,8 +142,14 @@ class VoiceCommandService {
     status.value = VoiceCmdStatus.ready;
     enabled.value = true;
     (await SharedPreferences.getInstance()).setBool(_kEnabled, true);
+    // Ligou com o mapa aberto por baixo (Configurações abertas pelo mapa):
+    // já começa a ouvir, sem precisar fechar e abrir o mapa (26/11).
+    if (mapOpen) await start();
     return null;
   }
+
+  /// O mapa está aberto (ele liga ao abrir e desliga ao fechar).
+  bool mapOpen = false;
 
   /// Desliga (o modelo baixado fica guardado para religar sem baixar de novo).
   Future<void> disable() async {
