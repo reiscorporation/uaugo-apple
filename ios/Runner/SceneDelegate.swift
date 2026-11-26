@@ -214,11 +214,12 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate, CPM
   /// Resultados da busca: tocar inclui como próxima parada.
   func showResults(_ res: [(id: String, name: String, info: String)]) {
     guard let list = resultsList else { return }
+    let adding = tx("Adding stop…", "Incluindo a parada…", "Agregando la parada…")
     var items: [CPListItem] = res.map { r in
       let it = CPListItem(text: r.name, detailText: r.info.isEmpty ? nil : r.info)
       it.handler = { [weak self] _, done in
         CarBridgeIOS.shared.action("stopat:\(r.id)|\(r.name)")
-        self?.toast(tx("Adding stop…", "Incluindo a parada…", "Agregando la parada…"))
+        self?.toast(adding)
         self?.backToMap()
         done()
       }
