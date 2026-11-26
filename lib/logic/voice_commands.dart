@@ -14,6 +14,7 @@
 import 'dart:convert';
 
 import '../models/hazard.dart';
+import 'alert_intent.dart' show normalizeSpoken;
 import 'find_places.dart';
 import 'group_requests.dart';
 
@@ -169,6 +170,13 @@ VoiceCommand? parseVoiceResult(String json, {VoiceContext? context}) {
   } catch (_) {
     return null;
   }
+  // iPhone (26/11): a Apple escreve a frase livre ("procure um posto de
+  // gasolina"); o Vosk do Android só devolve as frases da lista.
+  final raw = r['raw'];
+  if (raw is String) {
+    final f = lenientFind(raw, context: context);
+    if (f != null) return f;
+  }
   final words = [
     for (final w in (r['result'] as List?) ?? const [])
       (
@@ -254,6 +262,40 @@ VoiceCommand? parseVoiceResult(String json, {VoiceContext? context}) {
   }
   final type = voiceAlertWords[what];
   return type == null ? null : ReportCommand(type);
+}
+
+/// Busca falada do jeito que a pessoa fala (iPhone): "UauGo, procure um
+/// posto de gasolina", "UauGo, onde tem uma farmácia", "... restaurante
+/// barato". null = não é uma busca.
+FindCommand? lenientFind(String raw, {VoiceContext? context}) {
+  var t = ' ${normalizeSpoken(raw)} ';
+  const wake = ' uau go ';
+  if (t.startsWith(wake)) {
+    t = ' ${t.substring(wake.length)}';
+  } else if (context == null) {
+    return null;
+  }
+  // "cancelar parada", "ir para..." e os pedidos ao grupo têm outro caminho.
+  if (t.contains(' cancelar ') || t.startsWith(' ir para ') || t.startsWith(' adicionar parada')) {
+    return null;
+  }
+  final verb = RegExp(r' (procurar|procura|procure|procurando|buscar|busca|busque|'
+          r'achar|ache|encontrar|encontre|onde tem|onde fica|onde e que tem|'
+          r'parar no|parar na|parar num|parar numa|quero|preciso de) ')
+      .firstMatch(t);
+  if (verb == null && context != VoiceContext.find) return null;
+  final rest = verb == null ? t : t.substring(verb.end - 1);
+  final keys = findWords.keys.toList()
+    ..sort((a, b) => b.length.compareTo(a.length));
+  for (final k in keys) {
+    if (rest.contains(' ${normalizeSpoken(k)} ')) {
+      final cat = findWords[k]!;
+      final cheap = rest.contains(' barato ') || rest.contains(' barata ');
+      return FindCommand(cat, cheap: cheap && cat.hasPrice);
+    }
+  }
+  // Verbo sem categoria conhecida: pergunta "O que você procura?".
+  return verb != null ? const FindCommand(null) : null;
 }
 
 /// Tira do começo do destino falado as palavras de comando que muita gente

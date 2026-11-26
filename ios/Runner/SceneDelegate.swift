@@ -763,10 +763,14 @@ final class VoiceBridgeIOS {
       if k == "[unk]", (words.last?["word"] as? String) == "[unk]" { continue }
       words.append(["word": k, "conf": 1.0])
     }
-    guard words.contains(where: { ($0["word"] as? String) != "[unk]" }) else { return }
+    // Só manda se tiver alguma palavra conhecida ou o "UauGo".
+    guard words.contains(where: { ($0["word"] as? String) != "[unk]" }) || t.contains("uau go") else { return }
     let plain = words.compactMap { $0["word"] as? String }.joined(separator: " ")
+    // "raw": a frase como a Apple escreveu (a busca aceita "procure um posto
+    // de gasolina", que não está na lista do Vosk).
+    let raw = t.split(separator: " ").joined(separator: " ")
     guard let data = try? JSONSerialization.data(
-            withJSONObject: ["text": plain, "result": words]),
+            withJSONObject: ["text": plain, "result": words, "raw": raw]),
           let json = String(data: data, encoding: .utf8) else { return }
     results.send(json)
   }
