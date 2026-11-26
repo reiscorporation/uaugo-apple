@@ -1986,25 +1986,34 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         targetLng: h.lng,
       );
 
-  /// "Falar o alerta" pedido na tela do carro: o celular ouve e marca.
+  bool _carVoiceBusy = false;
+  bool _carVoiceCancelled = false;
+
+  /// Lista de alertas do carro: o celular ouve e marca (a lista fecha).
   Future<void> _alertByVoiceFromCar() async {
     final car = CarService.instance;
-    if (!VoiceCommandService.canListen) {
-      car.toast(tr('Toque no alerta.'));
-      return;
+    if (!VoiceCommandService.canListen) return;
+    if (_carVoiceBusy) return;
+    _carVoiceBusy = true;
+    _carVoiceCancelled = false;
+    try {
+      car.toast(tr('Ouvindo… fale o alerta'));
+      final said = await _voiceCmd.listenAlert(tr('Fale o alerta: óleo, polícia, buraco...'));
+      // Tocou num alerta da lista ou voltou: não fala nada.
+      if (!mounted || _carVoiceCancelled) return;
+      final t = alertFromSpeech(said);
+      if (t == null) {
+        car.toast(said == null || said.trim().isEmpty
+            ? tr('Não ouvi. Toque no alerta ou no microfone para falar de novo.')
+            : tr('Não entendi "{0}". Toque no alerta ou no microfone.', [said]));
+        return;
+      }
+      car.closeAlerts();
+      await _reportHazard(t);
+      car.toast(tr('Alerta enviado: {0}', [t.label]));
+    } finally {
+      _carVoiceBusy = false;
     }
-    car.toast(tr('Ouvindo… fale o alerta'));
-    final said = await _voiceCmd.listenAlert(tr('Fale o alerta: óleo, polícia, buraco...'));
-    if (!mounted) return;
-    final t = alertFromSpeech(said);
-    if (t == null) {
-      car.toast(said == null || said.trim().isEmpty
-          ? tr('Não ouvi o alerta. Toque em Alerta para tentar de novo.')
-          : tr('Não entendi "{0}". Toque em Alerta para tentar de novo.', [said]));
-      return;
-    }
-    await _reportHazard(t);
-    car.toast(tr('Alerta enviado: {0}', [t.label]));
   }
 
   /// Folha "O que tem na pista?" para reportar um alerta. Reportar exige
@@ -8338,6 +8347,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // Pedágio: "O valor está certo?" no carro.
       case 'toll:yes' || 'toll:no':
         await _answerTollFromCar(a == 'toll:yes');
+      // Lista de alertas do carro fechada ou alerta tocado: para de ouvir.
+      case 'hazard:voicecancel':
+        if (_carVoiceBusy) {
+          _carVoiceCancelled = true;
+          await _voiceCmd.cancelDestination();
+        }
+      // Na simulação / sem conta: abrir a lista não ouve (o aviso vem ao tocar).
+      case 'hazard:voice:auto' when _sim != null || AuthService.isAnonymous:
+        break;
+      // "Falar o alerta" na tela do carro (26/11): a lista já abre ouvindo,
+      // como a tela de alertas do celular, e marca o que entendeu.
+      case 'hazard:voice' || 'hazard:voice:auto'
+          when _sim == null && !AuthService.isAnonymous:
+        await _alertByVoiceFromCar();
       // Alertas do carro: sem conta ou na simulação nada é enviado (avisa
       // em vez de dizer "enviado").
       case 'radar' || 'hazard' when _sim != null:
@@ -8354,10 +8377,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       case 'hazard':
         await _reportHazard(HazardType.danger);
         CarService.instance.toast(tr('Alerta enviado: {0}', [HazardType.danger.label]));
-      // "Falar o alerta" na tela do carro (26/11): ouve como a tela de
-      // alertas do celular e marca o que entendeu.
-      case 'hazard:voice':
-        await _alertByVoiceFromCar();
       // Lista de alertas do carro: "hazard:police", "hazard:pothole"...
       case final x when x.startsWith('hazard:'):
         final t = HazardType.fromName(x.substring(7));

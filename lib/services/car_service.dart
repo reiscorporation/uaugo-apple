@@ -320,6 +320,9 @@ class CarService {
   /// Fecha a pergunta/opções abertas na tela do carro (passou o tempo).
   void closeAsk() => _ch.invokeMethod('closeAsk').catchError((_) => null);
 
+  /// Fecha a lista de alertas do carro (o alerta falado já foi marcado).
+  void closeAlerts() => _ch.invokeMethod('closeAlerts').catchError((_) => null);
+
   /// Opções de velocidade na tela do carro (confirmar, radar não existe,
   /// corrigir). A escolha volta como "speedpick:N" (0 = radar não existe).
   /// Corrigir o pedágio na tela do carro (valor atual em centavos).
@@ -343,6 +346,8 @@ class CarService {
       SharedPlaceService.instance.pending.value = a.substring(9);
       return;
     }
+    // Lista de alertas aberta sem o mapa: não ouve (os toques funcionam).
+    if (a == 'hazard:voice:auto' || a == 'hazard:voicecancel') return;
     if (a == 'hazard:voice') {
       toast(tr('Abra o mapa no celular para falar o alerta'));
       return;

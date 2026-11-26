@@ -79,6 +79,9 @@ object CarState {
                    val yesLabel: String?, val noLabel: String?)
     /** Fechar a pergunta/opções abertas (o celular desistiu: passou o tempo). */
     @Volatile var closeAskSink: (() -> Unit)? = null
+
+    /** Fecha a lista de alertas do carro (o alerta falado foi marcado). */
+    @Volatile var closeAlertsSink: (() -> Unit)? = null
     /** Opções de velocidade pedidas pelo celular (toque na faixa amarela). */
     @Volatile var speedEditSink: ((SpeedEdit) -> Unit)? = null
     @Volatile var tollEditSink: ((TollEdit) -> Unit)? = null
@@ -405,6 +408,10 @@ class CarBridge(messenger: BinaryMessenger) {
                 "closeAsk" -> {
                     CarState.pendingAsk = null
                     CarState.closeAskSink?.let { s -> Handler(Looper.getMainLooper()).post { s() } }
+                    result.success(null)
+                }
+                "closeAlerts" -> {
+                    CarState.closeAlertsSink?.let { s -> Handler(Looper.getMainLooper()).post { s() } }
                     result.success(null)
                 }
                 "toast" -> {

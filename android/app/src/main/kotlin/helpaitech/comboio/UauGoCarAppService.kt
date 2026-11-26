@@ -1049,6 +1049,21 @@ class StopOrGoScreen(ctx: CarContext, private val name: String,
 }
 
 class AlertListScreen(ctx: CarContext) : Screen(ctx) {
+    init {
+        // 26/11: como no celular, a lista já abre com o microfone ouvindo
+        // ("tem óleo na pista"); tocar num alerta ou voltar para a escuta.
+        CarState.actionSink?.invoke("hazard:voice:auto")
+        CarState.closeAlertsSink = {
+            if (screenManager.top === this) screenManager.pop()
+        }
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                CarState.actionSink?.invoke("hazard:voicecancel")
+                CarState.closeAlertsSink = null
+            }
+        })
+    }
+
     override fun onGetTemplate(): Template {
         val en = CarState.en
         // Mesmo nome dos tipos do app (HazardType no Dart).
@@ -1068,11 +1083,12 @@ class AlertListScreen(ctx: CarContext) : Screen(ctx) {
             Triple("fog", "🌫️", tx("Fog", "Neblina", "Niebla")),
         )
         val list = ItemList.Builder()
-        // Alerta falado (26/11): o celular ouve ("tem óleo na pista") e marca.
+        // Alerta falado (26/11): ao abrir já ouve; tocar aqui ouve de novo.
         list.addItem(Row.Builder()
             .setTitle(tx("🎤  Say the alert", "🎤  Falar o alerta", "🎤  Decir la alerta"))
-            .addText(tx("E.g. \"oil on the road\", \"police\"",
-                "Ex.: \"óleo na pista\", \"polícia\"", "Ej.: \"aceite en la vía\", \"policía\""))
+            .addText(tx("Listening when it opens. E.g. \"oil on the road\". Tap to speak again",
+                "Já abre ouvindo. Ex.: \"óleo na pista\". Toque para falar de novo",
+                "Ya abre escuchando. Ej.: \"aceite en la vía\". Toca para hablar de nuevo"))
             .setOnClickListener {
                 val sink = CarState.actionSink
                 if (sink == null) {
@@ -1082,7 +1098,6 @@ class AlertListScreen(ctx: CarContext) : Screen(ctx) {
                 } else {
                     sink("hazard:voice")
                 }
-                screenManager.pop()
             }
             .build())
         if (CarState.hazards.any { it.mine }) {
