@@ -380,12 +380,9 @@ class CarOverlay(private val ctx: Context) {
     private fun placeBottom(r: android.graphics.Rect, width: Int) {
         val b = buttonRow ?: return
         val c = speedColumn ?: return
-        // Desliza (em vez de pular) quando os botões do Android Auto aparecem
-        // ou somem.
-        if (b.width > 0) {
-            android.transition.TransitionManager.beginDelayedTransition(root,
-                android.transition.ChangeBounds().setDuration(180))
-        }
+        // 26/11 noite: SEM animação (TransitionManager). Com o celular travado
+        // não há vsync, a transição nunca termina e o layout da tela do carro
+        // fica congelado (sumiam os próximos passos no 2D e no 3D).
         val narrow = r.width() < 560 // mesmo critério do extraLeft do mapa
         val blp = b.layoutParams as FrameLayout.LayoutParams
         val clp = c.layoutParams as FrameLayout.LayoutParams
