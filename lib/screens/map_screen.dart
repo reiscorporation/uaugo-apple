@@ -6632,7 +6632,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 heroTag: 'newRoute',
                 tooltip: tr('Traçar rota (ou segure no mapa)'),
                 onPressed: _startRouteBySearch,
-                child: const Icon(Icons.directions),
+                // 26/11: lupa também ao navegar sem rota (igual às paradas).
+                child: const Icon(Icons.search),
               ),
               const SizedBox(height: 12),
             ],
@@ -7134,7 +7135,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       fullscreenDialog: true,
       builder: (_) => PlaceSearchPage(
           near: p == null ? null : LatLng(p.latitude, p.longitude),
-          title: tr('Para onde?')),
+          title: tr('Para onde?'),
+          // Comandos de voz ligados: abre ouvindo, como a lupa das paradas.
+          listenFirst: _voiceCmd.enabled.value),
     ));
     if (picked == null || !mounted) return;
     await _openRouteTo(picked.name, picked.lat, picked.lng);
