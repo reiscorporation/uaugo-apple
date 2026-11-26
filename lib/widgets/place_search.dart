@@ -15,6 +15,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../logic/itinerary.dart' show formatDistance;
 import '../services/places_service.dart';
+import '../services/voice_command_service.dart';
 import '../services/recent_places_service.dart';
 import '../services/saved_places_service.dart';
 import '../l10n/i18n.dart';
@@ -32,9 +33,17 @@ class PickedPlace {
 /// Tela de busca de lugar; devolve um PickedPlace ao fechar.
 class PlaceSearchPage extends StatefulWidget {
   const PlaceSearchPage(
-      {super.key, required this.near, required this.title, this.initialText});
+      {super.key,
+      required this.near,
+      required this.title,
+      this.initialText,
+      this.listenFirst = false});
   final LatLng? near;
   final String title;
+
+  /// Abre já ouvindo (comandos de voz ligados, 26/11): o que a pessoa fala
+  /// vira a busca, como na tela de alertas.
+  final bool listenFirst;
 
   /// Texto já preenchido e buscado (endereço recebido de outro app).
   final String? initialText;
@@ -68,12 +77,37 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
     if (t != null && t.trim().isNotEmpty) {
       _ctrl.text = t;
       WidgetsBinding.instance.addPostFrameCallback((_) => _search(t));
+    } else if (widget.listenFirst && VoiceCommandService.canListen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _listen());
     }
+  }
+
+  final _voice = VoiceCommandService.instance;
+  bool _listening = false;
+
+  /// Ouve o nome do lugar e busca (o microfone da barra ouve de novo).
+  Future<void> _listen() async {
+    if (_listening) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _listening = true);
+    final said = await _voice.listenFree(tr('Fale o lugar: posto, farmácia, um endereço...'));
+    if (!mounted) return;
+    setState(() => _listening = false);
+    final t = said?.trim() ?? '';
+    if (t.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Não ouvi. Toque no microfone para falar de novo ou digite.'))));
+      return;
+    }
+    _ctrl.text = t;
+    _debounce?.cancel();
+    await _search(t);
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    if (_listening) _voice.cancelDestination();
     super.dispose();
   }
 
@@ -157,9 +191,16 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: TextField(
+        title: _listening
+            ? ValueListenableBuilder<String>(
+                valueListenable: _voice.destHeard,
+                builder: (_, heard, __) => Text(
+                    heard.isEmpty ? tr('Ouvindo… fale o lugar') : '“$heard”',
+                    style: const TextStyle(fontSize: 17)),
+              )
+            : TextField(
           controller: _ctrl,
-          autofocus: true,
+          autofocus: !widget.listenFirst,
           textInputAction: TextInputAction.search,
           onChanged: _onChanged,
           onSubmitted: _search,
@@ -168,6 +209,15 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
             border: InputBorder.none,
           ),
         ),
+        actions: [
+          if (VoiceCommandService.canListen)
+            IconButton(
+              tooltip: tr('Falar'),
+              icon: Icon(_listening ? Icons.mic : Icons.mic_none,
+                  color: _listening ? Theme.of(context).colorScheme.primary : null),
+              onPressed: _listening ? null : _listen,
+            ),
+        ],
         bottom: _loading
             ? const PreferredSize(
                 preferredSize: Size.fromHeight(4),

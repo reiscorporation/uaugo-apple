@@ -48,4 +48,10 @@ const es6 = <String, String>{
   'Não, corrigir agora': 'No, corregir ahora',
   'Abra o mapa no celular para falar o alerta': 'Abre el mapa en el teléfono para decir la alerta',
   'Este iPhone não reconhece a fala sem internet, então os comandos de voz não funcionam nele.': 'Este iPhone no reconoce la voz sin internet, así que los comandos de voz no funcionan en él.',
+  'Fale o lugar: posto, farmácia, um endereço...': 'Di el lugar: gasolinera, farmacia, una dirección...',
+  'Não ouvi. Toque no microfone para falar de novo ou digite.': 'No te escuché. Toca el micrófono para hablar de nuevo o escribe.',
+  'Ouvindo… fale o lugar': 'Escuchando… di el lugar',
+  'Falar': 'Hablar',
+  'Ouvindo… o que você procura?': 'Escuchando… ¿qué buscas?',
+  'Não ouvi. Escolha na lista ou toque na lupa de novo.': 'No te escuché. Elige en la lista o toca la lupa de nuevo.',
 };

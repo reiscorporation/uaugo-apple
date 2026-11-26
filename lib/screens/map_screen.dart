@@ -1991,6 +1991,30 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool _carVoiceBusy = false;
   bool _carVoiceCancelled = false;
 
+  /// Lupa do carro: ouve o que procurar e segue como "UauGo, procurar".
+  Future<void> _findByVoiceFromCar() async {
+    final car = CarService.instance;
+    if (!VoiceCommandService.canListen || _carVoiceBusy) return;
+    _carVoiceBusy = true;
+    _carVoiceCancelled = false;
+    try {
+      car.toast(tr('Ouvindo… o que você procura?'));
+      final said = await _voiceCmd.listenFree(tr('O que você procura? Fale agora'));
+      if (!mounted || _carVoiceCancelled) return;
+      if (said == null || said.trim().isEmpty) {
+        car.toast(tr('Não ouvi. Escolha na lista ou toque na lupa de novo.'));
+        return;
+      }
+      car.closeAlerts();
+      // "posto", "procurar farmácia barata"... ou um lugar/endereço.
+      final f = lenientFind('uau go procurar ${said.trim()}');
+      await _voiceFind(f ?? const FindCommand(null),
+          heard: f?.category == null ? said : null);
+    } finally {
+      _carVoiceBusy = false;
+    }
+  }
+
   /// Lista de alertas do carro: o celular ouve e marca (a lista fecha).
   Future<void> _alertByVoiceFromCar() async {
     final car = CarService.instance;
@@ -6598,7 +6622,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 heroTag: 'addStop',
                 tooltip: tr('Adicionar parada (ou segure no mapa)'),
                 onPressed: _addSoloStopBySearch,
-                child: const Icon(Icons.add_location_alt),
+                // 26/11: lupa (busca), em todos os modos.
+                child: const Icon(Icons.search),
               ),
               const SizedBox(height: 12),
             ],
@@ -6800,13 +6825,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Procura o lugar: navegando, ao longo da rota e só o que está à frente;
   /// sem rota, perto. Fala o mais próximo e pergunta se inclui como parada.
-  Future<void> _voiceFind(FindCommand c) async {
+  Future<void> _voiceFind(FindCommand c, {String? heard}) async {
     var cat = c.category;
     var cheap = c.cheap;
     String? text;
     if (cat == null) {
       // Fora da lista ("procurar pizzaria"...): ouve o pedido livre.
-      final said = await _voiceCmd.listenFree(tr('O que você procura? Fale agora'));
+      final said = heard ?? await _voiceCmd.listenFree(tr('O que você procura? Fale agora'));
       if (!mounted) return;
       if (said == null || said.trim().isEmpty) {
         _voice.reply(tr('Não entendi. Diga, por exemplo: {0}, procurar posto.', [voiceWakeDisplay]));
@@ -7148,7 +7173,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       fullscreenDialog: true,
       builder: (_) => PlaceSearchPage(
           near: p == null ? null : LatLng(p.latitude, p.longitude),
-          title: tr('Parada no caminho')),
+          title: tr('Parada no caminho'),
+          // Comandos de voz ligados: abre ouvindo, como a tela de alertas.
+          listenFirst: _voiceCmd.enabled.value),
     ));
     if (picked == null || !mounted) return;
     await _insertSoloStop(picked.name, picked.lat, picked.lng, StopType.waypoint);
@@ -8349,6 +8376,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       // Pedágio: "O valor está certo?" no carro.
       case 'toll:yes' || 'toll:no':
         await _answerTollFromCar(a == 'toll:yes');
+      // Lupa do carro (26/11): com os comandos de voz ligados, já ouve o que
+      // procurar (posto, farmácia...) e responde falando, como "UauGo,
+      // procurar posto". Na simulação / sem conta: só a lista.
+      case 'findvoice:auto':
+        if (_sim == null && !AuthService.isAnonymous && _voiceCmd.enabled.value) {
+          await _findByVoiceFromCar();
+        }
       // Lista de alertas do carro fechada ou alerta tocado: para de ouvir.
       case 'hazard:voicecancel':
         if (_carVoiceBusy) {

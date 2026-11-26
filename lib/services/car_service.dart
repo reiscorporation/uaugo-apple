@@ -347,7 +347,7 @@ class CarService {
       return;
     }
     // Lista de alertas aberta sem o mapa: não ouve (os toques funcionam).
-    if (a == 'hazard:voice:auto' || a == 'hazard:voicecancel') return;
+    if (a == 'hazard:voice:auto' || a == 'hazard:voicecancel' || a == 'findvoice:auto') return;
     if (a == 'hazard:voice') {
       toast(tr('Abra o mapa no celular para falar o alerta'));
       return;

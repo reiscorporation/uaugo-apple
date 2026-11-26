@@ -640,6 +640,21 @@ class SearchPlaceScreen(ctx: CarContext) : Screen(ctx) {
 
 /** Destinos para escolher no carro (casa, salvos, recentes). */
 class DestinationsScreen(ctx: CarContext) : Screen(ctx) {
+    init {
+        // 26/11: com os comandos de voz ligados (o celular decide), a lupa já
+        // abre ouvindo o que procurar, como a lista de alertas.
+        CarState.actionSink?.invoke("findvoice:auto")
+        CarState.closeAlertsSink = {
+            if (screenManager.top === this) screenManager.pop()
+        }
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                CarState.actionSink?.invoke("hazard:voicecancel")
+                CarState.closeAlertsSink = null
+            }
+        })
+    }
+
     override fun onGetTemplate(): Template {
         val list = ItemList.Builder()
         // Destino novo: busca pelo nome (teclado ou voz do carro).

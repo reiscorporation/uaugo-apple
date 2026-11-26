@@ -48,4 +48,10 @@ const en6 = <String, String>{
   'Não, corrigir agora': 'No, correct now',
   'Abra o mapa no celular para falar o alerta': 'Open the map on the phone to say the alert',
   'Este iPhone não reconhece a fala sem internet, então os comandos de voz não funcionam nele.': 'This iPhone cannot recognize speech without internet, so voice commands do not work on it.',
+  'Fale o lugar: posto, farmácia, um endereço...': 'Say the place: gas station, pharmacy, an address...',
+  'Não ouvi. Toque no microfone para falar de novo ou digite.': 'I did not hear you. Tap the microphone to speak again or type.',
+  'Ouvindo… fale o lugar': 'Listening… say the place',
+  'Falar': 'Speak',
+  'Ouvindo… o que você procura?': 'Listening… what are you looking for?',
+  'Não ouvi. Escolha na lista ou toque na lupa de novo.': 'I did not hear you. Pick from the list or tap the magnifier again.',
 };
