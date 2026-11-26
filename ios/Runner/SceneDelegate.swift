@@ -526,7 +526,10 @@ final class VoiceBridgeIOS {
   static let shared = VoiceBridgeIOS()
 
   private var channel: FlutterMethodChannel?
-  private let engine = AVAudioEngine()
+  // Um motor novo a cada escuta, criado DEPOIS de pôr o áudio em modo de
+  // gravação: o motor criado com o áudio em modo de fala (GPS) lê o
+  // microfone com formato vazio (0 Hz) e a Apple fecha o app.
+  private var engine: AVAudioEngine?
   private var request: SFSpeechAudioBufferRecognitionRequest?
   private var task: SFSpeechRecognitionTask?
   private var pending: FlutterResult?
@@ -601,15 +604,21 @@ final class VoiceBridgeIOS {
     request = req
     pending = result
     best = ""
-    let input = engine.inputNode
+    let eng = AVAudioEngine()
+    engine = eng
+    let input = eng.inputNode
     let fmt = input.outputFormat(forBus: 0)
-    input.removeTap(onBus: 0)
+    // Sem microfone utilizável agora (formato vazio): não ouve, sem fechar o app.
+    guard fmt.sampleRate > 0, fmt.channelCount > 0 else {
+      finish(nil)
+      return
+    }
     input.installTap(onBus: 0, bufferSize: 1024, format: fmt) { buf, _ in
       req.append(buf)
     }
-    engine.prepare()
+    eng.prepare()
     do {
-      try engine.start()
+      try eng.start()
     } catch {
       finish(nil)
       return
@@ -649,8 +658,11 @@ final class VoiceBridgeIOS {
     silence = nil
     maxTimer?.invalidate()
     maxTimer = nil
-    if engine.isRunning { engine.stop() }
-    engine.inputNode.removeTap(onBus: 0)
+    if let eng = engine {
+      if eng.isRunning { eng.stop() }
+      eng.inputNode.removeTap(onBus: 0)
+      engine = nil
+    }
     request?.endAudio()
     request = nil
     task?.cancel()
