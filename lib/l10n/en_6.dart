@@ -46,4 +46,8 @@ const en6 = <String, String>{
   '{0} · {1}\nNo SOS: SMS pronto para {2}.': '{0} · {1}\nOn SOS: ready SMS to {2}.',
   '⚠️ {0} em {1} (~{2})': '⚠️ {0} at {1} (~{2})',
   'Não, corrigir agora': 'No, correct now',
+  'Não ouvi o alerta. Toque em Alerta para tentar de novo.': 'I did not hear the alert. Tap Alert to try again.',
+  'Não entendi "{0}". Toque em Alerta para tentar de novo.': 'I did not understand "{0}". Tap Alert to try again.',
+  'Abra o mapa no celular para falar o alerta': 'Open the map on the phone to say the alert',
+  'Este iPhone não reconhece a fala sem internet, então os comandos de voz não funcionam nele.': 'This iPhone cannot recognize speech without internet, so voice commands do not work on it.',
 };

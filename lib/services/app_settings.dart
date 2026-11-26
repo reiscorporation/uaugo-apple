@@ -281,6 +281,7 @@ const voiceKinds = {
   'accident': 'Acidente',
   'fog': 'Neblina',
   'kite': 'Pipas / cerol',
+  'roadworks': 'Obras na pista',
   'risk': 'Área de risco',
   'stoppedVehicle': 'Veículo parado',
 };

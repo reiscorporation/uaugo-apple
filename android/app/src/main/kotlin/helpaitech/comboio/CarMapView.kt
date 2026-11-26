@@ -109,8 +109,12 @@ const val MAP_DENSITY_SCALE = 0.42f
 const val CAR_TILT = 60f
 
 /** Largura da linha da rota (e do trânsito por cima dela) no mapa do carro.
- *  23/11: 4 -> 1,5 ("tosca", grossa demais na tela do carro). */
-const val ROUTE_WIDTH_PX = 1.5f
+ *  23/11: 4 -> 1,5 ("tosca", grossa demais na tela do carro); 26/11: 1. */
+const val ROUTE_WIDTH_PX = 1f
+
+/** Tamanho do veículo no mapa do carro (px). 23/11: 56 -> 38 ("muito
+ *  grande"); 26/11: 52 (pedido: maior, com a rota mais fina). */
+const val CAR_VEHICLE_PX = 52
 val MAP_ZOOM_FIX = (Math.log(1.0 / MAP_DENSITY_SCALE) / Math.log(2.0)).toFloat()
 
 class CarMapView(private val context: Context) {
@@ -363,8 +367,7 @@ class CarMapView(private val context: Context) {
         val iv = android.widget.ImageView(p.context)
         iv.scaleType = android.widget.ImageView.ScaleType.FIT_XY
         iv.visibility = android.view.View.GONE
-        // 23/11: menor ("muito grande" na tela do carro), 56 -> 38 px.
-        root.addView(iv, FrameLayout.LayoutParams(38, 38))
+        root.addView(iv, FrameLayout.LayoutParams(CAR_VEHICLE_PX, CAR_VEHICLE_PX))
         meView = iv
         root3d = root
         ctx3d = p.context
@@ -835,7 +838,7 @@ class CarMapView(private val context: Context) {
     private fun myVehicle(png: ByteArray?): Bitmap {
         val b = png?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) }
             ?: return navArrowBitmap()
-        return Bitmap.createScaledBitmap(b, 56, 56, true)
+        return Bitmap.createScaledBitmap(b, CAR_VEHICLE_PX, CAR_VEHICLE_PX, true)
     }
 
     /** Sem a imagem do celular (ainda não chegou): seta de navegação

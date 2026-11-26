@@ -1986,6 +1986,27 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         targetLng: h.lng,
       );
 
+  /// "Falar o alerta" pedido na tela do carro: o celular ouve e marca.
+  Future<void> _alertByVoiceFromCar() async {
+    final car = CarService.instance;
+    if (!VoiceCommandService.canListen) {
+      car.toast(tr('Toque no alerta.'));
+      return;
+    }
+    car.toast(tr('Ouvindo… fale o alerta'));
+    final said = await _voiceCmd.listenAlert(tr('Fale o alerta: óleo, polícia, buraco...'));
+    if (!mounted) return;
+    final t = alertFromSpeech(said);
+    if (t == null) {
+      car.toast(said == null || said.trim().isEmpty
+          ? tr('Não ouvi o alerta. Toque em Alerta para tentar de novo.')
+          : tr('Não entendi "{0}". Toque em Alerta para tentar de novo.', [said]));
+      return;
+    }
+    await _reportHazard(t);
+    car.toast(tr('Alerta enviado: {0}', [t.label]));
+  }
+
   /// Folha "O que tem na pista?" para reportar um alerta. Reportar exige
   /// conta (evita alertas falsos anônimos); ver os alertas, não.
   /// 23/11: categorias na ordem de [alertSheetOrder] e o microfone já abre
@@ -2910,8 +2931,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     setState(() => _rerouting = true);
     _lastReroute = DateTime.now();
-    // Sem internet da última vez: não repete "Recalculando" a cada tentativa.
-    if (!_rerouteOffline) _voice.narrate(tr('Recalculando a rota'));
+    // Sem internet da última vez: não repete o aviso a cada tentativa.
+    // Um "glug" no lugar da frase "Recalculando a rota" (26/11).
+    if (!_rerouteOffline) _voice.recalcChime();
     var next = 1;
     while (next < trip.stops.length - 1 &&
         _stopArrived.contains(trip.stops[next].id)) {
@@ -3206,7 +3228,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final remaining = _stops.sublist(next);
     setState(() => _rerouting = true);
     if (_isCaptain && !_backFromHelp) {
-      _voice.narrate(tr('Recalculando a rota da expedição'));
+      _voice.recalcChime();
       final ok = await _svc.rerouteFromCaptain(_code, exp.plan, p.latitude,
           p.longitude, remaining, _stops.sublist(1, next));
       if (!mounted) return;
@@ -8332,6 +8354,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       case 'hazard':
         await _reportHazard(HazardType.danger);
         CarService.instance.toast(tr('Alerta enviado: {0}', [HazardType.danger.label]));
+      // "Falar o alerta" na tela do carro (26/11): ouve como a tela de
+      // alertas do celular e marca o que entendeu.
+      case 'hazard:voice':
+        await _alertByVoiceFromCar();
       // Lista de alertas do carro: "hazard:police", "hazard:pothole"...
       case final x when x.startsWith('hazard:'):
         final t = HazardType.fromName(x.substring(7));

@@ -5,7 +5,7 @@ import 'package:comboio/models/hazard.dart';
 void main() {
   test('ordem da tela de alertas', () {
     final o = alertSheetOrder;
-    expect(o.take(8), [
+    expect(o.take(9), [
       HazardType.police,
       HazardType.fixedRadar,
       HazardType.oil,
@@ -13,6 +13,7 @@ void main() {
       HazardType.kite,
       HazardType.pothole,
       HazardType.danger,
+      HazardType.roadworks, // 26/11
       HazardType.risk,
     ]);
     // Nenhuma categoria some.
@@ -24,6 +25,8 @@ void main() {
     final cases = {
       'Óleo': HazardType.oil,
       'Tem óleo na pista': HazardType.oil,
+      'Obras na pista': HazardType.roadworks,
+      'tem obra ali': HazardType.roadworks,
       'Areia na pista': HazardType.oil,
       'Polícia': HazardType.police,
       'Tem polícia à frente': HazardType.police,

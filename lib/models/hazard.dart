@@ -27,6 +27,9 @@ enum HazardType {
   // "Risco na pista" (23/11; antes "Perigo na pista"): objeto/obstáculo.
   danger('Risco na pista', '⚠️', Color(0xFFFFA000), Duration(hours: 3), 500,
       'risco na pista'),
+  // Obras na pista (26/11): faixa interditada, desvio, máquinas.
+  roadworks('Obras na pista', '👷', Color(0xFFEF6C00), Duration(days: 3), 1000,
+      'obras na pista'),
   oil('Óleo / areia', '🛢️', Color(0xFF546E7A), Duration(hours: 12), 1500,
       'óleo ou areia na pista'),
   animal('Animal na pista', '🐄', Color(0xFF7CB342), Duration(hours: 1), 500,

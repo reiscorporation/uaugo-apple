@@ -107,8 +107,8 @@ void main() {
       expect(HazardType.radar.lifetime, const Duration(hours: 4));
     });
 
-    test('radares e área de risco a 1 km; semáforo a 300 m; os demais a 500 m', () {
-      const longe = [HazardType.radar, HazardType.risk, HazardType.fixedRadar];
+    test('radares, área de risco e obras a 1 km; semáforo a 300 m; os demais a 500 m', () {
+      const longe = [HazardType.radar, HazardType.risk, HazardType.fixedRadar, HazardType.roadworks];
       const antes = [HazardType.oil, HazardType.kite];
       for (final t in longe) {
         expect(t.alertMeters, 1000, reason: t.name);

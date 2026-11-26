@@ -8,6 +8,7 @@
 // Onde mexer: Velocidade da fala: setFastMode.
 // ============================================================================
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -220,6 +221,32 @@ class VoiceService {
         _ => 0.5,
       });
     } catch (_) {}
+  }
+
+  AudioPlayer? _chime;
+
+  /// "Glug" (duas bolhas) no lugar da frase "Recalculando a rota" (26/11).
+  /// Respeita o botão de narração e não toca por cima de uma fala.
+  Future<void> recalcChime() async {
+    if (!narrationOn.value || _speaking) return;
+    try {
+      final p = _chime ??= AudioPlayer();
+      await p.setAudioContext(AudioContext(
+        android: const AudioContextAndroid(
+          contentType: AndroidContentType.sonification,
+          usageType: AndroidUsageType.assistanceNavigationGuidance,
+          audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+        ),
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: const {AVAudioSessionOptions.duckOthers},
+        ),
+      ));
+      await p.setReleaseMode(ReleaseMode.stop);
+      await p.play(AssetSource('sounds/glug.wav'));
+    } catch (e) {
+      debugPrint('Glug: $e');
+    }
   }
 
   /// Fala mesmo com tudo desligado (botão "Testar voz").

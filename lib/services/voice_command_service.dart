@@ -9,7 +9,9 @@
 //   - Ao ligar, baixa o modelo de português (~31 MB) do Storage do app
 //     (public/voz/) uma única vez.
 //   - Ouve só com o mapa aberto, e pausa enquanto o app está falando.
-//   - Por enquanto só no Android (no iPhone a opção não aparece).
+//   - iPhone (26/11): o reconhecimento da Apple no próprio aparelho (sem
+//     modelo para baixar; o áudio também não sai do celular). iPhone sem
+//     reconhecimento no aparelho: a opção avisa que não dá.
 //   - "UauGo, ir para" (opção à parte, desligada): logo depois de um bipe,
 //     o destino é ouvido pelo reconhecimento do próprio Android, dentro do
 //     app — no aparelho quando ele oferece (sem internet, o áudio não sai
@@ -52,11 +54,13 @@ class VoiceCommandService {
   /// tempo todo. A música do comunicador fica com qualidade de ligação.
   final helmetMic = ValueNotifier<bool>(false);
 
-  /// Disponível neste aparelho? (por enquanto, só Android)
-  static bool get supported => !kIsWeb && Platform.isAndroid;
+  /// Disponível neste aparelho? Android (Vosk) e iPhone (Apple, 26/11).
+  static bool get supported => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+  /// iPhone: não usa o modelo do Vosk (nada para baixar).
+  static bool get _needsModel => !kIsWeb && Platform.isAndroid;
 
   /// Ouvir uma frase (alerta falado, destino): Android e iPhone (24/11).
-  /// O "UauGo" ouvindo o tempo todo ([supported]) segue só no Android.
   static bool get canListen => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
   /// Ligado pelo piloto (fica salvo no celular).
@@ -96,7 +100,9 @@ class VoiceCommandService {
     enabled.value = p.getBool(_kEnabled) ?? false;
     routeByVoice.value = p.getBool(_kRoute) ?? false;
     helmetMic.value = p.getBool(_kHelmet) ?? false;
-    if (enabled.value && await _modelReady()) status.value = VoiceCmdStatus.ready;
+    if (enabled.value && (!_needsModel || await _modelReady())) {
+      status.value = VoiceCmdStatus.ready;
+    }
   }
 
   Future<String> _modelDir() async =>
@@ -111,7 +117,11 @@ class VoiceCommandService {
     if (!supported) return tr('Ainda não disponível neste sistema.');
     final mic = await _method.invokeMethod<bool>('requestMic') ?? false;
     if (!mic) return tr('Sem permissão do microfone, os comandos de voz não funcionam.');
-    if (!await _modelReady()) {
+    if (!_needsModel) {
+      // iPhone: precisa do reconhecimento no próprio aparelho.
+      final ok = await _method.invokeMethod<bool>('canListenAlways') ?? false;
+      if (!ok) return tr('Este iPhone não reconhece a fala sem internet, então os comandos de voz não funcionam nele.');
+    } else if (!await _modelReady()) {
       status.value = VoiceCmdStatus.downloading;
       progress.value = 0;
       try {
@@ -245,7 +255,7 @@ class VoiceCommandService {
   Future<void> start() async {
     debugPrint('Comandos de voz: start (ligado=${enabled.value}, ouvindo=$_listening)');
     if (!supported || !enabled.value || _listening) return;
-    if (!await _modelReady()) return;
+    if (_needsModel && !await _modelReady()) return;
     if (!(await _method.invokeMethod<bool>('hasMic') ?? false)) return;
     _results ??= _events.receiveBroadcastStream().listen(_onResult,
         onError: (e) => debugPrint('Comandos de voz: $e'));

@@ -170,6 +170,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate, CPM
       ("kite", tx("Kites", "Pipas / cerol", "Cometas")),
       ("pothole", tx("Pothole", "Buraco", "Bache")),
       ("danger", tx("Road hazard", "Risco na pista", "Peligro en la vía")),
+      ("roadworks", tx("Roadworks", "Obras na pista", "Obras en la vía")),
       ("accident", tx("Accident", "Acidente", "Accidente")),
       ("risk", tx("Risk area", "Área de risco", "Zona de riesgo")),
     ]
@@ -520,8 +521,10 @@ import Speech
 
 /// 24/11: no Android o canal "rodajunto/voice" usa o Vosk + reconhecedor do
 /// Google. No iPhone, o reconhecimento de fala da Apple faz a escuta de uma
-/// frase (alerta falado, destino, "o que você procura?"). O "UauGo" ouvindo
-/// o tempo todo continua só no Android.
+/// frase (alerta falado, destino, "o que você procura?"). 26/11: também o
+/// "UauGo" ouvindo o tempo todo (comandos de voz), só com o reconhecimento
+/// no próprio iPhone (o áudio não sai do aparelho), mandando o que ouviu no
+/// mesmo formato do Vosk do Android (lib/logic/voice_commands.dart).
 final class VoiceBridgeIOS {
   static let shared = VoiceBridgeIOS()
 
@@ -537,12 +540,30 @@ final class VoiceBridgeIOS {
   private var silence: Timer?
   private var maxTimer: Timer?
 
+  // ---- Escuta contínua ("UauGo, radar"), 26/11
+  private let results = VoiceResultsStream()
+  private var cont = false
+  private var contPaused = false
+  private var contHelmet = false
+  private var contVocab: Set<String> = []
+  private var contHints: [String] = []
+  private var contEngine: AVAudioEngine?
+  private var contReq: SFSpeechAudioBufferRecognitionRequest?
+  private var contTask: SFSpeechRecognitionTask?
+  private var contText = ""
+  private var contSilence: Timer?
+  private var contRestart: Timer?
+  private var contGen = 0
+  private var contStartedAt = Date()
+
   func attach(_ messenger: FlutterBinaryMessenger) {
     let ch = FlutterMethodChannel(name: "rodajunto/voice", binaryMessenger: messenger)
     ch.setMethodCallHandler { [weak self] call, result in
       self?.handle(call, result)
     }
     channel = ch
+    FlutterEventChannel(name: "rodajunto/voice/results", binaryMessenger: messenger)
+      .setStreamHandler(results)
   }
 
   private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -562,10 +583,192 @@ final class VoiceBridgeIOS {
     case "beep":
       AudioServicesPlaySystemSound(1113)
       result(nil)
+    case "canListenAlways":
+      result(SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))?
+        .supportsOnDeviceRecognition ?? false)
+    case "start":
+      let a = call.arguments as? [String: Any]
+      contConfigure(grammar: a?["grammar"] as? String ?? "[]")
+      contHelmet = a?["helmet"] as? Bool ?? false
+      guard SFSpeechRecognizer(locale: Locale(identifier: "pt-BR"))?
+        .supportsOnDeviceRecognition ?? false else {
+        result(FlutterError(code: "no-on-device", message: "sem reconhecimento no aparelho",
+                            details: nil))
+        return
+      }
+      cont = true
+      contPaused = false
+      contBegin()
+      result(nil)
+    case "stop":
+      cont = false
+      contHalt()
+      contRestoreVoice()
+      result(nil)
+    case "pause":
+      // O app vai falar (ou terminou): solta o microfone para a voz do GPS
+      // sair normal e volta a ouvir depois.
+      let paused = (call.arguments as? [String: Any])?["paused"] as? Bool ?? false
+      contPaused = paused
+      if paused {
+        contHalt()
+        contRestoreVoice()
+      } else {
+        contBegin()
+      }
+      result(nil)
     default:
-      // start/stop/pause/unzip: escuta contínua (Vosk), só no Android.
+      // unzip (modelo do Vosk): só no Android.
       result(nil)
     }
+  }
+
+  /// Palavras conhecidas (as frases da gramática): o resto vira "[unk]",
+  /// como no Vosk.
+  private func contConfigure(grammar: String) {
+    let list = (try? JSONSerialization.jsonObject(with: Data(grammar.utf8))) as? [String] ?? []
+    var vocab = Set(list.flatMap { $0.split(separator: " ").map(String.init) })
+    vocab.remove("[unk]")
+    contVocab = vocab
+    contHints = ["UauGo", "Uau Go"] + Array(list.filter { !$0.contains("[unk]") }.prefix(90))
+  }
+
+  private func contBegin() {
+    guard cont, !contPaused, pending == nil else { return }
+    contHalt()
+    guard let rec = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR")),
+          rec.isAvailable, rec.supportsOnDeviceRecognition,
+          AVAudioSession.sharedInstance().recordPermission == .granted else {
+      contRetry(after: 5)
+      return
+    }
+    let s = AVAudioSession.sharedInstance()
+    do {
+      // A música continua tocando (sem abaixar) enquanto ouve.
+      var opts: AVAudioSession.CategoryOptions = [.mixWithOthers, .defaultToSpeaker]
+      if contHelmet { opts.insert(.allowBluetooth) }
+      try s.setCategory(.playAndRecord, mode: .default, options: opts)
+      try s.setActive(true)
+    } catch {
+      contRetry(after: 3)
+      return
+    }
+    let req = SFSpeechAudioBufferRecognitionRequest()
+    req.shouldReportPartialResults = true
+    req.requiresOnDeviceRecognition = true
+    req.taskHint = .confirmation
+    req.contextualStrings = contHints
+    let eng = AVAudioEngine()
+    let input = eng.inputNode
+    let fmt = input.outputFormat(forBus: 0)
+    guard fmt.sampleRate > 0, fmt.channelCount > 0 else {
+      contRetry(after: 3)
+      return
+    }
+    input.installTap(onBus: 0, bufferSize: 1024, format: fmt) { buf, _ in
+      req.append(buf)
+    }
+    eng.prepare()
+    do {
+      try eng.start()
+    } catch {
+      input.removeTap(onBus: 0)
+      contRetry(after: 3)
+      return
+    }
+    contEngine = eng
+    contReq = req
+    contText = ""
+    contStartedAt = Date()
+    contGen += 1
+    let gen = contGen
+    contTask = rec.recognitionTask(with: req) { [weak self] r, err in
+      DispatchQueue.main.async {
+        guard let self = self, gen == self.contGen else { return }
+        if let r = r {
+          self.contText = r.bestTranscription.formattedString
+          self.contArmSilence()
+          if r.isFinal { self.contEmit() }
+        } else if err != nil {
+          self.contEmit()
+        }
+      }
+    }
+    // A Apple encerra a escuta em ~1 min: recomeça antes.
+    contRestart = Timer.scheduledTimer(withTimeInterval: 50, repeats: false) { [weak self] _ in
+      self?.contEmit()
+    }
+  }
+
+  /// Parou de falar por 0,9 s: manda a frase e recomeça do zero.
+  private func contArmSilence() {
+    contSilence?.invalidate()
+    contSilence = Timer.scheduledTimer(withTimeInterval: 0.9, repeats: false) { [weak self] _ in
+      self?.contEmit()
+    }
+  }
+
+  private func contEmit() {
+    let text = contText
+    let short = Date().timeIntervalSince(contStartedAt) < 1.5
+    contHalt()
+    if !text.isEmpty { contSend(text) }
+    // Erro logo de cara (reconhecedor ocupado...): espera um pouco.
+    contRetry(after: text.isEmpty && short ? 2 : 0.15)
+  }
+
+  private func contRetry(after s: Double) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + s) { [weak self] in
+      guard let self = self, self.cont, !self.contPaused, self.contEngine == nil else { return }
+      self.contBegin()
+    }
+  }
+
+  private func contHalt() {
+    contSilence?.invalidate()
+    contSilence = nil
+    contRestart?.invalidate()
+    contRestart = nil
+    contGen += 1
+    if let eng = contEngine {
+      if eng.isRunning { eng.stop() }
+      eng.inputNode.removeTap(onBus: 0)
+      contEngine = nil
+    }
+    contReq?.endAudio()
+    contReq = nil
+    contTask?.cancel()
+    contTask = nil
+  }
+
+  /// Volta o áudio ao modo de fala do GPS (como depois da frase livre).
+  private func contRestoreVoice() {
+    let s = AVAudioSession.sharedInstance()
+    try? s.setCategory(.playback, mode: .voicePrompt,
+                       options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
+  }
+
+  /// Texto da Apple -> o JSON do Vosk ({"text", "result": [{word, conf}]}).
+  private func contSend(_ text: String) {
+    var t = " " + text.lowercased() + " "
+    t = t.replacingOccurrences(of: "[.,!?;:\"“”]", with: " ", options: .regularExpression)
+    // "UauGo" chega como "Uau Go", "Wow, go", "Uaugo"...
+    t = t.replacingOccurrences(of: "\\b(uau|uáu|wow|uao|ual|uol)\\s*(go|gô|gou|gol)\\b",
+                               with: "uau go", options: .regularExpression)
+    t = t.replacingOccurrences(of: "\\b(uaugo|uago|wowgo|uaogo)\\b",
+                               with: "uau go", options: .regularExpression)
+    var words: [[String: Any]] = []
+    for w in t.split(separator: " ").map(String.init) {
+      let k = contVocab.contains(w) ? w : "[unk]"
+      if k == "[unk]", (words.last?["word"] as? String) == "[unk]" { continue }
+      words.append(["word": k, "conf": 1.0])
+    }
+    guard words.contains(where: { ($0["word"] as? String) != "[unk]" }) else { return }
+    let plain = words.compactMap { $0["word"] as? String }.joined(separator: " ")
+    guard let data = try? JSONSerialization.data(
+            withJSONObject: ["text": plain, "result": words]),
+          let json = String(data: data, encoding: .utf8) else { return }
+    results.send(json)
   }
 
   /// Pede o microfone e o reconhecimento de fala (o iPhone pergunta 1 vez;
@@ -584,6 +787,8 @@ final class VoiceBridgeIOS {
 
   private func listen(lang: String, helmet: Bool, result: @escaping FlutterResult) {
     finish(nil)
+    // Um microfone por vez: a escuta contínua para (o app a religa depois).
+    contHalt()
     guard let rec = SFSpeechRecognizer(locale: Locale(identifier: lang)), rec.isAvailable else {
       result(nil)
       return
@@ -678,4 +883,22 @@ final class VoiceBridgeIOS {
                          options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
     }
   }
+}
+
+/// Resultados da escuta contínua para o Flutter ("rodajunto/voice/results").
+final class VoiceResultsStream: NSObject, FlutterStreamHandler {
+  private var sink: FlutterEventSink?
+
+  func onListen(withArguments arguments: Any?,
+                eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+    sink = events
+    return nil
+  }
+
+  func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    sink = nil
+    return nil
+  }
+
+  func send(_ json: String) { sink?(json) }
 }

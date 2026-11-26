@@ -26,6 +26,7 @@ List<HazardType> get alertSheetOrder {
     HazardType.kite,
     HazardType.pothole,
     HazardType.danger,
+    HazardType.roadworks,
     HazardType.risk,
   ];
   return [
@@ -146,6 +147,21 @@ const _phrases = <String, HazardType>{
   'object on the road': HazardType.danger,
   'peligro': HazardType.danger,
   'objeto en la ruta': HazardType.danger,
+  // Obras na pista
+  'obra': HazardType.roadworks,
+  'obras': HazardType.roadworks,
+  'obras na pista': HazardType.roadworks,
+  'obra na pista': HazardType.roadworks,
+  'pista interditada': HazardType.roadworks,
+  'faixa interditada': HazardType.roadworks,
+  'interditado': HazardType.roadworks,
+  'interditada': HazardType.roadworks,
+  'maquinas na pista': HazardType.roadworks,
+  'cones': HazardType.roadworks,
+  'roadworks': HazardType.roadworks,
+  'road works': HazardType.roadworks,
+  'construction': HazardType.roadworks,
+  'obras en la via': HazardType.roadworks,
   // Área de risco (assalto / lugar perigoso)
   'area de risco': HazardType.risk,
   'pista perigosa': HazardType.risk,

@@ -371,7 +371,7 @@ service cloud.firestore {
             || (request.resource.data.hd is number
                 && request.resource.data.hd >= 0 && request.resource.data.hd < 360))
         && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.type in ['police','radar','pothole','bump','danger','oil','animal','accident','fog','kite','risk','fixedRadar','signal','stoppedVehicle']
+        && request.resource.data.type in ['police','radar','pothole','bump','danger','oil','animal','accident','fog','kite','risk','fixedRadar','signal','stoppedVehicle','roadworks']
         && isLat(request.resource.data.lat)
         && isLng(request.resource.data.lng)
         && str(request.resource.data.cell, 20)

@@ -46,4 +46,8 @@ const es6 = <String, String>{
   '{0} · {1}\nNo SOS: SMS pronto para {2}.': '{0} · {1}\nEn el SOS: SMS listo para {2}.',
   '⚠️ {0} em {1} (~{2})': '⚠️ {0} en {1} (~{2})',
   'Não, corrigir agora': 'No, corregir ahora',
+  'Não ouvi o alerta. Toque em Alerta para tentar de novo.': 'No escuché la alerta. Toca Alerta para intentar de nuevo.',
+  'Não entendi "{0}". Toque em Alerta para tentar de novo.': 'No entendí "{0}". Toca Alerta para intentar de nuevo.',
+  'Abra o mapa no celular para falar o alerta': 'Abre el mapa en el teléfono para decir la alerta',
+  'Este iPhone não reconhece a fala sem internet, então os comandos de voz não funcionam nele.': 'Este iPhone no reconoce la voz sin internet, así que los comandos de voz no funcionan en él.',
 };

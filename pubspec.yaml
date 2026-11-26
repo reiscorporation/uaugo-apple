@@ -61,6 +61,7 @@ flutter:
     - assets/legal/
     - assets/sim3d/
     - assets/vehicles/
+    - assets/sounds/
     - assets/data/
 
 # Ícone do app (gerar com: dart run flutter_launcher_icons)

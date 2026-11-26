@@ -152,6 +152,8 @@ const en4 = <String, String>{
   'Acidente': 'Accident',
   'Neblina': 'Fog',
   'Pipas / cerol': 'Kites / cutting line',
+  'Obras na pista': 'Roadworks',
+  'obras na pista': 'roadworks',
   'área de pipas, cuidado com linha com cerol': 'kite area, watch out for cutting kite lines',
   'Área de risco / assalto': 'Risk area / robbery',
   'área de risco, com relatos de assalto': 'risk area, with robbery reports',

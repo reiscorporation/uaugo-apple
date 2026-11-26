@@ -1061,12 +1061,30 @@ class AlertListScreen(ctx: CarContext) : Screen(ctx) {
             Triple("kite", "🪁", tx("Kites / cutting line", "Pipas / cerol", "Cometas / hilo cortante")),
             Triple("pothole", "🕳️", tx("Pothole", "Buraco", "Bache")),
             Triple("danger", "⚠️", tx("Road hazard", "Risco na pista", "Peligro en la vía")),
+            Triple("roadworks", "👷", tx("Roadworks", "Obras na pista", "Obras en la vía")),
             Triple("risk", "🚨", tx("Risk area", "Área de risco", "Zona de riesgo")),
             Triple("radar", "📷", tx("Mobile speed camera", "Radar móvel", "Radar móvil")),
             Triple("accident", "💥", tx("Accident", "Acidente", "Accidente")),
             Triple("fog", "🌫️", tx("Fog", "Neblina", "Niebla")),
         )
         val list = ItemList.Builder()
+        // Alerta falado (26/11): o celular ouve ("tem óleo na pista") e marca.
+        list.addItem(Row.Builder()
+            .setTitle(tx("🎤  Say the alert", "🎤  Falar o alerta", "🎤  Decir la alerta"))
+            .addText(tx("E.g. \"oil on the road\", \"police\"",
+                "Ex.: \"óleo na pista\", \"polícia\"", "Ej.: \"aceite en la vía\", \"policía\""))
+            .setOnClickListener {
+                val sink = CarState.actionSink
+                if (sink == null) {
+                    CarToast.makeText(carContext,
+                        tx("Open UauGo on the phone", "Abra o UauGo no celular"),
+                        CarToast.LENGTH_SHORT).show()
+                } else {
+                    sink("hazard:voice")
+                }
+                screenManager.pop()
+            }
+            .build())
         if (CarState.hazards.any { it.mine }) {
             list.addItem(Row.Builder()
                 .setTitle(tx("🗑️  Remove my alert", "🗑️  Remover meu alerta"))

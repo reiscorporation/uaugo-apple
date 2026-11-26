@@ -152,6 +152,8 @@ const es4 = <String, String>{
   'Acidente': 'Accidente',
   'Neblina': 'Neblina',
   'Pipas / cerol': 'Papalotes / hilo cortante',
+  'Obras na pista': 'Obras en la vía',
+  'obras na pista': 'obras en la vía',
   'área de pipas, cuidado com linha com cerol': 'zona de papalotes, cuidado con el hilo cortante',
   'Área de risco / assalto': 'Zona de riesgo / asalto',
   'área de risco, com relatos de assalto': 'zona de riesgo, con reportes de asalto',

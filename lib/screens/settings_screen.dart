@@ -8,6 +8,8 @@
 // Onde mexer: Valores e padrões: services/app_settings.dart.
 // ============================================================================
 
+import 'dart:io' show Platform;
+
 import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1099,7 +1101,7 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
           value: on,
           onChanged: _busy ? null : _toggle,
         ),
-        if (_busy)
+        if (_busy && Platform.isAndroid)
           ValueListenableBuilder<double>(
             valueListenable: _svc.progress,
             builder: (_, p, __) => Padding(

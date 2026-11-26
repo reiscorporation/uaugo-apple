@@ -12,7 +12,15 @@ package helpaitech.comboio
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.Canvas
+import android.graphics.ColorFilter
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.InsetDrawable
+import android.graphics.drawable.LayerDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
@@ -190,8 +198,18 @@ class CarOverlay(private val ctx: Context) {
 
     /** No mapa: vai para a estrada em 3D (no 3D, tocar no minimapa volta). */
     private val view3dBtn = tv(19f, Color.WHITE).apply {
-        text = "3D"; gravity = Gravity.CENTER
-        background = box(Color.rgb(15, 27, 45), 14)
+        gravity = Gravity.CENTER
+    }
+    /** Fundos do botão 3D/mapa com o mesmo desenho do celular (26/11): "3D"
+     *  com a estradinha laranja embaixo; no 3D, o ícone do mapa. */
+    private val bg3d: Drawable by lazy {
+        LayerDrawable(arrayOf(box(Color.rgb(15, 27, 45), 14),
+            InsetDrawable(Label3dDrawable(), dp(11), dp(13), dp(11), dp(13))))
+    }
+    private val bgMap: Drawable by lazy {
+        val icon = ctx.getDrawable(R.drawable.car_map)!!.mutate().apply { setTint(Color.WHITE) }
+        LayerDrawable(arrayOf(box(Color.rgb(15, 27, 45), 14),
+            InsetDrawable(icon, dp(14), dp(14), dp(14), dp(14))))
     }
 
     /** Qual botão do mapa foi tocado (com folga para o dedo). */
@@ -362,6 +380,12 @@ class CarOverlay(private val ctx: Context) {
     private fun placeBottom(r: android.graphics.Rect, width: Int) {
         val b = buttonRow ?: return
         val c = speedColumn ?: return
+        // Desliza (em vez de pular) quando os botões do Android Auto aparecem
+        // ou somem.
+        if (b.width > 0) {
+            android.transition.TransitionManager.beginDelayedTransition(root,
+                android.transition.ChangeBounds().setDuration(180))
+        }
         val narrow = r.width() < 560 // mesmo critério do extraLeft do mapa
         val blp = b.layoutParams as FrameLayout.LayoutParams
         val clp = c.layoutParams as FrameLayout.LayoutParams
@@ -386,9 +410,12 @@ class CarOverlay(private val ctx: Context) {
     }
 
     /** Distância da borda direita da tela até a borda do mapa: o painel dos
-     *  passos (se houver) ou a coluna de botões do Android Auto. */
+     *  passos (se houver) ou a coluna de botões do Android Auto. 26/11: sem
+     *  folga fixa: com os botões do Android Auto (zoom, sair) escondidos, os
+     *  do UauGo vão até a borda; ao tocar na tela eles aparecem, a área livre
+     *  diminui e os nossos andam para a esquerda. */
     private fun rightEdge(r: android.graphics.Rect, width: Int) =
-        if (panelW > 0) panelW else maxOf((width - r.right).coerceAtLeast(0), dp(84))
+        if (panelW > 0) panelW else (width - r.right).coerceAtLeast(0)
 
     /** Liga/desliga o painel dos próximos passos (40% da largura). [padR]:
      *  espaço da coluna do Android Auto, que fica por cima do painel. */
@@ -461,7 +488,8 @@ class CarOverlay(private val ctx: Context) {
         speedArea.visibility = View.VISIBLE
         // 3D/mapa ao lado do radar, no mapa E no 3D, como no celular (23/11).
         view3dBtn.visibility = View.VISIBLE
-        view3dBtn.text = if (hud3d) "🗺" else "3D"
+        view3dBtn.text = ""
+        view3dBtn.background = if (hud3d) bgMap else bg3d
         stepsTitle.text = tx("Next steps", "Próximos passos", "Próximos pasos")
         if (listOn) {
             val st = CarState.steps
@@ -581,4 +609,47 @@ class HexDrawable(private val fill: Int, private val stroke: Int, private val sw
     override fun setColorFilter(f: android.graphics.ColorFilter?) {}
     @Deprecated("Deprecated in Java")
     override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
+}
+
+/** O botão "3D" do celular (map_screen.dart, _Label3d): "3" branco e "D"
+ *  laranja em itálico, com a estrada laranja em perspectiva embaixo. */
+private class Label3dDrawable : Drawable() {
+    private val orange = Color.rgb(255, 122, 26)
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD_ITALIC)
+        textAlign = Paint.Align.LEFT
+    }
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val dash = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE; strokeCap = Paint.Cap.ROUND; style = Paint.Style.STROKE
+    }
+
+    override fun draw(c: Canvas) {
+        val b = bounds
+        val w = b.width().toFloat(); val h = b.height().toFloat()
+        c.save()
+        c.translate(b.left.toFloat(), b.top.toFloat())
+        text.textSize = h * 0.66f
+        text.letterSpacing = -0.03f
+        val w3 = text.measureText("3"); val wd = text.measureText("D")
+        val x0 = (w - w3 - wd) / 2
+        val base = h * 0.62f
+        text.color = Color.WHITE; c.drawText("3", x0, base, text)
+        text.color = orange; c.drawText("D", x0 + w3, base, text)
+        val y0 = h * 0.72f; val y1 = h
+        fill.color = orange
+        c.drawPath(Path().apply {
+            moveTo(w * 0.40f, y0); lineTo(w * 0.60f, y0)
+            lineTo(w * 0.92f, y1); lineTo(w * 0.08f, y1); close()
+        }, fill)
+        dash.strokeWidth = h * 0.05f
+        c.drawLine(w / 2, y0 + h * 0.05f, w / 2, y0 + h * 0.11f, dash)
+        c.drawLine(w / 2, y0 + h * 0.19f, w / 2, y1 - h * 0.02f, dash)
+        c.restore()
+    }
+
+    override fun setAlpha(alpha: Int) {}
+    override fun setColorFilter(cf: ColorFilter?) {}
+    @Deprecated("Deprecated in Java")
+    override fun getOpacity() = PixelFormat.TRANSLUCENT
 }

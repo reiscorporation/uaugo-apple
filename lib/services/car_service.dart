@@ -343,6 +343,10 @@ class CarService {
       SharedPlaceService.instance.pending.value = a.substring(9);
       return;
     }
+    if (a == 'hazard:voice') {
+      toast(tr('Abra o mapa no celular para falar o alerta'));
+      return;
+    }
     if (a.startsWith('unhazard:')) {
       toast(tr('Abra o mapa no celular para remover o alerta'));
       return;

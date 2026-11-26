@@ -36,6 +36,7 @@ const voiceAlertWords = <String, HazardType>{
   'neblina': HazardType.fog,
   'pipa': HazardType.kite,
   'perigo': HazardType.danger,
+  'obras': HazardType.roadworks,
   'área de risco': HazardType.risk,
   'radar fixo': HazardType.fixedRadar,
   'semáforo': HazardType.signal,
