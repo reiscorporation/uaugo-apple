@@ -56,6 +56,17 @@ final class CarBridgeIOS {
     case "toast":
       if let t = call.arguments as? String { carPlay?.toast(t) }
       result(nil)
+    case "searchResults":
+      // Lugares à frente na rota (lupa do CarPlay, 26/11).
+      let list = (call.arguments as? [[String: Any]] ?? []).map {
+        (id: $0["id"] as? String ?? "", name: $0["n"] as? String ?? "", info: $0["s"] as? String ?? "")
+      }
+      carPlay?.showResults(list)
+      result(nil)
+    case "closeAlerts":
+      // O alerta / a busca falada deu certo: volta ao mapa.
+      carPlay?.backToMap()
+      result(nil)
     default:
       // Coisas só do Android Auto (3D, busca no carro, pins...): ignora.
       result(nil)
@@ -151,8 +162,13 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate, CPM
     let radar = CPBarButton(title: tx("Radar", "Radar", "Radar")) { _ in
       CarBridgeIOS.shared.action("radar")
     }
+    // Lupa (26/11): paradas no caminho; com os comandos de voz ligados, o
+    // celular já ouve o que procurar (como no Android Auto e no celular).
+    let search = CPBarButton(image: UIImage(systemName: "magnifyingglass")!) { [weak self] _ in
+      self?.showSearch()
+    }
     mapTemplate.leadingNavigationBarButtons = [alert]
-    mapTemplate.trailingNavigationBarButtons = [radar]
+    mapTemplate.trailingNavigationBarButtons = [radar, search]
     let zoomIn = CPMapButton { [weak self] _ in self?.mapVC.zoom(by: 1) }
     zoomIn.image = UIImage(systemName: "plus.magnifyingglass")
     let zoomOut = CPMapButton { [weak self] _ in self?.mapVC.zoom(by: -1) }
@@ -160,8 +176,70 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate, CPM
     mapTemplate.mapButtons = [zoomIn, zoomOut]
   }
 
+  private var resultsList: CPListTemplate?
+
+  /// Tipos de parada (os mesmos do Android Auto, STOP_KINDS).
+  private func showSearch() {
+    CarBridgeIOS.shared.action("findvoice:auto")
+    let kinds: [(String, String)] = [
+      ("fuel", tx("⛽ Gas station", "⛽ Posto", "⛽ Gasolinera")),
+      ("food", tx("🍽️ Restaurant", "🍽️ Restaurante", "🍽️ Restaurante")),
+      ("cafe", tx("☕ Coffee", "☕ Café", "☕ Café")),
+      ("pharmacy", tx("💊 Pharmacy", "💊 Farmácia", "💊 Farmacia")),
+      ("tire", tx("🛞 Tire repair", "🛞 Borracharia", "🛞 Gomería")),
+      ("lodging", tx("🛏️ Lodging", "🛏️ Hospedagem", "🛏️ Hospedaje")),
+    ]
+    let items: [CPListItem] = kinds.map { (cat, label) in
+      let it = CPListItem(text: label, detailText: nil)
+      it.handler = { [weak self] _, done in
+        CarBridgeIOS.shared.action("hazard:voicecancel")
+        CarBridgeIOS.shared.action("findstop:\(cat)")
+        self?.showSearching(label)
+        done()
+      }
+      return it
+    }
+    let list = CPListTemplate(title: tx("Stop on the way", "Parada no caminho", "Parada en el camino"),
+                              sections: [CPListSection(items: items)])
+    ic?.pushTemplate(list, animated: true, completion: nil)
+  }
+
+  private func showSearching(_ title: String) {
+    let wait = CPListItem(text: tx("Searching…", "Procurando…", "Buscando…"), detailText: nil)
+    let list = CPListTemplate(title: title, sections: [CPListSection(items: [wait])])
+    resultsList = list
+    ic?.pushTemplate(list, animated: true, completion: nil)
+  }
+
+  /// Resultados da busca: tocar inclui como próxima parada.
+  func showResults(_ res: [(id: String, name: String, info: String)]) {
+    guard let list = resultsList else { return }
+    var items: [CPListItem] = res.map { r in
+      let it = CPListItem(text: r.name, detailText: r.info.isEmpty ? nil : r.info)
+      it.handler = { [weak self] _, done in
+        CarBridgeIOS.shared.action("stopat:\(r.id)|\(r.name)")
+        self?.toast(tx("Adding stop…", "Incluindo a parada…", "Agregando la parada…"))
+        self?.backToMap()
+        done()
+      }
+      return it
+    }
+    if items.isEmpty {
+      items = [CPListItem(text: tx("Nothing found ahead", "Nada encontrado à frente",
+                                   "Nada encontrado adelante"), detailText: nil)]
+    }
+    list.updateSections([CPListSection(items: items)])
+  }
+
+  func backToMap() {
+    resultsList = nil
+    ic?.popToRootTemplate(animated: true, completion: nil)
+  }
+
   /// Lista de alertas (mesmos nomes do app: hazard:police...).
   private func showAlerts() {
+    // Como no celular: a lista já abre ouvindo o alerta falado (26/11).
+    CarBridgeIOS.shared.action("hazard:voice:auto")
     let types: [(String, String)] = [
       ("police", tx("Police", "Polícia", "Policía")),
       ("radar", tx("Mobile speed camera", "Radar móvel", "Radar móvil")),
@@ -177,6 +255,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate, CPM
     let items: [CPListItem] = types.map { (name, label) in
       let it = CPListItem(text: label, detailText: nil)
       it.handler = { [weak self] _, done in
+        CarBridgeIOS.shared.action("hazard:voicecancel")
         CarBridgeIOS.shared.action("hazard:\(name)")
         self?.ic?.popTemplate(animated: true, completion: nil)
         done()
