@@ -301,7 +301,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     MediaService.instance.stop();
     _ticker?.cancel();
-    _onlineTimer?.cancel();
+    // 26/11: com o carro conectado (celular travado) continua vendo se tem
+    // internet: o carro avisa e troca o mapa pela estrada da rota.
+    if (!CarService.instance.connected.value) _onlineTimer?.cancel();
     // 25/11: com o Android Auto/CarPlay o celular costuma ficar travado no
     // bolso; chuva e trânsito à frente continuam (no carro vale o mesmo que
     // no celular). O relógio da chuva nunca para: _checkRain decide (sem
@@ -7459,10 +7461,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     _offlineChecks = ok ? 0 : _offlineChecks + 1;
     final on = ok || _offlineChecks < 2;
+    CarService.instance.offline(!on);
     if (on == _online3d) return;
     final showing = _show3d;
     setState(() => _online3d = on);
     _sendMode3dToCar();
+    // Navegando com o carro: avisa na hora (antes só avisava se precisasse
+    // recalcular ou se estivesse no 3D).
+    if (!on && !showing && _navigating && CarService.instance.connected.value) {
+      _showTrafficBanner(tr('📵 Sem internet: siga a rota azul. O mapa volta com a conexão.'));
+    }
     if (on) {
       _sim3dSig = ''; // página nova: manda a rota de novo
       WidgetsBinding.instance.addPostFrameCallback((_) => _feed3d());
@@ -8272,6 +8280,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     CarService.instance.emergency(ec?.$1, ec?.$2, force: true);
     _sendPoisToCar();
     _sendHazardsToCar();
+    CarService.instance.offline(!_online3d, force: true);
+    // Carro conectou com o app fora da tela: o relógio da internet volta.
+    if (_onlineTimer == null || !_onlineTimer!.isActive) {
+      _onlineTimer = Timer.periodic(const Duration(seconds: 10), (_) => _checkOnline());
+    }
     _sendGroupToCar();
     _sendMode3dToCar();
     _carBikeSig = ''; // reconectou: manda a imagem do veículo de novo

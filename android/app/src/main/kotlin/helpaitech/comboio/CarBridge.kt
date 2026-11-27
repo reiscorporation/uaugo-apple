@@ -120,6 +120,9 @@ object CarState {
     @Volatile var emergencyPhone: String? = null
     /** Estrada em 3D no carro: 0 = só mapa, 1 = nas saídas, 2 = sempre. */
     @Volatile var mode3d = 0
+    /** Celular sem internet (26/11): o mapa do Google sai e fica a estrada
+     *  da rota desenhada pelo UauGo, com o aviso "Sem internet". */
+    @Volatile var offline = false
     /** Imagem do veículo (PNG), a mesma do mapa do celular. */
     @Volatile var vehicleImage: ByteArray? = null
     /** Cena 3D: último comando de cada tipo ("sim3d.update" -> js) e quem executa. */
@@ -317,6 +320,11 @@ class CarBridge(messenger: BinaryMessenger) {
                     val m = call.arguments as? Map<*, *>
                     CarState.emergencyName = m?.get("name") as? String
                     CarState.emergencyPhone = m?.get("phone") as? String
+                    result.success(null)
+                }
+                "offline" -> {
+                    CarState.offline = call.arguments == true
+                    CarState.changed()
                     result.success(null)
                 }
                 "mode3d" -> {

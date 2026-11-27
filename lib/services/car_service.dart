@@ -177,6 +177,15 @@ class CarService {
         .catchError((_) => null);
   }
 
+  bool? _offlineSent;
+
+  /// Celular sem internet: o carro troca o mapa pela estrada da rota e avisa.
+  void offline(bool v, {bool force = false}) {
+    if (v == _offlineSent && !force) return;
+    _offlineSent = v;
+    _ch.invokeMethod('offline', v).catchError((_) => null);
+  }
+
   void mode3d(int mode) {
     _ch.invokeMethod('mode3d', mode).catchError((_) => null);
   }

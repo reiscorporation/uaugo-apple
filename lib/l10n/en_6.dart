@@ -54,4 +54,5 @@ const en6 = <String, String>{
   'Falar': 'Speak',
   'Ouvindo… o que você procura?': 'Listening… what are you looking for?',
   'Não ouvi. Escolha na lista ou toque na lupa de novo.': 'I did not hear you. Pick from the list or tap the magnifier again.',
+  '📵 Sem internet: siga a rota azul. O mapa volta com a conexão.': '📵 No internet: follow the blue route. The map returns with the connection.',
 };

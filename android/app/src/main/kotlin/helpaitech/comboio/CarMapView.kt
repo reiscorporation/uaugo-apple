@@ -41,6 +41,8 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.Polyline
+import com.google.android.gms.maps.model.Polygon
+import com.google.android.gms.maps.model.PolygonOptions
 import com.google.android.gms.maps.model.PolylineOptions
 import kotlin.math.max
 
@@ -97,7 +99,8 @@ private const val NIGHT = """[
 
 /** Mapa do Google desenhado na tela do carro. */
 /** Escala das letras do mapa do carro (1 = padrão do Google). */
-const val MAP_FONT_SCALE = 0.85f
+// 26/11 noite: 0,85 -> 0,65 (nome da rodovia cobria o veículo e a rota).
+const val MAP_FONT_SCALE = 0.65f
 
 /** Densidade do mapa do carro: o Google desenha nomes de rua pela densidade
  *  da tela (a escala de letra quase não muda de perto). 0,75 = letras ~3
@@ -127,6 +130,11 @@ class CarMapView(private val context: Context) {
     private val trafficLines = mutableListOf<Polyline>()
     private var trafficDrawn: Any? = null
     private var routeSig = 0
+    /** Sem internet: estrada desenhada embaixo da rota (como no celular). */
+    private var offlineRoad: Polyline? = null
+    private var offlineShown = false
+    /** Sem internet: fundo liso na cor do mapa (o do Google fica cinza-claro). */
+    private var offlineBg: Polygon? = null
     private var trimIdx = 0
     private var poiSig = 0
     private val poiMarkers = mutableListOf<com.google.android.gms.maps.model.Marker>()
@@ -423,6 +431,7 @@ class CarMapView(private val context: Context) {
         view3d?.dark = on
         if (on == dark && map != null) return
         dark = on
+        routeSig = 0 // fundo do "sem internet" na cor nova
         map?.let { g ->
             runCatching {
                 g.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions(styleFor(on, CarState.placeNames)))
@@ -483,6 +492,9 @@ class CarMapView(private val context: Context) {
         display = null
         map = null
         routeLine = null
+        offlineRoad = null
+        offlineBg = null
+        offlineShown = false
         trafficLines.clear()
         trafficDrawn = null
         poiMarkers.clear()
@@ -521,8 +533,34 @@ class CarMapView(private val context: Context) {
         val sig = pts.size * 31 + (pts.firstOrNull()?.contentHashCode() ?: 0) +
             (pts.lastOrNull()?.contentHashCode() ?: 0) +
             (pts.getOrNull(pts.size / 2)?.contentHashCode() ?: 0) * 7
+        // Sem internet (26/11): o mapa do Google ficava com as ruas de outro
+        // zoom (a rota "fora da rodovia") e nada avisava. Como no celular:
+        // tira o mapa e desenha a estrada da rota embaixo da linha azul.
+        if (CarState.offline != offlineShown) {
+            offlineShown = CarState.offline
+            g.mapType = if (offlineShown) GoogleMap.MAP_TYPE_NONE else GoogleMap.MAP_TYPE_NORMAL
+            routeSig = 0
+        }
         if (sig != routeSig) {
             routeSig = sig
+            offlineRoad?.remove()
+            offlineBg?.remove()
+            offlineBg = if (offlineShown && pts.isNotEmpty()) {
+                val la = pts.map { it[0] }; val lo = pts.map { it[1] }
+                val s = la.min() - 1; val n = la.max() + 1; val w = lo.min() - 1; val e = lo.max() + 1
+                g.addPolygon(PolygonOptions()
+                    .add(LatLng(s, w), LatLng(n, w), LatLng(n, e), LatLng(s, e))
+                    .fillColor(if (dark) Color.rgb(22, 35, 56) else Color.rgb(232, 234, 237))
+                    .strokeWidth(0f)
+                    .zIndex(0f))
+            } else null
+            offlineRoad = if (offlineShown && pts.size >= 2) g.addPolyline(
+                PolylineOptions()
+                    .addAll(pts.map { LatLng(it[0], it[1]) })
+                    .color(Color.rgb(74, 80, 90))
+                    .width(14f)
+                    .jointType(com.google.android.gms.maps.model.JointType.ROUND)
+                    .zIndex(1f)) else null
             routeLine?.remove()
             trimIdx = 0
             routeLine = if (pts.size >= 2) g.addPolyline(

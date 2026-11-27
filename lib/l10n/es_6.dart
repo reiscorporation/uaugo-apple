@@ -54,4 +54,5 @@ const es6 = <String, String>{
   'Falar': 'Hablar',
   'Ouvindo… o que você procura?': 'Escuchando… ¿qué buscas?',
   'Não ouvi. Escolha na lista ou toque na lupa de novo.': 'No te escuché. Elige en la lista o toca la lupa de nuevo.',
+  '📵 Sem internet: siga a rota azul. O mapa volta com a conexão.': '📵 Sin internet: sigue la ruta azul. El mapa vuelve con la conexión.',
 };

@@ -95,10 +95,11 @@ class CarOverlay(private val ctx: Context) {
         banner.setTextColor(if (blinkRed) Color.WHITE else Color.BLACK)
     }
     private val speedArea = FrameLayout(ctx)
-    private val limit = tv(18f, Color.BLACK).apply {
-        gravity = Gravity.CENTER
+    // 26/11 noite: 44 -> 56 dp; "110" passava por cima da borda vermelha.
+    private val limit = tv(22f, Color.BLACK, true).apply {
+        gravity = Gravity.CENTER; includeFontPadding = false
         background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL; setColor(Color.WHITE); setStroke(dp(4), Color.RED)
+            shape = GradientDrawable.OVAL; setColor(Color.WHITE); setStroke(dp(5), Color.RED)
         }
     }
     private val alertBtn = tv(36f, Color.BLACK).apply {
@@ -349,6 +350,9 @@ class CarOverlay(private val ctx: Context) {
         top.addView(row, LinearLayout.LayoutParams(-1, -2))
         top.addView(banner, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
         top.addView(groupBar, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
+        // 26/11 noite: o aviso vermelho ("Sem internet"...) sobe para cá; ao
+        // lado do velocímetro ficava atrás dos botões maiores.
+        top.addView(pill, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6) })
         topBox = top
         root.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
             setMargins(dp(10), dp(10), dp(10), 0)
@@ -365,7 +369,7 @@ class CarOverlay(private val ctx: Context) {
             addView(speed); addView(tv(13f, Color.WHITE, false).apply { text = "km/h"; gravity = Gravity.CENTER })
         }
         speedBox.addView(sp, FrameLayout.LayoutParams(dp(96), dp(96), Gravity.BOTTOM or Gravity.START))
-        speedBox.addView(limit, FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.END))
+        speedBox.addView(limit, FrameLayout.LayoutParams(dp(56), dp(56), Gravity.TOP or Gravity.END))
         val bottom = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
         // Embaixo de tudo: alerta e radar móvel, iguais aos do celular.
         val column = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
@@ -390,8 +394,8 @@ class CarOverlay(private val ctx: Context) {
         side.addView(musicBar, LinearLayout.LayoutParams(-2, dp(CAR_SIDE)))
         sideAdd(musicBtn); sideAdd(settingsBtn); sideAdd(compassBtn); sideAdd(viewBtn, 86); sideAdd(requestBtn)
         sideColumn = side
-        bottom.addView(speedBox, LinearLayout.LayoutParams(dp(118), dp(108)))
-        bottom.addView(pill, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8); bottomMargin = dp(6) })
+        bottom.addView(speedBox, LinearLayout.LayoutParams(dp(128), dp(116)))
+
         column.addView(bottom)
         speedColumn = column
         buttonRow = buttons
@@ -604,7 +608,10 @@ class CarOverlay(private val ctx: Context) {
         }
         limit.visibility = if (CarState.limitKmh > 0) View.VISIBLE else View.GONE
         limit.text = "${CarState.limitKmh}"
-        val a = CarState.alert
+        limit.textSize = if (CarState.limitKmh >= 100) 17f else 22f
+        // Sem internet: selo fixo (o aviso do momento tem prioridade).
+        val a = CarState.alert?.takeIf { it.isNotBlank() }
+            ?: if (CarState.offline) tx("📵 No internet", "📵 Sem internet", "📵 Sin internet") else null
         pill.visibility = if (a.isNullOrBlank()) View.GONE else View.VISIBLE
         pill.text = a ?: ""
     }
