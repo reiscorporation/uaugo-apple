@@ -163,14 +163,18 @@ class CarOverlay(private val ctx: Context) {
     private val stepsMinBtn = tv(26f, Color.rgb(33, 33, 33), true).apply {
         text = "›"; gravity = Gravity.CENTER
     }
+    /** Botões do Android Auto na tela: título curto. */
+    private var headNarrow = false
+    /** Linha do título (Próximos passos + ›). */
+    private val stepsHead = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        addView(stepsTitle, LinearLayout.LayoutParams(0, -2, 1f))
+        addView(stepsMinBtn, LinearLayout.LayoutParams(dp(48), dp(44)))
+    }
     private val stepsPanel = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE)
         visibility = View.GONE
-        addView(LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            addView(stepsTitle, LinearLayout.LayoutParams(0, -2, 1f))
-            addView(stepsMinBtn, LinearLayout.LayoutParams(dp(48), dp(44)))
-        })
+        addView(stepsHead)
         addView(stepRows)
     }
     /** Minimizado: aba fina branca na direita; tocar restaura o painel. */
@@ -469,7 +473,14 @@ class CarOverlay(private val ctx: Context) {
         // 26/11 noite: com os botões do Android Auto escondidos (padR é só a
         // margem da tela) os passos usam a largura toda; quando eles aparecem,
         // o conteúdo volta para antes da coluna deles.
-        stepsPanel.setPadding(0, 0, if (padR > dp(40)) maxOf(padR, dp(96)) else dp(8), 0)
+        val shown = padR > dp(40)
+        headNarrow = shown
+        val panelPad = if (shown) maxOf(padR, dp(96)) else dp(8)
+        stepsPanel.setPadding(0, 0, panelPad, 0)
+        // A lupa e o "sair" do Android Auto ficam no alto, mais largos que a
+        // coluna dele: o › (recolher) ficava atrás da lupa. Com eles na tela,
+        // o título termina antes dos dois botões (~170 dp da borda).
+        stepsHead.setPadding(0, 0, if (shown) maxOf(0, dp(170) - panelPad) else 0, 0)
         stepsPanel.visibility = if (w > 0 && !min) View.VISIBLE else View.GONE
         val tlp = stepsTab.layoutParams as FrameLayout.LayoutParams
         tlp.width = if (min) w else 0
@@ -529,7 +540,10 @@ class CarOverlay(private val ctx: Context) {
         view3dBtn.visibility = View.VISIBLE
         view3dBtn.text = ""
         view3dBtn.background = if (hud3d) bgMap else bg3d
-        stepsTitle.text = tx("Next steps", "Próximos passos", "Próximos pasos")
+        // Com a lupa/sair do Android Auto na tela sobra pouco espaço: título
+        // curto (quebrava "Próx-imos").
+        stepsTitle.text = if (headNarrow) tx("Steps", "Passos", "Pasos")
+            else tx("Next steps", "Próximos passos", "Próximos pasos")
         if (listOn) {
             val st = CarState.steps
             val sig = st.joinToString("|") { "${it.first}${it.second}${it.third / 10}" }
