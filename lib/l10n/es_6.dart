@@ -60,4 +60,9 @@ const es6 = <String, String>{
   'O servidor demorou para responder. Toque em Tentar de novo. (código: {0})': 'El servidor tardó en responder. Toca Intentar de nuevo. (código: {0})',
   '📵 Não foi possível falar com o servidor da busca.\nOs destinos recentes acima funcionam sem internet. Os avisos de radar e velocidade continuam funcionando. (código: {0})': '📵 No se pudo contactar el servidor de búsqueda.\nLos destinos recientes de arriba funcionan sin internet. Los avisos de radar y velocidad siguen funcionando. (código: {0})',
   'Não foi possível buscar agora (código: {0})': 'No se pudo buscar ahora (código: {0})',
+  '🛣️ Pedágios ({3}): ≈ {0} em {1}{2}': '🛣️ Peajes ({3}): ≈ {0} en {1}{2}',
+  'moto': 'moto',
+  '{0}, {1} eixos': '{0}, {1} ejes',
+  '{0} + reboque de 1 eixo': '{0} + remolque de 1 eje',
+  '{0} + reboque de 2 eixos': '{0} + remolque de 2 ejes',
 };

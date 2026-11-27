@@ -316,7 +316,9 @@ List<String> describeTolls(TollEstimate e, BikeProfile bike, String Function(dou
         ? tr(' ({0} para moto)', [e.free == 1 ? tr('1 isenta') : tr('{0} isentas', [e.free])])
         : '';
     return [
-      tr('🛣️ Pedágios: ≈ {0} em {1}{2}', [money(e.total), n, freeNote]),
+      // 26/11: diz para qual veículo foi a conta (no iPhone o perfil estava
+      // como pesado e o valor saiu 9× maior sem ninguém perceber por quê).
+      tr('🛣️ Pedágios ({3}): ≈ {0} em {1}{2}', [money(e.total), n, freeNote, tollVehicle(bike)]),
       if (e.motoAssumed > 0) _assumedNote(e),
     ];
   }
@@ -335,6 +337,21 @@ List<String> describeTolls(TollEstimate e, BikeProfile bike, String Function(dou
         : tr('{0} paga pedágio nessas praças ({1} o valor do carro).', [cap, _times(f)]));
   }
   return lines;
+}
+
+/// Veículo usado na conta do pedágio: "moto", "Carro + reboque de 1 eixo",
+/// "Caminhão, 9 eixos".
+String tollVehicle(BikeProfile bike) {
+  final s = bike.style;
+  if (s.isMoto) return tr('moto');
+  if (s.isHeavy) {
+    return tr('{0}, {1} eixos', [s.label, (bike.axles ?? s.defaultAxles).clamp(2, 20)]);
+  }
+  return switch (bike.trailerAxles) {
+    1 => tr('{0} + reboque de 1 eixo', [s.label]),
+    2 => tr('{0} + reboque de 2 eixos', [s.label]),
+    _ => s.label,
+  };
 }
 
 String _assumedNote(TollEstimate e) => e.motoAssumed == 1

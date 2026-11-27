@@ -60,4 +60,9 @@ const en6 = <String, String>{
   'O servidor demorou para responder. Toque em Tentar de novo. (código: {0})': 'The server took too long to answer. Tap Try again. (code: {0})',
   '📵 Não foi possível falar com o servidor da busca.\nOs destinos recentes acima funcionam sem internet. Os avisos de radar e velocidade continuam funcionando. (código: {0})': '📵 Could not reach the search server.\nThe recent destinations above work offline. Speed camera and speed warnings keep working. (code: {0})',
   'Não foi possível buscar agora (código: {0})': 'Could not search now (code: {0})',
+  '🛣️ Pedágios ({3}): ≈ {0} em {1}{2}': '🛣️ Tolls ({3}): ≈ {0} at {1}{2}',
+  'moto': 'motorcycle',
+  '{0}, {1} eixos': '{0}, {1} axles',
+  '{0} + reboque de 1 eixo': '{0} + 1-axle trailer',
+  '{0} + reboque de 2 eixos': '{0} + 2-axle trailer',
 };
