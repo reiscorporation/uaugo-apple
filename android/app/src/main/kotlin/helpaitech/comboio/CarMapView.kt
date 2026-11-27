@@ -839,7 +839,31 @@ class CarMapView(private val context: Context) {
     private fun myVehicle(png: ByteArray?): Bitmap {
         val b = png?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) }
             ?: return navArrowBitmap()
-        return Bitmap.createScaledBitmap(b, CAR_VEHICLE_PX, CAR_VEHICLE_PX, true)
+        // 26/11 noite: a imagem do celular tem muita margem transparente (a
+        // moto ocupava ~40% do quadrado e ficava minúscula). Recorta a parte
+        // desenhada e encaixa no quadrado, sem distorcer.
+        val t = trimTransparent(b)
+        val s = CAR_VEHICLE_PX
+        val k = s.toFloat() / maxOf(t.width, t.height)
+        val w = maxOf(1, (t.width * k).toInt()); val h = maxOf(1, (t.height * k).toInt())
+        val out = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
+        Canvas(out).drawBitmap(Bitmap.createScaledBitmap(t, w, h, true),
+            (s - w) / 2f, (s - h) / 2f, Paint(Paint.FILTER_BITMAP_FLAG))
+        return out
+    }
+
+    /** Corta as bordas transparentes (alfa < 16). */
+    private fun trimTransparent(b: Bitmap): Bitmap {
+        val w = b.width; val h = b.height
+        val px = IntArray(w * h); b.getPixels(px, 0, w, 0, 0, w, h)
+        var l = w; var t = h; var r = -1; var bo = -1
+        for (y in 0 until h) for (x in 0 until w) {
+            if ((px[y * w + x] ushr 24) >= 16) {
+                if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > bo) bo = y
+            }
+        }
+        if (r < l || bo < t) return b
+        return Bitmap.createBitmap(b, l, t, r - l + 1, bo - t + 1)
     }
 
     /** Sem a imagem do celular (ainda não chegou): seta de navegação

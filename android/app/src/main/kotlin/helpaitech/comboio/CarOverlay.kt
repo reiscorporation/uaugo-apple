@@ -218,13 +218,39 @@ class CarOverlay(private val ctx: Context) {
             InsetDrawable(icon, dp(17), dp(17), dp(17), dp(17))))
     }
 
+    /** Onde cada botão estava antes da última mudança da área livre. */
+    private val snap = HashMap<View, android.graphics.Rect>()
+    private var snapAt = 0L
+
+    /** 26/11 noite: o 1º toque com os controles do Android Auto escondidos
+     *  faz eles aparecerem; a área livre diminui e os nossos botões andam
+     *  para a esquerda ANTES do toque chegar, que caía no vizinho (tocava no
+     *  3D e marcava radar). Guarda as posições de antes por 1 s. */
+    private fun snapshot() {
+        snap.clear()
+        fun walk(v: View) {
+            if (v.width > 0 && v.visibility == View.VISIBLE) {
+                val o = IntArray(2); v.getLocationInWindow(o)
+                snap[v] = android.graphics.Rect(o[0], o[1], o[0] + v.width, o[1] + v.height)
+            }
+            if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(root)
+        snapAt = android.os.SystemClock.uptimeMillis()
+    }
+
     /** Qual botão do mapa foi tocado (com folga para o dedo). */
     fun hit(x: Float, y: Float): String? {
+        val old = android.os.SystemClock.uptimeMillis() - snapAt < 1000
         fun inside(v: View): Boolean {
+            val m = dp(6)
+            if (old) {
+                val r = snap[v] ?: return false
+                return x >= r.left - m && x <= r.right + m && y >= r.top - m && y <= r.bottom + m
+            }
             if (v.visibility != View.VISIBLE) return false
             val o = IntArray(2)
             v.getLocationInWindow(o)
-            val m = dp(6)
             return x >= o[0] - m && x <= o[0] + v.width + m && y >= o[1] - m && y <= o[1] + v.height + m
         }
         return when {
@@ -275,6 +301,8 @@ class CarOverlay(private val ctx: Context) {
 
     /** Área livre (fora dos botões do Android Auto): a faixa de cima cabe nela. */
     fun setArea(r: android.graphics.Rect, width: Int) {
+        // Só quando a área muda de verdade (não nas reaplicações internas).
+        if (lastArea != null && lastArea != r) snapshot()
         lastArea = android.graphics.Rect(r)
         lastWidth = width
         val v = topBox ?: return
