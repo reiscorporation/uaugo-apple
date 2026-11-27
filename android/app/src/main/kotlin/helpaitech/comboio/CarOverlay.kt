@@ -31,6 +31,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/** Botões do UauGo na tela do carro (dp). 26/11 noite: 56 -> 68, SOS 68 ->
+ *  84, coluna da direita 52 -> 64 ("todos os botões estão pequenos"). */
+const val CAR_BTN = 68
+const val CAR_SOS = 84
+const val CAR_SIDE = 64
+
 class CarOverlay(private val ctx: Context) {
     private val d = ctx.resources.displayMetrics.density
     private fun dp(v: Int) = (v * d).toInt()
@@ -95,17 +101,17 @@ class CarOverlay(private val ctx: Context) {
             shape = GradientDrawable.OVAL; setColor(Color.WHITE); setStroke(dp(4), Color.RED)
         }
     }
-    private val alertBtn = tv(30f, Color.BLACK).apply {
+    private val alertBtn = tv(36f, Color.BLACK).apply {
         text = "\u26A0\uFE0E"; gravity = Gravity.CENTER
         background = box(Color.rgb(255, 193, 7), 14)
     }
     // SOLO/COMBOIO, igual ao botão do celular (só em grupo).
-    private val viewBtn = tv(12f, Color.WHITE).apply {
+    private val viewBtn = tv(14f, Color.WHITE).apply {
         gravity = Gravity.CENTER
         background = box(Color.argb(238, 15, 27, 45), 14)
     }
     // Música (♪), como no celular: sempre à mão.
-    private val musicBtn = tv(26f, Color.WHITE).apply {
+    private val musicBtn = tv(32f, Color.WHITE).apply {
         text = "♪"; gravity = Gravity.CENTER
         background = box(Color.argb(238, 15, 27, 45), 14)
     }
@@ -115,7 +121,7 @@ class CarOverlay(private val ctx: Context) {
         maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
         setPadding(dp(12), 0, dp(6), 0); gravity = Gravity.CENTER_VERTICAL
     }
-    private fun mBtn(t: String) = tv(22f, Color.WHITE).apply { text = t; gravity = Gravity.CENTER }
+    private fun mBtn(t: String) = tv(27f, Color.WHITE).apply { text = t; gravity = Gravity.CENTER }
     private val mPrev = mBtn("⏮︎")
     private val mPlay = mBtn("▶︎")
     private val mNext = mBtn("⏭︎")
@@ -123,22 +129,22 @@ class CarOverlay(private val ctx: Context) {
         orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
         background = box(Color.argb(238, 15, 27, 45), 14)
         addView(musicTitle, LinearLayout.LayoutParams(dp(170), -1))
-        addView(mPrev, LinearLayout.LayoutParams(dp(48), -1))
-        addView(mPlay, LinearLayout.LayoutParams(dp(52), -1))
-        addView(mNext, LinearLayout.LayoutParams(dp(48), -1))
+        addView(mPrev, LinearLayout.LayoutParams(dp(58), -1))
+        addView(mPlay, LinearLayout.LayoutParams(dp(CAR_SIDE), -1))
+        addView(mNext, LinearLayout.LayoutParams(dp(58), -1))
         visibility = View.GONE
     }
     // Configurações (⚙), como no celular.
-    private val settingsBtn = tv(26f, Color.WHITE).apply {
+    private val settingsBtn = tv(32f, Color.WHITE).apply {
         text = "⚙︎"; gravity = Gravity.CENTER
         background = box(Color.argb(238, 15, 27, 45), 14)
     }
-    private val requestBtn = tv(25f, Color.WHITE).apply {
+    private val requestBtn = tv(31f, Color.WHITE).apply {
         text = "\uD83D\uDCE2"; gravity = Gravity.CENTER
         background = box(Color.rgb(245, 124, 0), 14)
     }
     // SOS redondo, vermelho com borda branca, como no celular (23/11).
-    private val sosBtn = tv(17f, Color.WHITE).apply {
+    private val sosBtn = tv(21f, Color.WHITE).apply {
         text = "SOS"; gravity = Gravity.CENTER
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL; setColor(Color.rgb(229, 57, 53)); setStroke(dp(3), Color.WHITE)
@@ -184,32 +190,32 @@ class CarOverlay(private val ctx: Context) {
     private val groupBar = tv(15f, Color.WHITE).apply {
         setPadding(dp(12), dp(8), dp(12), dp(8)); maxLines = 2
     }
-    private val radarBtn = tv(25f, Color.WHITE).apply {
+    private val radarBtn = tv(31f, Color.WHITE).apply {
         text = "\uD83D\uDCF7"; gravity = Gravity.CENTER
         background = box(Color.rgb(211, 47, 47), 14)
     }
 
     /** Bússola sempre à vista, como no celular: a coluna de botões do
      *  Android Auto some sozinha alguns segundos depois de navegar (16/11). */
-    private val compassBtn = tv(24f, Color.WHITE).apply {
+    private val compassBtn = tv(30f, Color.WHITE).apply {
         text = "🧭"; gravity = Gravity.CENTER
         background = box(Color.argb(238, 15, 27, 45), 14)
     }
 
     /** No mapa: vai para a estrada em 3D (no 3D, tocar no minimapa volta). */
-    private val view3dBtn = tv(19f, Color.WHITE).apply {
+    private val view3dBtn = tv(23f, Color.WHITE).apply {
         gravity = Gravity.CENTER
     }
     /** Fundos do botão 3D/mapa com o mesmo desenho do celular (26/11): "3D"
      *  com a estradinha laranja embaixo; no 3D, o ícone do mapa. */
     private val bg3d: Drawable by lazy {
         LayerDrawable(arrayOf(box(Color.rgb(15, 27, 45), 14),
-            InsetDrawable(Label3dDrawable(), dp(11), dp(13), dp(11), dp(13))))
+            InsetDrawable(Label3dDrawable(), dp(13), dp(16), dp(13), dp(16))))
     }
     private val bgMap: Drawable by lazy {
         val icon = ctx.getDrawable(R.drawable.car_map)!!.mutate().apply { setTint(Color.WHITE) }
         LayerDrawable(arrayOf(box(Color.rgb(15, 27, 45), 14),
-            InsetDrawable(icon, dp(14), dp(14), dp(14), dp(14))))
+            InsetDrawable(icon, dp(17), dp(17), dp(17), dp(17))))
     }
 
     /** Qual botão do mapa foi tocado (com folga para o dedo). */
@@ -344,16 +350,17 @@ class CarOverlay(private val ctx: Context) {
         }
         // Como no celular deitado (23/11): embaixo 3D/mapa, radar móvel,
         // alerta e o SOS redondo; a coluna da direita fica acima do SOS.
-        buttons.addView(view3dBtn, LinearLayout.LayoutParams(dp(56), dp(56)))
-        buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
-        buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(56), dp(56)).apply { leftMargin = dp(8) })
-        buttons.addView(sosBtn, LinearLayout.LayoutParams(dp(68), dp(68)).apply { leftMargin = dp(8) })
+        // 26/11 noite: botões maiores ("todos pequenos" no carro).
+        buttons.addView(view3dBtn, LinearLayout.LayoutParams(dp(CAR_BTN), dp(CAR_BTN)))
+        buttons.addView(radarBtn, LinearLayout.LayoutParams(dp(CAR_BTN), dp(CAR_BTN)).apply { leftMargin = dp(8) })
+        buttons.addView(alertBtn, LinearLayout.LayoutParams(dp(CAR_BTN), dp(CAR_BTN)).apply { leftMargin = dp(8) })
+        buttons.addView(sosBtn, LinearLayout.LayoutParams(dp(CAR_SOS), dp(CAR_SOS)).apply { leftMargin = dp(8) })
         val side = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.END
         }
-        fun sideAdd(v: View, w: Int = 52) = side.addView(v, LinearLayout.LayoutParams(dp(w), dp(52)).apply { topMargin = dp(8) })
-        side.addView(musicBar, LinearLayout.LayoutParams(-2, dp(52)))
-        sideAdd(musicBtn); sideAdd(settingsBtn); sideAdd(compassBtn); sideAdd(viewBtn, 72); sideAdd(requestBtn)
+        fun sideAdd(v: View, w: Int = CAR_SIDE) = side.addView(v, LinearLayout.LayoutParams(dp(w), dp(CAR_SIDE)).apply { topMargin = dp(8) })
+        side.addView(musicBar, LinearLayout.LayoutParams(-2, dp(CAR_SIDE)))
+        sideAdd(musicBtn); sideAdd(settingsBtn); sideAdd(compassBtn); sideAdd(viewBtn, 86); sideAdd(requestBtn)
         sideColumn = side
         bottom.addView(speedBox, LinearLayout.LayoutParams(dp(118), dp(108)))
         bottom.addView(pill, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8); bottomMargin = dp(6) })
@@ -367,7 +374,7 @@ class CarOverlay(private val ctx: Context) {
             setMargins(0, 0, dp(84) + EDGE_R, EDGE_B)
         })
         root.addView(side, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply {
-            setMargins(0, 0, dp(84) + EDGE_R, EDGE_B + dp(68 + 4))
+            setMargins(0, 0, dp(84) + EDGE_R, EDGE_B + dp(CAR_SOS + 4))
         })
         root.addView(stepsPanel, FrameLayout.LayoutParams(0, -1, Gravity.END))
         root.addView(stepsTab, FrameLayout.LayoutParams(0, -1, Gravity.END))
@@ -389,7 +396,7 @@ class CarOverlay(private val ctx: Context) {
         if (narrow) {
             blp.gravity = Gravity.BOTTOM or Gravity.START
             blp.setMargins(r.left + dp(10), 0, 0, EDGE_B)
-            clp.setMargins(r.left + dp(10), 0, 0, EDGE_B + dp(56 + 8))
+            clp.setMargins(r.left + dp(10), 0, 0, EDGE_B + dp(CAR_SOS + 8))
         } else {
             blp.gravity = Gravity.BOTTOM or Gravity.END
             blp.setMargins(0, 0, rightEdge(r, width) + EDGE_R, EDGE_B)
@@ -400,7 +407,7 @@ class CarOverlay(private val ctx: Context) {
         sideColumn?.let { sc ->
             val slp = sc.layoutParams as FrameLayout.LayoutParams
             slp.gravity = Gravity.BOTTOM or Gravity.END
-            slp.setMargins(0, 0, rightEdge(r, width) + EDGE_R + dp(8), EDGE_B + dp(68 + 4))
+            slp.setMargins(0, 0, rightEdge(r, width) + EDGE_R + dp(8), EDGE_B + dp(CAR_SOS + 4))
             sc.layoutParams = slp
             sc.visibility = if (narrow) View.GONE else View.VISIBLE
         }
@@ -552,7 +559,7 @@ class CarOverlay(private val ctx: Context) {
         // Bússola só no mapa, como no celular (no 3D não faz sentido).
         compassBtn.visibility = if (hud3d) View.GONE else View.VISIBLE
         val armed = CarState.sosArmed
-        sosBtn.textSize = if (armed) 12f else 17f
+        sosBtn.textSize = if (armed) 14f else 21f
         sosBtn.text = when {
             !armed -> "SOS"
             else -> tx("Tap again\nto send", "Toque novamente\npara enviar")

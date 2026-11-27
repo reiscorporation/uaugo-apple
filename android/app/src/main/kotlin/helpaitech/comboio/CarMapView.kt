@@ -113,8 +113,9 @@ const val CAR_TILT = 60f
 const val ROUTE_WIDTH_PX = 1f
 
 /** Tamanho do veículo no mapa do carro (px). 23/11: 56 -> 38 ("muito
- *  grande"); 26/11: 52 (pedido: maior, com a rota mais fina). */
-const val CAR_VEHICLE_PX = 52
+ *  grande"); 26/11: 52 (pedido: maior, com a rota mais fina); 26/11
+ *  noite: 72 ("ficou pequeno" no carro). */
+const val CAR_VEHICLE_PX = 72
 val MAP_ZOOM_FIX = (Math.log(1.0 / MAP_DENSITY_SCALE) / Math.log(2.0)).toFloat()
 
 class CarMapView(private val context: Context) {
@@ -767,7 +768,7 @@ class CarMapView(private val context: Context) {
         // + margens): em tela baixa (800x480) a foto do piloto ficava atrás
         // dos botões (DHU, 17/11). Centro = (extraTop + h) / 2.
         val dens = context.resources.displayMetrics.density
-        val lowest = h - 2 * ((56 + 14 + 34) * dens).toInt()
+        val lowest = h - 2 * ((CAR_BTN + 14 + 34) * dens).toInt()
         return maxOf((h * 0.35f).toInt(), minOf((h * 0.62f).toInt(), lowest))
     }
 
