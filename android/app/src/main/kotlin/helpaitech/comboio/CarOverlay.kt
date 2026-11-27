@@ -466,7 +466,10 @@ class CarOverlay(private val ctx: Context) {
         stepsPanel.layoutParams = lp
         // A coluna do Android Auto (lupa, sair, zoom) fica por cima da borda
         // direita: o conteúdo do painel para antes dela.
-        stepsPanel.setPadding(0, 0, maxOf(padR, dp(96)), 0)
+        // 26/11 noite: com os botões do Android Auto escondidos (padR é só a
+        // margem da tela) os passos usam a largura toda; quando eles aparecem,
+        // o conteúdo volta para antes da coluna deles.
+        stepsPanel.setPadding(0, 0, if (padR > dp(40)) maxOf(padR, dp(96)) else dp(8), 0)
         stepsPanel.visibility = if (w > 0 && !min) View.VISIBLE else View.GONE
         val tlp = stepsTab.layoutParams as FrameLayout.LayoutParams
         tlp.width = if (min) w else 0

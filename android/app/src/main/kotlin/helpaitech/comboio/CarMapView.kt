@@ -812,6 +812,8 @@ class CarMapView(private val context: Context) {
 
     /** Painel dos próximos passos (23/11): com rota, 40% da largura à
      *  direita, como no celular deitado. Tela dividida (estreita): sem painel. */
+    private var lastPadR = -1
+
     private fun panelW(r: Rect): Int {
         if (CarState.route.size < 2 || CarState.nav == null || r.width() < 560) return 0
         // 24/11: minimizado = aba fina (coluna do Android Auto + 48 dp).
@@ -833,10 +835,14 @@ class CarMapView(private val context: Context) {
     private fun syncPanel() {
         val r = visible ?: Rect(0, 0, width, height)
         val p = panelW(r)
-        if (p == lastPanel && CarState.stepsMin == lastMin) return
+        // 26/11 noite: a coluna do Android Auto (lupa, sair, +/-) aparece e
+        // some: o painel acompanha (antes guardava o espaço dela sempre).
+        val padR = max(0, width - r.right)
+        if (p == lastPanel && CarState.stepsMin == lastMin && padR == lastPadR) return
         lastPanel = p
         lastMin = CarState.stepsMin
-        overlay?.setPanel(p, max(0, width - r.right), CarState.stepsMin)
+        lastPadR = padR
+        overlay?.setPanel(p, padR, CarState.stepsMin)
         view3d?.let { v ->
             val lp = v.view.layoutParams as? FrameLayout.LayoutParams
             if (lp != null) {
