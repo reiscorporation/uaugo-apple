@@ -137,11 +137,41 @@ class CarMapView(private val context: Context) {
     private var offlineBg: Polygon? = null
     private var trimIdx = 0
     private var poiSig = 0
-    private val poiMarkers = mutableListOf<com.google.android.gms.maps.model.Marker>()
-    private val poiIcons = HashMap<Int, com.google.android.gms.maps.model.BitmapDescriptor>()
+    private val poiMarkers = mutableListOf<CarPin>()
+    private val poiIcons = HashMap<Int, Bitmap>()
     private var hazardSig = 0
-    private val hazardMarkers = mutableListOf<Marker>()
-    private val hazardIcons = HashMap<String, com.google.android.gms.maps.model.BitmapDescriptor>()
+    private val hazardMarkers = mutableListOf<CarPin>()
+    private val hazardIcons = HashMap<String, Bitmap>()
+
+    /** Camada dos ícones (alertas, radares, colegas) acima do mapa. */
+    private var pinLayer: FrameLayout? = null
+
+    private fun addPin(b: Bitmap, pos: LatLng, ax: Float, ay: Float, z: Float): CarPin? {
+        val layer = pinLayer ?: return null
+        val v = android.widget.ImageView(layer.context)
+        v.translationZ = z
+        layer.addView(v, FrameLayout.LayoutParams(b.width, b.height))
+        return CarPin(v, pos, ax, ay).also { it.setIcon(b); placePin(it) }
+    }
+
+    private fun placePin(pin: CarPin) {
+        val g = map ?: return
+        if (!pin.isVisible) { pin.view.visibility = android.view.View.GONE; return }
+        val p = runCatching { g.projection.toScreenLocation(pin.position) }.getOrNull() ?: return
+        pin.place(p)
+        pin.view.visibility = android.view.View.VISIBLE
+    }
+
+    /** Reposiciona os ícones depois de cada movimento da câmera. */
+    private fun placePins() {
+        val layer = pinLayer ?: return
+        layer.visibility = if (view3d != null) android.view.View.GONE else android.view.View.VISIBLE
+        if (view3d != null) return
+        poiMarkers.forEach { placePin(it) }
+        hazardMarkers.forEach { placePin(it) }
+        memberMarkers.forEach { placePin(it) }
+        me?.let { placePin(it) }
+    }
     private var poisShown = true
 
     /** Alertas da comunidade, com o emoji do tipo (como no celular). */
@@ -154,29 +184,27 @@ class CarMapView(private val context: Context) {
         hazardMarkers.clear()
         for (h in list) {
             val icon = hazardIcons.getOrPut(h.emoji) {
-                BitmapDescriptorFactory.fromBitmap(pinBitmap(h.emoji, Color.rgb(245, 166, 35)))
+                pinBitmap(h.emoji, Color.rgb(245, 166, 35))
             }
-            g.addMarker(MarkerOptions().position(LatLng(h.lat, h.lng)).anchor(0.5f, 0.5f)
-                // Acima do veículo: quem marca está em cima do próprio alerta.
-                .icon(icon).zIndex(6f))?.let { hazardMarkers.add(it) }
+            addPin(icon, LatLng(h.lat, h.lng), 0.5f, 0.5f, 6f)?.let { hazardMarkers.add(it) }
         }
     }
 
-    private val memberMarkers = mutableListOf<com.google.android.gms.maps.model.Marker>()
-    private val memberIcons = HashMap<String, com.google.android.gms.maps.model.BitmapDescriptor>()
+    private val memberMarkers = mutableListOf<CarPin>()
+    private val memberIcons = HashMap<String, Bitmap>()
 
     /** Colegas do comboio (bolinha laranja com o nome), como no celular. */
     private fun drawMembers(g: GoogleMap) {
         val list = if (CarState.groupOn) CarState.members else emptyList()
         while (memberMarkers.size > list.size) memberMarkers.removeAt(memberMarkers.size - 1).remove()
         for ((i, m) in list.withIndex()) {
-            val icon = memberIcons.getOrPut(m.name) { BitmapDescriptorFactory.fromBitmap(memberBitmap(m.name)) }
+            val icon = memberIcons.getOrPut(m.name) { memberBitmap(m.name) }
             if (i < memberMarkers.size) {
                 memberMarkers[i].position = LatLng(m.lat, m.lng)
                 memberMarkers[i].setIcon(icon)
+                placePin(memberMarkers[i])
             } else {
-                g.addMarker(MarkerOptions().position(LatLng(m.lat, m.lng)).anchor(0.5f, 0.85f)
-                    .icon(icon).zIndex(4.5f))?.let { memberMarkers.add(it) }
+                addPin(icon, LatLng(m.lat, m.lng), 0.5f, 0.85f, 4.5f)?.let { memberMarkers.add(it) }
             }
         }
     }
@@ -215,10 +243,13 @@ class CarMapView(private val context: Context) {
                     5 -> "⚡" to Color.rgb(46, 125, 50)
                     else -> "🚔" to Color.rgb(21, 101, 192)
                 }
-                BitmapDescriptorFactory.fromBitmap(pinBitmap(emoji, color))
+                pinBitmap(emoji, color)
             }
-            g.addMarker(MarkerOptions().position(LatLng(p[0], p[1])).anchor(0.5f, 0.5f)
-                .icon(icon).zIndex(4f).visible(poisShown))?.let { poiMarkers.add(it) }
+            addPin(icon, LatLng(p[0], p[1]), 0.5f, 0.5f, 4f)?.let {
+                it.isVisible = poisShown
+                placePin(it)
+                poiMarkers.add(it)
+            }
         }
     }
 
@@ -274,7 +305,7 @@ class CarMapView(private val context: Context) {
         line.points = listOf(pos) + pts.subList(best + 1, pts.size).map { LatLng(it[0], it[1]) }
     }
 
-    private var me: Marker? = null
+    private var me: CarPin? = null
     private var overlay: CarOverlay? = null
     private var view3d: Car3DView? = null
     private var lastCamAt = 0L
@@ -369,6 +400,9 @@ class CarMapView(private val context: Context) {
         mv.onCreate(null)
         val root = FrameLayout(p.context)
         root.addView(mv, FrameLayout.LayoutParams(-1, -1))
+        val pins = FrameLayout(p.context)
+        root.addView(pins, FrameLayout.LayoutParams(-1, -1))
+        pinLayer = pins
         // Veículo desenhado por nós, fixo no centro da câmera (onde a linha
         // azul começa). O ícone do Google saía deslocado nesta tela virtual
         // com densidade reduzida: nas fotos do testador ficava sempre no mesmo
@@ -401,6 +435,8 @@ class CarMapView(private val context: Context) {
             g.uiSettings.isCompassEnabled = false
             g.isTrafficEnabled = false // o trânsito vai só na linha da rota
             g.isBuildingsEnabled = false // mais leve
+            g.setOnCameraMoveListener { placePins() }
+            g.setOnCameraIdleListener { placePins() }
             runCatching {
                 g.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions(styleFor(dark, CarState.placeNames)))
                 stylePlaces = CarState.placeNames
@@ -503,6 +539,7 @@ class CarMapView(private val context: Context) {
         hazardSig = 0
         poisShown = true
         me = null
+        pinLayer = null
         overlay = null
         runCatching { view3d?.destroy() }
         view3d = null
@@ -626,10 +663,7 @@ class CarMapView(private val context: Context) {
             me = null
             meIcon = iconKey
         }
-        me = me ?: g.addMarker(
-            MarkerOptions().position(shownPos ?: pos).anchor(0.5f, 0.5f)
-                .icon(BitmapDescriptorFactory.fromBitmap(myVehicle(img))).zIndex(5f)
-        )
+        me = me ?: addPin(myVehicle(img), shownPos ?: pos, 0.5f, 0.5f, 5f)?.also { it.isVisible = false; placePin(it) }
         if (meViewIcon != iconKey) {
             meViewIcon = iconKey
             meView?.setImageBitmap(myVehicle(img))
@@ -651,7 +685,7 @@ class CarMapView(private val context: Context) {
         val show = zoom >= 13f
         if (show != poisShown) {
             poisShown = show
-            poiMarkers.forEach { it.isVisible = show }
+            poiMarkers.forEach { it.isVisible = show; placePin(it) }
         }
         // Veículo e câmera andam juntos, em passos pequenos, no tempo entre as
         // leituras (como no celular). Muito atrasado (celular ocupado): pula
@@ -933,5 +967,27 @@ class CarMapView(private val context: Context) {
             strokeJoin = Paint.Join.ROUND; isAntiAlias = true
         })
         return b
+    }
+}
+
+/** Ícone desenhado pelo UauGo sobre o mapa do carro (26/11). Os Markers do
+ *  Google saem deslocados nesta tela virtual de densidade reduzida (foto do
+ *  testador: alerta marcado na via aparecia longe da rota, como o veículo
+ *  em 15/11). A posição na tela vem da projeção do próprio mapa. */
+class CarPin(val view: android.widget.ImageView, var position: LatLng,
+             private val ax: Float, private val ay: Float) {
+    var isVisible = true
+    fun setIcon(b: Bitmap) {
+        view.setImageBitmap(b)
+        val lp = view.layoutParams
+        if (lp != null && (lp.width != b.width || lp.height != b.height)) {
+            lp.width = b.width; lp.height = b.height; view.layoutParams = lp
+        }
+    }
+    fun remove() { (view.parent as? android.view.ViewGroup)?.removeView(view) }
+    fun place(p: android.graphics.Point) {
+        val lp = view.layoutParams
+        view.translationX = p.x - lp.width * ax
+        view.translationY = p.y - lp.height * ay
     }
 }

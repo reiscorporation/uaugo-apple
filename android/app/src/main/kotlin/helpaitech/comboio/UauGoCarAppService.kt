@@ -188,10 +188,13 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
     }
 
     init {
-        ctx.getCarService(AppManager::class.java).setSurfaceCallback(this)
+        // 26/11: carro desligado/cabo puxado bem na hora de abrir a tela: o
+        // Android Auto já foi embora e a chamada fechava o app inteiro
+        // ("Accessed the car host after it became invalidated").
+        runCatching { ctx.getCarService(AppManager::class.java).setSurfaceCallback(this) }
         startGps()
         CarState.toastSink = { t -> toast(t) }
-        nav.setNavigationManagerCallback(object : NavigationManagerCallback {
+        runCatching { nav.setNavigationManagerCallback(object : NavigationManagerCallback {
             // O carro pediu para parar (ex.: outro app de navegação começou).
             // Não é o motorista tocando em "Encerrar": o carro desligou ou outro
             // app pediu. A rota fica guardada e o celular pergunta ao voltar
@@ -207,7 +210,7 @@ class NavScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             override fun onAutoDriveEnabled() {
                 UauGoEngine.send(carContext, "autodrive")
             }
-        })
+        }) }
         CarState.listen(onChange)
         lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onDestroy(owner: LifecycleOwner) {
