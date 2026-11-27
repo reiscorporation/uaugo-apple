@@ -277,7 +277,7 @@ class CarService {
       for (final s in res.take(6)) {'id': s.placeId, 'n': s.title, 's': s.subtitle},
     ]).catchError((_) => null);
     if (res.isEmpty && _places.lastFailed) {
-      toast(tr('Sem internet para buscar agora'));
+      toast(tr('Não foi possível buscar agora (código: {0})', [_places.lastErrorCode ?? '?']));
     }
   }
 

@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../logic/address_abbrev.dart';
 import '../logic/find_places.dart';
@@ -63,6 +64,30 @@ class PlacesService {
   /// A última busca falhou por falta de conexão (ou servidor fora).
   bool lastFailed = false;
 
+  /// Motivo da última falha (código do Firebase ou tipo do erro). 26/11:
+  /// um testador via "Sem internet" com o Waze buscando normal; a busca nem
+  /// chegava ao servidor. Agora a tela mostra o motivo real e o código.
+  String? lastErrorCode;
+
+  /// Texto para a tela de busca conforme o motivo da falha.
+  String failMessage() {
+    final c = lastErrorCode ?? '?';
+    return switch (c) {
+      'unauthenticated' || 'permission-denied' => tr(
+          'O servidor não confirmou o app. Atualize o UauGo e o Google Play Services (ou o iPhone) e tente de novo. (código: {0})', [c]),
+      'resource-exhausted' => tr('Limite diário de buscas atingido. Tente amanhã.'),
+      'deadline-exceeded' || 'TimeoutException' => tr(
+          'O servidor demorou para responder. Toque em Tentar de novo. (código: {0})', [c]),
+      _ => tr('📵 Não foi possível falar com o servidor da busca.\nOs destinos recentes acima funcionam sem internet. Os avisos de radar e velocidade continuam funcionando. (código: {0})', [c]),
+    };
+  }
+
+  /// Falha passageira (rede, servidor ocupado): vale tentar de novo.
+  static bool _transient(Object e) =>
+      e is! FirebaseFunctionsException ||
+      const {'deadline-exceeded', 'unavailable', 'internal', 'unknown', 'cancelled'}
+          .contains(e.code);
+
   /// Token de sessão: o Google cobra a busca inteira (várias letras +
   /// escolha) como uma consulta só.
   static String _newSession() {
@@ -73,12 +98,25 @@ class PlacesService {
   /// Chama a função "places" do servidor e devolve o resultado como Map.
   Future<Map<String, dynamic>> _call(Map<String, dynamic> data) async {
     data = {...data, 'lang': I18n.code};
-    final res = await _fn
-        .httpsCallable('places',
-            options:
-                HttpsCallableOptions(timeout: const Duration(seconds: 15)))
-        .call(data);
-    return jsonDecode(jsonEncode(res.data)) as Map<String, dynamic>;
+    Future<Map<String, dynamic>> once() async {
+      final res = await _fn
+          .httpsCallable('places',
+              // 15 -> 20 s: a 1ª chamada também pega o atestado do app
+              // (App Check), que pode demorar em celular simples.
+              options:
+                  HttpsCallableOptions(timeout: const Duration(seconds: 20)))
+          .call(data);
+      return jsonDecode(jsonEncode(res.data)) as Map<String, dynamic>;
+    }
+    try {
+      return await once();
+    } catch (e) {
+      // Uma segunda tentativa em falha passageira (26/11).
+      if (!_transient(e)) rethrow;
+      debugPrint('Busca: falhou ($e), tentando de novo');
+      await Future<void>.delayed(const Duration(seconds: 1));
+      return once();
+    }
   }
 
   /// Sugestões enquanto o usuário digita (perto de [nearLat]/[nearLng], se
@@ -133,9 +171,12 @@ class PlacesService {
                 (p['distanceMeters'] as num?)?.toInt(),
               ))
           .toList();
+      lastErrorCode = null;
       return sortByDistance(out);
-    } catch (_) {
+    } catch (e) {
       lastFailed = true;
+      lastErrorCode = e is FirebaseFunctionsException ? e.code : e.runtimeType.toString();
+      debugPrint('Busca falhou: $lastErrorCode | $e');
       return const [];
     }
   }

@@ -290,11 +290,21 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
         if (_results.isEmpty && _ctrl.text.trim().length >= 3 && !_loading)
           Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(
-                _places.lastFailed
-                    ? tr('📵 Sem internet: a busca precisa de conexão.\nOs destinos recentes acima funcionam sem internet. Os avisos de radar e velocidade continuam funcionando.')
-                    : tr('Nenhum lugar encontrado'),
-                textAlign: TextAlign.center),
+            child: Column(children: [
+              Text(
+                  _places.lastFailed
+                      ? _places.failMessage()
+                      : tr('Nenhum lugar encontrado'),
+                  textAlign: TextAlign.center),
+              if (_places.lastFailed) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.refresh),
+                  label: Text(tr('Tentar de novo')),
+                  onPressed: () => _search(_ctrl.text),
+                ),
+              ],
+            ]),
           ),
       ]),
     );

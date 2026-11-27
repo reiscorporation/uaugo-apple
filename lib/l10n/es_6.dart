@@ -55,4 +55,9 @@ const es6 = <String, String>{
   'Ouvindo… o que você procura?': 'Escuchando… ¿qué buscas?',
   'Não ouvi. Escolha na lista ou toque na lupa de novo.': 'No te escuché. Elige en la lista o toca la lupa de nuevo.',
   '📵 Sem internet: siga a rota azul. O mapa volta com a conexão.': '📵 Sin internet: sigue la ruta azul. El mapa vuelve con la conexión.',
+  'O servidor não confirmou o app. Atualize o UauGo e o Google Play Services (ou o iPhone) e tente de novo. (código: {0})': 'El servidor no confirmó la app. Actualiza UauGo y Google Play Services (o el iPhone) e inténtalo de nuevo. (código: {0})',
+  'Limite diário de buscas atingido. Tente amanhã.': 'Límite diario de búsquedas alcanzado. Inténtalo mañana.',
+  'O servidor demorou para responder. Toque em Tentar de novo. (código: {0})': 'El servidor tardó en responder. Toca Intentar de nuevo. (código: {0})',
+  '📵 Não foi possível falar com o servidor da busca.\nOs destinos recentes acima funcionam sem internet. Os avisos de radar e velocidade continuam funcionando. (código: {0})': '📵 No se pudo contactar el servidor de búsqueda.\nLos destinos recientes de arriba funcionan sin internet. Los avisos de radar y velocidad siguen funcionando. (código: {0})',
+  'Não foi possível buscar agora (código: {0})': 'No se pudo buscar ahora (código: {0})',
 };

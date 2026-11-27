@@ -55,4 +55,9 @@ const en6 = <String, String>{
   'Ouvindo… o que você procura?': 'Listening… what are you looking for?',
   'Não ouvi. Escolha na lista ou toque na lupa de novo.': 'I did not hear you. Pick from the list or tap the magnifier again.',
   '📵 Sem internet: siga a rota azul. O mapa volta com a conexão.': '📵 No internet: follow the blue route. The map returns with the connection.',
+  'O servidor não confirmou o app. Atualize o UauGo e o Google Play Services (ou o iPhone) e tente de novo. (código: {0})': 'The server could not verify the app. Update UauGo and Google Play Services (or the iPhone) and try again. (code: {0})',
+  'Limite diário de buscas atingido. Tente amanhã.': 'Daily search limit reached. Try again tomorrow.',
+  'O servidor demorou para responder. Toque em Tentar de novo. (código: {0})': 'The server took too long to answer. Tap Try again. (code: {0})',
+  '📵 Não foi possível falar com o servidor da busca.\nOs destinos recentes acima funcionam sem internet. Os avisos de radar e velocidade continuam funcionando. (código: {0})': '📵 Could not reach the search server.\nThe recent destinations above work offline. Speed camera and speed warnings keep working. (code: {0})',
+  'Não foi possível buscar agora (código: {0})': 'Could not search now (code: {0})',
 };
