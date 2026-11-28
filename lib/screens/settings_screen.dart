@@ -381,10 +381,17 @@ class SettingsScreen extends StatelessWidget {
                     leading: Icon(sel == v['name']
                         ? Icons.radio_button_checked
                         : Icons.radio_button_off),
-                    title: Text(voiceLabel(v['name']!, i + 1)),
+                    title: Text(voicePhoneLabel(v, i + 1)),
                     trailing: const Icon(Icons.volume_up),
                     onTap: () => voice.setVoice(v),
                   ),
+                if (Platform.isIOS)
+                  ListTile(
+                    leading: const Icon(Icons.add_circle_outline),
+                    title: Text(tr('Baixar vozes melhores no iPhone')),
+                    subtitle: Text(tr('Ajustes > Acessibilidade > Conteúdo Falado > Vozes > Português (Brasil): baixe a Luciana ou o Felipe "Melhorada" ou "Premium". Depois volte aqui.')),
+                  )
+                else
                 ListTile(
                   leading: const Icon(Icons.add_circle_outline),
                   title: Text(tr('Baixar mais vozes do Google')),

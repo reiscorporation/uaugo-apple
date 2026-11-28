@@ -107,13 +107,40 @@ class VoiceService {
       ].where((v) =>
           (v['locale'] ?? '').toLowerCase() == lang &&
           v['network_required'] != '1' &&
-          !(v['features'] ?? '').contains('notInstalled')).toList();
-      list.sort((a, b) => a['name']!.compareTo(b['name']!));
+          !(v['features'] ?? '').contains('notInstalled') &&
+          !_isNoveltyVoice(v)).toList();
+      // iPhone: melhores primeiro (premium > melhorada > padrão).
+      list.sort((a, b) {
+        final q = _quality(b).compareTo(_quality(a));
+        return q != 0 ? q : a['name']!.compareTo(b['name']!);
+      });
       return list;
     } catch (_) {
       return const [];
     }
   }
+
+  /// iPhone: vozes "Eloquence" (Flo, Sandy, Shelley, Vovó, Eddy, Reed...)
+  /// e vozes de brincadeira soam robóticas/desafinadas: não oferecer.
+  static bool _isNoveltyVoice(Map<String, String> v) {
+    final id = (v['identifier'] ?? '').toLowerCase();
+    return id.contains('eloquence') || id.contains('speech.synthesis.voice');
+  }
+
+  /// Qualidade da voz no iPhone (0 padrão, 1 melhorada, 2 premium).
+  static int _quality(Map<String, String> v) => switch ((v['quality'] ?? '').toLowerCase()) {
+        'premium' => 2,
+        'enhanced' => 1,
+        _ => 0,
+      };
+
+  /// Parâmetros para o flutter_tts: no iPhone vai o identificador (a mesma
+  /// voz existe em qualidades diferentes com o mesmo nome).
+  static Map<String, String> _voiceArgs(Map<String, String> v) => {
+        'name': v['name']!,
+        'locale': v['locale']!,
+        if ((v['identifier'] ?? '').isNotEmpty) 'identifier': v['identifier']!,
+      };
 
   /// Usa a voz escolhida; sem escolha, uma do celular (sem internet) parecida
   /// com a padrão.
@@ -124,7 +151,17 @@ class VoiceService {
     if (list.isEmpty) return;
     Map<String, String>? v;
     for (final x in list) {
-      if (x['name'] == voiceName.value) v = x;
+      if (v == null && x['name'] == voiceName.value) v = x;
+    }
+    // iPhone sem escolha: a melhor voz instalada (lista já vem ordenada).
+    if (v == null && defaultTargetPlatform == TargetPlatform.iOS) {
+      // Voz salva que saiu da lista (ex.: Eloquence desafinada): volta para
+      // a automática.
+      if (voiceName.value != null) {
+        voiceName.value = null;
+        (await SharedPreferences.getInstance()).remove(_kVoice);
+      }
+      v = list.first;
     }
     if (v == null) {
       final def = await _tts.getDefaultVoice;
@@ -137,7 +174,7 @@ class VoiceService {
       v ??= list.first;
     }
     debugPrint('Voz: ${v['name']} (${list.length} sem internet)');
-    await _tts.setVoice({'name': v['name']!, 'locale': v['locale']!});
+    await _tts.setVoice(_voiceArgs(v));
   }
 
   /// Escolhe uma voz do UauGo (já baixada) e fala uma frase de exemplo.
@@ -159,7 +196,7 @@ class VoiceService {
     voiceName.value = v['name'];
     (await SharedPreferences.getInstance()).setString(_kVoice, v['name']!);
     try {
-      await _tts.setVoice({'name': v['name']!, 'locale': v['locale']!});
+      await _tts.setVoice(_voiceArgs(v));
     } catch (_) {}
     test(tr('Em 300 metros, vire à direita.'));
   }
@@ -339,6 +376,21 @@ class VoiceService {
 
 /// Nome da voz para a lista: "Voz 2 · masculina" quando o nome do Android
 /// indica o gênero (Samsung: ...SMTf00 / ...SMTm00); senão, "Voz 2" e o código.
+/// Nome para a lista de vozes do celular. iPhone: nome da Apple (Luciana,
+/// Felipe...) + feminina/masculina + qualidade.
+String voicePhoneLabel(Map<String, String> v, int n) {
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    final g = (v['gender'] ?? '').toLowerCase();
+    final q = (v['quality'] ?? '').toLowerCase();
+    return [
+      v['name'] ?? tr('Voz {0}', [n]),
+      if (g == 'female') tr('feminina') else if (g == 'male') tr('masculina'),
+      if (q == 'premium') tr('premium') else if (q == 'enhanced') tr('melhorada'),
+    ].join(' · ');
+  }
+  return voiceLabel(v['name']!, n);
+}
+
 String voiceLabel(String name, [int? n]) {
   final g = RegExp(r'SMT([fm])\d', caseSensitive: false).firstMatch(name);
   final head = n == null ? tr('Voz') : tr('Voz {0}', [n]);

@@ -78,4 +78,8 @@ const en6 = <String, String>{
   'Nome ou apelido': 'Name or nickname',
   'Som mais simples. Voz de Edresson Casanova (TTS-Portuguese Corpus, CC BY 4.0)': 'Simpler sound. Voice of Edresson Casanova (TTS-Portuguese Corpus, CC BY 4.0)',
   'Sotaque de Portugal': 'Portugal accent',
+  'premium': 'premium',
+  'melhorada': 'enhanced',
+  'Baixar vozes melhores no iPhone': 'Download better voices on iPhone',
+  'Ajustes > Acessibilidade > Conteúdo Falado > Vozes > Português (Brasil): baixe a Luciana ou o Felipe "Melhorada" ou "Premium". Depois volte aqui.': 'Settings > Accessibility > Spoken Content > Voices > Portuguese (Brazil): download Luciana or Felipe "Enhanced" or "Premium". Then come back here.',
 };

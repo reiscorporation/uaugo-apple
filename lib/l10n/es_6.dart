@@ -78,4 +78,8 @@ const es6 = <String, String>{
   'Nome ou apelido': 'Nombre o apodo',
   'Som mais simples. Voz de Edresson Casanova (TTS-Portuguese Corpus, CC BY 4.0)': 'Sonido más simple. Voz de Edresson Casanova (TTS-Portuguese Corpus, CC BY 4.0)',
   'Sotaque de Portugal': 'Acento de Portugal',
+  'premium': 'premium',
+  'melhorada': 'mejorada',
+  'Baixar vozes melhores no iPhone': 'Descargar voces mejores en el iPhone',
+  'Ajustes > Acessibilidade > Conteúdo Falado > Vozes > Português (Brasil): baixe a Luciana ou o Felipe "Melhorada" ou "Premium". Depois volte aqui.': 'Ajustes > Accesibilidad > Contenido leído > Voces > Portugués (Brasil): descarga Luciana o Felipe "Mejorada" o "Premium". Después vuelve aquí.',
 };
