@@ -152,8 +152,12 @@ class _AccountTile extends StatelessWidget {
         return Column(children: [
           ListTile(
             leading: const Icon(Icons.account_circle, size: 32),
-            title: Text(AuthService.displayName),
+            title: Text(AuthService.missingName
+                ? tr('Toque para pôr seu nome')
+                : AuthService.displayName),
             subtitle: Text(AuthService.email),
+            trailing: const Icon(Icons.edit_outlined),
+            onTap: () => editAccountName(context),
           ),
           if (AuthService.needsVerification) ...[
             ListTile(

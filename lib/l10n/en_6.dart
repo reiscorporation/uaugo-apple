@@ -69,4 +69,11 @@ const en6 = <String, String>{
   'Destino não encontrado. Tente dizer o endereço de outro jeito': 'Destination not found. Try saying the address another way',
   'Buscando o destino…': 'Searching for the destination…',
   'Abra o UauGo no celular para concluir a configuração e navegar até o destino': 'Open UauGo on the phone to finish setup and navigate to the destination',
+  'Minha conta': 'My account',
+  'Depois': 'Later',
+  'E-mail oculto pela Apple': 'Email hidden by Apple',
+  'Toque para pôr seu nome': 'Tap to add your name',
+  'Como quer ser chamado?': 'What should we call you?',
+  'Seu nome': 'Your name',
+  'Nome ou apelido': 'Name or nickname',
 };

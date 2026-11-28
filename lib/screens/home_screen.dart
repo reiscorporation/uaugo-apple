@@ -982,8 +982,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: Text(
                       AuthService.isAnonymous
                           ? tr('Entrar')
-                          // Sem nome na conta: só a parte do e-mail antes do @.
-                          : AuthService.displayName.split(' ').first.split('@').first,
+                          // Sem nome na conta: só a parte do e-mail antes do @
+                          // (e-mail oculto da Apple: "Minha conta").
+                          : (AuthService.displayName.isEmpty
+                              ? tr('Minha conta')
+                              : AuthService.displayName.split(' ').first.split('@').first),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),

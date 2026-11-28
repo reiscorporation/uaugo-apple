@@ -63,14 +63,55 @@ class AuthService {
   /// true = ainda não entrou com Google/Apple/e-mail.
   static bool get isAnonymous => _auth.currentUser?.isAnonymous ?? true;
 
-  /// Nome (ou e-mail) e e-mail para mostrar em "Minha conta".
+  /// Nome (ou e-mail) para mostrar em "Minha conta". Vazio quando não há
+  /// nome e o e-mail é o oculto da Apple (código@privaterelay.appleid.com):
+  /// mostrar o código parecia um nome estranho.
   static String get displayName {
     final u = _auth.currentUser;
-    final n = u?.displayName ?? '';
-    return n.isNotEmpty ? n : (u?.email ?? '');
+    final n = (u?.displayName ?? '').trim();
+    if (n.isNotEmpty) return n;
+    final e = u?.email ?? '';
+    return isHiddenEmail(e) ? '' : e;
   }
 
-  static String get email => _auth.currentUser?.email ?? '';
+  /// E-mail oculto da Apple ("Ocultar meu e-mail").
+  static bool isHiddenEmail(String e) =>
+      e.toLowerCase().endsWith('@privaterelay.appleid.com');
+
+  /// A conta não tem nome de verdade (só e-mail ou nada).
+  static bool get missingName =>
+      !isAnonymous && (_auth.currentUser?.displayName ?? '').trim().isEmpty;
+
+  /// Muda o nome mostrado na conta (Configurações → Minha conta).
+  static Future<void> setName(String name) async {
+    final n = name.trim();
+    if (n.isEmpty) return;
+    await _auth.currentUser?.updateDisplayName(n);
+    await _auth.currentUser?.reload();
+  }
+
+  /// Depois de entrar com Apple: a Apple manda o nome só na 1ª autorização
+  /// e o Firebase não o grava no usuário quando VINCULA a conta anônima.
+  /// Pega o nome que veio no provedor (se veio) e grava no usuário.
+  static Future<void> _fillNameFromProviders() async {
+    final u = _auth.currentUser;
+    if (u == null || (u.displayName ?? '').trim().isNotEmpty) return;
+    for (final p in u.providerData) {
+      final n = (p.displayName ?? '').trim();
+      if (n.isNotEmpty) {
+        try {
+          await u.updateDisplayName(n);
+          await u.reload();
+        } catch (_) {}
+        return;
+      }
+    }
+  }
+
+  static String get email {
+    final e = _auth.currentUser?.email ?? '';
+    return isHiddenEmail(e) ? tr('E-mail oculto pela Apple') : e;
+  }
 
   /// Muda quando a pessoa entra, sai ou confirma o e-mail.
   static Stream<User?> get changes => _auth.userChanges();
@@ -90,12 +131,18 @@ class AuthService {
   static bool get appleAvailable => defaultTargetPlatform == TargetPlatform.iOS;
 
   static Future<void> _withProvider(AuthProvider provider) async {
+    await _withProviderRaw(provider);
+    await _fillNameFromProviders();
+  }
+
+  static Future<void> _withProviderRaw(AuthProvider provider) async {
     await ensureSignedIn();
     final current = _auth.currentUser!;
     try {
       if (current.isAnonymous) {
         // Vincula: mantém o mesmo uid e todos os dados.
-        await current.linkWithProvider(provider);
+        final cred = await current.linkWithProvider(provider);
+        await _nameFromCredential(cred);
         await _refreshToken();
         await onLinked?.call();
       } else {
@@ -114,6 +161,27 @@ class AuthService {
         rethrow;
       }
     }
+  }
+
+  /// Nome que o provedor mandou no login (a Apple manda givenName/familyName
+  /// só na 1ª vez; o Google manda "name").
+  static Future<void> _nameFromCredential(UserCredential cred) async {
+    final u = cred.user;
+    if (u == null || (u.displayName ?? '').trim().isNotEmpty) return;
+    final p = cred.additionalUserInfo?.profile ?? const {};
+    String s(Object? v) => v is String ? v.trim() : '';
+    var n = s(p['name']);
+    if (n.isEmpty) {
+      final name = p['name'];
+      if (name is Map) {
+        n = '${s(name['firstName'])} ${s(name['lastName'])}'.trim();
+      }
+    }
+    if (n.isEmpty) n = '${s(p['given_name'])} ${s(p['family_name'])}'.trim();
+    if (n.isEmpty) return;
+    try {
+      await u.updateDisplayName(n);
+    } catch (_) {}
   }
 
   /// Renova o token de acesso logo após vincular a conta: as regras do

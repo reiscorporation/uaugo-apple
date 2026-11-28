@@ -57,6 +57,12 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await action();
       if (!mounted) return;
+      // Apple com "Ocultar meu e-mail" e sem nome (a Apple só manda o nome
+      // na 1ª vez): pergunta como mostrar o nome em vez do código do e-mail.
+      if (AuthService.missingName) {
+        await editAccountName(context, afterLogin: true);
+        if (!mounted) return;
+      }
       if (done != null) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(done)));
@@ -238,4 +244,40 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+
+/// Pede o nome da conta (Configurações → Minha conta, ou logo depois de
+/// entrar com Apple sem nome). Pode deixar para depois.
+Future<void> editAccountName(BuildContext context, {bool afterLogin = false}) async {
+  final ctrl = TextEditingController(
+      text: AuthService.missingName ? '' : AuthService.displayName);
+  final name = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(afterLogin ? tr('Como quer ser chamado?') : tr('Seu nome')),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        maxLength: 40,
+        decoration: InputDecoration(hintText: tr('Nome ou apelido')),
+        onSubmitted: (v) => Navigator.of(ctx).pop(v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: Text(afterLogin ? tr('Depois') : tr('Cancelar')),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(ctrl.text),
+          child: Text(tr('Salvar')),
+        ),
+      ],
+    ),
+  );
+  ctrl.dispose();
+  if (name == null || name.trim().isEmpty) return;
+  try {
+    await AuthService.setName(name);
+  } catch (_) {}
 }
