@@ -65,4 +65,8 @@ const es6 = <String, String>{
   '{0}, {1} eixos': '{0}, {1} ejes',
   '{0} + reboque de 1 eixo': '{0} + remolque de 1 eje',
   '{0} + reboque de 2 eixos': '{0} + remolque de 2 ejes',
+  'Termine o que está aberto no celular e peça o destino de novo': 'Termina lo que está abierto en el celular y pide el destino de nuevo',
+  'Destino não encontrado. Tente dizer o endereço de outro jeito': 'Destino no encontrado. Intenta decir la dirección de otra forma',
+  'Buscando o destino…': 'Buscando el destino…',
+  'Abra o UauGo no celular para concluir a configuração e navegar até o destino': 'Abre UauGo en el celular para terminar la configuración y navegar al destino',
 };

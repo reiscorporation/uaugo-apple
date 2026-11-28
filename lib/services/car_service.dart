@@ -351,8 +351,17 @@ class CarService {
     // Destino pedido ao Assistente/Gemini no carro: a tela inicial traça a
     // rota e inicia sozinha.
     if (a.startsWith('navigate:')) {
+      final geo = a.substring(9);
       SharedPlaceService.instance.fromVoice = true;
-      SharedPlaceService.instance.pending.value = a.substring(9);
+      SharedPlaceService.instance.pending.value = geo;
+      toast(tr('Buscando o destino…'));
+      // 28/11 (Play): primeira vez no celular (termos/autorizações ainda não
+      // aceitos) a tela inicial não abre e o pedido ficava sem resposta.
+      Future<void>.delayed(const Duration(seconds: 8), () {
+        if (SharedPlaceService.instance.pending.value == geo) {
+          toast(tr('Abra o UauGo no celular para concluir a configuração e navegar até o destino'));
+        }
+      });
       return;
     }
     // Lista de alertas aberta sem o mapa: não ouve (os toques funcionam).

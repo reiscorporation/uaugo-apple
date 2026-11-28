@@ -10,6 +10,7 @@
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/i18n.dart';
@@ -223,6 +224,15 @@ class VoiceService {
     } catch (_) {}
   }
 
+  static const _car = MethodChannel('uaugo/car');
+
+  /// Foco de áudio no canal de navegação (abaixa a música durante a frase).
+  Future<void> _navFocus(bool on) async {
+    try {
+      await _car.invokeMethod('navFocus', on);
+    } catch (_) {}
+  }
+
   AudioPlayer? _chime;
 
   /// "Glug" (duas bolhas) no lugar da frase "Recalculando a rota" (26/11).
@@ -308,7 +318,15 @@ class VoiceService {
         final ov = OfflineVoice.byKey(voiceName.value);
         if (ov == null ||
             !await OfflineVoiceService.instance.speak(ov, say, speed: _offlineSpeed)) {
-          await _tts.speak(say, focus: true);
+          // 28/11 (Play, Android Auto): o flutter_tts pedia o foco como
+          // mídia; o pedido agora sai no canal de navegação, igual à fala.
+          final android = defaultTargetPlatform == TargetPlatform.android;
+          if (android) await _navFocus(true);
+          try {
+            await _tts.speak(say, focus: !android);
+          } finally {
+            if (android) await _navFocus(false);
+          }
         }
       } catch (e) {
         debugPrint('Falha ao falar: $e');

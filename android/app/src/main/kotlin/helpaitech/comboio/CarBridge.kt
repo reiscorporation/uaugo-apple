@@ -194,7 +194,7 @@ object CarState {
     }
 }
 
-class CarBridge(messenger: BinaryMessenger) {
+class CarBridge(messenger: BinaryMessenger, private val ctx: android.content.Context) {
     private val channel = MethodChannel(messenger, "uaugo/car")
 
     init {
@@ -420,6 +420,11 @@ class CarBridge(messenger: BinaryMessenger) {
                 }
                 "closeAlerts" -> {
                     CarState.closeAlertsSink?.let { s -> Handler(Looper.getMainLooper()).post { s() } }
+                    result.success(null)
+                }
+                // Voz do celular (flutter_tts): foco no canal de navegação.
+                "navFocus" -> {
+                    if (call.arguments == true) NavAudioFocus.request(ctx) else NavAudioFocus.abandon(ctx)
                     result.success(null)
                 }
                 "toast" -> {

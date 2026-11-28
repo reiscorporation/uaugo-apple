@@ -8466,8 +8466,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         _carPick?.complete(int.tryParse(x.substring(10)));
         _carPick = null;
       case 'carstop':
+        // 28/11 (Play, Android Auto): outro app de navegação começou durante
+        // a simulação ("test drive" do revisor) e o UauGo seguia falando.
+        // Agora a simulação termina, com a voz e a tela do carro.
+        if (_sim != null || widget.simulate) {
+          await _voice.stop();
+          CarService.instance.clearNavigation();
+          await _endSimulation();
+          return;
+        }
         // O carro pediu para parar (não foi o motorista): pausa sem apagar.
-        if (!_navigating || _sim != null || widget.simulate) return;
+        if (!_navigating) return;
         _carPaused = true;
         setState(() {
           _navigating = false;

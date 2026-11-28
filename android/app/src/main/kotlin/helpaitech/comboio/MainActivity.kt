@@ -24,7 +24,7 @@ class MainActivity : FlutterActivity() {
         voice = VoiceCommands(this, flutterEngine.dartExecutor.binaryMessenger)
         shared = SharedPlace(flutterEngine.dartExecutor.binaryMessenger)
         // Modo carro (Android Auto): estado da navegação para a tela do carro.
-        CarBridge(flutterEngine.dartExecutor.binaryMessenger)
+        CarBridge(flutterEngine.dartExecutor.binaryMessenger, applicationContext)
         // O próprio Android diz quando o Android Auto desconecta (cabo,
         // carro desligado, sessão encerrada sem aviso): solta a trava da tela.
         runCatching {

@@ -26,7 +26,7 @@ object UauGoEngine {
     fun ensureForCar(ctx: Context) {
         if (CarState.actionSink != null || cached() != null) return
         val e = FlutterEngine(ctx.applicationContext)
-        CarBridge(e.dartExecutor.binaryMessenger)
+        CarBridge(e.dartExecutor.binaryMessenger, ctx.applicationContext)
         e.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
         FlutterEngineCache.getInstance().put(ID, e)
     }

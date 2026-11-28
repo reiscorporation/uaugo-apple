@@ -82,6 +82,9 @@ class _HomeScreenState extends State<HomeScreen> {
     SavedPlacesService.instance.load();
     PlannedTripsService.instance.load();
     SharedPlaceService.instance.pending.addListener(_onShared);
+    // 28/11 (Play, Android Auto): "Navegue até X" com o app fechado chega
+    // antes desta tela existir; o aviso já estava guardado e se perdia.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sharedOnStart());
     CarService.instance.connected.addListener(_onCar);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _busy = true;
@@ -141,6 +144,17 @@ class _HomeScreenState extends State<HomeScreen> {
     _justDrive();
   }
 
+  /// Destino que chegou antes da tela inicial abrir: espera a tela ficar
+  /// livre (carregando a viagem ativa) e trata como se tivesse chegado agora.
+  Future<void> _sharedOnStart() async {
+    for (var i = 0; i < 20; i++) {
+      if (!mounted || SharedPlaceService.instance.pending.value == null) return;
+      if (!_busy && (ModalRoute.of(context)?.isCurrent ?? false)) break;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    if (mounted && SharedPlaceService.instance.pending.value != null) await _onShared();
+  }
+
   /// Endereço recebido de outro app ("Abrir com UauGo" / "Compartilhar"):
   /// vai direto para o "Para onde?" com o destino.
   Future<void> _onShared() async {
@@ -152,6 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!(ModalRoute.of(context)?.isCurrent ?? true) || _busy) {
       SharedPlaceService.instance.take();
       _snack(tr('Endereço recebido. Volte à tela inicial e abra de novo.'));
+      if (byVoice) CarService.instance.toast(tr('Termine o que está aberto no celular e peça o destino de novo'));
       return;
     }
     final raw = SharedPlaceService.instance.take()!;
@@ -185,6 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _busy = false);
     if (place == null) {
       _snack(tr('Não consegui entender o endereço recebido'));
+      if (byVoice) CarService.instance.toast(tr('Destino não encontrado. Tente dizer o endereço de outro jeito'));
       return;
     }
     await _whereTo(shared: place, byVoice: byVoice);

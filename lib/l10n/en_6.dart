@@ -65,4 +65,8 @@ const en6 = <String, String>{
   '{0}, {1} eixos': '{0}, {1} axles',
   '{0} + reboque de 1 eixo': '{0} + 1-axle trailer',
   '{0} + reboque de 2 eixos': '{0} + 2-axle trailer',
+  'Termine o que está aberto no celular e peça o destino de novo': 'Finish what is open on the phone and ask for the destination again',
+  'Destino não encontrado. Tente dizer o endereço de outro jeito': 'Destination not found. Try saying the address another way',
+  'Buscando o destino…': 'Searching for the destination…',
+  'Abra o UauGo no celular para concluir a configuração e navegar até o destino': 'Open UauGo on the phone to finish setup and navigate to the destination',
 };
