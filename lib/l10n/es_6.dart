@@ -76,4 +76,6 @@ const es6 = <String, String>{
   'Como quer ser chamado?': '¿Cómo quieres que te llamemos?',
   'Seu nome': 'Tu nombre',
   'Nome ou apelido': 'Nombre o apodo',
+  'Som mais simples. Voz de Edresson Casanova (TTS-Portuguese Corpus, CC BY 4.0)': 'Sonido más simple. Voz de Edresson Casanova (TTS-Portuguese Corpus, CC BY 4.0)',
+  'Sotaque de Portugal': 'Acento de Portugal',
 };

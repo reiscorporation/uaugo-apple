@@ -76,4 +76,6 @@ const en6 = <String, String>{
   'Como quer ser chamado?': 'What should we call you?',
   'Seu nome': 'Your name',
   'Nome ou apelido': 'Name or nickname',
+  'Som mais simples. Voz de Edresson Casanova (TTS-Portuguese Corpus, CC BY 4.0)': 'Simpler sound. Voice of Edresson Casanova (TTS-Portuguese Corpus, CC BY 4.0)',
+  'Sotaque de Portugal': 'Portugal accent',
 };

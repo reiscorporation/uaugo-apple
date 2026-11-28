@@ -329,7 +329,11 @@ class SettingsScreen extends StatelessWidget {
                               const SizedBox(height: 4),
                               LinearProgressIndicator(value: dl[v.id]),
                             ])
-                          : (has ? null : Text(tr('Toque para baixar'))),
+                          : (has
+                              ? (v.note == null ? null : Text(tr(v.note!)))
+                              : Text(v.note == null
+                                  ? tr('Toque para baixar')
+                                  : '${tr(v.note!)} · ${tr('Toque para baixar')}')),
                       trailing: busy
                           ? null
                           : has

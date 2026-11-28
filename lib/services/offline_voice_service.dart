@@ -25,7 +25,7 @@ import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
 /// Uma voz do UauGo.
 class OfflineVoice {
-  const OfflineVoice(this.id, this.label, this.pkg, this.model);
+  const OfflineVoice(this.id, this.label, this.pkg, this.model, {this.note});
 
   /// Guardado em Configurações como "uaugo:<id>".
   final String id;
@@ -35,18 +35,31 @@ class OfflineVoice {
   final String pkg;
   final String model;
 
-  String get url =>
-      'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$pkg.tar.bz2';
+  /// Linha extra na lista (sotaque, crédito da licença).
+  final String? note;
+
+  /// De onde baixar, em ordem: cópia na nossa VPS (garante a voz mesmo se o
+  /// projeto original sair do ar) e, se falhar, o original no GitHub.
+  List<String> get urls => [
+        'https://motor.200-141-16-177.sslip.io/vozes/$pkg.tar.bz2',
+        'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$pkg.tar.bz2',
+      ];
 
   static const prefix = 'uaugo:';
   String get key => '$prefix$id';
 
-  /// Vozes oferecidas (todas em português do Brasil, masculinas: não há voz
-  /// feminina pt-BR do Piper com licença que permita uso comercial).
+  /// Vozes oferecidas, todas masculinas: não há voz feminina em português do
+  /// Piper com licença que permita uso comercial. Faber, Cadu, Jeff e Tugão:
+  /// dados CC0. Edresson: CC BY 4.0 (exige crédito, vai na [note]).
+  /// NÃO usar Dii/Miro (OpenVoiceOS): licença não comercial.
   static const catalog = [
     OfflineVoice('faber', 'Faber', 'vits-piper-pt_BR-faber-medium-int8', 'pt_BR-faber-medium.onnx'),
     OfflineVoice('cadu', 'Cadu', 'vits-piper-pt_BR-cadu-medium-int8', 'pt_BR-cadu-medium.onnx'),
     OfflineVoice('jeff', 'Jeff', 'vits-piper-pt_BR-jeff-medium-int8', 'pt_BR-jeff-medium.onnx'),
+    OfflineVoice('edresson', 'Edresson', 'vits-piper-pt_BR-edresson-low-int8', 'pt_BR-edresson-low.onnx',
+        note: 'Som mais simples. Voz de Edresson Casanova (TTS-Portuguese Corpus, CC BY 4.0)'),
+    OfflineVoice('tugao', 'Tugão', 'vits-piper-pt_PT-tugao-medium-int8', 'pt_PT-tugao-medium.onnx',
+        note: 'Sotaque de Portugal'),
   ];
 
   static OfflineVoice? byKey(String? key) {
@@ -100,8 +113,7 @@ class OfflineVoiceService {
     final root = await _root();
     final tar = File('${root.path}/${v.pkg}.tar.bz2');
     try {
-      final req = await http.Client().send(http.Request('GET', Uri.parse(v.url)));
-      if (req.statusCode != 200) throw 'HTTP ${req.statusCode}';
+      final req = await _open(v);
       final total = req.contentLength ?? 0;
       var got = 0;
       final sink = tar.openWrite();
@@ -124,6 +136,23 @@ class OfflineVoiceService {
       if (await tar.exists()) await tar.delete();
       downloading.value = {...downloading.value}..remove(v.id);
     }
+  }
+
+  /// Abre o download na primeira fonte que responder (VPS, depois GitHub).
+  Future<http.StreamedResponse> _open(OfflineVoice v) async {
+    Object? last;
+    for (final u in v.urls) {
+      try {
+        final r = await http.Client()
+            .send(http.Request('GET', Uri.parse(u)))
+            .timeout(const Duration(seconds: 20));
+        if (r.statusCode == 200) return r;
+        last = 'HTTP ${r.statusCode} em $u';
+      } catch (e) {
+        last = e;
+      }
+    }
+    throw last ?? 'sem fonte';
   }
 
   /// Apaga a voz do celular (libera espaço).
