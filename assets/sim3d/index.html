@@ -1650,7 +1650,13 @@ function drawMini(now) {
   // rota: de 300 m atrás até 1,5 km à frente
   const ahead = [];
   for (let q = Math.max(0, s - 300); q <= Math.min(TOTAL, s + 1500); q += 8) { const c = centerAt(q); ahead.push([c.x, c.y]); }
-  line(ahead, 2.5, '#1e88e5'); // fino (pedido de 06/11)
+  // 28/11: rota em VERDE NEON (o azul se confundia com o cinza das ruas).
+  // Contorno escuro por baixo para destacar também no fundo claro, e um
+  // brilho leve no escuro. Linha fina como pedido em 06/11.
+  line(ahead, 5, dark ? 'rgba(0,40,0,0.9)' : '#0b5d00');
+  if (dark) { mg.shadowColor = '#39ff14'; mg.shadowBlur = 6; }
+  line(ahead, 2.8, '#39ff14');
+  mg.shadowBlur = 0; mg.shadowColor = 'transparent';
   mg.restore();
   // piloto: seta pequena no centro
   mg.save(); mg.translate(r, r);
