@@ -84,4 +84,5 @@ const en6 = <String, String>{
   'Ajustes > Acessibilidade > Conteúdo Falado > Vozes > Português (Brasil): baixe a Luciana ou o Felipe "Melhorada" ou "Premium". Depois volte aqui.': 'Settings > Accessibility > Spoken Content > Voices > Portuguese (Brazil): download Luciana or Felipe "Enhanced" or "Premium". Then come back here.',
   'Permita o Microfone e o Reconhecimento de Fala para o UauGo em Ajustes do iPhone.': 'Allow Microphone and Speech Recognition for UauGo in iPhone Settings.',
   'Permita o microfone para o UauGo nas configurações do celular.': 'Allow the microphone for UauGo in the phone settings.',
+  'Ouve pelo comunicador Bluetooth: alerta falado, pesquisa por voz e comandos "UauGo". O app espera o comunicador conectar antes de ouvir. Enquanto ouve, a música no comunicador fica com qualidade de ligação. Sem comunicador conectado, usa o microfone do celular.': 'Listens through the Bluetooth intercom: spoken alerts, voice search and "UauGo" commands. The app waits for the intercom to connect before listening. While listening, music on the intercom has call quality. With no intercom connected, the phone microphone is used.',
 };

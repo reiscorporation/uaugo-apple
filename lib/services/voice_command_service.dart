@@ -178,6 +178,20 @@ class VoiceCommandService {
   /// O que a faixa do mapa diz enquanto ouve a frase livre.
   final destPrompt = ValueNotifier<String>(tr('Ouvindo destino… fale agora'));
 
+  /// Pede o microfone antes de ouvir (28/11: a pesquisa por voz e o alerta
+  /// falado ouviam sem pedir; só os comandos "UauGo" pediam, e quem nunca os
+  /// ligou não era ouvido). false = negado ([lastDenied]).
+  Future<bool> _askMic() async {
+    lastDenied = false;
+    try {
+      final ok = await _method.invokeMethod<bool>('requestMic') ?? false;
+      lastDenied = !ok;
+      return ok;
+    } catch (_) {
+      return true; // sem o método: tenta ouvir mesmo assim
+    }
+  }
+
   /// A última escuta falhou por falta de permissão (iPhone: microfone ou
   /// Reconhecimento de Fala negados em Ajustes).
   bool lastDenied = false;
@@ -191,6 +205,7 @@ class VoiceCommandService {
   /// bipe, dentro do app. O Vosk solta o microfone durante a escuta e volta
   /// depois. Devolve o texto falado, ou null se nada foi entendido.
   Future<String?> listenFree(String prompt) async {
+    if (!await _askMic()) return null;
     destPrompt.value = prompt;
     final wasListening = _listening;
     await stop();
@@ -238,6 +253,7 @@ class VoiceCommandService {
   /// solta o microfone durante a escuta e volta depois. Devolve o texto
   /// falado, ou null se nada foi entendido.
   Future<String?> recognizeDestination() async {
+    if (!await _askMic()) return null;
     destPrompt.value = tr('Ouvindo destino… fale agora');
     final wasListening = _listening;
     await stop();

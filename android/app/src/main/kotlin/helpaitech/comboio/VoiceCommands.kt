@@ -161,7 +161,12 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
         }
         val rec = Recognizer(model, SAMPLE_RATE, grammar)
         rec.setWords(true)
-        if (helmet) main.post { helmetMic(true) }
+        if (helmet) {
+            // Espera o comunicador virar a entrada antes de abrir o microfone.
+            val ready = java.util.concurrent.CountDownLatch(1)
+            main.post { withHelmet(true) { ready.countDown() } }
+            ready.await(4, java.util.concurrent.TimeUnit.SECONDS)
+        }
         service = SpeechService(rec, SAMPLE_RATE).also { it.startListening(this) }
     }
 
@@ -178,20 +183,74 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
      * faz nada (fica o microfone do celular). A música do comunicador fica
      * com qualidade de ligação enquanto está ligado (escolha do piloto).
      */
-    private fun helmetMic(on: Boolean) {
+    /** Desligar o comunicador fica para daqui a pouco: entre os comandos
+     *  "UauGo" e a frase do alerta/destino o microfone não cai e volta
+     *  (o Bluetooth leva ~1 s para reconectar e a fala se perdia). */
+    private val helmetOff = Runnable { helmetMicNow(false) }
+
+    private fun helmetMic(on: Boolean): Boolean {
+        main.removeCallbacks(helmetOff)
+        if (!on) {
+            if (helmetOn) main.postDelayed(helmetOff, 2000)
+            return false
+        }
+        return helmetMicNow(true)
+    }
+
+    /** O microfone do comunicador já é a entrada (Bluetooth conectado). */
+    private fun helmetActive(): Boolean {
+        val am = activity.getSystemService(android.content.Context.AUDIO_SERVICE)
+            as android.media.AudioManager
+        return try {
+            if (Build.VERSION.SDK_INT >= 31) {
+                val t = am.communicationDevice?.type
+                t == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    t == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET
+            } else {
+                @Suppress("DEPRECATION")
+                am.isBluetoothScoOn
+            }
+        } catch (_: Exception) { false }
+    }
+
+    /**
+     * Liga o comunicador e só depois chama [then] (começar a ouvir): antes a
+     * escuta começava na hora, ainda no microfone do celular (no bolso), e
+     * o piloto falava no capacete sem ser ouvido. Espera até 3 s.
+     */
+    private fun withHelmet(on: Boolean, then: () -> Unit) {
+        if (!on || !helmetMic(true)) { then(); return }
+        val t0 = android.os.SystemClock.uptimeMillis()
+        val check = object : Runnable {
+            override fun run() {
+                val waited = android.os.SystemClock.uptimeMillis() - t0
+                if (helmetActive() || waited > 3000) {
+                    android.util.Log.i("UauGoVoz", "comunicador pronto=${helmetActive()} em $waited ms")
+                    // Um respiro para o áudio do Bluetooth estabilizar.
+                    main.postDelayed({ then() }, if (waited > 3000) 0L else 300L)
+                } else {
+                    main.postDelayed(this, 100)
+                }
+            }
+        }
+        main.post(check)
+    }
+
+    private fun helmetMicNow(on: Boolean): Boolean {
         val am = activity.getSystemService(android.content.Context.AUDIO_SERVICE)
             as android.media.AudioManager
         try {
             if (on) {
+                if (helmetOn && helmetActive()) return true
                 if (Build.VERSION.SDK_INT >= 31) {
                     val dev = am.availableCommunicationDevices.firstOrNull {
                         it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
                             it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET
-                    } ?: return
+                    } ?: return false
                     am.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
                     helmetOn = am.setCommunicationDevice(dev)
                 } else {
-                    if (!am.isBluetoothScoAvailableOffCall) return
+                    if (!am.isBluetoothScoAvailableOffCall) return false
                     am.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
                     @Suppress("DEPRECATION")
                     am.startBluetoothSco()
@@ -200,6 +259,7 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
                     helmetOn = true
                 }
                 android.util.Log.i("UauGoVoz", "microfone do comunicador: $helmetOn")
+                return helmetOn
             } else if (helmetOn) {
                 if (Build.VERSION.SDK_INT >= 31) {
                     am.clearCommunicationDevice()
@@ -215,6 +275,7 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
         } catch (e: Exception) {
             android.util.Log.w("UauGoVoz", "comunicador: ${e.message}")
         }
+        return false
     }
 
     fun shutdown() {
@@ -251,10 +312,14 @@ class VoiceCommands(private val activity: Activity, messenger: BinaryMessenger) 
         // também é ouvida pelo microfone dele, sem apertar nada. Vai na fila
         // da thread principal, depois do "desligar" do Vosk.
         destHelmet = helmet
-        if (helmet) main.post { helmetMic(true) }
         val onDevice = Build.VERSION.SDK_INT >= 31 &&
             SpeechRecognizer.isOnDeviceRecognitionAvailable(activity)
-        startDestination(language, onDevice)
+        main.post {
+            withHelmet(helmet) {
+                // Cancelado enquanto esperava o comunicador.
+                if (destResult === result) startDestination(language, onDevice)
+            }
+        }
     }
 
     private fun startDestination(language: String, onDevice: Boolean) {

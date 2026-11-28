@@ -1137,13 +1137,15 @@ class _VoiceCommandsTileState extends State<_VoiceCommandsTile> {
               style: theme.textTheme.bodySmall,
             ),
           ),
-        if (on)
+        // 28/11: fica visível mesmo sem os comandos "UauGo": vale também
+        // para o alerta falado e a pesquisa por voz.
+        if (VoiceCommandService.canListen)
           ValueListenableBuilder<bool>(
             valueListenable: _svc.helmetMic,
             builder: (_, helmet, __) => SwitchListTile(
               secondary: const Icon(Icons.headset_mic),
               title: Text(tr('Microfone do comunicador do capacete')),
-              subtitle: Text(tr('Ouve pelo comunicador Bluetooth, com o microfone sempre aberto. Enquanto ligado, a música no comunicador fica com qualidade de ligação. Sem comunicador conectado, usa o microfone do celular.')),
+              subtitle: Text(tr('Ouve pelo comunicador Bluetooth: alerta falado, pesquisa por voz e comandos "UauGo". O app espera o comunicador conectar antes de ouvir. Enquanto ouve, a música no comunicador fica com qualidade de ligação. Sem comunicador conectado, usa o microfone do celular.')),
               value: helmet,
               onChanged: _svc.setHelmetMic,
             ),
