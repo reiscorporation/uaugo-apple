@@ -96,7 +96,9 @@ class _PlaceSearchPageState extends State<PlaceSearchPage> {
     final t = said?.trim() ?? '';
     if (t.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(tr('Não ouvi. Toque no microfone para falar de novo ou digite.'))));
+          content: Text(_voice.lastDenied
+              ? VoiceCommandService.deniedMessage
+              : tr('Não ouvi. Toque no microfone para falar de novo ou digite.'))));
       return;
     }
     _ctrl.text = t;

@@ -178,6 +178,15 @@ class VoiceCommandService {
   /// O que a faixa do mapa diz enquanto ouve a frase livre.
   final destPrompt = ValueNotifier<String>(tr('Ouvindo destino… fale agora'));
 
+  /// A última escuta falhou por falta de permissão (iPhone: microfone ou
+  /// Reconhecimento de Fala negados em Ajustes).
+  bool lastDenied = false;
+
+  /// Mensagem para quando [lastDenied].
+  static String get deniedMessage => Platform.isIOS
+      ? tr('Permita o Microfone e o Reconhecimento de Fala para o UauGo em Ajustes do iPhone.')
+      : tr('Permita o microfone para o UauGo nas configurações do celular.');
+
   /// Ouve uma frase livre (destino ou "o que você procura?") logo após um
   /// bipe, dentro do app. O Vosk solta o microfone durante a escuta e volta
   /// depois. Devolve o texto falado, ou null se nada foi entendido.
@@ -190,11 +199,16 @@ class VoiceCommandService {
     });
     destHeard.value = '';
     destListening.value = true;
+    lastDenied = false;
     try {
       return await _method.invokeMethod<String>('listenDestination', {
         'language': I18n.ttsLang,
         'helmet': helmetMic.value,
       });
+    } on PlatformException catch (e) {
+      debugPrint('Frase livre por voz: $e');
+      lastDenied = e.code == 'no-permission';
+      return null;
     } catch (e) {
       debugPrint('Frase livre por voz: $e');
       return null;
@@ -235,12 +249,17 @@ class VoiceCommandService {
     });
     destHeard.value = '';
     destListening.value = true;
+    lastDenied = false;
     try {
       final text = await _method.invokeMethod<String>('listenDestination', {
         'language': I18n.ttsLang,
         'helmet': helmetMic.value,
       });
       return text == null ? null : cleanDestination(text);
+    } on PlatformException catch (e) {
+      debugPrint('Pesquisa por voz: $e');
+      lastDenied = e.code == 'no-permission';
+      return null;
     } catch (e) {
       debugPrint('Pesquisa por voz: $e');
       return null;

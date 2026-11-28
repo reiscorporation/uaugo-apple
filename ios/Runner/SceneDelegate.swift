@@ -655,8 +655,19 @@ final class VoiceBridgeIOS {
         && SFSpeechRecognizer.authorizationStatus() == .authorized)
     case "listenDestination":
       let a = call.arguments as? [String: Any]
-      listen(lang: a?["language"] as? String ?? "pt-BR",
-             helmet: a?["helmet"] as? Bool ?? false, result: result)
+      // 28/11: a pesquisa por voz ouvia sem pedir a permissão (só os
+      // comandos de voz pediam): sem permissão a Apple não entrega nada.
+      ensurePermissions { [weak self] ok in
+        guard let self = self else { return }
+        guard ok else {
+          result(FlutterError(code: "no-permission",
+                              message: "microfone ou reconhecimento de fala negado",
+                              details: nil))
+          return
+        }
+        self.listen(lang: a?["language"] as? String ?? "pt-BR",
+                    helmet: a?["helmet"] as? Bool ?? false, result: result)
+      }
     case "cancelDestination":
       finish(nil)
       result(nil)
@@ -857,6 +868,16 @@ final class VoiceBridgeIOS {
 
   /// Pede o microfone e o reconhecimento de fala (o iPhone pergunta 1 vez;
   /// depois o UauGo aparece em Ajustes > Privacidade > Microfone).
+  /// Já tem as duas permissões: segue. Alguma negada: false (só muda em
+  /// Ajustes). Ainda não perguntado: pergunta agora.
+  private func ensurePermissions(_ done: @escaping (Bool) -> Void) {
+    let mic = AVAudioSession.sharedInstance().recordPermission
+    let sp = SFSpeechRecognizer.authorizationStatus()
+    if mic == .granted && sp == .authorized { done(true); return }
+    if mic == .denied || sp == .denied || sp == .restricted { done(false); return }
+    requestPermissions(done)
+  }
+
   private func requestPermissions(_ done: @escaping (Bool) -> Void) {
     AVAudioSession.sharedInstance().requestRecordPermission { ok in
       guard ok else {

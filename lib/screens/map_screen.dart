@@ -7318,6 +7318,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final text = (await _voiceCmd.recognizeDestination())?.trim();
     if (!mounted) return;
     if (text == null || text.isEmpty) {
+      if (_voiceCmd.lastDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(VoiceCommandService.deniedMessage)));
+        CarService.instance.toast(VoiceCommandService.deniedMessage);
+        return;
+      }
       _voice.reply(tr('Não entendi o destino.'));
       return;
     }

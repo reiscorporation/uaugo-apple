@@ -82,4 +82,6 @@ const es6 = <String, String>{
   'melhorada': 'mejorada',
   'Baixar vozes melhores no iPhone': 'Descargar voces mejores en el iPhone',
   'Ajustes > Acessibilidade > Conteúdo Falado > Vozes > Português (Brasil): baixe a Luciana ou o Felipe "Melhorada" ou "Premium". Depois volte aqui.': 'Ajustes > Accesibilidad > Contenido leído > Voces > Portugués (Brasil): descarga Luciana o Felipe "Mejorada" o "Premium". Después vuelve aquí.',
+  'Permita o Microfone e o Reconhecimento de Fala para o UauGo em Ajustes do iPhone.': 'Permite el Micrófono y el Reconocimiento de voz para UauGo en Ajustes del iPhone.',
+  'Permita o microfone para o UauGo nas configurações do celular.': 'Permite el micrófono para UauGo en la configuración del celular.',
 };
